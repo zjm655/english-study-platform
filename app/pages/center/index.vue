@@ -1,5 +1,6 @@
 <template>
   <div class="profile-page">
+     <ClientOnly>
     <!-- 未登录状态 -->
     <div v-if="!isLogin" class="not-login">
       <el-icon :size="64" class="not-login__icon"><UserFilled /></el-icon>
@@ -76,6 +77,7 @@
         <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
       </div>
     </template>
+    </ClientOnly>
   </div>
 </template>
 
