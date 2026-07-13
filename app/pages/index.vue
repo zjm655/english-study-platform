@@ -2,6 +2,11 @@
     useSeoMeta({
         title:"首页"
     })
+    definePageMeta({
+        title: '首页',
+        hideHeader: false,
+        hideTabBar: false,
+    })
     onMounted(() => {
 
     })

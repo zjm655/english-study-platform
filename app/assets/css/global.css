@@ -1,0 +1,58 @@
+/* ===== 设计令牌（Design Tokens） ===== */
+:root {
+  /* 主题色 */
+  --primary: #409eff;
+  --primary-light: #ecf5ff;
+  --primary-dark: #337ecc;
+
+  /* 功能色 */
+  --success: #67c23a;
+  --success-light: #f0f9eb;
+  --warning: #e6a23c;
+  --warning-light: #fdf6ec;
+  --danger: #f56c6c;
+  --danger-light: #fef0f0;
+  --info: #909399;
+
+  /* 背景 & 卡片 */
+  --bg: #f5f7fa;
+  --card: #fff;
+
+  /* 文字 */
+  --text-1: #303133;
+  --text-2: #606266;
+  --text-3: #909399;
+  --text-4: #c0c4cc;
+
+  /* 边框 */
+  --border: #dcdfe6;
+  --border-l: #e4e7ed;
+  --border-ll: #ebeef5;
+
+  /* 圆角 */
+  --r: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  /* 阴影 */
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* ===== 全局重置 ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: var(--bg);
+  color: var(--text-1);
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
