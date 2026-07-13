@@ -1,0 +1,23 @@
+// https://nuxt.com/docs/api/configuration/nuxt-config
+export default defineNuxtConfig({
+  compatibilityDate: '2025-07-15',
+  devtools: { enabled: true },
+  runtimeConfig: {
+    public:{
+      isOpenLog:true
+    },
+    jwtSecret: 'defalut key to AIUWFHWGVFKIUWQUIOCHSZJBCWUID',
+    isOpenLog:true,
+    db: {
+      host: '127.0.0.1',
+      port: '3306',
+      user: 'root',
+      password: '123456',
+      database: 'nuxt4_demo',
+    }
+  },
+  modules: ['@element-plus/nuxt', '@pinia/nuxt'],
+  elementPlus: {
+    // 默认就是按需导入，不用额外配置
+  },
+})
