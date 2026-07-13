@@ -6,7 +6,8 @@
       <div class="header__inner">
         <!-- 左侧：Logo（点击回首页） -->
         <NuxtLink to="/" class="header__brand">
-          <div class="header__logo">S</div>
+          <div v-if="isHome" class="header__logo">S</div>
+          <div v-else class="header__back" @click="goBack"><el-icon><Back /></el-icon></div>
           <div class="header__text">
             <span class="header__name">Shadow</span>
             <span class="header__sub">英语伴学平台</span>
@@ -14,12 +15,11 @@
         </NuxtLink>
         <!-- 中间：当前页面标题（从 definePageMeta({ title }) 读取） -->
         <h1 v-if="pageTitle" class="header__title">{{ pageTitle }}</h1>
-        <!-- 右侧：通知 -->
+        <!-- 右侧：返回首页 -->
         <div class="header__actions">
-          <div class="header__icon-btn">
-            <Bell />
-            <span class="header__dot"></span>
-          </div>
+          <NuxtLink to="/" class="header__icon-btn">
+            <el-icon :size="26"><HomeFilled /></el-icon>
+          </NuxtLink>
         </div>
       </div>
     </header>
@@ -54,25 +54,30 @@ import {
   ChatDotSquare,
   RefreshRight,
   UserFilled,
-  Bell,
+  Back
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const pageTitle = computed(() => (route.meta?.title as string) || '')
 const hideHeader = computed(() => !!route.meta?.hideHeader)
 const hideTabBar = computed(() => !!route.meta?.hideTabBar)
+const isHome = computed(() => !!route.meta?.isHome)
 
 const tabs = [
   { path: '/', label: '首页', icon: HomeFilled },
   { path: '/', label: '学习', icon: List },
   { path: '/', label: '共同体', icon: ChatDotSquare },
   { path: '/', label: '复习', icon: RefreshRight },
-  { path: '/', label: '我的', icon: UserFilled },
+  { path: '/center', label: '我的', icon: UserFilled },
 ]
 
 function isActive(path: string) {
   if (path === '/') return route.path === '/'
   return route.path.startsWith(path)
+}
+const router = useRouter()
+function goBack() {
+  router.back()
 }
 </script>
 

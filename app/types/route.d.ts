@@ -7,6 +7,7 @@ declare module 'vue-router' {
     hideTabBar?: boolean
     /** 隐藏顶部 Header（如全屏页面） */
     hideHeader?: boolean
+    isHome?:boolean
   }
 }
 

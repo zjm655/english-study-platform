@@ -6,6 +6,7 @@
         title: '首页',
         hideHeader: false,
         hideTabBar: false,
+        isHome:true
     })
     onMounted(() => {
 
