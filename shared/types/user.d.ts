@@ -9,6 +9,10 @@ export interface LoginResPayload {
     role?: number
     account: string
     email?: string
+    avatarUrl?: string
+    level?: number
+    streakDays?: number
+    totalStudyMinutes?: number
 }
 
 export interface RegisterPayload {

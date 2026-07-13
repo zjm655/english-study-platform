@@ -1,99 +1,109 @@
 <template>
   <div class="profile-page">
-    <!-- 用户信息卡片 -->
-    <div class="user-card">
-      <div class="user-info">
-        <div class="avatar">
-          <el-avatar :size="64" :src="user.avatarUrl">
-            <el-icon :size="32"><UserFilled /></el-icon>
-          </el-avatar>
+    <!-- 未登录状态 -->
+    <div v-if="!isLogin" class="not-login">
+      <el-icon :size="64" class="not-login__icon"><UserFilled /></el-icon>
+      <p class="not-login__text">登录后查看更多功能</p>
+      <NuxtLink to="/login">
+        <el-button type="primary">去登录</el-button>
+      </NuxtLink>
+    </div>
+
+    <!-- 已登录状态 -->
+    <template v-else>
+      <!-- 用户信息卡片 -->
+      <div class="user-card">
+        <div class="user-info">
+          <div class="avatar">
+            <el-avatar :size="64" :src="user?.avatarUrl">
+              <el-icon :size="32"><UserFilled /></el-icon>
+            </el-avatar>
+          </div>
+          <div class="user-details">
+            <div class="nickname">{{ user?.nickname || '未设置昵称' }}</div>
+            <div class="level-badge">
+              <el-tag :type="levelType" size="small">{{ levelText }}</el-tag>
+            </div>
+          </div>
         </div>
-        <div class="user-details">
-          <div class="nickname">{{ user.nickname || '未设置昵称' }}</div>
-          <div class="level-badge">
-            <el-tag :type="levelType" size="small">{{ levelText }}</el-tag>
+        <div class="user-stats">
+          <div class="stat-item">
+            <div class="stat-value">{{ user?.streakDays || 0 }}</div>
+            <div class="stat-label">连续学习</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">{{ formatStudyTime(user?.totalStudyMinutes || 0) }}</div>
+            <div class="stat-label">累计学习</div>
           </div>
         </div>
       </div>
-      <div class="user-stats">
-        <div class="stat-item">
-          <div class="stat-value">{{ user.streakDays || 0 }}</div>
-          <div class="stat-label">连续学习</div>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <div class="stat-value">{{ formatStudyTime(user.totalStudyMinutes || 0) }}</div>
-          <div class="stat-label">累计学习</div>
+
+      <!-- 设置菜单 -->
+      <div class="settings-section">
+        <div class="section-title">设置</div>
+        <div class="menu-list">
+          <div class="menu-item" @click="handleEditProfile">
+            <el-icon><Edit /></el-icon>
+            <span>编辑资料</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
+          <div class="menu-item" @click="handleLearningGoal">
+            <el-icon><TrophyBase /></el-icon>
+            <span>学习目标</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
+          <div class="menu-item" @click="handleNotification">
+            <el-icon><Bell /></el-icon>
+            <span>提醒设置</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
+          <div class="menu-item" @click="handleDarkMode">
+            <el-icon><Moon /></el-icon>
+            <span>深色模式</span>
+            <el-switch v-model="isDarkMode" class="switch" />
+          </div>
+          <div class="menu-item" @click="handleAbout">
+            <el-icon><InfoFilled /></el-icon>
+            <span>关于我们</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- 设置菜单 -->
-    <div class="settings-section">
-      <div class="section-title">设置</div>
-      <div class="menu-list">
-        <div class="menu-item" @click="handleEditProfile">
-          <el-icon><Edit /></el-icon>
-          <span>编辑资料</span>
-          <el-icon class="arrow"><ArrowRight /></el-icon>
-        </div>
-        <div class="menu-item" @click="handleLearningGoal">
-          <el-icon><TrophyBase /></el-icon>
-          <span>学习目标</span>
-          <el-icon class="arrow"><ArrowRight /></el-icon>
-        </div>
-        <div class="menu-item" @click="handleNotification">
-          <el-icon><Bell /></el-icon>
-          <span>提醒设置</span>
-          <el-icon class="arrow"><ArrowRight /></el-icon>
-        </div>
-        <div class="menu-item" @click="handleDarkMode">
-          <el-icon><Moon /></el-icon>
-          <span>深色模式</span>
-          <el-switch v-model="isDarkMode" class="switch" />
-        </div>
-        <div class="menu-item" @click="handleAbout">
-          <el-icon><InfoFilled /></el-icon>
-          <span>关于我们</span>
-          <el-icon class="arrow"><ArrowRight /></el-icon>
-        </div>
+      <!-- 退出登录按钮 -->
+      <div class="logout-section">
+        <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
       </div>
-    </div>
-
-    <!-- 退出登录按钮 -->
-    <div class="logout-section">
-      <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { UserFilled, Edit, TrophyBase, Bell, Moon, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
-
+import { useUserStore } from '~/store/useUserStore'
 definePageMeta({
-  title: '我的'
+  title: '个人中心'
 })
 
-// 模拟用户数据，后续从 store 获取
-const user = ref({
-  nickname: '学习者',
-  avatarUrl: '',
-  level: 2,
-  streakDays: 7,
-  totalStudyMinutes: 120
+useSeoMeta({
+    title:"个人中心"
 })
+const userStore = useUserStore()
+const user = computed(() => userStore.user)
+const isLogin = computed(() => userStore.isLogin)
 
 const isDarkMode = ref(false)
 
 // 等级映射
 const levelText = computed(() => {
   const levels = ['未测试', '初级', '中级', '高级']
-  return levels[user.value.level] || '未测试'
+  return levels[user.value?.level ?? 0] || '未测试'
 })
 
 const levelType = computed(() => {
   const types = ['info', 'success', 'warning', 'danger'] as const
-  return types[user.value.level] || 'info'
+  return types[user.value?.level ?? 0] || 'info'
 })
 
 // 格式化学习时长
@@ -134,6 +144,27 @@ const handleLogout = () => {
 .profile-page {
   padding: 16px;
   min-height: 100%;
+}
+
+/* 未登录状态 */
+.not-login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.not-login__icon {
+  color: var(--text-3);
+  margin-bottom: 16px;
+}
+
+.not-login__text {
+  font-size: 15px;
+  color: var(--text-2);
+  margin-bottom: 24px;
 }
 
 /* 用户信息卡片 */

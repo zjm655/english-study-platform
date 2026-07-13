@@ -98,6 +98,18 @@ import { reactive, ref } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useToLogin, useToRegister } from '~/composables/user'
 
+useSeoMeta({
+    title:"登录"
+})
+
+definePageMeta({
+  title: '登录',
+  hideTabBar:true
+})
+
+
+
+
 
 const activeName = ref('login')
 
