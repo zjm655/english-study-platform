@@ -11,12 +11,12 @@ function getSecret() {
  * @param payload - 写入 token 的数据（用户 id、角色等），不要放敏感信息
  * @returns 签名后的 token 字符串
  */
-export async function signToken(payload:JwtPayload) {
+export async function signToken(payload:JwtPayload, expiresIn = '7d') {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })   // 签名算法：HMAC + SHA-256
     .setSubject(String(payload.id))
     .setIssuedAt()                          // iat: 签发时间
-    .setExpirationTime('7d')                // exp: 7 天后过期
+    .setExpirationTime(expiresIn)           // exp: 过期时间
     .setIssuer("Nuxt4Demo")              
     .sign(getSecret())
 }
