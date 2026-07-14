@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
-import { useCheckinStats, useToVerify } from '~/composables/user'
+import { useCheckinStats, useCheckin, useToVerify } from '~/composables/user'
 import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
@@ -24,7 +24,18 @@ const greeting = computed(() => {
 
 // 打卡统计
 const { isLoading: statsLoading, execute: fetchCheckinStats } = useCheckinStats()
+const { isLoading: checkinLoading, execute: doCheckin } = useCheckin()
 const checkinStats = ref<CheckinStats | null>(null)
+
+// 判断今日是否已签到
+const isCheckedIn = computed(() => {
+  if (!checkinStats.value?.lastCheckinTime) return false
+  const lastDate = new Date(checkinStats.value.lastCheckinTime)
+  const now = new Date()
+  return lastDate.getFullYear() === now.getFullYear() &&
+    lastDate.getMonth() === now.getMonth() &&
+    lastDate.getDate() === now.getDate()
+})
 
 // 验证登录状态
 const { isLoading: verifyLoading, userToVerify } = useToVerify()
@@ -42,6 +53,14 @@ const formatStudyTime = (minutes: number) => {
 
 async function initStats() {
   const res = await fetchCheckinStats()
+  if (res?.code === 200) {
+    checkinStats.value = res.data
+  }
+}
+
+async function handleCheckin() {
+  if (isCheckedIn.value) return
+  const res = await doCheckin()
   if (res?.code === 200) {
     checkinStats.value = res.data
   }
@@ -81,11 +100,22 @@ onMounted(() => {
       </div>
 
       <!-- 签到卡片 -->
-      <div class="checkin-card">
+      <div class="checkin-card" :class="{ 'checked-in': isCheckedIn }" @click="handleCheckin">
         <div class="checkin-icon">
           <el-icon :size="32"><Sunny /></el-icon>
         </div>
-        <div class="checkin-text">今日已签到</div>
+        <div class="checkin-text">
+          <template v-if="checkinLoading">签到中...</template>
+          <template v-else-if="isCheckedIn">今日已签到</template>
+          <template v-else>点击签到</template>
+        </div>
+      </div>
+
+      <!-- 开始学习按钮 -->
+      <div class="learn-section">
+        <NuxtLink to="/learn" class="learn-btn">
+          开始学习
+        </NuxtLink>
       </div>
 
       <!-- 统计卡片 -->
@@ -119,6 +149,7 @@ onMounted(() => {
   justify-content: space-between;
   margin-bottom: 0;
   position: absolute;
+  width: 90%;
 }
 
 .greeting-text {
@@ -155,6 +186,21 @@ onMounted(() => {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.checkin-card:active {
+  transform: scale(0.96);
+}
+
+.checkin-card.checked-in {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.checkin-card.checked-in:active {
+  transform: none;
 }
 
 .checkin-icon {
@@ -166,6 +212,31 @@ onMounted(() => {
   font-size: 16px;
   font-weight: 600;
   color: #fff;
+}
+
+/* 开始学习按钮 */
+.learn-section {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.learn-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 40px;
+  background: var(--primary);
+  border-radius: var(--r-m);
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.learn-btn:active {
+  opacity: 0.85;
 }
 
 /* 统计卡片区域 */
