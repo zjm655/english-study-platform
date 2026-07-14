@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify} from 'jose'
-import { JwtPayload } from '#server/types/jwtPayload'
+import type { JwtPayload } from '#server/types/jwtPayload'
 
 // 获取运行时环境里面的jwt密钥，并转换为字符串数组的形式(因为jose生成token要求array string)
 function getSecret() {

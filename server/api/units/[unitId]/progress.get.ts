@@ -1,4 +1,4 @@
-import pool from '#server/utils/db'
+import { query } from '#server/utils/db'
 import type { UnitRow, SegmentRow, UserProgressRow } from '#server/types/db'
 
 /**
@@ -13,37 +13,31 @@ export default defineEventHandler(async (event) => {
     return validateError('缺少单元ID', 400)
   }
 
-  // 获取单元信息
-  const [units] = await pool.execute(
-    'SELECT * FROM unit WHERE id = ?',
-    [unitId]
-  )
-  const unit = (units as UnitRow[])[0]
+  const units = await query<UnitRow>('SELECT * FROM unit WHERE id = ?', [unitId])
+  const unit = units[0]
   
   if (!unit) {
     return validateError('单元不存在', 404)
   }
 
-  // 获取该单元的所有片段
-  const [segments] = await pool.execute(
+  const segments = await query<SegmentRow>(
     'SELECT * FROM segment WHERE unit_id = ? ORDER BY sort_order',
     [unitId]
   )
 
-  // 获取每个片段的进度
   const segmentsWithProgress = await Promise.all(
-    (segments as SegmentRow[]).map(async (segment) => {
+    segments.map(async (segment) => {
       let progress: UserProgressRow | null = null
       
       if (userId) {
-        const [progressRows] = await pool.execute(
+        const rows = await query<UserProgressRow>(
           `SELECT phase1_done, phase2_done, phase3_done, phase3_score, 
                   phase4_done, phase4_score, updatedAt
            FROM user_progress 
            WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL`,
           [userId, segment.id]
         )
-        progress = (progressRows as UserProgressRow[])[0] || null
+        progress = rows[0] || null
       }
 
       return {

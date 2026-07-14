@@ -1,4 +1,4 @@
-import pool from '#server/utils/db'
+import { query } from '#server/utils/db'
 import type { UnitRow, CountRow } from '#server/types/db'
 
 /**
@@ -8,36 +8,34 @@ import type { UnitRow, CountRow } from '#server/types/db'
  */
 export default defineEventHandler(async (event) => {
   const userId = event.context.user?.id
-  const query = getQuery(event)
-  const level = query.level ? Number(query.level) : null
+  const levelQuery = getQuery(event).level
+  const level = levelQuery ? Number(levelQuery) : null
 
   // 构建查询条件
-  let unitQuery = 'SELECT * FROM unit'
+  let unitSql = 'SELECT * FROM unit'
   const params: number[] = []
   
   if (level) {
-    unitQuery += ' WHERE level = ?'
+    unitSql += ' WHERE level = ?'
     params.push(level)
   }
   
-  unitQuery += ' ORDER BY level, sort_order'
+  unitSql += ' ORDER BY level, sort_order'
 
-  const [units] = await pool.execute(unitQuery, params)
+  const units = await query<UnitRow>(unitSql, params)
 
   // 获取每个单元的进度摘要
   const unitsWithProgress = await Promise.all(
-    (units as UnitRow[]).map(async (unit) => {
-      // 获取该单元的片段总数
-      const [segments] = await pool.execute(
+    units.map(async (unit) => {
+      const countRows = await query<CountRow>(
         'SELECT COUNT(*) as total FROM segment WHERE unit_id = ?',
         [unit.id]
       )
-      const totalSegments = (segments as CountRow[])[0].total
+      const totalSegments = countRows[0]?.total ?? 0
 
-      // 获取已完成的片段数（四阶段全部完成）
       let completedSegments = 0
       if (userId && totalSegments > 0) {
-        const [completed] = await pool.execute(
+        const completedRows = await query<CountRow>(
           `SELECT COUNT(DISTINCT segment_id) as completed 
            FROM user_progress 
            WHERE user_id = ? 
@@ -45,7 +43,7 @@ export default defineEventHandler(async (event) => {
            AND phase1_done = 1 AND phase2_done = 1 AND phase3_done = 1 AND phase4_done = 1`,
           [userId, unit.id]
         )
-        completedSegments = (completed as CountRow[])[0].completed
+        completedSegments = completedRows[0]?.completed ?? 0
       }
 
       return {

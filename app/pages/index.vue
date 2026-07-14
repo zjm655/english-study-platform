@@ -67,6 +67,7 @@ const currentProgress = computed(() => {
   if (!currentDetail) {
     // 所有片段都已完成
     const lastDetail = userProgress.value.details[userProgress.value.details.length - 1]
+    if (!lastDetail) return null
     return {
       unitTitle: lastDetail.unitTitle,
       segmentTitle: lastDetail.segmentTitle,

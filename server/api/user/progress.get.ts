@@ -1,4 +1,4 @@
-import pool from '#server/utils/db'
+import { query } from '#server/utils/db'
 import type { ProgressDetailRow, CountRow } from '#server/types/db'
 
 /**
@@ -12,8 +12,7 @@ export default defineEventHandler(async (event) => {
     return validateError('未登录', 401)
   }
 
-  // 获取用户的所有进度记录
-  const [progressRows] = await pool.execute(
+  const rows = await query<ProgressDetailRow>(
     `SELECT up.*, s.title as segmentTitle, s.unit_id, u.title as unitTitle
      FROM user_progress up
      JOIN segment s ON up.segment_id = s.id
@@ -22,8 +21,6 @@ export default defineEventHandler(async (event) => {
      ORDER BY u.level, u.sort_order, s.sort_order`,
     [userId]
   )
-
-  const rows = progressRows as ProgressDetailRow[]
 
   // 统计数据
   const totalSegments = rows.length
@@ -36,11 +33,8 @@ export default defineEventHandler(async (event) => {
     }
   }, { phase1: 0, phase2: 0, phase3: 0, phase4: 0 })
 
-  // 获取所有片段总数（用于计算整体进度百分比）
-  const [allSegments] = await pool.execute(
-    'SELECT COUNT(*) as total FROM segment'
-  )
-  const totalSegmentsAll = (allSegments as CountRow[])[0].total
+  const allSegmentsRows = await query<CountRow>('SELECT COUNT(*) as total FROM segment')
+  const totalSegmentsAll = allSegmentsRows[0]?.total ?? 0
 
   // 完全完成的片段数（四阶段都完成）
   const completedSegments = rows.filter(row => 

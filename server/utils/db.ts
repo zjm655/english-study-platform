@@ -13,6 +13,12 @@ export const pool = mysql.createPool({
   connectionLimit: 10,
 })
 
+/** 泛型查询封装，避免调用方使用类型断言 */
+export async function query<T>(sql: string, params?: any[]): Promise<T[]> {
+  const [rows] = await pool.execute(sql, params)
+  return rows as T[]
+}
+
 // 首次启动时自动建表（按外键依赖顺序）
 const initDB = async () => {
   // 用户表

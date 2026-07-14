@@ -43,6 +43,6 @@ export interface ProgressDetailRow extends UserProgressRow {
 }
 
 export interface CountRow {
-  total?: number
-  completed?: number
+  total: number
+  completed: number
 }
