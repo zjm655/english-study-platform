@@ -2,6 +2,8 @@
 import { Sunny, VideoPlay, Check } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
 import { useUnits, useUserProgress } from '~/composables/unit'
+import { useToVerify } from '~/composables/user'
+import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
 
 definePageMeta({
   title: '首页',
@@ -23,11 +25,20 @@ const greeting = computed(() => {
 
 // 获取单元列表
 const { isLoading: unitsLoading, execute: fetchUnits } = useUnits()
-const units = ref<any[]>([])
+const units = ref<UnitWithProgress[]>([])
 
 // 获取用户进度
 const { isLoading: progressLoading, execute: fetchUserProgress } = useUserProgress()
-const userProgress = ref<any>(null)
+const userProgress = ref<UserProgress | null>(null)
+
+// 验证登录状态
+const { isLoading: verifyLoading, userToVerify } = useToVerify()
+
+// 数据是否已加载完成（防止初始闪现"暂无单元数据"）
+const dataReady = ref(false)
+
+// 总loading状态：任一请求进行中则显示loading
+const isLoading = computed(() => verifyLoading.value || unitsLoading.value || progressLoading.value)
 
 // 当前学习进度（从API数据派生）
 const currentProgress = computed(() => {
@@ -50,7 +61,7 @@ const currentProgress = computed(() => {
 
   // 找到第一个未完成的片段
   const currentDetail = userProgress.value.details.find(
-    (d: any) => !(d.phase1_done && d.phase2_done && d.phase3_done && d.phase4_done)
+    (d) => !(d.phase1_done && d.phase2_done && d.phase3_done && d.phase4_done)
   )
 
   if (!currentDetail) {
@@ -98,40 +109,63 @@ const continueText = computed(() => {
   return current ? `继续${current.name}` : '已完成'
 })
 
-// 页面加载时获取数据
-onMounted(async () => {
-  const unitsRes = await fetchUnits()
+async function initProgress(){
+  const progressRes = await fetchUserProgress(null)
+  if (progressRes?.code === 200) {
+    userProgress.value = progressRes.data
+  }
+}
+
+async function initUnits(){
+  const unitsRes = await fetchUnits(undefined)
   if (unitsRes?.code === 200) {
     units.value = unitsRes.data || []
   }
+  if(!isLoading.value)
+    dataReady.value = true
+}
 
-  if (userStore.isLogin) {
-    const progressRes = await fetchUserProgress()
-    if (progressRes?.code === 200) {
-      userProgress.value = progressRes.data
-    }
+async function initUser() {
+  const verifyRes = await userToVerify()
+  if (verifyRes?.code === 200) {
+    await initProgress()
   }
+  if(!isLoading.value)
+    dataReady.value = true
+}
+
+// 页面加载时获取数据
+onMounted(() => {
+  initUser()
+  initUnits()
 })
 </script>
 
 <template>
   <div class="home-page">
-    <!-- 顶部问候 -->
-    <div class="greeting-section">
-      <div class="greeting-text">
-        <ClientOnly>
-          {{ greeting }}，{{ user?.nickname || '学习者' }}
-        </ClientOnly>
-      </div>
-      <div class="streak-badge" v-if="user?.streakDays">
-        <el-icon><Sunny /></el-icon>
-        <span>
-          <ClientOnly>
-            连续 {{ user.streakDays }} 天
-          </ClientOnly>
-        </span>
-      </div>
+    <!-- Loading状态：三点脉冲动画 -->
+    <div v-if="isLoading || !dataReady" class="loading-container">
+      <DotPulse />
     </div>
+
+    <!-- 主内容 -->
+    <template v-else>
+      <!-- 顶部问候 -->
+      <div class="greeting-section">
+        <div class="greeting-text">
+          <ClientOnly>
+            {{ greeting }}，{{ user?.nickname || '学习者' }}
+          </ClientOnly>
+        </div>
+        <div class="streak-badge" v-if="user?.streakDays">
+          <el-icon><Sunny /></el-icon>
+          <span>
+            <ClientOnly>
+              连续 {{ user.streakDays }} 天
+            </ClientOnly>
+          </span>
+        </div>
+      </div>
 
     <!-- 当前学习进度卡片 -->
     <div class="progress-card" v-if="currentProgress">
@@ -199,6 +233,7 @@ onMounted(async () => {
       <div v-else-if="unitsLoading" class="empty-state">加载中...</div>
       <div v-else class="empty-state">暂无单元数据</div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -435,5 +470,13 @@ onMounted(async () => {
   padding: 24px;
   font-size: 14px;
   color: var(--text-3);
+}
+
+/* Loading */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
 }
 </style>

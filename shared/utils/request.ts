@@ -29,6 +29,9 @@ export const createFetch = ({ baseURL='', credentials = 'include'}: BaseCfg = {}
       logger.info(
         `响应拦截器 - 收到响应: ${(response._data as ResPayload<unknown>)?.message || '无提示'}, 来源：${response.url}`,
       )
+      if(import.meta.client){
+        logger.info("完整响应：", response)
+      }
     },
 
     onResponseError({ response }) {

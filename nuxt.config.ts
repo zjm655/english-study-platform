@@ -21,4 +21,7 @@ export default defineNuxtConfig({
   elementPlus: {
     // 默认就是按需导入，不用额外配置
   },
+  typescript: {
+    typeCheck: true, // 启用构建时的类型检查
+  },
 })

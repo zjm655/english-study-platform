@@ -1,4 +1,5 @@
 import pool from '#server/utils/db'
+import type { ProgressDetailRow, CountRow } from '#server/types/db'
 
 /**
  * 获取用户整体学习进度
@@ -22,9 +23,11 @@ export default defineEventHandler(async (event) => {
     [userId]
   )
 
+  const rows = progressRows as ProgressDetailRow[]
+
   // 统计数据
-  const totalSegments = (progressRows as any[]).length
-  const completedPhases = (progressRows as any[]).reduce((acc: any, row: any) => {
+  const totalSegments = rows.length
+  const completedPhases = rows.reduce((acc, row) => {
     return {
       phase1: acc.phase1 + (row.phase1_done ? 1 : 0),
       phase2: acc.phase2 + (row.phase2_done ? 1 : 0),
@@ -37,10 +40,10 @@ export default defineEventHandler(async (event) => {
   const [allSegments] = await pool.execute(
     'SELECT COUNT(*) as total FROM segment'
   )
-  const totalSegmentsAll = (allSegments as any[])[0].total
+  const totalSegmentsAll = (allSegments as CountRow[])[0].total
 
   // 完全完成的片段数（四阶段都完成）
-  const completedSegments = (progressRows as any[]).filter((row: any) => 
+  const completedSegments = rows.filter(row => 
     row.phase1_done && row.phase2_done && row.phase3_done && row.phase4_done
   ).length
 
@@ -54,7 +57,7 @@ export default defineEventHandler(async (event) => {
         ? Math.round((completedSegments / totalSegmentsAll) * 100) 
         : 0
     },
-    details: (progressRows as any[]).map(row => ({
+    details: rows.map(row => ({
       segmentId: row.segment_id,
       segmentTitle: row.segmentTitle,
       unitId: row.unit_id,

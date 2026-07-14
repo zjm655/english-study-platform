@@ -1,4 +1,5 @@
 import pool from '#server/utils/db'
+import type { UnitRow, SegmentRow, UserProgressRow } from '#server/types/db'
 
 /**
  * 获取某单元的详细进度（每个片段的四阶段完成情况）
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
     'SELECT * FROM unit WHERE id = ?',
     [unitId]
   )
-  const unit = (units as any[])[0]
+  const unit = (units as UnitRow[])[0]
   
   if (!unit) {
     return validateError('单元不存在', 404)
@@ -31,8 +32,8 @@ export default defineEventHandler(async (event) => {
 
   // 获取每个片段的进度
   const segmentsWithProgress = await Promise.all(
-    (segments as any[]).map(async (segment) => {
-      let progress = null
+    (segments as SegmentRow[]).map(async (segment) => {
+      let progress: UserProgressRow | null = null
       
       if (userId) {
         const [progressRows] = await pool.execute(
@@ -42,7 +43,7 @@ export default defineEventHandler(async (event) => {
            WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL`,
           [userId, segment.id]
         )
-        progress = (progressRows as any[])[0] || null
+        progress = (progressRows as UserProgressRow[])[0] || null
       }
 
       return {
