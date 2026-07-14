@@ -14,7 +14,7 @@ import type { ElMessageBoxOptions } from 'element-plus'
  * @param message 提示内容
  * @param duration 显示时长(ms)，默认 2000
  */
-export function showSuccess(message: string, duration = 2000) {
+export function toastSuccess(message: string, duration = 2000) {
   return ElMessage.success({ message, duration, showClose: true })
 }
 
@@ -23,7 +23,7 @@ export function showSuccess(message: string, duration = 2000) {
  * @param message 提示内容
  * @param duration 显示时长(ms)，默认 3000
  */
-export function showError(message: string, duration = 3000) {
+export function toastError(message: string, duration = 3000) {
   return ElMessage.error({ message, duration, showClose: true })
 }
 
@@ -32,7 +32,7 @@ export function showError(message: string, duration = 3000) {
  * @param message 提示内容
  * @param duration 显示时长(ms)，默认 2500
  */
-export function showWarning(message: string, duration = 2500) {
+export function toastWarning(message: string, duration = 2500) {
   return ElMessage.warning({ message, duration, showClose: true })
 }
 
@@ -41,7 +41,7 @@ export function showWarning(message: string, duration = 2500) {
  * @param message 提示内容
  * @param duration 显示时长(ms)，默认 2000
  */
-export function showInfo(message: string, duration = 2000) {
+export function toastInfo(message: string, duration = 2000) {
   return ElMessage.info({ message, duration, showClose: true })
 }
 
@@ -54,7 +54,7 @@ export function showInfo(message: string, duration = 2000) {
  * @param options 可选配置
  * @returns Promise，确认时 resolve，取消时 reject
  */
-export function showConfirm(
+export function toastConfirm(
   message: string,
   title = '提示',
   options?: Partial<ElMessageBoxOptions>
@@ -73,7 +73,7 @@ export function showConfirm(
  * @param title 标题，默认"提示"
  * @param options 可选配置
  */
-export function showAlert(
+export function toastAlert(
   message: string,
   title = '提示',
   options?: Partial<ElMessageBoxOptions>
@@ -92,7 +92,7 @@ export function showAlert(
  * @param options 可选配置
  * @returns Promise，返回用户输入的内容
  */
-export function showPrompt(
+export function toastPrompt(
   message: string,
   title = '请输入',
   options?: Partial<ElMessageBoxOptions>
@@ -111,7 +111,7 @@ export function showPrompt(
  * @param message 加载提示文字
  * @returns 关闭遮罩的函数
  */
-export function showLoading(message = '加载中...') {
+export function toastLoading(message = '加载中...') {
   const loading = ElMessage({
     message,
     type: 'info',
@@ -129,15 +129,15 @@ export function showLoading(message = '加载中...') {
  * @param message 提示内容
  * @param successMsg 成功时的提示（可选，覆盖默认）
  */
-export function showByCode(code: number, message: string, successMsg?: string) {
+export function toastByCode(code: number, message: string, successMsg?: string) {
   if (code === 200) {
-    return showSuccess(successMsg || message)
+    return toastSuccess(successMsg || message)
   }
   if (code === 401) {
-    return showWarning('登录已过期，请重新登录')
+    return toastWarning('登录已过期，请重新登录')
   }
   if (code >= 500) {
-    return showError(message || '服务器异常，请稍后重试')
+    return toastError(message || '服务器异常，请稍后重试')
   }
-  return showError(message || '操作失败')
+  return toastError(message || '操作失败')
 }

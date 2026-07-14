@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
-import { useCheckinStats, useCheckin, useToVerify } from '~/composables/user'
-import { showError } from '~/utils/popup'
+import { useCheckinStats, useCheckin } from '~/composables/user'
+import { toastError } from '~/utils/popup'
 import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
@@ -38,11 +38,8 @@ const isCheckedIn = computed(() => {
     lastDate.getDate() === now.getDate()
 })
 
-// 验证登录状态
-const { isLoading: verifyLoading, userToVerify } = useToVerify()
-
 // 总loading状态
-const isLoading = computed(() => verifyLoading.value || statsLoading.value)
+const isLoading = computed(() => statsLoading.value)
 
 // 格式化学习时长
 const formatStudyTime = (minutes: number) => {
@@ -65,19 +62,12 @@ async function handleCheckin() {
   if (res?.code === 200) {
     checkinStats.value = res.data
   } else {
-    showError(res?.message || '签到失败，请稍后重试')
-  }
-}
-
-async function initUser() {
-  await userToVerify()
-  if (!isLoading.value) {
-    await initStats()
+    toastError(res?.message || '签到失败，请稍后重试')
   }
 }
 
 onMounted(() => {
-  initUser()
+  initStats()
 })
 </script>
 
@@ -110,15 +100,21 @@ onMounted(() => {
         <div class="checkin-text">
           <template v-if="checkinLoading">签到中...</template>
           <template v-else-if="isCheckedIn">今日已签到</template>
-          <template v-else>点击签到</template>
+          <template v-else>今日签到</template>
+          <!-- <template v-else>开始签到</template> -->
+           
         </div>
       </div>
 
       <!-- 开始学习按钮 -->
       <div class="learn-section">
-        <NuxtLink to="/learn" class="learn-btn">
+        <NuxtLink to="/learn" class="learn-btn" v-if="isCheckedIn">
           开始学习
         </NuxtLink>
+        <div class="learn-btn" v-else="isCheckedIn" @click="handleCheckin">
+          点击签到
+        </div>
+
       </div>
 
       <!-- 统计卡片 -->

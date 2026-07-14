@@ -10,6 +10,17 @@ export default defineEventHandler(async (event) => {
       if (!user) {
         return validateError('账号不存在', 401)
       }
+
+      // 续期：重新签发 token，滑动窗口 7 天
+      const token = await signToken({ id: user.id, role: user.role })
+      setCookie(event, 'token', token, {
+        httpOnly: true,
+        secure: !import.meta.dev,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 7,
+        path: '/',
+      })
+
       const { passwordHash, ...safeInfo } = user
       return validateSuccess(safeInfo, "登录状态校验通过！", 200)
 })

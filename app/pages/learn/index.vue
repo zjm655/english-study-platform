@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { VideoPlay, Check } from '@element-plus/icons-vue'
 import { useUnits, useUserProgress } from '~/composables/unit'
-import { useToVerify } from '~/composables/user'
 import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
 
 definePageMeta({
@@ -14,11 +13,9 @@ const units = ref<UnitWithProgress[]>([])
 const { isLoading: progressLoading, execute: fetchUserProgress } = useUserProgress()
 const userProgress = ref<UserProgress | null>(null)
 
-const { isLoading: verifyLoading, userToVerify } = useToVerify()
-
 const dataReady = ref(false)
 
-const isLoading = computed(() => verifyLoading.value || unitsLoading.value || progressLoading.value)
+const isLoading = computed(() => unitsLoading.value || progressLoading.value)
 
 const currentProgress = computed(() => {
   if (!userProgress.value?.details?.length) {
@@ -119,10 +116,7 @@ async function initUnits() {
 }
 
 async function initUser() {
-  const verifyRes = await userToVerify()
-  if (verifyRes?.code === 200) {
-    await initProgress()
-  }
+  await initProgress()
   if (!isLoading.value)
     dataReady.value = true
 }
