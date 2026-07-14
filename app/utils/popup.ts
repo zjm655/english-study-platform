@@ -117,7 +117,6 @@ export function showLoading(message = '加载中...') {
     type: 'info',
     duration: 0, // 不自动关闭
     showClose: false,
-    center: true,
   })
   return () => loading.close()
 }

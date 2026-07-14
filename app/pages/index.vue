@@ -2,6 +2,7 @@
 import { Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
 import { useCheckinStats, useCheckin, useToVerify } from '~/composables/user'
+import { showError } from '~/utils/popup'
 import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
@@ -63,6 +64,8 @@ async function handleCheckin() {
   const res = await doCheckin()
   if (res?.code === 200) {
     checkinStats.value = res.data
+  } else {
+    showError(res?.message || '签到失败，请稍后重试')
   }
 }
 
