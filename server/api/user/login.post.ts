@@ -26,7 +26,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes> | 
 
   // 3. 查数据库验证用户
   const [rows] = await pool.execute(
-    'SELECT id, account, nickname, email, role, passwordHash, avatarUrl, level, streakDays, totalStudyMinutes FROM user WHERE account = ?',
+    'SELECT id, account, nickname, email, role, passwordHash, avatarUrl, level FROM user WHERE account = ?',
     [account]
   )
   const user = (rows as any[])[0]

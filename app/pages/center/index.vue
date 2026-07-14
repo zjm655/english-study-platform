@@ -29,12 +29,12 @@
         </div>
         <div class="user-stats">
           <div class="stat-item">
-            <div class="stat-value">{{ user?.streakDays || 0 }}</div>
+            <div class="stat-value">{{ checkinStats?.currentStreakDays ?? 0 }}</div>
             <div class="stat-label">连续学习</div>
           </div>
           <div class="stat-divider"></div>
           <div class="stat-item">
-            <div class="stat-value">{{ formatStudyTime(user?.totalStudyMinutes || 0) }}</div>
+            <div class="stat-value">{{ formatStudyTime(checkinStats?.totalStudyMinutes ?? 0) }}</div>
             <div class="stat-label">累计学习</div>
           </div>
         </div>
@@ -84,6 +84,9 @@
 <script setup lang="ts">
 import { UserFilled, Edit, TrophyBase, Bell, Moon, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
+import { useCheckinStats } from '~/composables/user'
+import type { CheckinStats } from '~~/shared/types/user'
+
 definePageMeta({
   title: '个人中心'
 })
@@ -91,9 +94,14 @@ definePageMeta({
 useSeoMeta({
     title:"个人中心"
 })
+
 const userStore = useUserStore()
 const user = computed(() => userStore.user)
 const isLogin = computed(() => userStore.isLogin)
+
+// 打卡统计
+const { isLoading: statsLoading, execute: fetchCheckinStats } = useCheckinStats()
+const checkinStats = ref<CheckinStats | null>(null)
 
 const isDarkMode = ref(false)
 
@@ -114,6 +122,14 @@ const formatStudyTime = (minutes: number) => {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
   return mins > 0 ? `${hours}小时${mins}分钟` : `${hours}小时`
+}
+
+// 获取打卡统计
+async function initStats() {
+  const res = await fetchCheckinStats()
+  if (res?.code === 200) {
+    checkinStats.value = res.data
+  }
 }
 
 // 事件处理
@@ -140,6 +156,18 @@ const handleAbout = () => {
 const handleLogout = () => {
   console.log('退出登录')
 }
+
+onMounted(() => {
+  if (isLogin.value) {
+    initStats()
+  }
+})
+
+watch(isLogin, (newVal) => {
+  if (newVal) {
+    initStats()
+  }
+})
 </script>
 
 <style scoped>

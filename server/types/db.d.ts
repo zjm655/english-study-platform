@@ -46,3 +46,13 @@ export interface CountRow {
   total: number
   completed: number
 }
+
+export interface CheckinStatsRow {
+  user_id: number
+  total_checkin_days: number
+  last_checkin_time: string | null
+  current_streak_days: number
+  max_streak_days: number
+  total_study_minutes: number
+  updatedAt: string
+}

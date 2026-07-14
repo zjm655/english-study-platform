@@ -3,7 +3,7 @@ import pool from '#server/utils/db'
 export default defineEventHandler(async (event) => {
     const userId = event.context.user.id
     const [rows] = await pool.execute(
-        'SELECT id, account, nickname, email, role, passwordHash, avatarUrl, level, streakDays, totalStudyMinutes FROM user WHERE id = ?',
+        'SELECT id, account, nickname, email, role, passwordHash, avatarUrl, level FROM user WHERE id = ?',
         [userId]
       )
       const user = (rows as any[])[0]

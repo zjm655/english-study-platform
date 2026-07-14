@@ -11,8 +11,6 @@ export interface LoginResPayload {
     email?: string
     avatarUrl?: string
     level?: number
-    streakDays?: number
-    totalStudyMinutes?: number
 }
 
 export interface RegisterPayload {
@@ -21,4 +19,12 @@ export interface RegisterPayload {
   email?: string
   password1: string
   password2: string
+}
+
+export interface CheckinStats {
+  totalCheckinDays: number
+  lastCheckinTime: string | null
+  currentStreakDays: number
+  maxStreakDays: number
+  totalStudyMinutes: number
 }

@@ -31,11 +31,37 @@ const initDB = async () => {
       passwordHash VARCHAR(255) NOT NULL,
       avatarUrl VARCHAR(1024) COMMENT '头像URL',
       level INT NOT NULL DEFAULT 0 COMMENT '用户等级: 0未测试 1初级 2中级 3高级',
-      streakDays INT NOT NULL DEFAULT 0 COMMENT '连续学习天数',
-      totalStudyMinutes INT NOT NULL DEFAULT 0 COMMENT '累计学习时长(分钟)',
       role INT NOT NULL DEFAULT 0 COMMENT '角色: 0普通用户 1管理员',
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `)
+
+  // 用户打卡统计表 —— 每用户一条记录，存储汇总统计
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_checkin_stats (
+      user_id INT PRIMARY KEY COMMENT '用户ID',
+      total_checkin_days INT NOT NULL DEFAULT 0 COMMENT '总打卡天数',
+      last_checkin_time DATETIME COMMENT '上次打卡时间',
+      current_streak_days INT NOT NULL DEFAULT 0 COMMENT '当前连续天数',
+      max_streak_days INT NOT NULL DEFAULT 0 COMMENT '最大连续天数',
+      total_study_minutes INT NOT NULL DEFAULT 0 COMMENT '累计学习时长(分钟)',
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
+    )
+  `)
+
+  // 用户打卡记录表 —— 每用户每天一条记录，存储每日明细
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_checkin_log (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL COMMENT '用户ID',
+      checkin_date DATE NOT NULL COMMENT '打卡日期',
+      study_minutes INT NOT NULL DEFAULT 0 COMMENT '当天学习时长(分钟)',
+      segments_completed INT NOT NULL DEFAULT 0 COMMENT '当天完成片段数',
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_user_date (user_id, checkin_date) COMMENT '防止重复打卡',
+      FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
     )
   `)
 

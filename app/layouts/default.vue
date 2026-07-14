@@ -206,6 +206,8 @@ function goBack() {
   padding-top: 56px;
   padding-bottom: 60px;
   flex: 1;
+      display: flex;
+    flex-direction: column;
 }
 
 .main-content--no-header {
