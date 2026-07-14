@@ -48,11 +48,18 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   const passwordHash = await bcrypt.hash(password1, 10)
 
   // 6. 写入数据库
-  await pool.execute(
+  const [result] = await pool.execute(
     'INSERT INTO user (account, passwordHash, nickname, email) VALUES (?, ?, ?, ?)',
     [account, passwordHash, nickname || null, email || null]
   )
 
-  // 7. 返回成功
+  // 7. 为新用户创建打卡统计记录
+  const insertResult = result as { insertId: number }
+  await pool.execute(
+    'INSERT INTO user_checkin_stats (user_id) VALUES (?)',
+    [insertResult.insertId]
+  )
+
+  // 8. 返回成功
   return validateSuccess(null, '注册成功！')
 })
