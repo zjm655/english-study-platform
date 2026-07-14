@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { Sunny, VideoPlay, Check } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
+import { useUnits, useUserProgress } from '~/composables/unit'
+
 definePageMeta({
   title: '首页',
   isHome: true
@@ -19,36 +21,96 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
-// 模拟当前学习进度（后续从API获取）
-const currentProgress = ref({
-  unitTitle: 'Unit 1: Daily Conversation',
-  segmentTitle: 'A Morning Routine',
-  currentPhase: 1, // 当前在阶段2
-  phases: [
-    { phase: 1, name: '盲听', done: true },
-    { phase: 2, name: '学习', done: false },
-    { phase: 3, name: '配音', done: false },
-    { phase: 4, name: '跟读', done: false }
-  ]
-})
+// 获取单元列表
+const { isLoading: unitsLoading, execute: fetchUnits } = useUnits()
+const units = ref<any[]>([])
 
-// 模拟单元列表（后续从API获取）
-const units = ref([
-  { id: 1, title: 'Daily Conversation', segmentCount: 5, completedCount: 0 },
-  { id: 2, title: 'School Life', segmentCount: 4, completedCount: 0 },
-  { id: 3, title: 'Travel Abroad', segmentCount: 6, completedCount: 0 }
-])
+// 获取用户进度
+const { isLoading: progressLoading, execute: fetchUserProgress } = useUserProgress()
+const userProgress = ref<any>(null)
+
+// 当前学习进度（从API数据派生）
+const currentProgress = computed(() => {
+  if (!userProgress.value?.details?.length) {
+    // 没有进度数据时，显示第一个单元的第一个片段作为起始状态
+    const firstUnit = units.value[0]
+    if (!firstUnit) return null
+    return {
+      unitTitle: firstUnit.title,
+      segmentTitle: '开始学习',
+      currentPhase: 1,
+      phases: [
+        { phase: 1, name: '盲听', done: false },
+        { phase: 2, name: '学习', done: false },
+        { phase: 3, name: '配音', done: false },
+        { phase: 4, name: '跟读', done: false }
+      ]
+    }
+  }
+
+  // 找到第一个未完成的片段
+  const currentDetail = userProgress.value.details.find(
+    (d: any) => !(d.phase1_done && d.phase2_done && d.phase3_done && d.phase4_done)
+  )
+
+  if (!currentDetail) {
+    // 所有片段都已完成
+    const lastDetail = userProgress.value.details[userProgress.value.details.length - 1]
+    return {
+      unitTitle: lastDetail.unitTitle,
+      segmentTitle: lastDetail.segmentTitle,
+      currentPhase: 4,
+      phases: [
+        { phase: 1, name: '盲听', done: true },
+        { phase: 2, name: '学习', done: true },
+        { phase: 3, name: '配音', done: true },
+        { phase: 4, name: '跟读', done: true }
+      ]
+    }
+  }
+
+  const phases = [
+    { phase: 1, name: '盲听', done: currentDetail.phase1_done },
+    { phase: 2, name: '学习', done: currentDetail.phase2_done },
+    { phase: 3, name: '配音', done: currentDetail.phase3_done },
+    { phase: 4, name: '跟读', done: currentDetail.phase4_done }
+  ]
+
+  return {
+    unitTitle: currentDetail.unitTitle,
+    segmentTitle: currentDetail.segmentTitle,
+    currentPhase: phases.findIndex(p => !p.done) + 1,
+    phases
+  }
+})
 
 // 进度百分比
 const progressPercent = computed(() => {
+  if (!currentProgress.value) return 0
   const doneCount = currentProgress.value.phases.filter(p => p.done).length
   return (doneCount / 4) * 100
 })
 
 // 继续学习按钮文案
 const continueText = computed(() => {
+  if (!currentProgress.value) return '开始学习'
   const current = currentProgress.value.phases.find(p => !p.done)
   return current ? `继续${current.name}` : '已完成'
+})
+
+// 页面加载时获取数据
+onMounted(async () => {
+  const unitsRes = await fetchUnits()
+  if (unitsRes?.code === 200) {
+    units.value = unitsRes.data || []
+  }
+
+  if (userStore.isLogin) {
+    const progressRes = await fetchUserProgress()
+    if (progressRes?.code === 200) {
+      userProgress.value = progressRes.data
+    }
+  }
 })
 </script>
 
@@ -72,7 +134,7 @@ const continueText = computed(() => {
     </div>
 
     <!-- 当前学习进度卡片 -->
-    <div class="progress-card">
+    <div class="progress-card" v-if="currentProgress">
       <div class="progress-header">
         <div class="unit-name">{{ currentProgress.unitTitle }}</div>
         <div class="segment-name">{{ currentProgress.segmentTitle }}</div>
@@ -112,7 +174,7 @@ const continueText = computed(() => {
     <!-- 单元列表 -->
     <div class="units-section">
       <div class="section-title">全部单元</div>
-      <div class="unit-list">
+      <div class="unit-list" v-if="!unitsLoading && units.length">
         <NuxtLink
           v-for="unit in units"
           :key="unit.id"
@@ -121,19 +183,21 @@ const continueText = computed(() => {
         >
           <div class="unit-info">
             <div class="unit-title">{{ unit.title }}</div>
-            <div class="unit-meta">{{ unit.segmentCount }} 个片段</div>
+            <div class="unit-meta">{{ unit.progress.totalSegments }} 个片段</div>
           </div>
           <div class="unit-progress">
-            <span class="unit-progress__text">{{ unit.completedCount }}/{{ unit.segmentCount }}</span>
+            <span class="unit-progress__text">{{ unit.progress.completedSegments }}/{{ unit.progress.totalSegments }}</span>
             <div class="unit-progress__bar">
               <div
                 class="unit-progress__fill"
-                :style="{ width: (unit.completedCount / unit.segmentCount * 100) + '%' }"
+                :style="{ width: (unit.progress.percent) + '%' }"
               ></div>
             </div>
           </div>
         </NuxtLink>
       </div>
+      <div v-else-if="unitsLoading" class="empty-state">加载中...</div>
+      <div v-else class="empty-state">暂无单元数据</div>
     </div>
   </div>
 </template>
@@ -364,5 +428,12 @@ const continueText = computed(() => {
   background: var(--success);
   border-radius: 2px;
   transition: width 0.3s;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 24px;
+  font-size: 14px;
+  color: var(--text-3);
 }
 </style>
