@@ -3,6 +3,7 @@ import pool from '#server/utils/db'  // ← 加这一行
 import type { RegisterPayload } from '#shared/types/user'
 import type { ZodSafeParseResult } from 'zod'
 import type { ResPayload } from "#shared/types/request"
+import type { ResultSetHeader } from 'mysql2'
 import bcrypt from 'bcrypt'
 
 /**
@@ -48,13 +49,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   const passwordHash = await bcrypt.hash(password1, 10)
 
   // 6. 写入数据库
-  const [result] = await pool.execute(
+  const [insertResult] = await pool.execute<ResultSetHeader>(
     'INSERT INTO user (account, passwordHash, nickname, email) VALUES (?, ?, ?, ?)',
     [account, passwordHash, nickname || null, email || null]
   )
 
   // 7. 为新用户创建打卡统计记录
-  const insertResult = result as { insertId: number }
   await pool.execute(
     'INSERT INTO user_checkin_stats (user_id) VALUES (?)',
     [insertResult.insertId]
