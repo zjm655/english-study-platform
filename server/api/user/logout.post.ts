@@ -11,7 +11,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     httpOnly: true,
     secure: !import.meta.dev,
     sameSite: 'lax',
-    maxAge: 1,
+    maxAge: 0,
     path: '/',
   })
 

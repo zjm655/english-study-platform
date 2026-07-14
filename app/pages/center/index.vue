@@ -84,7 +84,8 @@
 <script setup lang="ts">
 import { UserFilled, Edit, TrophyBase, Bell, Moon, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
-import { useCheckinStats } from '~/composables/user'
+import { useCheckinStats, useLogout } from '~/composables/user'
+import { toastConfirm } from '~/utils/popup'
 import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
@@ -101,6 +102,7 @@ const isLogin = computed(() => userStore.isLogin)
 
 // 打卡统计
 const { isLoading: statsLoading, execute: fetchCheckinStats } = useCheckinStats()
+const { execute: doLogout } = useLogout()
 const checkinStats = ref<CheckinStats | null>(null)
 
 const isDarkMode = ref(false)
@@ -153,8 +155,24 @@ const handleAbout = () => {
   console.log('关于我们')
 }
 
-const handleLogout = () => {
-  console.log('退出登录')
+const handleLogout = async () => {
+  try {
+    await toastConfirm('退出登录后将无法自动登录，确定退出吗？', '退出登录', {
+      confirmButtonText: '确定退出',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return // 用户取消
+  }
+
+  const res = await doLogout()
+  if (res?.code === 200) {
+    userStore.user = null
+    userStore.isLogin = false
+    // userStore.isVerify = false
+    navigateTo('/login')
+  }
 }
 
 onMounted(() => {
