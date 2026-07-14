@@ -75,9 +75,11 @@ const initDB = async () => {
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL COMMENT '用户ID',
       checkin_date DATE NOT NULL COMMENT '打卡日期',
+      checked_in TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已签到: 0未签到 1已签到',
       study_minutes INT NOT NULL DEFAULT 0 COMMENT '当天学习时长(分钟)',
       segments_completed INT NOT NULL DEFAULT 0 COMMENT '当天完成片段数',
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY uk_user_date (user_id, checkin_date) COMMENT '防止重复打卡',
       FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
     )

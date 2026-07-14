@@ -1,36 +1,52 @@
 import { withTransaction, query } from '#server/utils/db'
-import type { CheckinStatsRow } from '#server/types/db'
+import type { CheckinStatsRow, CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
 import type { ResultSetHeader } from 'mysql2'
 
 /**
  * 签到接口
  * 请求：POST /api/user/checkin
- * 流程：INSERT IGNORE log → 唯一键判重 → 计算连续性 → UPDATE stats
+ * 流程：查 log → 已签到则返回 / 未签到则更新 → 计算连续性 → UPDATE stats
  */
 export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats>> => {
   const userId: number = event.context.user.id
 
-  const stats = await withTransaction(async (conn) => {
-    // 1. INSERT IGNORE 打卡记录，唯一键 uk_user_date 防重复
-    const [insertResult] = await conn.execute<ResultSetHeader>(
-      'INSERT IGNORE INTO user_checkin_log (user_id, checkin_date) VALUES (?, CURDATE())',
+  const result = await withTransaction(async (conn) => {
+    // 1. 查今天的 log 记录
+    const logRows = await query<CheckinLogRow>(
+      'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = CURDATE()',
       [userId]
     )
+    const todayLog = logRows[0]
 
-    // 2. affectedRows === 0 → 今天已签到
-    if (insertResult.affectedRows === 0) {
-      const rows = await query<CheckinStatsRow>(
+    // 2. 已签到 → 直接返回
+    if (todayLog && todayLog.checked_in === 1) {
+      const statsRows = await query<CheckinStatsRow>(
         'SELECT * FROM user_checkin_stats WHERE user_id = ?',
         [userId]
       )
       return {
         alreadyCheckedIn: true,
-        stats: rowToStats(rows[0]!)
+        stats: rowToStats(statsRows[0]!)
       }
     }
 
-    // 3. 查询 stats，判断连续性
+    // 3. 处理 log 记录
+    if (todayLog) {
+      // 存在但未签到（study-time 创建的）→ 标记已签到
+      await conn.execute<ResultSetHeader>(
+        'UPDATE user_checkin_log SET checked_in = 1 WHERE id = ?',
+        [todayLog.id]
+      )
+    } else {
+      // 不存在 → 创建（已签到）
+      await conn.execute<ResultSetHeader>(
+        'INSERT INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, CURDATE(), 1)',
+        [userId]
+      )
+    }
+
+    // 4. 查询 stats，判断连续性
     const statsRows = await query<CheckinStatsRow>(
       'SELECT * FROM user_checkin_stats WHERE user_id = ?',
       [userId]
@@ -40,7 +56,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
     let newStreak: number
     if (!lastCheckinTime) {
-      // 首次签到
       newStreak = 1
     } else {
       const lastDate = new Date(lastCheckinTime)
@@ -58,7 +73,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
     const newMax = Math.max(newStreak, statsRow.max_streak_days)
 
-    // 4. UPDATE stats
+    // 5. UPDATE stats
     await conn.execute(
       `UPDATE user_checkin_stats
        SET total_checkin_days = total_checkin_days + 1,
@@ -81,11 +96,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     }
   })
 
-  if (stats.alreadyCheckedIn) {
-    return validateSuccess(stats.stats, '今日已签到')
+  if (result.alreadyCheckedIn) {
+    return validateSuccess(result.stats, '今日已签到')
   }
 
-  return validateSuccess(stats.stats, '签到成功')
+  return validateSuccess(result.stats, '签到成功')
 })
 
 function rowToStats(row: CheckinStatsRow): CheckinStats {

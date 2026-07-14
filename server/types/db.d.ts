@@ -56,3 +56,14 @@ export interface CheckinStatsRow {
   total_study_minutes: number
   updatedAt: string
 }
+
+export interface CheckinLogRow {
+  id: number
+  user_id: number
+  checkin_date: string
+  checked_in: number
+  study_minutes: number
+  segments_completed: number
+  createdAt: string
+  updatedAt: string
+}
