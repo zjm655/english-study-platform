@@ -62,6 +62,26 @@ const initDB = async () => {
     )
   `)
 
+  // 词库表 —— 按难度分级的单词库，用于生成材料和查词
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS word_bank (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      word VARCHAR(100) NOT NULL COMMENT '英文原词',
+      phonetic VARCHAR(100) COMMENT '音标，如 /ˈʃædoʊ/',
+      meaning VARCHAR(500) NOT NULL COMMENT '中文释义',
+      forms VARCHAR(500) COMMENT '词形变化，逗号分隔',
+      exampleSentence TEXT COMMENT '英文例句',
+      exampleTranslation TEXT COMMENT '例句中文翻译',
+      audioUrl VARCHAR(1024) COMMENT '单词发音音频',
+      level INT NOT NULL COMMENT '难度: 1小学 2初中 3高中 4四级 5六级',
+      source VARCHAR(200) COMMENT '来源，如人教版小学三年级上册',
+      frequency INT NOT NULL DEFAULT 0 COMMENT '词频/优先级，数字越大越常用',
+      tags VARCHAR(500) COMMENT '标签，如名词,动物,基础',
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_word_level (word, level)
+    )
+  `)
+
   // 词汇表 —— 片段内重点单词的知识点，支撑点击查词
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS vocabulary (
