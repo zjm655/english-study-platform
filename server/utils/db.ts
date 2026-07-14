@@ -1,6 +1,6 @@
 // server/utils/db.ts
 // 数据库连接
-import mysql from 'mysql2/promise'
+import mysql, { type PoolConnection } from 'mysql2/promise'
 
 const config = useRuntimeConfig().db
 export const pool = mysql.createPool({
@@ -17,6 +17,24 @@ export const pool = mysql.createPool({
 export async function query<T>(sql: string, params?: any[]): Promise<T[]> {
   const [rows] = await pool.execute(sql, params)
   return rows as T[]
+}
+
+/** 事务工具：自动获取连接 → begin → commit/rollback → release */
+export async function withTransaction<T>(
+  fn: (conn: PoolConnection) => Promise<T>
+): Promise<T> {
+  const conn = await pool.getConnection()
+  await conn.beginTransaction()
+  try {
+    const result = await fn(conn)
+    await conn.commit()
+    return result
+  } catch (e) {
+    await conn.rollback()
+    throw e
+  } finally {
+    conn.release()
+  }
 }
 
 // 首次启动时自动建表（按外键依赖顺序）
