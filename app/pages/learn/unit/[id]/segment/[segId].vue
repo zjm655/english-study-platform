@@ -2,6 +2,7 @@
 import { useSegmentDetail } from '~/composables/unit'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
+import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 
 definePageMeta({
   title: '片段学习',
@@ -13,6 +14,9 @@ const unitId = computed(() => Number(route.params.id))
 
 const { isLoading, fetchSegmentDetail } = useSegmentDetail()
 const { play, pause } = useAudioPlayer()
+
+// 自动管理音频生命周期
+useAudioLifecycle()
 
 const segment = ref<SegmentDetail | null>(null)
 const error = ref<string | null>(null)
