@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/howler": "^2.2.13",
     "typescript": "5.8.2",
     "vue-tsc": "^3.3.7"
   }
