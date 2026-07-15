@@ -1,6 +1,8 @@
 import { query, withTransaction } from '#server/utils/db'
+import { validateError, validateSuccess, progressSchema } from '#server/utils/validate'
 import type { UserProgressRow } from '#server/types/db'
 import type { ResultSetHeader } from 'mysql2'
+import type { ZodSafeParseResult } from 'zod'
 
 /**
  * 更新用户学习进度
@@ -13,18 +15,15 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event)
-  const { segmentId, phase, done, score } = body
 
-  // 参数校验
-  if (!segmentId || !phase || typeof done !== 'boolean') {
-    return validateError('参数错误：需要 segmentId, phase, done')
+  // zod 校验
+  const parseResult: ZodSafeParseResult<{ segmentId: number; phase: number; done: boolean; score?: number }> = progressSchema.safeParse(body)
+  if (!parseResult.success) {
+    const errorMessage = parseResult.error?.issues[0]?.message || '参数校验失败'
+    return validateError(errorMessage)
   }
-  if (phase < 1 || phase > 4) {
-    return validateError('phase 必须是 1-4')
-  }
-  if ((phase === 3 || phase === 4) && done && score === undefined) {
-    return validateError(`phase ${phase} 完成时需要提供 score`)
-  }
+
+  const { segmentId, phase, done, score } = parseResult.data
 
   const result = await withTransaction(async (conn) => {
     // 查现有记录

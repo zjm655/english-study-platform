@@ -65,6 +65,23 @@ export const studyTimeSchema = z.object({
     .max(3600, '单次上报时长不能超过1小时')
 })
 
+// 学习进度更新校验
+export const progressSchema = z.object({
+  segmentId: z.number().int().positive('segmentId 必须为正整数'),
+  phase: z.number().int().min(1, 'phase 必须为 1-4').max(4, 'phase 必须为 1-4'),
+  done: z.boolean(),
+  score: z.number().min(0, '分数不能为负数').max(100, '分数不能超过100').optional()
+}).refine(
+  (data) => {
+    // phase 3/4 完成时必须提供 score
+    if ((data.phase === 3 || data.phase === 4) && data.done) {
+      return data.score !== undefined
+    }
+    return true
+  },
+  { message: 'phase 3/4 完成时需要提供 score', path: ['score'] }
+)
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code=400) {
