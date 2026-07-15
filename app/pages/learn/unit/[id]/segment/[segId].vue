@@ -5,6 +5,7 @@ import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useStudyTimer } from '~/composables/user/useStudyTimer'
 import BlindListening from './[segId]/phases/BlindListening.vue'
+import TextLearning from './[segId]/phases/TextLearning.vue'
 
 definePageMeta({
   title: '片段学习',
@@ -150,8 +151,7 @@ function onPhaseComplete() {
         <div v-else-if="currentPhase === 2" class="phase-panel">
           <div class="phase-panel__title">文本学习</div>
           <div class="phase-panel__desc">对照原文学习，点击单词查看详情</div>
-          <!-- TODO: 文本展示 + 单词高亮 -->
-          <div class="phase-panel__placeholder">文本区域（待开发）</div>
+          <TextLearning :segment="segment" @complete="onPhaseComplete" />
         </div>
 
         <!-- 阶段三：配音 -->
