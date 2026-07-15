@@ -4,6 +4,7 @@ import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useStudyTimer } from '~/composables/user/useStudyTimer'
+import BlindListening from './[segId]/phases/BlindListening.vue'
 
 definePageMeta({
   title: '片段学习',
@@ -82,6 +83,11 @@ function isPhaseDone(phase: number): boolean {
     default: return false
   }
 }
+
+// 阶段完成回调
+function onPhaseComplete() {
+  loadData() // 重新加载数据以更新进度状态
+}
 </script>
 
 <template>
@@ -137,8 +143,7 @@ function isPhaseDone(phase: number): boolean {
         <div v-if="currentPhase === 1" class="phase-panel">
           <div class="phase-panel__title">盲听理解</div>
           <div class="phase-panel__desc">仔细听音频，理解大意后回答问题</div>
-          <!-- TODO: 理解题组件 -->
-          <div class="phase-panel__placeholder">理解题区域（待开发）</div>
+          <BlindListening :segment="segment" @complete="onPhaseComplete" />
         </div>
 
         <!-- 阶段二：学习 -->
