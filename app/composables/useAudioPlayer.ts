@@ -1,20 +1,25 @@
-import { Howl } from 'howler'
 import { useAudioStore } from '~/store/useAudioStore'
 
 // 顶层单例，不响应式
-let howl: Howl | null = null
+let howl: any = null
 let rafId: number | null = null
 
 export function useAudioPlayer() {
   const store = useAudioStore()
   
-  // 加载音频
-  function load(src: string) {
+  // 加载音频（动态导入 Howler，SSR 安全）
+  async function load(src: string) {
+    // SSR 保护
+    if (!import.meta.client) return
+    
     // 如果正在播放，先停止
     if (howl) {
       howl.unload()
       stopProgressUpdate()
     }
+    
+    // 动态导入 Howler
+    const { Howl } = await import('howler')
     
     // 创建新实例
     howl = new Howl({
@@ -37,7 +42,7 @@ export function useAudioPlayer() {
       onload: () => {
         store.duration = howl?.duration() ?? 0
       },
-      onloaderror: (_id, error) => {
+      onloaderror: (_id: number, error: any) => {
         console.error('音频加载失败:', error)
         store.isPlaying = false
       }
