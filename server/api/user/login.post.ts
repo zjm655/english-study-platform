@@ -11,7 +11,7 @@ import bcrypt from 'bcrypt'
  * 请求：POST /api/user/login
  * Body：{ account: string, password: string }
  */
-export default defineEventHandler(async (event): Promise<ResPayload<LoginRes> | ResPayload<null>> => {
+export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | null>> => {
   // 1. 读取请求体
   const body: LoginPayload = await readBody(event)
 

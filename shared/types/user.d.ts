@@ -5,12 +5,12 @@ export interface LoginPayload {
 
 export interface LoginResPayload {
     id: number
-    nickname?: string
-    role?: number
+    nickname: string | null
+    role: number
     account: string
-    email?: string
-    avatarUrl?: string
-    level?: number
+    email: string | null
+    avatarUrl: string | null
+    level: number
 }
 
 export interface RegisterPayload {

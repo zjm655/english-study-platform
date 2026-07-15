@@ -16,7 +16,7 @@
       <div class="user-card">
         <div class="user-info">
           <div class="avatar">
-            <el-avatar :size="64" :src="user?.avatarUrl">
+            <el-avatar :size="64" :src="user?.avatarUrl ?? undefined">
               <el-icon :size="32"><UserFilled /></el-icon>
             </el-avatar>
           </div>
