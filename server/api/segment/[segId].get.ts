@@ -2,6 +2,17 @@ import { query } from '#server/utils/db'
 import type { SegmentRow, UnitRow, VocabularyRow, UserProgressRow } from '#server/types/db'
 import type { SegmentDetail, SegmentPhaseProgress, VocabularyItem } from '#shared/types/unit'
 
+/** 解析音频 URL：确保返回完整路径 */
+function resolveAudioUrl(url: string | null): string | null {
+  if (!url) return null
+  // 已经是完整 URL（http/https）或绝对路径（/开头）
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
+    return url
+  }
+  // 相对路径，补全为绝对路径
+  return `/${url}`
+}
+
 /**
  * 获取片段详情
  * 请求：GET /api/segment/[segId]
@@ -45,7 +56,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     forms: v.forms,
     phonetic: v.phonetic,
     meaning: v.meaning,
-    audioUrl: v.audioUrl,
+    audioUrl: resolveAudioUrl(v.audioUrl),
   }))
 
   // 4. 查用户进度
@@ -79,7 +90,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
   const result: SegmentDetail = {
     id: segment.id,
     title: segment.title,
-    audioUrl: segment.audioUrl,
+    audioUrl: resolveAudioUrl(segment.audioUrl),
     textContent: segment.textContent,
     translation: segment.translation,
     questions: segment.questions,

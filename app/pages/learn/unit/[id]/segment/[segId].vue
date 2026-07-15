@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useSegmentDetail } from '~/composables/unit'
 import type { SegmentDetail } from '~~/shared/types/unit'
-import { useAudioPlayer } from '~/composables/useAudioPlayer'
+import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 
 definePageMeta({
   title: '片段学习',
@@ -12,7 +12,7 @@ const segId = computed(() => Number(route.params.segId))
 const unitId = computed(() => Number(route.params.id))
 
 const { isLoading, fetchSegmentDetail } = useSegmentDetail()
-const { load, play, pause } = useAudioPlayer()
+const { play, pause } = useAudioPlayer()
 
 const segment = ref<SegmentDetail | null>(null)
 const error = ref<string | null>(null)
@@ -33,10 +33,7 @@ async function loadData() {
   const res = await fetchSegmentDetail(segId.value)
   if (res?.code === 200 && res.data) {
     segment.value = res.data
-    // 加载音频
-    if (res.data.audioUrl) {
-      load(res.data.audioUrl)
-    }
+    // 不自动 load()，等用户点击播放时再加载（浏览器要求用户手势）
     // 根据进度设置当前阶段
     const progress = res.data.progress
     if (progress.phase1_done && progress.phase2_done && progress.phase3_done) {
@@ -124,7 +121,7 @@ function isPhaseDone(phase: number): boolean {
       </div>
 
       <!-- 音频播放器 -->
-      <AudioPlayer class="audio-player" />
+      <AudioPlayer :src="segment?.audioUrl" class="audio-player" />
 
       <!-- 阶段内容区 -->
       <div class="phase-content">

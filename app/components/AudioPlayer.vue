@@ -3,6 +3,8 @@ import { useAudioStore } from '~/store/useAudioStore'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 
 interface Props {
+  /** 音频源 URL */
+  src?: string | null
   /** 是否显示速度控制 */
   showSpeed?: boolean
   /** 速度选项 */
@@ -10,12 +12,30 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  src: null,
   showSpeed: true,
   speedOptions: () => [0.5, 1, 1.5, 2],
 })
 
 const store = useAudioStore()
-const { togglePlay, seek, setSpeed } = useAudioPlayer()
+const { load, togglePlay: rawTogglePlay, seek, setSpeed } = useAudioPlayer()
+
+// 是否已加载当前 src
+const isLoaded = ref(false)
+
+// src 变化时重置加载状态
+watch(() => props.src, () => {
+  isLoaded.value = false
+})
+
+// 播放切换：首次播放时自动加载
+function handleTogglePlay() {
+  if (props.src && !isLoaded.value && store.currentSrc !== props.src) {
+    load(props.src)
+    isLoaded.value = true
+  }
+  rawTogglePlay()
+}
 
 // 格式化时间（秒 → mm:ss）
 function formatTime(seconds: number): string {
@@ -45,7 +65,7 @@ function cycleSpeed() {
 <template>
   <div class="audio-player">
     <!-- 播放按钮 -->
-    <button class="play-btn" @click="togglePlay">
+    <button class="play-btn" @click="handleTogglePlay">
       <svg v-if="!store.isPlaying" viewBox="0 0 24 24" fill="currentColor">
         <path d="M8 5v14l11-7z" />
       </svg>

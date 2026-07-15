@@ -24,7 +24,7 @@ export function useAudioPlayer() {
     // 创建新实例
     howl = new Howl({
       src: [src],
-      html5: true, // 使用 HTML5 Audio，支持流式播放和大文件
+      html5: true, // 流式播放，边加载边播放
       preload: true,
       onend: () => {
         store.isPlaying = false
