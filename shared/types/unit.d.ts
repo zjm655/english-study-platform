@@ -69,3 +69,27 @@ export interface UserProgress {
     updatedAt: string | null
   }[]
 }
+
+/** 重点词信息 */
+export interface VocabularyItem {
+  id: number
+  word: string
+  forms: string | null
+  phonetic: string | null
+  meaning: string
+  audioUrl: string | null
+}
+
+/** 片段详情（学习页用） */
+export interface SegmentDetail {
+  id: number
+  title: string
+  audioUrl: string | null
+  textContent: string
+  translation: string | null
+  questions: string | null
+  unitId: number
+  unitTitle: string
+  vocabulary: VocabularyItem[]
+  progress: SegmentPhaseProgress
+}

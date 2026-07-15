@@ -80,3 +80,17 @@ export interface CheckinLogRow {
   createdAt: string
   updatedAt: string
 }
+
+export interface VocabularyRow {
+  id: number
+  segment_id: number
+  word: string
+  forms: string | null
+  phonetic: string | null
+  meaning: string
+  exampleSentence: string | null
+  exampleTranslation: string | null
+  audioUrl: string | null
+  sort_order: number
+  createdAt: string
+}
