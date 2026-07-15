@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
-const { load, play } = useAudioPlayer()
+const { load, play, isPlaying } = useAudioPlayer()
 
 // ===== 状态 =====
 const selectedVocab = ref<VocabularyItem | null>(null)
@@ -25,6 +25,7 @@ interface Token {
   text: string
   isWord: boolean
   vocab?: VocabularyItem
+  isFirstOccurrence?: boolean
 }
 
 const tokens = computed<Token[]>(() => {
@@ -46,7 +47,9 @@ const tokens = computed<Token[]>(() => {
     }
   }
 
-  // 3. 为每个 token 匹配词汇
+  // 3. 为每个 token 匹配词汇（首次出现加背景，后续只保留下划线）
+  const seenVocabIds = new Set<number>()
+
   return rawTokens.map((token) => {
     const isWord = /[a-zA-Z]/.test(token)
     if (!isWord) return { text: token, isWord: false }
@@ -54,6 +57,12 @@ const tokens = computed<Token[]>(() => {
     // 去除首尾标点后的纯净形式用于匹配
     const clean = token.toLowerCase().replace(/^[.,!?;:"]+|[.,!?;:"]+$/g, '')
     const vocab = clean ? vocabMap.get(clean) : undefined
+
+    if (vocab) {
+      const isFirst = !seenVocabIds.has(vocab.id)
+      if (isFirst) seenVocabIds.add(vocab.id)
+      return { text: token, isWord: true, vocab, isFirstOccurrence: isFirst }
+    }
 
     return { text: token, isWord: true, vocab }
   })
@@ -75,6 +84,12 @@ async function playVocabAudio(url: string | null) {
   play()
 }
 
+async function playMaterialAudio() {
+  if (!props.segment.audioUrl) return
+  await load(props.segment.audioUrl)
+  play()
+}
+
 async function completePhase() {
   const res = await updateProgress({
     segmentId: props.segment.id,
@@ -92,14 +107,27 @@ async function completePhase() {
     <!-- 卡片 a：文本卡片 -->
     <div class="card text-card">
       <div class="card__header">
-        原文
+        <span>原文</span>
+        <button
+          v-if="segment.audioUrl"
+          class="material-play-btn"
+          @click="playMaterialAudio"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          播放材料
+        </button>
       </div>
       <p class="tokenized-text">
         <template v-for="(token, i) in tokens" :key="i">
           <span
             v-if="token.vocab"
             class="token token--vocab"
-            :class="{ 'token--active': selectedVocab?.id === token.vocab.id }"
+            :class="{
+              'token--first': token.isFirstOccurrence,
+              'token--active': selectedVocab?.id === token.vocab.id,
+            }"
             @click="handleVocabClick(token.vocab)"
           >
             {{ token.text }}
@@ -201,6 +229,33 @@ async function completePhase() {
   font-weight: 600;
   color: var(--text-1);
   margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.material-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--primary-light);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.material-play-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.material-play-btn:active {
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ===== 文本卡片 ===== */
@@ -220,10 +275,13 @@ async function completePhase() {
 }
 
 .token--vocab {
-  background: var(--warning-light);
   border-bottom: 2px solid var(--warning);
   cursor: pointer;
   transition: all 0.2s;
+}
+
+.token--vocab.token--first {
+  background: var(--warning-light);
 }
 
 .token--vocab:hover {
