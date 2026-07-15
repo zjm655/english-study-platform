@@ -43,7 +43,7 @@ export function useAudioPlayer() {
       onload: () => {
         store.duration = howl?.duration() ?? 0
       },
-      onloaderror: (_id: number, error: string) => {
+      onloaderror: (_id: number, error: unknown) => {
         console.error('音频加载失败:', error)
         store.isPlaying = false
       }

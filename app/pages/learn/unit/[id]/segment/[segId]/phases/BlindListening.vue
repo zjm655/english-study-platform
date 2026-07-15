@@ -48,7 +48,7 @@ function submitAnswer() {
   const answer = userAnswers.value[currentIndex.value]
   if (!answer) return
 
-  isCorrect.value = answer === currentQuestion.value.answer
+  isCorrect.value = answer === currentQuestion.value?.answer
   showResult.value = true
 }
 
@@ -108,7 +108,7 @@ function restart() {
       </div>
 
       <!-- 题目 -->
-      <div class="question-card">
+      <div v-if="currentQuestion" class="question-card">
         <div class="question-text">{{ currentQuestion.question }}</div>
 
         <!-- 选项 -->

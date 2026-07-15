@@ -2,6 +2,7 @@ import { query, withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow, SegmentRow } from '#server/types/db'
+import type { RowDataPacket } from 'mysql2'
 import type { Recording, WordScore } from '#shared/types/recording'
 
 /**
@@ -55,11 +56,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
       )
 
       // 返回更新后的记录（事务内查询，使用 conn.execute 确保连接一致性）
-      const [rows] = await conn.execute<RecordingRow[]>(
+      const [rows] = await conn.execute<RowDataPacket[]>(
         'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
         [id]
       )
-      return rowToRecording(rows[0])
+      return rowToRecording(rows[0] as RecordingRow)
     })
   } catch (err) {
     console.error('[recording analyze] 事务失败:', err)
@@ -74,7 +75,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
 })
 
 /** 生成模拟分析数据 */
-function generateMockAnalysis(textContent: string) {
+function generateMockAnalysis(textContent: string): {
+  score: number
+  feedback: string
+  recognizedText: string
+  wordScores: WordScore[]
+} {
   // 综合评分：75-95 随机
   const overallScore = Math.floor(Math.random() * 21) + 75
 
@@ -96,7 +102,7 @@ function generateMockAnalysis(textContent: string) {
     '语音语调表现良好，重音位置基本准确。建议多练习连读和弱读，让语速更自然。',
     '发音准确度较高，大部分单词发音正确。可以加强语调起伏，避免平铺直叙。',
   ]
-  const feedback = feedbackTemplates[Math.floor(Math.random() * feedbackTemplates.length)]
+  const feedback = feedbackTemplates[Math.floor(Math.random() * feedbackTemplates.length)] ?? ''
 
   return {
     score: overallScore,

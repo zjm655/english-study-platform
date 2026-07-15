@@ -6,7 +6,7 @@ import { validateError, validateSuccess, uploadRecordingSchema } from '#server/u
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow } from '#server/types/db'
 import type { UploadRecordingResult } from '#shared/types/recording'
-import type { ResultSetHeader } from 'mysql2'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 
 // ============ 安全配置 ============
 const UPLOAD_DIR = resolve('public/uploads/recordings')
@@ -104,11 +104,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
       const insertId = result.insertId
 
       // 查回完整记录（事务内查询，使用 conn.execute 确保连接一致性）
-      const [rows] = await conn.execute<RecordingRow[]>(
+      const [rows] = await conn.execute<RowDataPacket[]>(
         'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
         [insertId]
       )
-      return rowToRecording(rows[0])
+      return rowToRecording(rows[0] as RecordingRow)
     })
   } catch (err) {
     // 事务失败时回滚，并删除已写入的文件避免脏文件
