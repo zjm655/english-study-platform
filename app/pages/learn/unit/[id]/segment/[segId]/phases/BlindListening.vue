@@ -19,11 +19,13 @@ const emit = defineEmits<{
 
 const { execute: updateProgress, isLoading } = useUpdateProgress()
 
-// 解析 questions JSON
+// 解析 questions（后端可能返回数组或 JSON 字符串）
 const questions = computed<Question[]>(() => {
-  if (!props.segment.questions) return []
+  const raw = props.segment.questions
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw as unknown as Question[]
   try {
-    return JSON.parse(props.segment.questions)
+    return JSON.parse(raw)
   } catch {
     return []
   }
