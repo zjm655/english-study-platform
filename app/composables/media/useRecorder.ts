@@ -16,6 +16,11 @@ export function useRecorder() {
     // SSR 保护
     if (!import.meta.client) return
     
+    // 防止重复调用，先清理旧的
+    if (mediaRecorder) {
+      cleanup()
+    }
+    
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       mediaRecorder = new MediaRecorder(stream)
