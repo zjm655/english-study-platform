@@ -8,7 +8,7 @@ export const uploadRecording = async (payload: UploadRecordingPayload) => {
   formData.append('phase', String(payload.phase))
   formData.append('duration', String(payload.duration))
 
-  return request<UploadRecordingResult>(recordingPath, {
+  return request.file<UploadRecordingResult>(recordingPath, {
     method: 'POST',
     body: formData,
   })

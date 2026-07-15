@@ -1,5 +1,6 @@
 import { query } from '#server/utils/db'
-import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
+import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow, SegmentRow } from '#server/types/db'
 import type { Recording, WordScore } from '#shared/types/recording'
 
@@ -56,32 +57,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
 
   return validateSuccess(rowToRecording(updatedRows[0]), '分析完成')
 })
-
-/** 将数据库行转为前端 Recording 类型 */
-function rowToRecording(row: RecordingRow | undefined): Recording | null {
-  if (!row) return null
-  let wordScores: WordScore[] | null = null
-  if (row.wordScores) {
-    try {
-      wordScores = JSON.parse(row.wordScores)
-    } catch {
-      wordScores = null
-    }
-  }
-  return {
-    id: row.id,
-    userId: row.user_id,
-    segmentId: row.segment_id,
-    phase: row.phase,
-    audioPath: row.audioPath,
-    score: row.score !== null ? Number(row.score) : null,
-    feedback: row.feedback,
-    recognizedText: row.recognizedText,
-    wordScores,
-    duration: row.duration !== null ? Number(row.duration) : null,
-    createdAt: row.createdAt,
-  }
-}
 
 /** 生成模拟分析数据 */
 function generateMockAnalysis(textContent: string) {
