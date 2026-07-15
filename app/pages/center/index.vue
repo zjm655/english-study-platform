@@ -34,7 +34,7 @@
           </div>
           <div class="stat-divider"></div>
           <div class="stat-item">
-            <div class="stat-value">{{ formatStudyTime(checkinStats?.totalStudyMinutes ?? 0) }}</div>
+            <div class="stat-value">{{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}</div>
             <div class="stat-label">累计学习</div>
           </div>
         </div>
@@ -118,8 +118,10 @@ const levelType = computed(() => {
   return types[user.value?.level ?? 0] || 'info'
 })
 
-// 格式化学习时长
-const formatStudyTime = (minutes: number) => {
+// 格式化学习时长（秒 → 可读格式）
+const formatStudyTime = (seconds: number) => {
+  if (seconds < 60) return `${seconds}秒`
+  const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}分钟`
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60

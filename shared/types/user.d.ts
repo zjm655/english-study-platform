@@ -26,5 +26,5 @@ export interface CheckinStats {
   lastCheckinTime: string | null
   currentStreakDays: number
   maxStreakDays: number
-  totalStudyMinutes: number
+  totalStudySeconds: number
 }

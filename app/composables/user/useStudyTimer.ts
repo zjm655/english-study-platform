@@ -1,7 +1,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useStudyTime } from './useStudyTime'
 
-const REPORT_INTERVAL = 60000 // 60s 上报间隔
+const REPORT_INTERVAL = 30000 // 30s 上报间隔
 
 /**
  * 学习时长定时器 Hook（第二层）
@@ -27,14 +27,14 @@ export function useStudyTimer() {
   // 上报并重置计时
   function report() {
     const elapsedMs = getElapsedMs()
-    const minutes = Math.round(elapsedMs / 60000)
-    if (minutes > 0) {
-      logger.log(`[StudyTimer] 上报学习时长: ${minutes} 分钟`)
-      reportStudyTime(minutes)
+    const seconds = Math.floor(elapsedMs / 1000)
+    if (seconds > 0) {
+      logger.log(`[StudyTimer] 上报学习时长: ${seconds} 秒`)
+      reportStudyTime(seconds)
       startTime = Date.now()
       accumulatedMs = 0
     }
-    // 如果 minutes === 0，保留当前计时，不清零
+    // 如果 seconds === 0，保留当前计时，不清零
   }
 
   // 启动定时器
@@ -73,7 +73,7 @@ export function useStudyTimer() {
 
   onMounted(() => {
     logger.log('[StudyTimer] 计时器启动，上报基准时间')
-    // 立即上报 0 分钟，建立 updatedAt 基准
+    // 立即上报 0 秒，建立 updatedAt 基准
     reportStudyTime(0)
     startTimer()
     document.addEventListener('visibilitychange', handleVisibilityChange)

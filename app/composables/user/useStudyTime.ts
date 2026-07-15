@@ -12,8 +12,8 @@ export const useStudyTime = () => {
 
   const { isLoading, execute } = useHandleRes(cfg)
 
-  async function reportStudyTime(studyMinutes: number) {
-    const res = await execute(studyMinutes)
+  async function reportStudyTime(studySeconds: number) {
+    const res = await execute(studySeconds)
     return res
   }
 

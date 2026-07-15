@@ -63,7 +63,7 @@ const initDB = async () => {
       last_checkin_time DATETIME COMMENT '上次打卡时间',
       current_streak_days INT NOT NULL DEFAULT 0 COMMENT '当前连续天数',
       max_streak_days INT NOT NULL DEFAULT 0 COMMENT '最大连续天数',
-      total_study_minutes INT NOT NULL DEFAULT 0 COMMENT '累计学习时长(分钟)',
+      total_study_seconds INT NOT NULL DEFAULT 0 COMMENT '累计学习时长(秒)',
       updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE
     )
@@ -76,7 +76,7 @@ const initDB = async () => {
       user_id INT NOT NULL COMMENT '用户ID',
       checkin_date DATE NOT NULL COMMENT '打卡日期',
       checked_in TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已签到: 0未签到 1已签到',
-      study_minutes INT NOT NULL DEFAULT 0 COMMENT '当天学习时长(分钟)',
+      study_seconds INT NOT NULL DEFAULT 0 COMMENT '当天学习时长(秒)',
       segments_completed INT NOT NULL DEFAULT 0 COMMENT '当天完成片段数',
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

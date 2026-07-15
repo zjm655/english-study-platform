@@ -66,7 +66,7 @@ export interface CheckinStatsRow {
   last_checkin_time: string | null
   current_streak_days: number
   max_streak_days: number
-  total_study_minutes: number
+  total_study_seconds: number
   updatedAt: string
 }
 
@@ -75,7 +75,7 @@ export interface CheckinLogRow {
   user_id: number
   checkin_date: string
   checked_in: number
-  study_minutes: number
+  study_seconds: number
   segments_completed: number
   createdAt: string
   updatedAt: string

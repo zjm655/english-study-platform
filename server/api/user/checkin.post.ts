@@ -86,7 +86,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
         lastCheckinTime: nowStr,
         currentStreakDays: newStreak,
         maxStreakDays: newMax,
-        totalStudyMinutes: stats.totalStudyMinutes
+        totalStudySeconds: stats.totalStudySeconds
       }
     }
   })

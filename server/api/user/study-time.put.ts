@@ -5,13 +5,13 @@ import type { CheckinStats } from '#shared/types/user'
 import type { ResultSetHeader } from 'mysql2'
 import type { ZodSafeParseResult } from 'zod'
 
-/** 单次上报最大学习时长（分钟） */
-const MAX_STUDY_MINUTES_PER_REPORT = 120
+/** 单次上报最大学习时长（秒）：1小时 */
+const MAX_STUDY_SECONDS_PER_REPORT = 3600
 
 /**
  * 上报学习时长接口
  * 请求：PUT /api/user/study-time
- * Body：{ studyMinutes: number }
+ * Body：{ studySeconds: number }
  * 流程：查/创建 log → 校验上报时长 → 更新 log + stats
  */
 export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats | null>> => {
@@ -19,13 +19,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
   const body = await readBody(event)
 
   // zod 校验
-  const result: ZodSafeParseResult<{ studyMinutes: number }> = studyTimeSchema.safeParse(body)
+  const result: ZodSafeParseResult<{ studySeconds: number }> = studyTimeSchema.safeParse(body)
   if (!result.success) {
     const errorMessage = result.error?.issues[0]?.message || '参数校验失败'
     return validateError(errorMessage)
   }
 
-  const reportedMinutes = result.data.studyMinutes
+  const reportedSeconds = result.data.studySeconds
   const todayStr = formatDate(new Date())
 
   const stats = await withTransaction(async (conn) => {
@@ -57,33 +57,32 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     }
 
     // 4. 校验上报时长
-    const intervalMinutes = intervalSeconds / 60
-    let actualMinutes = reportedMinutes
+    let actualSeconds = reportedSeconds
 
     // 服务端间隔比上报时长少了 10s 以上 → 异常，不累计
-    if (intervalSeconds < reportedMinutes * 60 - 10) {
+    if (intervalSeconds < reportedSeconds - 10) {
       return getStats(conn, userId)
     }
 
-    // 上报超过间隔 → 封顶 120 分钟
-    if (actualMinutes > intervalMinutes) {
-      actualMinutes = Math.min(actualMinutes, MAX_STUDY_MINUTES_PER_REPORT)
+    // 上报超过间隔 → 封顶 1 小时
+    if (actualSeconds > intervalSeconds) {
+      actualSeconds = Math.min(actualSeconds, MAX_STUDY_SECONDS_PER_REPORT)
     }
 
-    const addMinutes = Math.floor(actualMinutes)
-    if (addMinutes <= 0) {
+    const addSeconds = Math.floor(actualSeconds)
+    if (addSeconds <= 0) {
       return getStats(conn, userId)
     }
 
     // 5. 更新 log（updatedAt 自动刷新）+ stats
     await conn.execute(
-      'UPDATE user_checkin_log SET study_minutes = study_minutes + ? WHERE id = ?',
-      [addMinutes, todayLog.id]
+      'UPDATE user_checkin_log SET study_seconds = study_seconds + ? WHERE id = ?',
+      [addSeconds, todayLog.id]
     )
 
     await conn.execute(
-      'UPDATE user_checkin_stats SET total_study_minutes = total_study_minutes + ? WHERE user_id = ?',
-      [addMinutes, userId]
+      'UPDATE user_checkin_stats SET total_study_seconds = total_study_seconds + ? WHERE user_id = ?',
+      [addSeconds, userId]
     )
 
     // 6. 返回更新后的 stats

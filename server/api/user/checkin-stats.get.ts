@@ -24,7 +24,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     lastCheckinTime: row.last_checkin_time,
     currentStreakDays: row.current_streak_days,
     maxStreakDays: row.max_streak_days,
-    totalStudyMinutes: row.total_study_minutes
+    totalStudySeconds: row.total_study_seconds
   }
 
   return validateSuccess(stats, '获取成功', 200)

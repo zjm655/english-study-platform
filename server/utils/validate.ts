@@ -59,10 +59,10 @@ export const registerSchema = z.object({
 
 // 学习时长上报校验
 export const studyTimeSchema = z.object({
-  studyMinutes: z
+  studySeconds: z
     .number()
     .min(0, '学习时长不能为负数')
-    .max(120, '单次上报时长不能超过120分钟')
+    .max(3600, '单次上报时长不能超过1小时')
 })
 
 // ============== 通用工具 ==============

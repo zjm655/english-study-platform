@@ -41,8 +41,10 @@ const isCheckedIn = computed(() => {
 // 总loading状态
 const isLoading = computed(() => statsLoading.value)
 
-// 格式化学习时长
-const formatStudyTime = (minutes: number) => {
+// 格式化学习时长（秒 → 可读格式）
+const formatStudyTime = (seconds: number) => {
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}min`
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
@@ -122,7 +124,7 @@ onMounted(() => {
       <div class="stats-section">
         <div class="stat-card">
           <div class="stat-label">累计学习</div>
-          <div class="stat-value">{{ formatStudyTime(checkinStats?.totalStudyMinutes ?? 0) }}</div>
+          <div class="stat-value">{{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">已学习</div>
