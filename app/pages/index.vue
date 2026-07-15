@@ -61,6 +61,7 @@ async function handleCheckin() {
   const res = await doCheckin()
   if (res?.code === 200) {
     checkinStats.value = res.data
+    toastSuccess(res.message, 2000)
   } else {
     toastError(res?.message || '签到失败，请稍后重试')
   }
@@ -111,7 +112,7 @@ onMounted(() => {
         <NuxtLink to="/learn" class="learn-btn" v-if="isCheckedIn">
           开始学习
         </NuxtLink>
-        <div class="learn-btn" v-else="isCheckedIn" @click="handleCheckin">
+        <div class="learn-btn" v-else="isCheckedIn" @click="handleCheckin" style="cursor: pointer;">
           点击签到
         </div>
 

@@ -3,6 +3,19 @@ import type { CheckinStatsRow, CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
 import type { ResultSetHeader } from 'mysql2'
 
+/** 格式化日期为 YYYY-MM-DD */
+function formatDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** 格式化为 MySQL DATETIME 字符串 YYYY-MM-DD HH:MM:SS */
+function formatDatetime(d: Date): string {
+  return `${formatDate(d)} ${d.toTimeString().slice(0, 8)}`
+}
+
 /**
  * 签到接口
  * 请求：POST /api/user/checkin
@@ -10,12 +23,15 @@ import type { ResultSetHeader } from 'mysql2'
  */
 export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats>> => {
   const userId: number = event.context.user.id
+  const now = new Date()
+  const todayStr = formatDate(now)
+  const nowStr = formatDatetime(now)
 
   const result = await withTransaction(async (conn) => {
     // 1. 查今天的 log 记录
     const logRows = await query<CheckinLogRow>(
-      'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = CURDATE()',
-      [userId]
+      'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
+      [userId, todayStr]
     )
     const todayLog = logRows[0]
 
@@ -41,8 +57,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     } else {
       // 不存在 → 创建（已签到）
       await conn.execute<ResultSetHeader>(
-        'INSERT INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, CURDATE(), 1)',
-        [userId]
+        'INSERT INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, ?, 1)',
+        [userId, todayStr]
       )
     }
 
@@ -59,7 +75,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
       newStreak = 1
     } else {
       const lastDate = new Date(lastCheckinTime)
-      const now = new Date()
       const yesterday = new Date(now)
       yesterday.setDate(now.getDate() - 1)
 
@@ -77,18 +92,18 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     await conn.execute(
       `UPDATE user_checkin_stats
        SET total_checkin_days = total_checkin_days + 1,
-           last_checkin_time = NOW(),
+           last_checkin_time = ?,
            current_streak_days = ?,
            max_streak_days = ?
        WHERE user_id = ?`,
-      [newStreak, newMax, userId]
+      [nowStr, newStreak, newMax, userId]
     )
 
     return {
       alreadyCheckedIn: false,
       stats: {
         totalCheckinDays: statsRow.total_checkin_days + 1,
-        lastCheckinTime: new Date().toISOString(),
+        lastCheckinTime: nowStr,
         currentStreakDays: newStreak,
         maxStreakDays: newMax,
         totalStudyMinutes: statsRow.total_study_minutes

@@ -2,9 +2,18 @@ import { withTransaction, query } from '#server/utils/db'
 import type { CheckinStatsRow, CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
 import type { ResultSetHeader } from 'mysql2'
+import type { ZodSafeParseResult } from 'zod'
 
 /** 单次上报最大学习时长（分钟） */
 const MAX_STUDY_MINUTES_PER_REPORT = 120
+
+/** 格式化日期为 YYYY-MM-DD */
+function formatDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 /**
  * 上报学习时长接口
@@ -14,8 +23,17 @@ const MAX_STUDY_MINUTES_PER_REPORT = 120
  */
 export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats | null>> => {
   const userId: number = event.context.user.id
-  const body = await readBody<{ studyMinutes: number }>(event)
-  const reportedMinutes = body?.studyMinutes ?? 0
+  const body = await readBody(event)
+
+  // zod 校验
+  const result: ZodSafeParseResult<{ studyMinutes: number }> = studyTimeSchema.safeParse(body)
+  if (!result.success) {
+    const errorMessage = result.error?.issues[0]?.message || '参数校验失败'
+    return validateError(errorMessage)
+  }
+
+  const reportedMinutes = result.data.studyMinutes
+  const todayStr = formatDate(new Date())
 
   if (reportedMinutes <= 0) {
     return validateError('学习时长必须大于 0')
@@ -24,21 +42,21 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
   const stats = await withTransaction(async (conn) => {
     // 1. 查今天的 log 记录
     const logRows = await query<CheckinLogRow>(
-      'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = CURDATE()',
-      [userId]
+      'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
+      [userId, todayStr]
     )
     let todayLog = logRows[0]
 
-    // 2. 没有 log → 创建（未签到），首次调用以 NOW() 为基准
+    // 2. 没有 log → 创建（未签到），首次调用以当前时间为基准
     if (!todayLog) {
       await conn.execute<ResultSetHeader>(
-        'INSERT IGNORE INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, CURDATE(), 0)',
-        [userId]
+        'INSERT IGNORE INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, ?, 0)',
+        [userId, todayStr]
       )
       // 重新查询拿到 updatedAt 作为基准
       const newRows = await query<CheckinLogRow>(
-        'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = CURDATE()',
-        [userId]
+        'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
+        [userId, todayStr]
       )
       todayLog = newRows[0]!
       // 首次调用，没有历史时间可算，不累计

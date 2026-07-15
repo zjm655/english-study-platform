@@ -27,7 +27,7 @@ export const loginSchema = z.object({
 
 // 注册校验
 export const registerSchema = z.object({
-  nickname: z.string().min(1, '昵称不能为空').max(25, '昵称最多25个字符').optional(),
+  nickname: z.string().max(25, '昵称最多25个字符').optional().or(z.literal('')),
   account: z
     .string()
     .min(8, '账号长度不能少于8位')
@@ -55,6 +55,14 @@ export const registerSchema = z.object({
 }).refine((data) => data.password1 === data.password2, {
   message: '两次密码输入不一致',
   path: ['password2']
+})
+
+// 学习时长上报校验
+export const studyTimeSchema = z.object({
+  studyMinutes: z
+    .number()
+    .min(0, '学习时长不能为负数')
+    .max(120, '单次上报时长不能超过120分钟')
 })
 
 // ============== 通用工具 ==============
