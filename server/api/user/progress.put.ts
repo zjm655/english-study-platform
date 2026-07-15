@@ -1,4 +1,4 @@
-import { query, withTransaction } from '#server/utils/db'
+import { withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess, progressSchema } from '#server/utils/validate'
 import type { UserProgressRow } from '#server/types/db'
 import type { ResultSetHeader } from 'mysql2'
@@ -26,11 +26,12 @@ export default defineEventHandler(async (event) => {
   const { segmentId, phase, done, score } = parseResult.data
 
   const result = await withTransaction(async (conn) => {
-    // 查现有记录
-    const existing = await query<UserProgressRow>(
+    // 查现有记录（事务内必须用 conn.execute，否则读不到未提交数据）
+    const [existingRows] = await conn.execute(
       'SELECT * FROM user_progress WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL',
       [userId, segmentId]
     )
+    const existing = existingRows as UserProgressRow[]
 
     if (existing.length === 0) {
       // 不存在 → INSERT
@@ -65,13 +66,13 @@ export default defineEventHandler(async (event) => {
       )
     }
 
-    // 返回更新后的进度
-    const updated = await query<UserProgressRow>(
+    // 返回更新后的进度（事务内必须用 conn.execute）
+    const [updatedRows] = await conn.execute(
       'SELECT * FROM user_progress WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL',
       [userId, segmentId]
     )
 
-    return updated[0]
+    return (updatedRows as UserProgressRow[])[0]
   })
 
   return validateSuccess({

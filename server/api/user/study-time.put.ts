@@ -1,4 +1,4 @@
-import { withTransaction, query } from '#server/utils/db'
+import { withTransaction } from '#server/utils/db'
 import { formatDate, getStats } from '#server/utils/checkinHelper'
 import type { CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
@@ -29,12 +29,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
   const todayStr = formatDate(new Date())
 
   const stats = await withTransaction(async (conn) => {
-    // 1. 查今天的 log 记录
-    const logRows = await query<CheckinLogRow>(
+    // 1. 查今天的 log 记录（事务内必须用 conn.execute）
+    const [logRows] = await conn.execute(
       'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
       [userId, todayStr]
     )
-    let todayLog = logRows[0]
+    let todayLog = (logRows as CheckinLogRow[])[0]
 
     // 2. 没有 log → 创建（未签到），首次调用以当前时间为基准
     if (!todayLog) {
