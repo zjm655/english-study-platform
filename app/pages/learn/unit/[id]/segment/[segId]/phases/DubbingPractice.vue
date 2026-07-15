@@ -45,6 +45,9 @@ const isUploadError = ref(false)
 const isListError = ref(false)
 const listErrorMsg = ref('')
 
+// 本地文件选择 ref
+const fileInputRef = ref<HTMLInputElement | null>(null)
+
 // 当前选中的录音
 const selectedRecording = computed(() =>
   recordings.value.find(r => r.id === selectedRecordingId.value) || null
@@ -129,13 +132,13 @@ async function finishRecording() {
   }
 }
 
-// 执行上传（可被重试调用）
-async function doUpload(blob: Blob) {
+// 执行上传（可被重试调用，支持本地文件选择时传入外部时长）
+async function doUpload(blob: Blob, overrideDuration?: number) {
   const res = await uploadRecording({
     audioBlob: blob,
     segmentId: props.segment.id,
     phase: 3,
-    duration: duration.value,
+    duration: overrideDuration ?? duration.value,
   })
   if (res?.code === 200 && res.data) {
     isUploadError.value = false
@@ -237,6 +240,67 @@ async function loadRecordings() {
   }
 }
 
+// ===== 本地文件选择（录音权限失败后的备选方案） =====
+function triggerFileSelect() {
+  fileInputRef.value?.click()
+}
+
+async function handleFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  // 前端 MIME 校验（与后端白名单一致）
+  const allowedTypes = [
+    'audio/webm', 'audio/ogg', 'audio/wav', 'audio/x-wav',
+    'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a',
+  ]
+  if (!allowedTypes.includes(file.type)) {
+    toastError(`不支持的音频格式: ${file.type}，请选择 webm、ogg、wav、mp3 文件`)
+    input.value = ''
+    return
+  }
+
+  // 前端大小校验（50MB，与后端一致）
+  if (file.size > 50 * 1024 * 1024) {
+    toastError('文件大小超过 50MB 限制')
+    input.value = ''
+    return
+  }
+
+  // 清除错误状态，走相同上传逻辑
+  isUploadError.value = false
+  pendingBlob.value = null
+  permissionError.value = ''
+
+  try {
+    const fileDuration = await getAudioDuration(file)
+    await doUpload(file, fileDuration)
+  } catch (err) {
+    console.error('文件上传失败:', err)
+    toastError('上传失败，请重试')
+  }
+
+  input.value = ''
+}
+
+/** 从 Audio 元素获取音频时长（用于本地文件） */
+function getAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const audio = new Audio()
+    audio.preload = 'metadata'
+    audio.onloadedmetadata = () => {
+      resolve(Math.floor(audio.duration) || 0)
+      URL.revokeObjectURL(audio.src)
+    }
+    audio.onerror = () => {
+      resolve(0)
+      URL.revokeObjectURL(audio.src)
+    }
+    audio.src = URL.createObjectURL(file)
+  })
+}
+
 // 获取词的颜色类
 function getWordStatusClass(word: WordScore): string {
   switch (word.status) {
@@ -303,6 +367,24 @@ onMounted(() => {
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
         </svg>
         <span>{{ permissionError }}</span>
+      </div>
+
+      <!-- 本地文件选择（仅录音失败后显示） -->
+      <div v-if="permissionError" class="file-upload-fallback">
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept=".webm,.ogg,.wav,.mp3,.mp4,audio/webm,audio/ogg,audio/wav,audio/mpeg,audio/mp4"
+          class="file-input-hidden"
+          @change="handleFileSelected"
+        />
+        <button class="fallback-btn" @click="triggerFileSelect">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+          </svg>
+          从本地选择音频文件
+        </button>
+        <p class="fallback-hint">支持 webm、ogg、wav、mp3 格式</p>
       </div>
 
       <!-- 上传失败提示 + 重试 -->
@@ -1013,5 +1095,48 @@ onMounted(() => {
   margin-top: 8px;
   padding: 6px 14px;
   font-size: 13px;
+}
+
+/* ===== 本地文件选择备选 ===== */
+.file-upload-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.file-input-hidden {
+  display: none;
+}
+
+.fallback-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--primary-light);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  color: var(--primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.fallback-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.fallback-btn:active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.fallback-hint {
+  font-size: 12px;
+  color: var(--text-3);
 }
 </style>
