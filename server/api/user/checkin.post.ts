@@ -1,7 +1,8 @@
 import { withTransaction, query } from '#server/utils/db'
 import type { CheckinStatsRow, CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
-import type { ResultSetHeader } from 'mysql2'
+import type { ResultSetHeader, PoolConnection } from 'mysql2/promise'
+import type { RowDataPacket } from 'mysql2'
 
 /** 格式化日期为 YYYY-MM-DD */
 function formatDate(d: Date): string {
@@ -16,12 +17,28 @@ function formatDatetime(d: Date): string {
   return `${formatDate(d)} ${d.toTimeString().slice(0, 8)}`
 }
 
+/** 查询并转换用户打卡统计 */
+async function getStats(conn: PoolConnection, userId: number): Promise<CheckinStats> {
+  const [rows] = await conn.execute<RowDataPacket[]>(
+    'SELECT * FROM user_checkin_stats WHERE user_id = ?',
+    [userId]
+  )
+  const row = rows[0] as CheckinStatsRow
+  return {
+    totalCheckinDays: row.total_checkin_days,
+    lastCheckinTime: row.last_checkin_time,
+    currentStreakDays: row.current_streak_days,
+    maxStreakDays: row.max_streak_days,
+    totalStudyMinutes: row.total_study_minutes
+  }
+}
+
 /**
  * 签到接口
  * 请求：POST /api/user/checkin
  * 流程：查 log → 已签到则返回 / 未签到则更新 → 计算连续性 → UPDATE stats
  */
-export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats>> => {
+export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats | null>> => {
   const userId: number = event.context.user.id
   const now = new Date()
   const todayStr = formatDate(now)
@@ -37,13 +54,9 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
     // 2. 已签到 → 直接返回
     if (todayLog && todayLog.checked_in === 1) {
-      const statsRows = await query<CheckinStatsRow>(
-        'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-        [userId]
-      )
       return {
         alreadyCheckedIn: true,
-        stats: rowToStats(statsRows[0]!)
+        stats: await getStats(conn, userId)
       }
     }
 
@@ -63,12 +76,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     }
 
     // 4. 查询 stats，判断连续性
-    const statsRows = await query<CheckinStatsRow>(
-      'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-      [userId]
-    )
-    const statsRow = statsRows[0]!
-    const lastCheckinTime = statsRow.last_checkin_time
+    const stats = await getStats(conn, userId)
+    const lastCheckinTime = stats.lastCheckinTime
 
     let newStreak: number
     if (!lastCheckinTime) {
@@ -83,10 +92,10 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
         lastDate.getMonth() === yesterday.getMonth() &&
         lastDate.getDate() === yesterday.getDate()
 
-      newStreak = isConsecutive ? statsRow.current_streak_days + 1 : 1
+      newStreak = isConsecutive ? stats.currentStreakDays + 1 : 1
     }
 
-    const newMax = Math.max(newStreak, statsRow.max_streak_days)
+    const newMax = Math.max(newStreak, stats.maxStreakDays)
 
     // 5. UPDATE stats
     await conn.execute(
@@ -102,11 +111,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     return {
       alreadyCheckedIn: false,
       stats: {
-        totalCheckinDays: statsRow.total_checkin_days + 1,
+        totalCheckinDays: stats.totalCheckinDays + 1,
         lastCheckinTime: nowStr,
         currentStreakDays: newStreak,
         maxStreakDays: newMax,
-        totalStudyMinutes: statsRow.total_study_minutes
+        totalStudyMinutes: stats.totalStudyMinutes
       }
     }
   })
@@ -117,13 +126,3 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
   return validateSuccess(result.stats, '签到成功')
 })
-
-function rowToStats(row: CheckinStatsRow): CheckinStats {
-  return {
-    totalCheckinDays: row.total_checkin_days,
-    lastCheckinTime: row.last_checkin_time,
-    currentStreakDays: row.current_streak_days,
-    maxStreakDays: row.max_streak_days,
-    totalStudyMinutes: row.total_study_minutes
-  }
-}

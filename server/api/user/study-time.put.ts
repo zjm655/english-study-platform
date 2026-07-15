@@ -1,8 +1,9 @@
 import { withTransaction, query } from '#server/utils/db'
 import type { CheckinStatsRow, CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
-import type { ResultSetHeader } from 'mysql2'
+import type { ResultSetHeader, PoolConnection } from 'mysql2/promise'
 import type { ZodSafeParseResult } from 'zod'
+import type { RowDataPacket } from 'mysql2'
 
 /** 单次上报最大学习时长（分钟） */
 const MAX_STUDY_MINUTES_PER_REPORT = 120
@@ -13,6 +14,22 @@ function formatDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+/** 查询并转换用户打卡统计 */
+async function getStats(conn: PoolConnection, userId: number): Promise<CheckinStats> {
+  const [rows] = await conn.execute<RowDataPacket[]>(
+    'SELECT * FROM user_checkin_stats WHERE user_id = ?',
+    [userId]
+  )
+  const row = rows[0] as CheckinStatsRow
+  return {
+    totalCheckinDays: row.total_checkin_days,
+    lastCheckinTime: row.last_checkin_time,
+    currentStreakDays: row.current_streak_days,
+    maxStreakDays: row.max_streak_days,
+    totalStudyMinutes: row.total_study_minutes
+  }
 }
 
 /**
@@ -35,8 +52,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
   const reportedMinutes = result.data.studyMinutes
   const todayStr = formatDate(new Date())
 
-  if (reportedMinutes <= 0) {
-    return validateError('学习时长必须大于 0')
+  if (reportedMinutes < 0) {
+    return validateError('学习时长不能为负数')
   }
 
   const stats = await withTransaction(async (conn) => {
@@ -53,18 +70,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
         'INSERT IGNORE INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, ?, 0)',
         [userId, todayStr]
       )
-      // 重新查询拿到 updatedAt 作为基准
-      const newRows = await query<CheckinLogRow>(
-        'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
-        [userId, todayStr]
-      )
-      todayLog = newRows[0]!
       // 首次调用，没有历史时间可算，不累计
-      const statsRows = await query<CheckinStatsRow>(
-        'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-        [userId]
-      )
-      return rowToStats(statsRows[0]!)
+      return getStats(conn, userId)
     }
 
     // 3. 计算服务端时间间隔
@@ -74,11 +81,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
     // 间隔太短（< 10s）→ 忽略
     if (intervalSeconds < 10) {
-      const statsRows = await query<CheckinStatsRow>(
-        'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-        [userId]
-      )
-      return rowToStats(statsRows[0]!)
+      return getStats(conn, userId)
     }
 
     // 4. 校验上报时长
@@ -87,11 +90,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
     // 服务端间隔比上报时长少了 10s 以上 → 异常，不累计
     if (intervalSeconds < reportedMinutes * 60 - 10) {
-      const statsRows = await query<CheckinStatsRow>(
-        'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-        [userId]
-      )
-      return rowToStats(statsRows[0]!)
+      return getStats(conn, userId)
     }
 
     // 上报超过间隔 → 封顶 120 分钟
@@ -101,11 +100,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
     const addMinutes = Math.floor(actualMinutes)
     if (addMinutes <= 0) {
-      const statsRows = await query<CheckinStatsRow>(
-        'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-        [userId]
-      )
-      return rowToStats(statsRows[0]!)
+      return getStats(conn, userId)
     }
 
     // 5. 更新 log（updatedAt 自动刷新）+ stats
@@ -120,22 +115,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     )
 
     // 6. 返回更新后的 stats
-    const statsRows = await query<CheckinStatsRow>(
-      'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-      [userId]
-    )
-    return rowToStats(statsRows[0]!)
+    return getStats(conn, userId)
   })
 
   return validateSuccess(stats, '更新成功')
 })
-
-function rowToStats(row: CheckinStatsRow): CheckinStats {
-  return {
-    totalCheckinDays: row.total_checkin_days,
-    lastCheckinTime: row.last_checkin_time,
-    currentStreakDays: row.current_streak_days,
-    maxStreakDays: row.max_streak_days,
-    totalStudyMinutes: row.total_study_minutes
-  }
-}
