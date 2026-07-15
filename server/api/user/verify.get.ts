@@ -1,12 +1,13 @@
-import pool from '#server/utils/db'  
+import { query } from '#server/utils/db'
+import type { UserRow } from '#server/types/db'
 
 export default defineEventHandler(async (event) => {
     const userId = event.context.user.id
-    const [rows] = await pool.execute(
+    const rows = await query<UserRow>(
         'SELECT id, account, nickname, email, role, passwordHash, avatarUrl, level FROM user WHERE id = ?',
         [userId]
       )
-      const user = (rows as any[])[0]
+      const user = rows[0]
       if (!user) {
         return validateError('账号不存在', 401)
       }

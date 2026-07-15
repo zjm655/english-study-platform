@@ -1,8 +1,9 @@
 import type { LoginPayload, LoginResPayload as LoginRes } from "#shared/types/user"
 import type { ZodSafeParseResult } from 'zod'
 import type { ResPayload } from "#shared/types/request"
+import type { UserRow } from '#server/types/db'
 
-import pool from '#server/utils/db'
+import { query } from '#server/utils/db'
 import bcrypt from 'bcrypt'
 
 /**
@@ -25,11 +26,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes> | 
   const { account, password } = result.data
 
   // 3. 查数据库验证用户
-  const [rows] = await pool.execute(
+  const rows = await query<UserRow>(
     'SELECT id, account, nickname, email, role, passwordHash, avatarUrl, level FROM user WHERE account = ?',
     [account]
   )
-  const user = (rows as any[])[0]
+  const user = rows[0]
   if (!user) {
     return validateError('账号不存在', 401)
   }

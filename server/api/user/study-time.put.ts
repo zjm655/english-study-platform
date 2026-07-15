@@ -1,36 +1,12 @@
 import { withTransaction, query } from '#server/utils/db'
-import type { CheckinStatsRow, CheckinLogRow } from '#server/types/db'
+import { formatDate, getStats } from '#server/utils/checkinHelper'
+import type { CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
-import type { ResultSetHeader, PoolConnection } from 'mysql2/promise'
+import type { ResultSetHeader } from 'mysql2'
 import type { ZodSafeParseResult } from 'zod'
-import type { RowDataPacket } from 'mysql2'
 
 /** 单次上报最大学习时长（分钟） */
 const MAX_STUDY_MINUTES_PER_REPORT = 120
-
-/** 格式化日期为 YYYY-MM-DD */
-function formatDate(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-/** 查询并转换用户打卡统计 */
-async function getStats(conn: PoolConnection, userId: number): Promise<CheckinStats> {
-  const [rows] = await conn.execute<RowDataPacket[]>(
-    'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-    [userId]
-  )
-  const row = rows[0] as CheckinStatsRow
-  return {
-    totalCheckinDays: row.total_checkin_days,
-    lastCheckinTime: row.last_checkin_time,
-    currentStreakDays: row.current_streak_days,
-    maxStreakDays: row.max_streak_days,
-    totalStudyMinutes: row.total_study_minutes
-  }
-}
 
 /**
  * 上报学习时长接口
@@ -51,10 +27,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
 
   const reportedMinutes = result.data.studyMinutes
   const todayStr = formatDate(new Date())
-
-  if (reportedMinutes < 0) {
-    return validateError('学习时长不能为负数')
-  }
 
   const stats = await withTransaction(async (conn) => {
     // 1. 查今天的 log 记录

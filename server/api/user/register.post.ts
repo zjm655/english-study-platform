@@ -1,8 +1,9 @@
 // server/api/user/register.post.ts
-import pool from '#server/utils/db'  // ← 加这一行
+import { query, pool } from '#server/utils/db'
 import type { RegisterPayload } from '#shared/types/user'
 import type { ZodSafeParseResult } from 'zod'
 import type { ResPayload } from "#shared/types/request"
+import type { UserRow } from '#server/types/db'
 import type { ResultSetHeader } from 'mysql2'
 import bcrypt from 'bcrypt'
 
@@ -26,21 +27,21 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   const { account, password1, nickname, email } = result.data
 
   // 3. 检查账号是否已存在
-  const [accountRows] = await pool.execute(
+  const accountRows = await query<UserRow>(
     'SELECT id FROM user WHERE account = ?',
     [account]
   )
-  if ((accountRows as any[]).length > 0) {
+  if (accountRows.length > 0) {
     return validateError('该账号已注册，请直接登录')
   }
 
   // 4. 如果填了邮箱，检查邮箱是否已绑定
   if (email) {
-    const [emailRows] = await pool.execute(
+    const emailRows = await query<UserRow>(
       'SELECT id FROM user WHERE email = ?',
       [email]
     )
-    if ((emailRows as any[]).length > 0) {
+    if (emailRows.length > 0) {
       return validateError('该邮箱已绑定其他账号')
     }
   }

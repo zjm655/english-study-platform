@@ -1,5 +1,18 @@
 // 数据库行类型（对应 MySQL 查询结果）
 
+export interface UserRow {
+  id: number
+  account: string
+  nickname: string | null
+  email: string | null
+  role: number
+  passwordHash: string
+  avatarUrl: string | null
+  level: number
+  createdAt: string
+  updatedAt: string
+}
+
 export interface UnitRow {
   id: number
   title: string
