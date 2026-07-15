@@ -65,9 +65,25 @@ onMounted(() => {
   loadData()
 })
 
-// 切换阶段
+// 切换阶段（只允许跳转到已完成阶段或下一个待完成阶段）
+function canNavigateTo(phase: number): boolean {
+  if (!segment.value) return false
+  // 已完成的阶段可以回看
+  if (isPhaseDone(phase)) return true
+  // 当前阶段可以进入
+  if (phase === currentPhase.value) return true
+  // 下一个待完成阶段可以进入
+  const nextPhase = (() => {
+    if (!segment.value!.progress.phase1_done) return 1
+    if (!segment.value!.progress.phase2_done) return 2
+    if (!segment.value!.progress.phase3_done) return 3
+    return 4
+  })()
+  return phase === nextPhase
+}
+
 function goToPhase(phase: number) {
-  if (phase >= 1 && phase <= 4) {
+  if (phase >= 1 && phase <= 4 && canNavigateTo(phase)) {
     currentPhase.value = phase
     pause() // 切换阶段时暂停音频
   }
@@ -108,16 +124,16 @@ function onPhaseComplete() {
     <!-- Content -->
     <template v-else-if="segment">
       <!-- 面包屑 -->
-      <div class="breadcrumb">
+      <nav class="breadcrumb" aria-label="面包屑导航">
         <NuxtLink :to="`/learn/unit/${unitId}`" class="breadcrumb__link">
           {{ segment.unitTitle }}
         </NuxtLink>
-        <span class="breadcrumb__separator">/</span>
-        <span class="breadcrumb__current">{{ segment.title }}</span>
-      </div>
+        <span class="breadcrumb__separator" aria-hidden="true">/</span>
+        <span class="breadcrumb__current" aria-current="page">{{ segment.title }}</span>
+      </nav>
 
       <!-- 阶段指示器 -->
-      <div class="phase-indicator">
+      <div class="phase-indicator" role="tablist" aria-label="学习阶段">
         <div
           v-for="item in phases"
           :key="item.phase"
@@ -125,11 +141,18 @@ function onPhaseComplete() {
           :class="{
             'phase-step--active': currentPhase === item.phase,
             'phase-step--done': isPhaseDone(item.phase),
+            'phase-step--disabled': !canNavigateTo(item.phase),
           }"
+          role="tab"
+          :aria-selected="currentPhase === item.phase"
+          :tabindex="canNavigateTo(item.phase) ? 0 : -1"
           @click="goToPhase(item.phase)"
+          @keydown.enter.prevent="goToPhase(item.phase)"
         >
           <div class="phase-step__circle">
-            <span v-if="isPhaseDone(item.phase)">✓</span>
+            <svg v-if="isPhaseDone(item.phase)" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+            </svg>
             <span v-else>{{ item.phase }}</span>
           </div>
           <div class="phase-step__name">{{ item.name }}</div>
@@ -281,7 +304,17 @@ function onPhaseComplete() {
   font-weight: 600;
   background: var(--border-ll);
   color: var(--text-3);
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.phase-step__circle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.phase-step--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .phase-step--active .phase-step__circle {
@@ -365,7 +398,7 @@ function onPhaseComplete() {
   color: var(--text-2);
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, opacity 0.2s;
 }
 
 .nav-btn:disabled {

@@ -32,9 +32,11 @@ export const useHandleRes = <Payload, Res>(
 
   return {
     isLoading,
-    execute: async (payload: Payload): Promise<ResPayload<Res> | undefined> => {
+    execute: async (payload: Payload): Promise<ResPayload<Res>> => {
       // 防止重复提交
-      if (timer !== null || isLoading.value) return
+      if (timer !== null || isLoading.value) {
+        return { code: -2, message: '请求进行中，请稍候', data: null as unknown as Res }
+      }
 
       timer = setTimeout(() => {
         isLoading.value = true

@@ -1,4 +1,4 @@
-import { query } from '#server/utils/db'
+import { query, withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow, SegmentRow } from '#server/types/db'
@@ -9,7 +9,9 @@ import type { Recording, WordScore } from '#shared/types/recording'
  * 请求：POST /api/recording/[id]/analyze
  */
 export default defineEventHandler(async (event): Promise<ResPayload<Recording | null>> => {
-  const userId: number = event.context.user.id
+  const userId = event.context.user?.id
+  if (!userId) return validateError('未登录', 401)
+
   const id = Number(getRouterParam(event, 'id'))
 
   if (!id || isNaN(id)) {
@@ -41,21 +43,34 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
   // 3. 生成模拟分析数据
   const { score, feedback, recognizedText, wordScores } = generateMockAnalysis(textContent)
 
-  // 4. 更新 recording 表
-  await query(
-    `UPDATE recording
-     SET score = ?, feedback = ?, recognizedText = ?, wordScores = ?
-     WHERE id = ?`,
-    [score, feedback, recognizedText, JSON.stringify(wordScores), id]
-  )
+  // 4. 更新 recording 表（使用事务保证一致性）
+  let updatedRecording: ReturnType<typeof rowToRecording> = null
+  try {
+    updatedRecording = await withTransaction(async (conn) => {
+      await conn.execute(
+        `UPDATE recording
+         SET score = ?, feedback = ?, recognizedText = ?, wordScores = ?
+         WHERE id = ?`,
+        [score, feedback, recognizedText, JSON.stringify(wordScores), id]
+      )
 
-  // 5. 返回更新后的记录
-  const updatedRows = await query<RecordingRow>(
-    'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
-    [id]
-  )
+      // 返回更新后的记录（事务内查询，使用 conn.execute 确保连接一致性）
+      const [rows] = await conn.execute<RecordingRow[]>(
+        'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
+        [id]
+      )
+      return rowToRecording(rows[0])
+    })
+  } catch (err) {
+    console.error('[recording analyze] 事务失败:', err)
+    return validateError('分析保存失败，请稍后重试', 500)
+  }
 
-  return validateSuccess(rowToRecording(updatedRows[0]), '分析完成')
+  if (!updatedRecording) {
+    return validateError('分析保存失败', 500)
+  }
+
+  return validateSuccess(updatedRecording, '分析完成')
 })
 
 /** 生成模拟分析数据 */

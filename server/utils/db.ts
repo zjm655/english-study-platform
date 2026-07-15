@@ -14,7 +14,7 @@ export const pool = mysql.createPool({
 })
 
 /** 泛型查询封装，避免调用方使用类型断言 */
-export async function query<T>(sql: string, params?: any[]): Promise<T[]> {
+export async function query<T = unknown>(sql: string, params?: unknown[]): Promise<T[]> {
   const [rows] = await pool.execute(sql, params)
   return rows as T[]
 }

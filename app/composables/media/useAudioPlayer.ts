@@ -1,7 +1,8 @@
 import { useAudioStore } from '~/store/useAudioStore'
+import type { Howl } from 'howler'
 
 // 顶层单例，不响应式
-let howl: any = null
+let howl: Howl | null = null
 let rafId: number | null = null
 
 export function useAudioPlayer() {
@@ -42,7 +43,7 @@ export function useAudioPlayer() {
       onload: () => {
         store.duration = howl?.duration() ?? 0
       },
-      onloaderror: (_id: number, error: any) => {
+      onloaderror: (_id: number, error: string) => {
         console.error('音频加载失败:', error)
         store.isPlaying = false
       }

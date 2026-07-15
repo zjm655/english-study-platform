@@ -5,6 +5,8 @@ import { useRecorder } from '~/composables/media/useRecorder'
 import { useUploadRecording, useRecordingList, useAnalyzeRecording } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording, WordScore } from '#shared/types/recording'
+import { RecorderError } from '~/composables/media/useRecorder'
+import { toastError, toastInfo } from '~/utils/popup'
 
 interface Props {
   segment: SegmentDetail
@@ -31,6 +33,17 @@ const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 const translationExpanded = ref(false)
 const recordings = ref<Recording[]>([])
 const selectedRecordingId = ref<number | null>(null)
+
+// 录音权限/错误状态
+const permissionError = ref('')
+
+// 上传失败时保留的 Blob，用于重试
+const pendingBlob = ref<Blob | null>(null)
+const isUploadError = ref(false)
+
+// 列表加载错误
+const isListError = ref(false)
+const listErrorMsg = ref('')
 
 // 当前选中的录音
 const selectedRecording = computed(() =>
@@ -70,11 +83,25 @@ async function playMaterialAudio() {
 
 // 开始/暂停切换
 async function toggleRecording() {
+  // 清除之前的权限错误提示
+  permissionError.value = ''
+
   if (!isRecording.value) {
     try {
       await start()
-    } catch {
-      // 用户拒绝权限等错误，useRecorder 内部已处理
+    } catch (err) {
+      if (err instanceof RecorderError) {
+        permissionError.value = err.message
+        toastError(err.message)
+      } else if (err instanceof Error) {
+        const msg = `录音启动失败: ${err.message}`
+        permissionError.value = msg
+        toastError(msg)
+      } else {
+        const msg = '录音启动失败，请检查麦克风权限后重试'
+        permissionError.value = msg
+        toastError(msg)
+      }
     }
   } else if (isPaused.value) {
     resume()
@@ -86,20 +113,57 @@ async function toggleRecording() {
 // 结束录音并上传
 async function finishRecording() {
   if (!isRecording.value) return
+  isUploadError.value = false
+  pendingBlob.value = null
+
   try {
     const blob = await stop()
-    const res = await uploadRecording({
-      audioBlob: blob,
-      segmentId: props.segment.id,
-      phase: 3,
-      duration: duration.value,
-    })
-    if (res?.code === 200 && res.data) {
-      await loadRecordings()
-      selectedRecordingId.value = res.data.id
-    }
+    await doUpload(blob)
   } catch (err) {
-    console.error('录音上传失败:', err)
+    console.error('录音处理失败:', err)
+    if (err instanceof Error) {
+      toastError(err.message)
+    } else {
+      toastError('录音处理失败，请重试')
+    }
+  }
+}
+
+// 执行上传（可被重试调用）
+async function doUpload(blob: Blob) {
+  const res = await uploadRecording({
+    audioBlob: blob,
+    segmentId: props.segment.id,
+    phase: 3,
+    duration: duration.value,
+  })
+  if (res?.code === 200 && res.data) {
+    isUploadError.value = false
+    pendingBlob.value = null
+    await loadRecordings()
+    selectedRecordingId.value = res.data.id
+  } else {
+    // 保留 blob 供用户重试
+    pendingBlob.value = blob
+    isUploadError.value = true
+    const msg = res?.message || '上传失败，请检查网络后重试'
+    toastError(msg)
+  }
+}
+
+// 重试上传
+async function retryUpload() {
+  if (!pendingBlob.value) return
+  isUploadError.value = false
+  try {
+    await doUpload(pendingBlob.value)
+  } catch (err) {
+    isUploadError.value = true
+    if (err instanceof Error) {
+      toastError(`重试上传失败: ${err.message}`)
+    } else {
+      toastError('重试上传失败')
+    }
   }
 }
 
@@ -116,12 +180,19 @@ async function playRecording() {
 // 发起分析
 async function handleAnalyze() {
   if (!selectedRecordingId.value || isAnalyzing.value) return
-  const res = await analyzeRecording(selectedRecordingId.value)
-  if (res?.code === 200 && res.data) {
-    const idx = recordings.value.findIndex(r => r.id === res.data!.id)
-    if (idx !== -1) {
-      recordings.value[idx] = res.data
+  try {
+    const res = await analyzeRecording(selectedRecordingId.value)
+    if (res?.code === 200 && res.data) {
+      const idx = recordings.value.findIndex(r => r.id === res.data!.id)
+      if (idx !== -1) {
+        recordings.value[idx] = res.data
+      }
+    } else {
+      toastError(res?.message || '分析失败，请稍后重试')
     }
+  } catch (err) {
+    console.error('分析请求失败:', err)
+    toastError('分析请求失败，请检查网络后重试')
   }
 }
 
@@ -146,12 +217,23 @@ async function completePhase() {
 
 // 加载录音列表
 async function loadRecordings() {
-  const res = await fetchRecordingList({
-    segmentId: props.segment.id,
-    phase: 3,
-  })
-  if (res?.code === 200 && res.data) {
-    recordings.value = res.data
+  isListError.value = false
+  listErrorMsg.value = ''
+  try {
+    const res = await fetchRecordingList({
+      segmentId: props.segment.id,
+      phase: 3,
+    })
+    if (res?.code === 200 && res.data) {
+      recordings.value = res.data
+    } else {
+      isListError.value = true
+      listErrorMsg.value = res?.message || '加载录音列表失败'
+    }
+  } catch (err) {
+    console.error('加载录音列表失败:', err)
+    isListError.value = true
+    listErrorMsg.value = '网络异常，加载录音列表失败'
   }
 }
 
@@ -215,8 +297,22 @@ onMounted(() => {
     <div class="card">
       <div class="card__header">录音</div>
 
-      <!-- 波形条可视化 -->
-      <div class="wave-bars">
+      <!-- 权限错误提示 -->
+      <div v-if="permissionError" class="permission-error">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        </svg>
+        <span>{{ permissionError }}</span>
+      </div>
+
+      <!-- 上传失败提示 + 重试 -->
+      <div v-if="isUploadError && pendingBlob" class="upload-error">
+        <span>上传失败</span>
+        <button class="retry-btn" @click="retryUpload">重试上传</button>
+      </div>
+
+      <!-- 波形条可视化（装饰性，非真实音频数据） -->
+      <div class="wave-bars" aria-hidden="true">
         <div
           v-for="i in 7"
           :key="i"
@@ -239,6 +335,7 @@ onMounted(() => {
         <!-- 左：结束录制 -->
         <button
           class="action-btn action-btn--stop"
+          aria-label="结束录制"
           :disabled="!isRecording"
           @click="finishRecording"
         >
@@ -248,20 +345,21 @@ onMounted(() => {
         <!-- 中：开始/暂停 -->
         <button
           class="action-btn action-btn--main"
+          :aria-label="isRecording ? '暂停录制' : '开始录制'"
           :class="{ 'action-btn--recording': isRecording }"
           :disabled="isUploading"
           @click="toggleRecording"
         >
-          <svg v-if="!isRecording || isPaused" viewBox="0 0 24 24" fill="currentColor">
+          <svg v-if="!isRecording || isPaused" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M8 5v14l11-7z" />
           </svg>
-          <svg v-else viewBox="0 0 24 24" fill="currentColor">
+          <svg v-else viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M6 4h4v16H6zM14 4h4v16h-4z" />
           </svg>
         </button>
 
         <!-- 右：音量调节（占位） -->
-        <button class="action-btn action-btn--volume" disabled title="音量调节（开发中）">
+        <button class="action-btn action-btn--volume" disabled aria-label="音量调节（开发中）" title="音量调节（开发中）">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
           </svg>
@@ -269,7 +367,7 @@ onMounted(() => {
       </div>
 
       <!-- 上传中提示 -->
-      <div v-if="isUploading" class="uploading-tip">
+      <div v-if="isUploading" class="uploading-tip" aria-live="polite">
         <DotPulse />
         <span>正在上传...</span>
       </div>
@@ -284,6 +382,11 @@ onMounted(() => {
 
       <div v-if="isListLoading" class="card__body empty-state">
         <DotPulse />
+      </div>
+
+      <div v-else-if="isListError" class="card__body empty-state">
+        <p>{{ listErrorMsg }}</p>
+        <button class="retry-btn retry-btn--small" @click="loadRecordings">重新加载</button>
       </div>
 
       <div v-else-if="recordings.length === 0" class="card__body empty-state">
@@ -305,7 +408,7 @@ onMounted(() => {
             </span>
           </div>
           <div class="recording-item__date">
-            {{ new Date(item.createdAt).toLocaleDateString() }}
+            {{ new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(item.createdAt)) }}
           </div>
         </div>
 
@@ -450,7 +553,7 @@ onMounted(() => {
   color: var(--primary);
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
 .material-play-btn svg {
@@ -536,7 +639,7 @@ onMounted(() => {
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, transform 0.2s, opacity 0.2s;
 }
 
 .action-btn:disabled {
@@ -640,7 +743,7 @@ onMounted(() => {
   border: 1px solid var(--border-ll);
   border-radius: var(--r);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .recording-item:hover {
@@ -695,7 +798,7 @@ onMounted(() => {
   color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s, opacity 0.2s;
 }
 
 .selected-action-btn svg {
@@ -804,7 +907,7 @@ onMounted(() => {
   padding: 2px 6px;
   border-radius: 4px;
   cursor: default;
-  transition: all 0.2s;
+  transition: opacity 0.2s;
 }
 
 .word--correct {
@@ -839,7 +942,7 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 500;
   cursor: not-allowed;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -854,5 +957,61 @@ onMounted(() => {
 
 .complete-btn--active:not(:disabled):active {
   opacity: 0.9;
+}
+
+/* ===== 权限/上传错误提示 ===== */
+.permission-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(245, 108, 108, 0.08);
+  border: 1px solid rgba(245, 108, 108, 0.2);
+  border-radius: var(--r);
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--danger);
+  line-height: 1.5;
+}
+
+.permission-error svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.upload-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(245, 108, 108, 0.08);
+  border: 1px solid rgba(245, 108, 108, 0.2);
+  border-radius: var(--r);
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.retry-btn {
+  padding: 4px 10px;
+  background: var(--danger);
+  border: none;
+  border-radius: var(--r);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.retry-btn:hover {
+  opacity: 0.9;
+}
+
+.retry-btn--small {
+  margin-top: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
 }
 </style>

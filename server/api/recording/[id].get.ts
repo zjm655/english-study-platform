@@ -9,7 +9,8 @@ import type { Recording } from '#shared/types/recording'
  * 请求：GET /api/recording/:id
  */
 export default defineEventHandler(async (event): Promise<ResPayload<Recording | null>> => {
-  const userId = event.context.user.id
+  const userId = event.context.user?.id
+  if (!userId) return validateError('未登录', 401)
   const id = Number(getRouterParam(event, 'id'))
 
   if (!id || isNaN(id)) {

@@ -43,6 +43,10 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+/* 仅对交互元素移除点击高亮，保留可访问性 */
+button, a, [role="button"], input, textarea, select {
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -55,4 +59,16 @@ body {
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+}
+
+/* 减少动效偏好支持 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

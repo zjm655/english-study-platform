@@ -3,7 +3,11 @@ import type { UploadRecordingPayload, UploadRecordingResult } from '#shared/type
 
 export const uploadRecording = async (payload: UploadRecordingPayload) => {
   const formData = new FormData()
-  formData.append('audio', payload.audioBlob, 'recording.webm')
+  const ext = payload.audioBlob.type === 'audio/webm' ? 'webm'
+    : payload.audioBlob.type === 'audio/ogg' ? 'ogg'
+    : payload.audioBlob.type === 'audio/wav' || payload.audioBlob.type === 'audio/x-wav' ? 'wav'
+    : 'mp3'
+  formData.append('audio', payload.audioBlob, `recording.${ext}`)
   formData.append('segmentId', String(payload.segmentId))
   formData.append('phase', String(payload.phase))
   formData.append('duration', String(payload.duration))

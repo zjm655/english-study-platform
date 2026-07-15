@@ -1,7 +1,7 @@
-import { writeFile, mkdir } from 'node:fs/promises'
+import { writeFile, mkdir, unlink } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { pool, query } from '#server/utils/db'
+import { pool, query, withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow } from '#server/types/db'
@@ -39,6 +39,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
   const segmentId = Number(formData.get('segmentId'))
   const phase = Number(formData.get('phase'))
   const duration = Number(formData.get('duration'))
+
+  // 2. 基础数值校验（提前拦截 NaN）
+  if (isNaN(segmentId) || isNaN(phase) || isNaN(duration)) {
+    return validateError('参数格式错误', 400)
+  }
 
   // 3. 文件存在性校验
   if (!file || !(file instanceof File)) {
@@ -86,20 +91,35 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
   await mkdir(UPLOAD_DIR, { recursive: true })
   await writeFile(resolvedPath, fileBuffer)
 
-  // 11. 存入数据库（相对路径）
+  // 11. 存入数据库（使用事务保证一致性）
   const audioPath = `/uploads/recordings/${safeFilename}`
-  const [result] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO recording (user_id, segment_id, phase, audioPath, duration) VALUES (?, ?, ?, ?, ?)',
-    [userId, segmentId, phase, audioPath, duration]
-  )
-  const insertId = result.insertId
+  let recording: ReturnType<typeof rowToRecording> = null
 
-  // 12. 查回完整记录并返回
-  const rows = await query<RecordingRow>(
-    'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
-    [insertId]
-  )
-  const recording = rowToRecording(rows[0])
+  try {
+    recording = await withTransaction(async (conn) => {
+      const [result] = await conn.execute<ResultSetHeader>(
+        'INSERT INTO recording (user_id, segment_id, phase, audioPath, duration) VALUES (?, ?, ?, ?, ?)',
+        [userId, segmentId, phase, audioPath, duration]
+      )
+      const insertId = result.insertId
+
+      // 查回完整记录（事务内查询，使用 conn.execute 确保连接一致性）
+      const [rows] = await conn.execute<RecordingRow[]>(
+        'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
+        [insertId]
+      )
+      return rowToRecording(rows[0])
+    })
+  } catch (err) {
+    // 事务失败时回滚，并删除已写入的文件避免脏文件
+    try {
+      await unlink(resolvedPath)
+    } catch {
+      // 忽略文件删除失败（可能文件不存在）
+    }
+    console.error('[recording upload] 事务失败:', err)
+    return validateError('上传失败，请稍后重试', 500)
+  }
 
   if (!recording) {
     return validateError('上传失败', 500)

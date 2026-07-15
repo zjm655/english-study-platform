@@ -4,18 +4,18 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
   css: ['~/assets/css/global.css'],
   runtimeConfig: {
-    public:{
-      isOpenLog:true
+    public: {
+      isOpenLog: process.env.NUXT_PUBLIC_IS_OPEN_LOG === 'true',
     },
-    jwtSecret: 'defalut key to AIUWFHWGVFKIUWQUIOCHSZJBCWUID',
-    isOpenLog:true,
+    jwtSecret: process.env.NUXT_JWT_SECRET || '',
+    isOpenLog: process.env.NUXT_IS_OPEN_LOG === 'true',
     db: {
-      host: '127.0.0.1',
-      port: '3306',
-      user: 'root',
-      password: '123456',
-      database: 'nuxt4_demo',
-    }
+      host: process.env.NUXT_DB_HOST || '127.0.0.1',
+      port: process.env.NUXT_DB_PORT || '3306',
+      user: process.env.NUXT_DB_USER || 'root',
+      password: process.env.NUXT_DB_PASSWORD || '',
+      database: process.env.NUXT_DB_DATABASE || 'nuxt4_demo',
+    },
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],
   elementPlus: {
