@@ -199,6 +199,7 @@ function onPhaseComplete() {
   display: flex;
   flex-direction: column;
   flex: 1;
+  overflow: hidden;
 }
 
 /* ===== Loading / Error ===== */
@@ -314,6 +315,7 @@ function onPhaseComplete() {
   flex: 1;
   margin-bottom: 16px;
   display: flex;
+  min-height: 0;
 }
 
 .phase-panel {
@@ -322,6 +324,8 @@ function onPhaseComplete() {
   box-shadow: var(--shadow);
   padding: 20px;
   flex: 1;
+  height: 100%;
+  overflow-y:auto;
 }
 
 .phase-panel__title {
