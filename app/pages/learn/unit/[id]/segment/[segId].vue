@@ -198,6 +198,7 @@ function onPhaseComplete() {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 /* ===== Loading / Error ===== */
@@ -312,6 +313,7 @@ function onPhaseComplete() {
 .phase-content {
   flex: 1;
   margin-bottom: 16px;
+  display: flex;
 }
 
 .phase-panel {
@@ -319,6 +321,7 @@ function onPhaseComplete() {
   border-radius: var(--r-lg);
   box-shadow: var(--shadow);
   padding: 20px;
+  flex: 1;
 }
 
 .phase-panel__title {

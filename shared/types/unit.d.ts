@@ -80,6 +80,13 @@ export interface VocabularyItem {
   audioUrl: string | null
 }
 
+/** 理解题 */
+export interface Question {
+  question: string
+  options: string[]
+  answer: string
+}
+
 /** 片段详情（学习页用） */
 export interface SegmentDetail {
   id: number
@@ -87,7 +94,7 @@ export interface SegmentDetail {
   audioUrl: string | null
   textContent: string
   translation: string | null
-  questions: string | null
+  questions: Question[] | string | null
   unitId: number
   unitTitle: string
   vocabulary: VocabularyItem[]

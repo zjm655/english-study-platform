@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
-import type { SegmentDetail } from '~~/shared/types/unit'
-
-interface Question {
-  question: string
-  options: string[]
-  answer: string
-}
+import type { SegmentDetail, Question } from '~~/shared/types/unit'
 
 interface Props {
   segment: SegmentDetail
@@ -23,7 +17,7 @@ const { execute: updateProgress, isLoading } = useUpdateProgress()
 const questions = computed<Question[]>(() => {
   const raw = props.segment.questions
   if (!raw) return []
-  if (Array.isArray(raw)) return raw as unknown as Question[]
+  if (Array.isArray(raw)) return raw
   try {
     return JSON.parse(raw)
   } catch {
