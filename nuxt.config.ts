@@ -23,5 +23,8 @@ export default defineNuxtConfig({
   },
   typescript: {
     typeCheck: true, // 启用构建时的类型检查
+    tsConfig: {
+      exclude: ['**/__tests__/**', '**/*.spec.ts', '**/*.test.ts'],
+    },
   },
 })

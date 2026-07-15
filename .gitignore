@@ -26,3 +26,6 @@ logs
 content/
 .uploads/
 public/audio/
+.trae/
+# Vitest 临时配置文件
+vitest.config.ts.timestamp-*.mjs
