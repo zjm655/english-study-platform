@@ -1,11 +1,11 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useStudyTime } from './useStudyTime'
 
-const REPORT_INTERVAL = 30000 // 30s 上报间隔
+const REPORT_INTERVAL = 60000 // 60s 上报间隔
 
 /**
  * 学习时长定时器 Hook（第二层）
- * - 自动启动 30s 定时器，定期上报学习时长
+ * - 自动启动 60s 定时器，定期上报学习时长
  * - 页面隐藏时暂停，恢复时继续
  * - 组件销毁时上报剩余时长并清理
  * - 返回 isTracking 表示是否正在计时
@@ -27,12 +27,14 @@ export function useStudyTimer() {
   // 上报并重置计时
   function report() {
     const elapsedMs = getElapsedMs()
-    const minutes = Math.floor(elapsedMs / 60000)
+    const minutes = Math.round(elapsedMs / 60000)
     if (minutes > 0) {
+      logger.log(`[StudyTimer] 上报学习时长: ${minutes} 分钟`)
       reportStudyTime(minutes)
+      startTime = Date.now()
+      accumulatedMs = 0
     }
-    startTime = Date.now()
-    accumulatedMs = 0
+    // 如果 minutes === 0，保留当前计时，不清零
   }
 
   // 启动定时器
@@ -56,6 +58,7 @@ export function useStudyTimer() {
   function handleVisibilityChange() {
     if (document.hidden) {
       // 隐藏 → 暂停：把当前 elapsed 收入 accumulated，清定时器
+      logger.log('[StudyTimer] 页面隐藏，暂停计时')
       if (startTime !== null) {
         accumulatedMs += Date.now() - startTime
         startTime = null
@@ -63,16 +66,21 @@ export function useStudyTimer() {
       stopTimer()
     } else {
       // 恢复 → 继续：重启定时器，startTime 在 startTimer 里重置
+      logger.log('[StudyTimer] 页面恢复，继续计时')
       startTimer()
     }
   }
 
   onMounted(() => {
+    logger.log('[StudyTimer] 计时器启动，上报基准时间')
+    // 立即上报 0 分钟，建立 updatedAt 基准
+    reportStudyTime(0)
     startTimer()
     document.addEventListener('visibilitychange', handleVisibilityChange)
   })
 
   onBeforeUnmount(() => {
+    logger.log('[StudyTimer] 计时器销毁，上报剩余时长')
     // 销毁前上报剩余时长
     report()
     stopTimer()
