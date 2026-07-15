@@ -8,6 +8,8 @@ export function useRecorder() {
   let mediaRecorder: MediaRecorder | null = null
   let chunks: Blob[] = []
   let timer: ReturnType<typeof setInterval> | null = null
+  let stopResolve: ((blob: Blob) => void) | null = null
+  let stopReject: ((error: Error) => void) | null = null
 
   // 开始录音
   async function start(): Promise<void> {
@@ -19,9 +21,39 @@ export function useRecorder() {
       mediaRecorder = new MediaRecorder(stream)
       chunks = []
       
+      // 事件回调在 start 时统一绑定
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) {
           chunks.push(e.data)
+        }
+      }
+      
+      mediaRecorder.onstop = () => {
+        // 空录音检查
+        if (chunks.length === 0) {
+          cleanup()
+          if (stopReject) {
+            stopReject(new Error('录音数据为空'))
+            stopResolve = null
+            stopReject = null
+          }
+          return
+        }
+        const blob = new Blob(chunks, { type: 'audio/webm' })
+        cleanup()
+        if (stopResolve) {
+          stopResolve(blob)
+          stopResolve = null
+          stopReject = null
+        }
+      }
+      
+      mediaRecorder.onerror = () => {
+        cleanup()
+        if (stopReject) {
+          stopReject(new Error('录音过程中发生错误'))
+          stopResolve = null
+          stopReject = null
         }
       }
       
@@ -61,26 +93,24 @@ export function useRecorder() {
   // 停止并返回录音 Blob
   function stop(): Promise<Blob> {
     return new Promise((resolve, reject) => {
-      if (!mediaRecorder) {
+      if (!mediaRecorder || mediaRecorder.state === 'inactive') {
         reject(new Error('没有正在进行的录音'))
         return
       }
       
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' })
-        cleanup()
-        resolve(blob)
+      // 先清 timer，不依赖 onstop 回调链
+      if (timer) {
+        clearInterval(timer)
+        timer = null
       }
       
-      mediaRecorder.onerror = (event) => {
-        console.error('录音错误:', event)
-        cleanup()
-        reject(event)
-      }
+      // 保存 resolve/reject 供 onstop/onerror 回调使用
+      stopResolve = resolve
+      stopReject = reject
       
-      mediaRecorder.stop()
       isRecording.value = false
       isPaused.value = false
+      mediaRecorder.stop()
     })
   }
 
