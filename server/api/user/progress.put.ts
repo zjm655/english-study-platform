@@ -75,6 +75,10 @@ export default defineEventHandler(async (event) => {
     return (updatedRows as UserProgressRow[])[0]
   })
 
+  if (!result) {
+    return validateError('更新进度失败', 500)
+  }
+
   return validateSuccess({
     segmentId: result.segment_id,
     phase1_done: !!result.phase1_done,

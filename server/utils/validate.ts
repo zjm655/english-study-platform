@@ -82,6 +82,13 @@ export const progressSchema = z.object({
   { message: 'phase 3/4 完成时需要提供 score', path: ['score'] }
 )
 
+// 录音上传校验
+export const uploadRecordingSchema = z.object({
+  segmentId: z.number().int().positive('segmentId 必须为正整数'),
+  phase: z.number().int().refine(v => v === 3 || v === 4, 'phase 必须为 3 或 4'),
+  duration: z.number().min(0.1, '录音时长过短').max(600, '录音时长不能超过10分钟')
+})
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code=400) {

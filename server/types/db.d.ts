@@ -81,6 +81,21 @@ export interface CheckinLogRow {
   updatedAt: string
 }
 
+export interface RecordingRow {
+  id: number
+  user_id: number
+  segment_id: number
+  phase: number
+  audioPath: string | null
+  score: string | null        // DECIMAL → string
+  feedback: string | null
+  recognizedText: string | null
+  wordScores: string | null   // JSON string
+  duration: string | null     // DECIMAL → string
+  createdAt: string
+  deleted_at: string | null
+}
+
 export interface VocabularyRow {
   id: number
   segment_id: number

@@ -6,6 +6,7 @@ import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useStudyTimer } from '~/composables/user/useStudyTimer'
 import BlindListening from './[segId]/phases/BlindListening.vue'
 import TextLearning from './[segId]/phases/TextLearning.vue'
+import DubbingPractice from './[segId]/phases/DubbingPractice.vue'
 
 definePageMeta({
   title: '片段学习',
@@ -158,8 +159,7 @@ function onPhaseComplete() {
         <div v-else-if="currentPhase === 3" class="phase-panel">
           <div class="phase-panel__title">配音练习</div>
           <div class="phase-panel__desc">跟随原文朗读，录制你的声音</div>
-          <!-- TODO: 配音组件 -->
-          <div class="phase-panel__placeholder">配音区域（待开发）</div>
+          <DubbingPractice :segment="segment" @complete="onPhaseComplete" />
         </div>
 
         <!-- 阶段四：跟读 -->

@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
-const { load, play, isPlaying } = useAudioPlayer()
+const { load, play } = useAudioPlayer()
 
 // ===== 状态 =====
 const selectedVocab = ref<VocabularyItem | null>(null)
