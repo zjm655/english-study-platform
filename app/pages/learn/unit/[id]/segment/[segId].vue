@@ -3,6 +3,7 @@ import { useSegmentDetail } from '~/composables/unit'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
+import { useStudyTimer } from '~/composables/user/useStudyTimer'
 
 definePageMeta({
   title: '片段学习',
@@ -17,6 +18,9 @@ const { play, pause } = useAudioPlayer()
 
 // 自动管理音频生命周期
 useAudioLifecycle()
+
+// 自动上报学习时长
+useStudyTimer()
 
 const segment = ref<SegmentDetail | null>(null)
 const error = ref<string | null>(null)

@@ -29,9 +29,9 @@ watch(() => props.src, () => {
 })
 
 // 播放切换：首次播放时自动加载
-function handleTogglePlay() {
+async function handleTogglePlay() {
   if (props.src && !isLoaded.value && store.currentSrc !== props.src) {
-    load(props.src)
+    await load(props.src)
     isLoaded.value = true
   }
   rawTogglePlay()
