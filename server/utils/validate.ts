@@ -100,6 +100,17 @@ export const favSegmentSchema = z.object({
   segmentId: z.number().int().positive('segmentId 必须为正整数'),
 })
 
+// 材料上传校验（普通用户）
+export const uploadMaterialSchema = z.object({
+  textContent: z.string().min(10, '材料文本不能少于10个字符').max(5000, '材料文本不能超过5000个字符'),
+  isPublic: z.coerce.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
+})
+
+// 材料上传校验（管理员，额外要求 unitId）
+export const uploadMaterialAdminSchema = uploadMaterialSchema.extend({
+  unitId: z.number().int().positive('unitId 必须为正整数'),
+})
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code: number = 400): ResPayload<never> {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { VideoPlay, Check } from '@element-plus/icons-vue'
+import { VideoPlay, Check, Upload } from '@element-plus/icons-vue'
 import { useUnits, useUserProgress } from '~/composables/unit'
 import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
 
@@ -195,6 +195,11 @@ onMounted(() => {
         <div v-else-if="unitsLoading" class="empty-state">加载中...</div>
         <div v-else class="empty-state">暂无单元数据</div>
       </div>
+
+      <NuxtLink to="/learn/upload" class="upload-entry">
+        <el-icon><Upload /></el-icon>
+        <span>上传自定义材料</span>
+      </NuxtLink>
     </template>
   </div>
 </template>
@@ -410,5 +415,24 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   min-height: 60vh;
+}
+
+.upload-entry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding: 12px 20px;
+  background: var(--card);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow);
+  color: var(--text-2);
+  font-size: 14px;
+  transition: color 0.2s, box-shadow 0.2s;
+}
+
+.upload-entry:hover {
+  color: var(--primary);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 </style>
