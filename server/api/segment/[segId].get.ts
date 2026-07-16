@@ -66,7 +66,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
   }
 
   // 3. 查重点词（联查 media 表获取音频）
-  const vocabRows = await query<VocabularyRow & { vocab_media_key: string | null; vocab_media_duration: string | null }>(
+  type VocabMediaRow = VocabularyRow & { vocab_media_key: string | null; vocab_media_duration: string | null }
+  const vocabRows = await query<VocabMediaRow>(
     `SELECT v.*, m.object_key AS vocab_media_key, m.duration AS vocab_media_duration
      FROM vocabulary v
      LEFT JOIN media m ON v.media_id = m.id
@@ -82,12 +83,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
       phonetic: v.phonetic,
       meaning: v.meaning,
       audioUrl: await signFromMedia(
-        (v as any).vocab_media_key,
+        v.vocab_media_key,
         v.audioUrl,
         WORD_EXPIRE
       ),
-      duration: (v as any).vocab_media_duration
-        ? Number((v as any).vocab_media_duration)
+      duration: v.vocab_media_duration
+        ? Number(v.vocab_media_duration)
         : v.duration
           ? Number(v.duration)
           : null,

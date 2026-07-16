@@ -1,5 +1,9 @@
-import { query } from '#server/utils/db'
+import { withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess, favWordSchema } from '#server/utils/validate'
+import type { RowDataPacket } from 'mysql2'
+
+type IdRow = RowDataPacket & { id: number }
+type FavRow = RowDataPacket & { id: number; deleted_at: string | null }
 
 /**
  * 收藏/取消收藏单词（toggle）
@@ -17,46 +21,57 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
   }
   const { vocabularyId } = parsed.data
 
-  // 检查 vocabulary 是否存在
-  const vocabRows = await query('SELECT id FROM vocabulary WHERE id = ?', [vocabularyId])
-  if (vocabRows.length === 0) {
-    return validateError('单词不存在', 404)
-  }
-
-  // 查询现有收藏记录
-  const existing = await query<{ id: number; deleted_at: string | null }>(
-    'SELECT id, deleted_at FROM user_fav_word WHERE user_id = ? AND vocabulary_id = ?',
-    [userId, vocabularyId]
-  )
-
-  let isFav: boolean
-
-  if (existing.length === 0) {
-    // 没有记录 → 插入新收藏
-    await query(
-      'INSERT INTO user_fav_word (user_id, vocabulary_id) VALUES (?, ?)',
-      [userId, vocabularyId]
-    )
-    isFav = true
-  } else {
-    const record = existing[0]
-    if (!record) return validateError('数据异常', 500)
-    if (record.deleted_at === null) {
-      // 已收藏 → 软删除（取消收藏）
-      await query(
-        'UPDATE user_fav_word SET deleted_at = NOW() WHERE id = ?',
-        [record.id]
+  try {
+    const isFav = await withTransaction(async (conn) => {
+      // 检查 vocabulary 是否存在
+      const [vocabRows] = await conn.execute<IdRow[]>(
+        'SELECT id FROM vocabulary WHERE id = ? LIMIT 1',
+        [vocabularyId]
       )
-      isFav = false
-    } else {
+      if (vocabRows.length === 0) {
+        throw new Error('NOT_FOUND:单词不存在')
+      }
+
+      // 查询现有收藏记录
+      const [existing] = await conn.execute<FavRow[]>(
+        'SELECT id, deleted_at FROM user_fav_word WHERE user_id = ? AND vocabulary_id = ? LIMIT 1',
+        [userId, vocabularyId]
+      )
+
+      if (existing.length === 0) {
+        // 没有记录 → 插入新收藏
+        await conn.execute(
+          'INSERT INTO user_fav_word (user_id, vocabulary_id) VALUES (?, ?)',
+          [userId, vocabularyId]
+        )
+        return true
+      }
+
+      const record = existing[0]
+      if (!record) throw new Error('DATA_ERROR')
+
+      if (record.deleted_at === null) {
+        // 已收藏 → 软删除（取消收藏）
+        await conn.execute(
+          'UPDATE user_fav_word SET deleted_at = NOW() WHERE id = ?',
+          [record.id]
+        )
+        return false
+      }
+
       // 曾经收藏过，已软删除 → 恢复
-      await query(
+      await conn.execute(
         'UPDATE user_fav_word SET deleted_at = NULL WHERE id = ?',
         [record.id]
       )
-      isFav = true
-    }
-  }
+      return true
+    })
 
-  return validateSuccess({ isFav }, isFav ? '收藏成功' : '已取消收藏')
+    return validateSuccess({ isFav }, isFav ? '收藏成功' : '已取消收藏')
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.startsWith('NOT_FOUND:')) return validateError(msg.slice(10), 404)
+    console.error('[fav-word]', err)
+    return validateError('操作失败，请重试')
+  }
 })

@@ -1,7 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
-  devtools: { enabled: true },
+  devtools: { enabled: process.env.NODE_ENV === 'development' },
   css: ['~/assets/css/global.css'],
   runtimeConfig: {
     public: {
@@ -13,7 +13,7 @@ export default defineNuxtConfig({
       host: '127.0.0.1',
       port: '3306',
       user: 'root',
-      password: '123456',
+      password: '',
       database: 'nuxt4_demo',
     },
     oss: {

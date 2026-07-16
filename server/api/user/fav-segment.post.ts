@@ -1,5 +1,9 @@
-import { query } from '#server/utils/db'
+import { withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess, favSegmentSchema } from '#server/utils/validate'
+import type { RowDataPacket } from 'mysql2'
+
+type IdRow = RowDataPacket & { id: number }
+type FavRow = RowDataPacket & { id: number; deleted_at: string | null }
 
 /**
  * 收藏/取消收藏片段（toggle）
@@ -17,46 +21,57 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
   }
   const { segmentId } = parsed.data
 
-  // 检查 segment 是否存在
-  const segRows = await query('SELECT id FROM segment WHERE id = ?', [segmentId])
-  if (segRows.length === 0) {
-    return validateError('片段不存在', 404)
-  }
-
-  // 查询现有收藏记录
-  const existing = await query<{ id: number; deleted_at: string | null }>(
-    'SELECT id, deleted_at FROM user_fav_segment WHERE user_id = ? AND segment_id = ?',
-    [userId, segmentId]
-  )
-
-  let isFav: boolean
-
-  if (existing.length === 0) {
-    // 没有记录 → 插入新收藏
-    await query(
-      'INSERT INTO user_fav_segment (user_id, segment_id) VALUES (?, ?)',
-      [userId, segmentId]
-    )
-    isFav = true
-  } else {
-    const record = existing[0]
-    if (!record) return validateError('数据异常', 500)
-    if (record.deleted_at === null) {
-      // 已收藏 → 软删除（取消收藏）
-      await query(
-        'UPDATE user_fav_segment SET deleted_at = NOW() WHERE id = ?',
-        [record.id]
+  try {
+    const isFav = await withTransaction(async (conn) => {
+      // 检查 segment 是否存在
+      const [segRows] = await conn.execute<IdRow[]>(
+        'SELECT id FROM segment WHERE id = ? LIMIT 1',
+        [segmentId]
       )
-      isFav = false
-    } else {
+      if (segRows.length === 0) {
+        throw new Error('NOT_FOUND:片段不存在')
+      }
+
+      // 查询现有收藏记录
+      const [existing] = await conn.execute<FavRow[]>(
+        'SELECT id, deleted_at FROM user_fav_segment WHERE user_id = ? AND segment_id = ? LIMIT 1',
+        [userId, segmentId]
+      )
+
+      if (existing.length === 0) {
+        // 没有记录 → 插入新收藏
+        await conn.execute(
+          'INSERT INTO user_fav_segment (user_id, segment_id) VALUES (?, ?)',
+          [userId, segmentId]
+        )
+        return true
+      }
+
+      const record = existing[0]
+      if (!record) throw new Error('DATA_ERROR')
+
+      if (record.deleted_at === null) {
+        // 已收藏 → 软删除（取消收藏）
+        await conn.execute(
+          'UPDATE user_fav_segment SET deleted_at = NOW() WHERE id = ?',
+          [record.id]
+        )
+        return false
+      }
+
       // 曾经收藏过，已软删除 → 恢复
-      await query(
+      await conn.execute(
         'UPDATE user_fav_segment SET deleted_at = NULL WHERE id = ?',
         [record.id]
       )
-      isFav = true
-    }
-  }
+      return true
+    })
 
-  return validateSuccess({ isFav }, isFav ? '收藏成功' : '已取消收藏')
+    return validateSuccess({ isFav }, isFav ? '收藏成功' : '已取消收藏')
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : ''
+    if (msg.startsWith('NOT_FOUND:')) return validateError(msg.slice(10), 404)
+    console.error('[fav-segment]', err)
+    return validateError('操作失败，请重试')
+  }
 })

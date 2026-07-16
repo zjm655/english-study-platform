@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
     if (existing.length === 0) {
       // 不存在 → INSERT
       const fields = ['user_id', 'segment_id', `phase${phase}_done`]
-      const values: any[] = [userId, segmentId, done ? 1 : 0]
+      const values: (number | string)[] = [userId, segmentId, done ? 1 : 0]
 
       if ((phase === 3 || phase === 4) && score !== undefined) {
         fields.push(`phase${phase}_score`)
@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
     } else {
       // 存在 → UPDATE
       const updates = [`phase${phase}_done = ?`]
-      const values: any[] = [done ? 1 : 0]
+      const values: (number | string)[] = [done ? 1 : 0]
 
       if ((phase === 3 || phase === 4) && score !== undefined) {
         // 只更新更高的分数

@@ -22,7 +22,16 @@ export async function getStats(conn: PoolConnection, userId: number): Promise<Ch
     'SELECT * FROM user_checkin_stats WHERE user_id = ?',
     [userId]
   )
-  const row = rows[0] as CheckinStatsRow
+  const row = rows[0] as CheckinStatsRow | undefined
+  if (!row) {
+    return {
+      totalCheckinDays: 0,
+      lastCheckinTime: null,
+      currentStreakDays: 0,
+      maxStreakDays: 0,
+      totalStudySeconds: 0
+    }
+  }
   return {
     totalCheckinDays: row.total_checkin_days,
     lastCheckinTime: row.last_checkin_time,

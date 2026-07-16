@@ -45,22 +45,25 @@ export const useFavorites = () => {
       favWordIds.value.add(vocabularyId)
     }
 
-    const res = await toggleFavWord(vocabularyId)
+    try {
+      const res = await toggleFavWord(vocabularyId)
 
-    if (res?.code === 200 && res.data) {
-      // 以服务端结果为准
-      if (res.data.isFav) {
-        favWordIds.value.add(vocabularyId)
+      if (res?.code === 200 && res.data) {
+        // 以服务端结果为准
+        if (res.data.isFav) {
+          favWordIds.value.add(vocabularyId)
+        } else {
+          favWordIds.value.delete(vocabularyId)
+        }
       } else {
-        favWordIds.value.delete(vocabularyId)
+        // 失败回滚
+        favWordIds.value = prev
       }
-    } else {
-      // 失败回滚
-      favWordIds.value = prev
-    }
 
-    togglingWord.value = null
-    return res
+      return res
+    } finally {
+      togglingWord.value = null
+    }
   }
 
   /** 切换片段收藏状态 */
@@ -76,20 +79,23 @@ export const useFavorites = () => {
       favSegmentIds.value.add(segmentId)
     }
 
-    const res = await toggleFavSegment(segmentId)
+    try {
+      const res = await toggleFavSegment(segmentId)
 
-    if (res?.code === 200 && res.data) {
-      if (res.data.isFav) {
-        favSegmentIds.value.add(segmentId)
+      if (res?.code === 200 && res.data) {
+        if (res.data.isFav) {
+          favSegmentIds.value.add(segmentId)
+        } else {
+          favSegmentIds.value.delete(segmentId)
+        }
       } else {
-        favSegmentIds.value.delete(segmentId)
+        favSegmentIds.value = prev
       }
-    } else {
-      favSegmentIds.value = prev
-    }
 
-    togglingSegment.value = null
-    return res
+      return res
+    } finally {
+      togglingSegment.value = null
+    }
   }
 
   /** 检查单词是否已收藏 */
