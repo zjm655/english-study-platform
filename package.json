@@ -19,6 +19,7 @@
     "element-plus": "^2.14.2",
     "howler": "^2.2.4",
     "jose": "^6.2.3",
+    "music-metadata": "^11.14.0",
     "mysql2": "^3.22.6",
     "nuxt": "^4.4.8",
     "pinia": "^3.0.4",

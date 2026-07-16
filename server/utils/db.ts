@@ -105,6 +105,7 @@ const initDB = async () => {
       unit_id INT NOT NULL COMMENT '所属单元',
       title VARCHAR(100) NOT NULL COMMENT '片段标题',
       audioUrl VARCHAR(1024) COMMENT '原生音频地址，盲听/配音/影子跟读使用',
+      duration DECIMAL(6,2) COMMENT '音频时长(秒)',
       textContent TEXT NOT NULL COMMENT '英文原文，四阶段核心素材',
       translation TEXT COMMENT '中文翻译，辅助理解',
       questions JSON COMMENT '盲听理解题，JSON数组格式',
@@ -125,6 +126,7 @@ const initDB = async () => {
       exampleSentence TEXT COMMENT '英文例句',
       exampleTranslation TEXT COMMENT '例句中文翻译',
       audioUrl VARCHAR(1024) COMMENT '单词发音音频',
+      duration DECIMAL(6,2) COMMENT '单词发音时长(秒)',
       level INT NOT NULL COMMENT '难度: 1小学 2初中 3高中 4四级 5六级',
       source VARCHAR(200) COMMENT '来源，如人教版小学三年级上册',
       frequency INT NOT NULL DEFAULT 0 COMMENT '词频/优先级，数字越大越常用',
@@ -146,6 +148,7 @@ const initDB = async () => {
       exampleSentence TEXT COMMENT '英文例句',
       exampleTranslation TEXT COMMENT '例句中文翻译',
       audioUrl VARCHAR(1024) COMMENT '单词发音音频地址',
+      duration DECIMAL(6,2) COMMENT '单词发音时长(秒)',
       sort_order INT NOT NULL DEFAULT 0 COMMENT '在片段中的出现顺序',
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (segment_id) REFERENCES segment(id) ON DELETE CASCADE

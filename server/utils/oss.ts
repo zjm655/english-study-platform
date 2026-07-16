@@ -136,6 +136,25 @@ export async function uploadImagePublic(fileBuffer: Buffer, fileName: string): P
   };
 }
 
+// ---------- 自定义 key 上传 ----------
+
+/**
+ * 使用自定义 key 上传文件到 OSS（使用公网客户端）
+ * 适用于迁移等需要精确控制存储路径的场景
+ */
+export async function uploadWithKey(
+  fileBuffer: Buffer,
+  ossKey: string
+): Promise<UploadResult> {
+  const client = getClient();
+  const result = await client.put(ossKey, fileBuffer);
+  return {
+    url: result.url,
+    name: result.name,
+    size: fileBuffer.length,
+  };
+}
+
 // ---------- 核心功能：签名链接 ----------
 /**
  * 生成临时签名 URL（V4 签名），用于私有文件的临时授权访问。

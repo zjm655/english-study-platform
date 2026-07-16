@@ -28,6 +28,7 @@ export interface SegmentRow {
   unit_id: number
   title: string
   audioUrl: string | null
+  duration: string | null     // DECIMAL → string
   textContent: string
   translation: string | null
   questions: string | null // JSON string
@@ -106,6 +107,24 @@ export interface VocabularyRow {
   exampleSentence: string | null
   exampleTranslation: string | null
   audioUrl: string | null
+  duration: string | null     // DECIMAL → string
   sort_order: number
+  createdAt: string
+}
+
+export interface WordBankRow {
+  id: number
+  word: string
+  phonetic: string | null
+  meaning: string
+  forms: string | null
+  exampleSentence: string | null
+  exampleTranslation: string | null
+  audioUrl: string | null
+  duration: string | null     // DECIMAL → string
+  level: number
+  source: string | null
+  frequency: number
+  tags: string | null
   createdAt: string
 }

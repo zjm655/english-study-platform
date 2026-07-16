@@ -57,6 +57,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     phonetic: v.phonetic,
     meaning: v.meaning,
     audioUrl: resolveAudioUrl(v.audioUrl),
+    duration: v.duration ? Number(v.duration) : null,
   }))
 
   // 4. 查用户进度
@@ -91,6 +92,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     id: segment.id,
     title: segment.title,
     audioUrl: resolveAudioUrl(segment.audioUrl),
+    duration: segment.duration ? Number(segment.duration) : null,
     textContent: segment.textContent,
     translation: segment.translation,
     questions: segment.questions,

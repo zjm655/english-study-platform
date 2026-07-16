@@ -78,6 +78,7 @@ export interface VocabularyItem {
   phonetic: string | null
   meaning: string
   audioUrl: string | null
+  duration: number | null
 }
 
 /** 理解题 */
@@ -92,6 +93,7 @@ export interface SegmentDetail {
   id: number
   title: string
   audioUrl: string | null
+  duration: number | null
   textContent: string
   translation: string | null
   questions: Question[] | string | null
