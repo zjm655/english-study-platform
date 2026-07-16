@@ -1,61 +1,81 @@
 import { query } from '#server/utils/db'
-import type { UnitRow, CountRow } from '#server/types/db'
+import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
+import type { UnitRow, UserProgressRow } from '#server/types/db'
+import type { UnitWithProgress, UnitProgressSummary } from '#shared/types/unit'
 
 /**
- * 获取单元列表（含进度摘要）
- * GET /api/units
- * Query: ?level=1 (可选，按难度筛选)
+ * 获取单元列表（含进度）
+ * 请求：GET /api/units?level=xxx
  */
-export default defineEventHandler(async (event) => {
-  const userId = event.context.user?.id
-  const levelQuery = getQuery(event).level
-  const level = levelQuery ? Number(levelQuery) : null
+export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProgress[]>> => {
+  const userId: number = event.context.user.id
+  const level = Number(getQuery(event).level)
 
-  // 构建查询条件
-  let unitSql = 'SELECT * FROM unit'
-  const params: number[] = []
-  
-  if (level) {
-    unitSql += ' WHERE level = ?'
-    params.push(level)
+  // 1. 查单元列表（联查 media 表获取封面）
+  const units = await query<UnitRow & { unit_media_key: string | null }>(
+    `SELECT u.*, m.object_key AS unit_media_key
+     FROM unit u
+     LEFT JOIN media m ON u.cover_media_id = m.id
+     WHERE u.level = ?
+     ORDER BY u.sort_order`,
+    [level]
+  )
+
+  // 2. 查该用户所有已学习片段（单元内去重）
+  const progressRows = await query<UserProgressRow>(
+    `SELECT DISTINCT up.segment_id, s.unit_id
+     FROM user_progress up
+     JOIN segment s ON up.segment_id = s.id
+     WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ?)`,
+    [userId, level]
+  )
+  const progressMap = new Map<number, Set<number>>()
+  for (const row of progressRows) {
+    if (!progressMap.has(row.unit_id)) progressMap.set(row.unit_id, new Set())
+    progressMap.get(row.unit_id)!.add(row.segment_id)
   }
-  
-  unitSql += ' ORDER BY level, sort_order'
 
-  const units = await query<UnitRow>(unitSql, params)
+  // 3. 查每个单元的总片段数
+  const segmentCounts = await query<{ unit_id: number; count: number }>(
+    `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ?) GROUP BY unit_id`,
+    [level]
+  )
+  const countMap = new Map(segmentCounts.map((r) => [r.unit_id, r.count]))
 
-  // 获取每个单元的进度摘要
-  const unitsWithProgress = await Promise.all(
+  // 4. 组合返回
+  const result: UnitWithProgress[] = await Promise.all(
     units.map(async (unit) => {
-      const countRows = await query<CountRow>(
-        'SELECT COUNT(*) as total FROM segment WHERE unit_id = ?',
-        [unit.id]
-      )
-      const totalSegments = countRows[0]?.total ?? 0
-
-      let completedSegments = 0
-      if (userId && totalSegments > 0) {
-        const completedRows = await query<CountRow>(
-          `SELECT COUNT(DISTINCT segment_id) as completed 
-           FROM user_progress 
-           WHERE user_id = ? 
-           AND segment_id IN (SELECT id FROM segment WHERE unit_id = ?)
-           AND phase1_done = 1 AND phase2_done = 1 AND phase3_done = 1 AND phase4_done = 1`,
-          [userId, unit.id]
-        )
-        completedSegments = completedRows[0]?.completed ?? 0
+      const totalSegments = countMap.get(unit.id) ?? 0
+      const completedSegments = progressMap.get(unit.id)?.size ?? 0
+      const progress: UnitProgressSummary = {
+        totalSegments,
+        completedSegments,
+        percent: totalSegments > 0 ? Math.round((completedSegments / totalSegments) * 100) : 0,
       }
 
       return {
-        ...unit,
-        progress: {
-          totalSegments,
-          completedSegments,
-          percent: totalSegments > 0 ? Math.round((completedSegments / totalSegments) * 100) : 0
-        }
+        id: unit.id,
+        title: unit.title,
+        description: unit.description,
+        level: unit.level,
+        sortOrder: unit.sort_order,
+        audioUrl: await signFromMedia(unit.unit_media_key, null, MATERIAL_EXPIRE),
+        progress,
       }
     })
   )
 
-  return validateSuccess(unitsWithProgress, '获取单元列表成功', 200)
+  return validateSuccess(result, '获取成功')
 })
+
+/** 生成签名 URL：优先使用 media 表的 object_key */
+async function signFromMedia(
+  objectKey: string | null,
+  fallbackUrl: string | null,
+  expires: number = MATERIAL_EXPIRE
+): Promise<string | null> {
+  if (objectKey) return signUrl(objectKey, expires)
+  if (!fallbackUrl) return null
+  if (!fallbackUrl.startsWith('https://')) return fallbackUrl
+  return signUrl(fallbackUrl, expires)
+}

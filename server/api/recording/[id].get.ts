@@ -1,42 +1,45 @@
 import { query } from '#server/utils/db'
-import { signAudioUrl, RECORDING_EXPIRE } from '#server/utils/oss'
-import { validateError, validateSuccess } from '#server/utils/validate'
+import { signUrl, RECORDING_EXPIRE } from '#server/utils/oss'
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow } from '#server/types/db'
 import type { Recording } from '#shared/types/recording'
 
 /**
- * 获取单条录音详情
- * 请求：GET /api/recording/:id
+ * 获取单个录音详情
+ * 请求：GET /api/recording/[id]
  */
 export default defineEventHandler(async (event): Promise<ResPayload<Recording | null>> => {
-  const userId = event.context.user?.id
-  if (!userId) return validateError('未登录', 401)
+  const userId: number = event.context.user.id
   const id = Number(getRouterParam(event, 'id'))
 
   if (!id || isNaN(id)) {
     return validateError('无效的录音ID')
   }
 
-  const rows = await query<RecordingRow>(
-    'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
-    [id]
+  // 联查 media 表获取音频
+  const rows = await query<RecordingRow & { rec_media_key: string | null }>(
+    `SELECT r.*, m.object_key AS rec_media_key
+     FROM recording r
+     LEFT JOIN media m ON r.media_id = m.id
+     WHERE r.id = ? AND r.user_id = ? AND r.deleted_at IS NULL`,
+    [id, userId]
   )
-  const recording = rows[0]
 
-  if (!recording) {
+  const row = rows[0]
+  if (!row) {
     return validateError('录音不存在', 404)
   }
 
-  // 归属权校验：只能查看自己的录音
-  if (recording.user_id !== userId) {
-    return validateError('无权限访问该录音', 403)
+  // 签名音频路径
+  let signedPath: string | null = null
+  if (row.rec_media_key) {
+    signedPath = await signUrl(row.rec_media_key, RECORDING_EXPIRE)
+  } else if (row.audioPath) {
+    signedPath = row.audioPath.startsWith('https://')
+      ? await signUrl(row.audioPath, RECORDING_EXPIRE)
+      : row.audioPath
   }
 
-  const r = rowToRecording(recording)
-  if (r) {
-    r.audioPath = await signAudioUrl(r.audioPath, RECORDING_EXPIRE)
-  }
-
-  return validateSuccess(r, '获取成功')
+  const recording = rowToRecording(row, signedPath)
+  return validateSuccess(recording, '获取成功')
 })

@@ -1,17 +1,33 @@
 import { query } from '#server/utils/db'
-import { signAudioUrl, WORD_EXPIRE } from '#server/utils/oss'
+import { signUrl, MATERIAL_EXPIRE, WORD_EXPIRE } from '#server/utils/oss'
 import type { SegmentRow, UnitRow, VocabularyRow, UserProgressRow } from '#server/types/db'
 import type { SegmentDetail, SegmentPhaseProgress, VocabularyItem } from '#shared/types/unit'
 
 /** 解析音频 URL：确保返回完整路径 */
 function resolveAudioUrl(url: string | null): string | null {
   if (!url) return null
-  // 已经是完整 URL（http/https）或绝对路径（/开头）
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) {
     return url
   }
-  // 相对路径，补全为绝对路径
   return `/${url}`
+}
+
+/**
+ * 生成签名 URL：优先使用 media 表的 object_key，降级到旧字段
+ */
+async function signFromMedia(
+  objectKey: string | null,
+  fallbackUrl: string | null,
+  expires: number = MATERIAL_EXPIRE
+): Promise<string | null> {
+  if (objectKey) {
+    return signUrl(objectKey, expires)
+  }
+  // 降级：使用旧字段
+  const resolved = resolveAudioUrl(fallbackUrl)
+  if (!resolved) return null
+  if (!resolved.startsWith('https://')) return resolved
+  return signUrl(resolved, expires)
 }
 
 /**
@@ -26,9 +42,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     return validateError('无效的片段ID')
   }
 
-  // 1. 查片段信息
-  const segments = await query<SegmentRow>(
-    'SELECT * FROM segment WHERE id = ?',
+  // 1. 查片段信息（联查 media 表获取音频）
+  const segments = await query<SegmentRow & { seg_media_key: string | null; seg_media_duration: string | null }>(
+    `SELECT s.*, m.object_key AS seg_media_key, m.duration AS seg_media_duration
+     FROM segment s
+     LEFT JOIN media m ON s.media_id = m.id
+     WHERE s.id = ?`,
     [segId]
   )
   const segment = segments[0]
@@ -46,9 +65,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     return validateError('单元不存在', 404)
   }
 
-  // 3. 查重点词
-  const vocabRows = await query<VocabularyRow>(
-    'SELECT * FROM vocabulary WHERE segment_id = ? ORDER BY sort_order',
+  // 3. 查重点词（联查 media 表获取音频）
+  const vocabRows = await query<VocabularyRow & { vocab_media_key: string | null; vocab_media_duration: string | null }>(
+    `SELECT v.*, m.object_key AS vocab_media_key, m.duration AS vocab_media_duration
+     FROM vocabulary v
+     LEFT JOIN media m ON v.media_id = m.id
+     WHERE v.segment_id = ?
+     ORDER BY v.sort_order`,
     [segId]
   )
   const vocabulary: VocabularyItem[] = await Promise.all(
@@ -58,8 +81,16 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
       forms: v.forms,
       phonetic: v.phonetic,
       meaning: v.meaning,
-      audioUrl: await signAudioUrl(resolveAudioUrl(v.audioUrl), WORD_EXPIRE),
-      duration: v.duration ? Number(v.duration) : null,
+      audioUrl: await signFromMedia(
+        (v as any).vocab_media_key,
+        v.audioUrl,
+        WORD_EXPIRE
+      ),
+      duration: (v as any).vocab_media_duration
+        ? Number((v as any).vocab_media_duration)
+        : v.duration
+          ? Number(v.duration)
+          : null,
     }))
   )
 
@@ -94,8 +125,16 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
   const result: SegmentDetail = {
     id: segment.id,
     title: segment.title,
-    audioUrl: await signAudioUrl(resolveAudioUrl(segment.audioUrl), WORD_EXPIRE),
-    duration: segment.duration ? Number(segment.duration) : null,
+    audioUrl: await signFromMedia(
+      segment.seg_media_key,
+      segment.audioUrl,
+      MATERIAL_EXPIRE
+    ),
+    duration: segment.seg_media_duration
+      ? Number(segment.seg_media_duration)
+      : segment.duration
+        ? Number(segment.duration)
+        : null,
     textContent: segment.textContent,
     translation: segment.translation,
     questions: segment.questions,
