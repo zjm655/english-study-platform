@@ -1,7 +1,6 @@
-import { writeFile, mkdir, unlink } from 'node:fs/promises'
-import { join, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { pool, query, withTransaction } from '#server/utils/db'
+import { withTransaction } from '#server/utils/db'
+import { uploadWithKey } from '#server/utils/oss'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow } from '#server/types/db'
@@ -9,7 +8,6 @@ import type { UploadRecordingResult } from '#shared/types/recording'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 
 // ============ 安全配置 ============
-const UPLOAD_DIR = resolve('public/uploads/recordings')
 const MAX_FILE_SIZE = 50 * 1024 * 1024  // 50MB
 
 // MIME 白名单 + 对应魔数签名（前 N 字节）
@@ -73,33 +71,30 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
     return validateError(parseResult.error.issues[0]?.message || '参数校验失败')
   }
 
-  // 8. 生成安全文件名（UUID，不含用户输入）
+  // 8. 上传到 OSS
   const ext = mimeType === 'audio/webm' ? 'webm'
     : mimeType === 'audio/ogg' ? 'ogg'
     : mimeType === 'audio/wav' || mimeType === 'audio/x-wav' ? 'wav'
     : 'mp3'
-  const safeFilename = `${randomUUID()}.${ext}`
-  const safePath = join(UPLOAD_DIR, safeFilename)
+  const ossKey = `audio/recordings/${randomUUID()}.${ext}`
 
-  // 9. 路径穿越防御：验证解析后路径仍在 UPLOAD_DIR 内
-  const resolvedPath = resolve(safePath)
-  if (!resolvedPath.startsWith(UPLOAD_DIR + sep)) {
-    return validateError('路径非法', 400)
+  let audioUrl: string
+  try {
+    const result = await uploadWithKey(fileBuffer, ossKey)
+    audioUrl = result.url
+  } catch (err) {
+    console.error('[recording upload] OSS 上传失败:', err)
+    return validateError('文件上传失败，请稍后重试', 500)
   }
 
-  // 10. 确保目录存在并写入文件
-  await mkdir(UPLOAD_DIR, { recursive: true })
-  await writeFile(resolvedPath, fileBuffer)
-
-  // 11. 存入数据库（使用事务保证一致性）
-  const audioPath = `/uploads/recordings/${safeFilename}`
+  // 9. 存入数据库（使用事务保证一致性）
   let recording: ReturnType<typeof rowToRecording> = null
 
   try {
     recording = await withTransaction(async (conn) => {
       const [result] = await conn.execute<ResultSetHeader>(
         'INSERT INTO recording (user_id, segment_id, phase, audioPath, duration) VALUES (?, ?, ?, ?, ?)',
-        [userId, segmentId, phase, audioPath, duration]
+        [userId, segmentId, phase, audioUrl, duration]
       )
       const insertId = result.insertId
 
@@ -111,12 +106,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
       return rowToRecording(rows[0] as RecordingRow)
     })
   } catch (err) {
-    // 事务失败时回滚，并删除已写入的文件避免脏文件
-    try {
-      await unlink(resolvedPath)
-    } catch {
-      // 忽略文件删除失败（可能文件不存在）
-    }
     console.error('[recording upload] 事务失败:', err)
     return validateError('上传失败，请稍后重试', 500)
   }
