@@ -226,7 +226,8 @@ function generateRequestId(): string {
  */
 function parseMessagePath(message: string): string | null {
   const match = /^Path:(.+?)(\r\n|$)/m.exec(message)
-  return match ? match[1].trim() : null
+  if (!match || !match[1]) return null
+  return match[1].trim()
 }
 
 /**
@@ -309,7 +310,9 @@ export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE):
     // 6. 依次处理每个分块
     for (let i = 0; i < chunks.length; i++) {
       const requestId = generateRequestId()
-      const ssml = buildSsml(chunks[i], fullVoice)
+      const chunk = chunks[i]
+      if (!chunk) break
+      const ssml = buildSsml(chunk, fullVoice)
       const ssmlMessage = buildSsmlMessage(requestId, ssml)
 
       await new Promise<void>((resolve, reject) => {

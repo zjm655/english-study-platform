@@ -25,7 +25,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording[]>
   )
 
   // 签名音频路径
-  const recordings: Recording[] = await Promise.all(
+  const results = await Promise.all(
     rows.map(async (row) => {
       let signedPath: string | null = null
       if (row.rec_media_key) {
@@ -38,6 +38,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording[]>
       return rowToRecording(row, signedPath)
     })
   )
+  const recordings = results.filter((r): r is Recording => r !== null)
 
   return validateSuccess(recordings, '获取成功')
 })

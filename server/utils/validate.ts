@@ -1,5 +1,6 @@
 // server/utils/validate.ts
 import { z } from 'zod'
+import type { ResPayload } from '#shared/types/request'
 
 
 // 登陆校验
@@ -101,8 +102,8 @@ export const favSegmentSchema = z.object({
 
 // ============== 通用工具 ==============
 
-export function validateError(message: string, code=400) {
-  return { code, message, data: null }
+export function validateError(message: string, code: number = 400): ResPayload<never> {
+  return { code, message, data: undefined as never }
 }
 
 export function validateSuccess<T>(data: T, message = '成功', code=200) {

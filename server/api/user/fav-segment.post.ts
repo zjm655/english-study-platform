@@ -40,6 +40,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
     isFav = true
   } else {
     const record = existing[0]
+    if (!record) return validateError('数据异常', 500)
     if (record.deleted_at === null) {
       // 已收藏 → 软删除（取消收藏）
       await query(

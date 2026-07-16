@@ -1,6 +1,6 @@
 import { query } from '#server/utils/db'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
-import type { UnitRow, UserProgressRow } from '#server/types/db'
+import type { UnitRow } from '#server/types/db'
 import type { UnitWithProgress, UnitProgressSummary } from '#shared/types/unit'
 
 /**
@@ -33,14 +33,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
 
   // 2. 查该用户所有已学习片段（单元内去重）
   const progressRows = validLevel
-    ? await query<UserProgressRow>(
+    ? await query<{ segment_id: number; unit_id: number }>(
         `SELECT DISTINCT up.segment_id, s.unit_id
          FROM user_progress up
          JOIN segment s ON up.segment_id = s.id
          WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ?)`,
         [userId, level]
       )
-    : await query<UserProgressRow>(
+    : await query<{ segment_id: number; unit_id: number }>(
         `SELECT DISTINCT up.segment_id, s.unit_id
          FROM user_progress up
          JOIN segment s ON up.segment_id = s.id
