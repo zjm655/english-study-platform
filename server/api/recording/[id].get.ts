@@ -1,4 +1,5 @@
 import { query } from '#server/utils/db'
+import { signAudioUrl, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow } from '#server/types/db'
@@ -32,5 +33,10 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     return validateError('无权限访问该录音', 403)
   }
 
-  return validateSuccess(rowToRecording(recording), '获取成功')
+  const r = rowToRecording(recording)
+  if (r) {
+    r.audioPath = await signAudioUrl(r.audioPath, RECORDING_EXPIRE)
+  }
+
+  return validateSuccess(r, '获取成功')
 })

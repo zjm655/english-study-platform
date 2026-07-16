@@ -1,4 +1,5 @@
 import { query } from '#server/utils/db'
+import { signAudioUrl, WORD_EXPIRE } from '#server/utils/oss'
 import type { UnitRow, SegmentRow, UserProgressRow } from '#server/types/db'
 
 /**
@@ -43,7 +44,7 @@ export default defineEventHandler(async (event) => {
       return {
         id: segment.id,
         title: segment.title,
-        audioUrl: segment.audioUrl,
+        audioUrl: await signAudioUrl(segment.audioUrl, WORD_EXPIRE),
         sortOrder: segment.sort_order,
         progress: progress ? {
           phase1_done: !!progress.phase1_done,

@@ -1,4 +1,5 @@
 import { query } from '#server/utils/db'
+import { signAudioUrl, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import type { RecordingRow } from '#server/types/db'
@@ -33,5 +34,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording[] 
   const rows = await query<RecordingRow>(sql, params)
   const recordings = rows.map(rowToRecording).filter((r): r is Recording => r !== null)
 
-  return validateSuccess(recordings, '获取列表成功')
+  // 为每条录音的 audioPath 生成签名链接
+  const signedRecordings = await Promise.all(
+    recordings.map(async (r) => ({
+      ...r,
+      audioPath: await signAudioUrl(r.audioPath, RECORDING_EXPIRE),
+    }))
+  )
+
+  return validateSuccess(signedRecordings, '获取列表成功')
 })

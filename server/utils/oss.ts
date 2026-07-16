@@ -136,6 +136,30 @@ export async function uploadImagePublic(fileBuffer: Buffer, fileName: string): P
   };
 }
 
+// ---------- 签名链接常量与辅助函数 ----------
+
+/** 材料音频签名有效期（秒）= 35 分钟 */
+export const MATERIAL_EXPIRE = 2100;
+
+/** 单词音频签名有效期（秒）= 35 分钟 */
+export const WORD_EXPIRE = 2100;
+
+/** 用户录音签名有效期（秒）= 40 分钟 */
+export const RECORDING_EXPIRE = 2400;
+
+/**
+ * 为音频 URL 生成临时签名链接
+ * 仅对 https:// 开头的 OSS URL 签名，本地路径原样返回
+ */
+export async function signAudioUrl(
+  url: string | null,
+  expires: number = MATERIAL_EXPIRE
+): Promise<string | null> {
+  if (!url) return null;
+  if (!url.startsWith('https://')) return url;
+  return signUrl(url, expires);
+}
+
 // ---------- 自定义 key 上传 ----------
 
 /**

@@ -1,4 +1,5 @@
 import { query } from '#server/utils/db'
+import { signAudioUrl, WORD_EXPIRE } from '#server/utils/oss'
 import type { SegmentRow, UnitRow, VocabularyRow, UserProgressRow } from '#server/types/db'
 import type { SegmentDetail, SegmentPhaseProgress, VocabularyItem } from '#shared/types/unit'
 
@@ -50,15 +51,17 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     'SELECT * FROM vocabulary WHERE segment_id = ? ORDER BY sort_order',
     [segId]
   )
-  const vocabulary: VocabularyItem[] = vocabRows.map(v => ({
-    id: v.id,
-    word: v.word,
-    forms: v.forms,
-    phonetic: v.phonetic,
-    meaning: v.meaning,
-    audioUrl: resolveAudioUrl(v.audioUrl),
-    duration: v.duration ? Number(v.duration) : null,
-  }))
+  const vocabulary: VocabularyItem[] = await Promise.all(
+    vocabRows.map(async (v) => ({
+      id: v.id,
+      word: v.word,
+      forms: v.forms,
+      phonetic: v.phonetic,
+      meaning: v.meaning,
+      audioUrl: await signAudioUrl(resolveAudioUrl(v.audioUrl), WORD_EXPIRE),
+      duration: v.duration ? Number(v.duration) : null,
+    }))
+  )
 
   // 4. 查用户进度
   const progressRows = await query<UserProgressRow>(
@@ -91,7 +94,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
   const result: SegmentDetail = {
     id: segment.id,
     title: segment.title,
-    audioUrl: resolveAudioUrl(segment.audioUrl),
+    audioUrl: await signAudioUrl(resolveAudioUrl(segment.audioUrl), WORD_EXPIRE),
     duration: segment.duration ? Number(segment.duration) : null,
     textContent: segment.textContent,
     translation: segment.translation,
