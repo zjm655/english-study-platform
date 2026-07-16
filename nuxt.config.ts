@@ -26,6 +26,12 @@ export default defineNuxtConfig({
       model:"deepseek-v4-flash",
       apiKey:"",
       baseUrl:""
+    },
+    nls: {
+      accessKeyId:"",
+      accessKeySecret:"",
+      gateway:"nls-gateway.aliyuncs.com",
+      appKey:""
     }
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],

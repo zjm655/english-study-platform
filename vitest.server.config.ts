@@ -1,0 +1,13 @@
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    globals: true,
+    include: ['server/**/*.test.ts'],
+  },
+  define: {
+    'import.meta.server': 'true',
+    'import.meta.client': 'false',
+  },
+})
