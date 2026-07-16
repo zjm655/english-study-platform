@@ -74,43 +74,48 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
       </div>
 
       <div class="segment-list">
-        <NuxtLink
+        <div
           v-for="segment in segments"
           :key="segment.id"
-          :to="`/learn/unit/${unitId}/segment/${segment.id}`"
           class="segment-card"
         >
-          <div class="segment-card__header">
-            <div class="segment-card__title">{{ segment.title }}</div>
-            <button
-              class="segment-fav-btn"
-              :class="{ 'segment-fav-btn--active': isSegmentFav(segment.id) }"
-              :disabled="togglingSegment === segment.id"
-              @click.stop="toggleSegment(segment.id)"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-              </svg>
-            </button>
-          </div>
-          <div class="segment-card__phases">
-            <div
-              v-for="(item, idx) in getSegmentPhases(segment)"
-              :key="item.phase"
-              class="phase-dot"
-              :class="{
-                'phase-dot--done': item.done,
-                'phase-dot--current': !item.done && getCurrentPhaseIndex(getSegmentPhases(segment)) === idx,
-              }"
-            >
-              <div class="phase-dot__icon">
-                <el-icon v-if="item.done"><Check /></el-icon>
-                <span v-else>{{ item.phase }}</span>
-              </div>
-              <div class="phase-dot__name">{{ item.name }}</div>
+          <NuxtLink
+            :to="`/learn/unit/${unitId}/segment/${segment.id}`"
+            class="segment-card__link"
+          >
+            <div class="segment-card__header">
+              <div class="segment-card__title">{{ segment.title }}</div>
             </div>
-          </div>
-        </NuxtLink>
+            <div class="segment-card__phases">
+              <div
+                v-for="(item, idx) in getSegmentPhases(segment)"
+                :key="item.phase"
+                class="phase-dot"
+                :class="{
+                  'phase-dot--done': item.done,
+                  'phase-dot--current': !item.done && getCurrentPhaseIndex(getSegmentPhases(segment)) === idx,
+                }"
+              >
+                <div class="phase-dot__icon">
+                  <el-icon v-if="item.done"><Check /></el-icon>
+                  <span v-else>{{ item.phase }}</span>
+                </div>
+                <div class="phase-dot__name">{{ item.name }}</div>
+              </div>
+            </div>
+          </NuxtLink>
+
+          <button
+            class="segment-fav-btn"
+            :class="{ 'segment-fav-btn--active': isSegmentFav(segment.id) }"
+            :disabled="togglingSegment === segment.id"
+            @click="toggleSegment(segment.id)"
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+            </svg>
+          </button>
+        </div>
       </div>
     </template>
   </div>
@@ -195,19 +200,24 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 }
 
 .segment-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  position: relative;
   padding: 16px;
   background: var(--card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow);
-  text-decoration: none;
   transition: transform 0.2s;
 }
 
 .segment-card:active {
   transform: scale(0.98);
+}
+
+.segment-card__link {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .segment-card__title {
@@ -224,6 +234,9 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 }
 
 .segment-fav-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
   width: 28px;
   height: 28px;
   display: flex;
@@ -235,7 +248,7 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
   cursor: pointer;
   transition: all 0.2s;
   padding: 0;
-  flex-shrink: 0;
+  z-index: 1;
 }
 
 .segment-fav-btn svg {
@@ -244,6 +257,10 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 }
 
 .segment-fav-btn:hover:not(:disabled) {
+  /* color: var(--warning); */
+  transform: scale(1.1);
+}
+.segment-fav-btn:active:not(:disabled) {
   color: var(--warning);
   transform: scale(1.1);
 }
