@@ -89,6 +89,16 @@ export const uploadRecordingSchema = z.object({
   duration: z.number().min(0.1, '录音时长过短').max(600, '录音时长不能超过10分钟')
 })
 
+// 单词收藏校验
+export const favWordSchema = z.object({
+  vocabularyId: z.number().int().positive('vocabularyId 必须为正整数'),
+})
+
+// 片段收藏校验
+export const favSegmentSchema = z.object({
+  segmentId: z.number().int().positive('segmentId 必须为正整数'),
+})
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code=400) {

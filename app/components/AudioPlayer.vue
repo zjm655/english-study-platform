@@ -5,6 +5,8 @@ import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 interface Props {
   /** 音频源 URL */
   src?: string | null
+  /** 音频时长（秒），作为加载前的默认值 */
+  duration?: number | null
   /** 是否显示速度控制 */
   showSpeed?: boolean
   /** 速度选项 */
@@ -13,6 +15,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   src: null,
+  duration: null,
   showSpeed: true,
   speedOptions: () => [0.5, 1, 1.5, 2],
 })
@@ -26,6 +29,13 @@ const isLoaded = ref(false)
 // src 变化时重置加载状态
 watch(() => props.src, () => {
   isLoaded.value = false
+})
+
+// 有效时长：store.duration（实际加载后的值）优先，否则用 props.duration
+const effectiveDuration = computed(() => {
+  if (store.duration > 0) return store.duration
+  if (props.duration && props.duration > 0) return props.duration
+  return 0
 })
 
 // 播放切换：首次播放时自动加载
@@ -50,7 +60,7 @@ function onProgressClick(e: MouseEvent) {
   const target = e.currentTarget as HTMLElement
   const rect = target.getBoundingClientRect()
   const percent = (e.clientX - rect.left) / rect.width
-  const time = percent * store.duration
+  const time = percent * effectiveDuration.value
   seek(time)
 }
 
@@ -80,10 +90,10 @@ function cycleSpeed() {
       <div class="progress-bar" @click="onProgressClick">
         <div
           class="progress-fill"
-          :style="{ width: `${(store.currentTime / store.duration) * 100}%` }"
+          :style="{ width: effectiveDuration ? `${(store.currentTime / effectiveDuration) * 100}%` : '0%' }"
         />
       </div>
-      <span class="time">{{ formatTime(store.duration) }}</span>
+      <span class="time">{{ formatTime(effectiveDuration) }}</span>
     </div>
 
     <!-- 速度控制 -->

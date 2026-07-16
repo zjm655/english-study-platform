@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
+import { useFavorites } from '~/composables/useFavorites'
 import type { SegmentDetail, VocabularyItem } from '~~/shared/types/unit'
 
 interface Props {
@@ -14,6 +15,12 @@ const emit = defineEmits<{
 
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 const { load, play } = useAudioPlayer()
+const { fetchFavWords, isWordFav, toggleWord, togglingWord } = useFavorites()
+
+// 页面加载时拉取收藏列表
+onMounted(() => {
+  fetchFavWords()
+})
 
 // ===== 状态 =====
 const selectedVocab = ref<VocabularyItem | null>(null)
@@ -142,7 +149,18 @@ async function completePhase() {
     <!-- 卡片 b：词汇卡片 -->
     <div ref="vocabCardRef" class="card vocab-card">
       <div class="card__header">
-        词汇详情
+        <span>词汇详情</span>
+        <button
+          v-if="selectedVocab"
+          class="fav-btn"
+          :class="{ 'fav-btn--active': isWordFav(selectedVocab.id) }"
+          :disabled="togglingWord === selectedVocab.id"
+          @click.stop="toggleWord(selectedVocab.id)"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+          </svg>
+        </button>
       </div>
 
       <!-- 未选中状态 -->
@@ -367,6 +385,44 @@ async function completePhase() {
 
 .forms-value {
   color: var(--text-2);
+}
+
+/* ===== 收藏按钮 ===== */
+.fav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.fav-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fav-btn:hover:not(:disabled) {
+  color: var(--warning);
+  transform: scale(1.1);
+}
+
+.fav-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.fav-btn--active {
+  color: var(--warning);
+}
+
+.fav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ===== 翻译卡片 ===== */

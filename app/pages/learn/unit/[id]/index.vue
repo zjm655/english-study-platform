@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check } from '@element-plus/icons-vue'
 import { useUnitProgress } from '~/composables/unit'
+import { useFavorites } from '~/composables/useFavorites'
 import type { UnitProgressDetail } from '#shared/types/unit'
 
 definePageMeta({
@@ -11,6 +12,7 @@ const route = useRoute()
 const unitId = computed(() => Number(route.params.id))
 
 const { isLoading, fetchUnitProgress } = useUnitProgress()
+const { fetchFavSegments, isSegmentFav, toggleSegment, togglingSegment } = useFavorites()
 
 const unitData = ref<UnitProgressDetail['unit'] | null>(null)
 const segments = ref<UnitProgressDetail['segments']>([])
@@ -29,6 +31,7 @@ async function loadData() {
 
 onMounted(() => {
   loadData()
+  fetchFavSegments()
 })
 
 function getSegmentPhases(segment: UnitProgressDetail['segments'][number]) {
@@ -77,7 +80,19 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
           :to="`/learn/unit/${unitId}/segment/${segment.id}`"
           class="segment-card"
         >
-          <div class="segment-card__title">{{ segment.title }}</div>
+          <div class="segment-card__header">
+            <div class="segment-card__title">{{ segment.title }}</div>
+            <button
+              class="segment-fav-btn"
+              :class="{ 'segment-fav-btn--active': isSegmentFav(segment.id) }"
+              :disabled="togglingSegment === segment.id"
+              @click.stop="toggleSegment(segment.id)"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+              </svg>
+            </button>
+          </div>
           <div class="segment-card__phases">
             <div
               v-for="(item, idx) in getSegmentPhases(segment)"
@@ -199,6 +214,51 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
   font-size: 15px;
   font-weight: 500;
   color: var(--text-1);
+}
+
+.segment-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.segment-fav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.segment-fav-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.segment-fav-btn:hover:not(:disabled) {
+  color: var(--warning);
+  transform: scale(1.1);
+}
+
+.segment-fav-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.segment-fav-btn--active {
+  color: var(--warning);
+}
+
+.segment-fav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ===== 四阶段进度圆点 ===== */

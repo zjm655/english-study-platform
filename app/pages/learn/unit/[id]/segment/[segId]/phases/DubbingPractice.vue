@@ -173,9 +173,15 @@ async function retryUpload() {
 // 播放录音
 async function playRecording() {
   if (!selectedRecording.value?.audioPath) return
-  const url = selectedRecording.value.audioPath.startsWith('/')
-    ? selectedRecording.value.audioPath
-    : `/${selectedRecording.value.audioPath}`
+  
+  let url = selectedRecording.value.audioPath
+  
+  // 只有检测到不是 http/https 开头时，才处理成绝对路径（加 /）
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    // 如果本身不以 / 开头，则补上 /；避免出现双斜杠
+    url = url.startsWith('/') ? url : `/${url}`
+  }
+  
   await loadAudio(url)
   playAudio()
 }
