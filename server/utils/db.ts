@@ -92,7 +92,8 @@ const initDB = async () => {
       title VARCHAR(100) NOT NULL COMMENT '单元标题',
       description VARCHAR(500) COMMENT '单元简介',
       coverUrl VARCHAR(1024) COMMENT '封面图URL',
-      level INT NOT NULL DEFAULT 1 COMMENT '难度等级: 1初级 2中级 3高级',
+      cover_media_id INT COMMENT '关联的封面媒体资源ID (media.id)',
+      level INT NOT NULL DEFAULT 1 COMMENT '难度等级: 1初级 2中级 3高级，0为用户自定义',
       sort_order INT NOT NULL DEFAULT 0 COMMENT '同级内的排序',
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -109,6 +110,7 @@ const initDB = async () => {
       textContent TEXT NOT NULL COMMENT '英文原文，四阶段核心素材',
       translation TEXT COMMENT '中文翻译，辅助理解',
       questions JSON COMMENT '盲听理解题，JSON数组格式',
+      is_public TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否公开: 0不公开 1公开',
       sort_order INT NOT NULL DEFAULT 0 COMMENT '同单元内的排序',
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (unit_id) REFERENCES unit(id) ON DELETE CASCADE

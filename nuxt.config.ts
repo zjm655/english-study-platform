@@ -21,6 +21,11 @@ export default defineNuxtConfig({
       bucket:"nick-img-bucket-xxxxxx-from-xxx",
       accessKeyId:"",
       accessKeySecret:""
+    },
+    deepseek: {
+      model:"deepseek-v4-flash",
+      apiKey:"",
+      baseUrl:""
     }
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],
