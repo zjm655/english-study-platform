@@ -407,12 +407,12 @@ async function completePhase() {
   height: 18px;
 }
 
-.fav-btn:hover:not(:disabled) {
+.fav-btn:active:not(:disabled) {
   color: var(--warning);
   transform: scale(1.1);
 }
 
-.fav-btn:active:not(:disabled) {
+.fav-btn:hover:not(:disabled) {
   transform: scale(0.95);
 }
 
