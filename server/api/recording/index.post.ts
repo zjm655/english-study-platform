@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import { withTransaction } from '#server/utils/db'
+import { withTransaction, pool } from '#server/utils/db'
 import { uploadWithKey } from '#server/utils/oss'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
+import { signUrl, RECORDING_EXPIRE } from '#server/utils/oss'
 import type { RecordingRow } from '#server/types/db'
 import type { UploadRecordingResult } from '#shared/types/recording'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
@@ -78,48 +79,70 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
     : 'mp3'
   const ossKey = `audio/recordings/${randomUUID()}.${ext}`
 
-  let audioUrl: string
   try {
-    const result = await uploadWithKey(fileBuffer, ossKey)
-    audioUrl = result.url
+    await uploadWithKey(fileBuffer, ossKey)
   } catch (err) {
     console.error('[recording upload] OSS 上传失败:', err)
     return validateError('文件上传失败，请稍后重试', 500)
   }
 
-  // 9. 存入数据库（使用事务保证一致性）
-  let recording: ReturnType<typeof rowToRecording> = null
+  // 9. 写入 media 表 + recording 表（事务）
+  let result: UploadRecordingResult | null = null
 
   try {
-    recording = await withTransaction(async (conn) => {
-      const [result] = await conn.execute<ResultSetHeader>(
-        'INSERT INTO recording (user_id, segment_id, phase, audioPath, duration) VALUES (?, ?, ?, ?, ?)',
-        [userId, segmentId, phase, audioUrl, duration]
+    result = await withTransaction(async (conn) => {
+      // 9a. 插入 media 表
+      const [mediaRes] = await conn.execute<ResultSetHeader>(
+        `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, original_name, mime_type, size_bytes, duration, status)
+         VALUES (?, 'recording', 'oss', ?, ?, ?, ?, ?, ?, 1)`,
+        [
+          userId,
+          useRuntimeConfig().oss.bucket,
+          ossKey,
+          `${randomUUID()}.${ext}`,
+          mimeType,
+          file.size,
+          duration,
+        ]
       )
-      const insertId = result.insertId
+      const mediaId = mediaRes.insertId
 
-      // 查回完整记录（事务内查询，使用 conn.execute 确保连接一致性）
-      const [rows] = await conn.execute<RowDataPacket[]>(
-        'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
-        [insertId]
+      // 9b. 插入 recording 表（关联 media_id）
+      const [recRes] = await conn.execute<ResultSetHeader>(
+        'INSERT INTO recording (user_id, segment_id, phase, media_id, duration) VALUES (?, ?, ?, ?, ?)',
+        [userId, segmentId, phase, mediaId, duration]
       )
-      return rowToRecording(rows[0] as RecordingRow)
+
+      // 9c. 查回完整记录
+      const [rows] = await conn.execute<RowDataPacket[]>(
+        `SELECT r.*, m.object_key AS rec_media_key
+         FROM recording r
+         LEFT JOIN media m ON r.media_id = m.id
+         WHERE r.id = ? AND r.deleted_at IS NULL`,
+        [recRes.insertId]
+      )
+      const row = rows[0] as (RecordingRow & { rec_media_key: string })
+
+      // 9d. 签名返回
+      const signedUrl = await signUrl(row.rec_media_key, RECORDING_EXPIRE)
+
+      return {
+        id: row.id,
+        audioPath: signedUrl,
+        duration: Number(row.duration),
+        createdAt: row.createdAt,
+      } satisfies UploadRecordingResult
     })
   } catch (err) {
     console.error('[recording upload] 事务失败:', err)
     return validateError('上传失败，请稍后重试', 500)
   }
 
-  if (!recording) {
+  if (!result) {
     return validateError('上传失败', 500)
   }
 
-  return validateSuccess({
-    id: recording.id,
-    audioPath: recording.audioPath ?? '',
-    duration: recording.duration ?? 0,
-    createdAt: recording.createdAt,
-  } satisfies UploadRecordingResult, '上传成功')
+  return validateSuccess(result, '上传成功')
 })
 
 /** 验证文件魔数签名 */

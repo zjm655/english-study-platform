@@ -5,30 +5,48 @@ import type { UnitWithProgress, UnitProgressSummary } from '#shared/types/unit'
 
 /**
  * 获取单元列表（含进度）
- * 请求：GET /api/units?level=xxx
+ * 请求：GET /api/units?level=xxx（可选，不传则返回全部）
  */
 export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProgress[]>> => {
   const userId: number = event.context.user.id
-  const level = Number(getQuery(event).level)
+  const rawLevel = getQuery(event).level
+  const hasLevel = rawLevel !== undefined && rawLevel !== ''
+  const level = Number(rawLevel)
+  const validLevel = hasLevel && !isNaN(level)
 
   // 1. 查单元列表（联查 media 表获取封面）
-  const units = await query<UnitRow & { unit_media_key: string | null }>(
-    `SELECT u.*, m.object_key AS unit_media_key
-     FROM unit u
-     LEFT JOIN media m ON u.cover_media_id = m.id
-     WHERE u.level = ?
-     ORDER BY u.sort_order`,
-    [level]
-  )
+  const units = validLevel
+    ? await query<UnitRow & { unit_media_key: string | null }>(
+        `SELECT u.*, m.object_key AS unit_media_key
+         FROM unit u
+         LEFT JOIN media m ON u.cover_media_id = m.id
+         WHERE u.level = ?
+         ORDER BY u.sort_order`,
+        [level]
+      )
+    : await query<UnitRow & { unit_media_key: string | null }>(
+        `SELECT u.*, m.object_key AS unit_media_key
+         FROM unit u
+         LEFT JOIN media m ON u.cover_media_id = m.id
+         ORDER BY u.level, u.sort_order`
+      )
 
   // 2. 查该用户所有已学习片段（单元内去重）
-  const progressRows = await query<UserProgressRow>(
-    `SELECT DISTINCT up.segment_id, s.unit_id
-     FROM user_progress up
-     JOIN segment s ON up.segment_id = s.id
-     WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ?)`,
-    [userId, level]
-  )
+  const progressRows = validLevel
+    ? await query<UserProgressRow>(
+        `SELECT DISTINCT up.segment_id, s.unit_id
+         FROM user_progress up
+         JOIN segment s ON up.segment_id = s.id
+         WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ?)`,
+        [userId, level]
+      )
+    : await query<UserProgressRow>(
+        `SELECT DISTINCT up.segment_id, s.unit_id
+         FROM user_progress up
+         JOIN segment s ON up.segment_id = s.id
+         WHERE up.user_id = ?`,
+        [userId]
+      )
   const progressMap = new Map<number, Set<number>>()
   for (const row of progressRows) {
     if (!progressMap.has(row.unit_id)) progressMap.set(row.unit_id, new Set())
@@ -36,10 +54,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
   }
 
   // 3. 查每个单元的总片段数
-  const segmentCounts = await query<{ unit_id: number; count: number }>(
-    `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ?) GROUP BY unit_id`,
-    [level]
-  )
+  const segmentCounts = validLevel
+    ? await query<{ unit_id: number; count: number }>(
+        `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ?) GROUP BY unit_id`,
+        [level]
+      )
+    : await query<{ unit_id: number; count: number }>(
+        `SELECT unit_id, COUNT(*) as count FROM segment GROUP BY unit_id`
+      )
   const countMap = new Map(segmentCounts.map((r) => [r.unit_id, r.count]))
 
   // 4. 组合返回

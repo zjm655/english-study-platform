@@ -17,7 +17,8 @@ export interface UnitRow {
   id: number
   title: string
   description: string | null
-  coverUrl: string | null
+  coverUrl: string | null      // 旧字段，待删除
+  cover_media_id: number | null
   level: number
   sort_order: number
   createdAt: string
@@ -27,11 +28,12 @@ export interface SegmentRow {
   id: number
   unit_id: number
   title: string
-  audioUrl: string | null
-  duration: string | null     // DECIMAL → string
+  audioUrl: string | null      // 旧字段，待删除
+  duration: string | null      // 旧字段，待删除
+  media_id: number | null
   textContent: string
   translation: string | null
-  questions: string | null // JSON string
+  questions: string | null     // JSON string
   sort_order: number
   createdAt: string
 }
@@ -40,7 +42,7 @@ export interface UserProgressRow {
   id: number
   user_id: number
   segment_id: number
-  phase1_done: number // 0 or 1
+  phase1_done: number          // 0 or 1
   phase2_done: number
   phase3_done: number
   phase3_score: string | null // decimal as string
@@ -87,7 +89,8 @@ export interface RecordingRow {
   user_id: number
   segment_id: number
   phase: number
-  audioPath: string | null
+  audioPath: string | null    // 旧字段，待删除
+  media_id: number | null
   score: string | null        // DECIMAL → string
   feedback: string | null
   recognizedText: string | null
@@ -106,8 +109,9 @@ export interface VocabularyRow {
   meaning: string
   exampleSentence: string | null
   exampleTranslation: string | null
-  audioUrl: string | null
-  duration: string | null     // DECIMAL → string
+  audioUrl: string | null      // 旧字段，待删除
+  duration: string | null      // 旧字段，待删除
+  media_id: number | null
   sort_order: number
   createdAt: string
 }
@@ -120,8 +124,9 @@ export interface WordBankRow {
   forms: string | null
   exampleSentence: string | null
   exampleTranslation: string | null
-  audioUrl: string | null
-  duration: string | null     // DECIMAL → string
+  audioUrl: string | null      // 旧字段，待删除
+  duration: string | null      // 旧字段，待删除
+  media_id: number | null
   level: number
   source: string | null
   frequency: number

@@ -42,10 +42,9 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
 
   // 2. 查片段列表（联查 media 表获取音频）
   const segments = await query<
-    { id: number; title: string; sortOrder: number; audioUrl: string | null; duration: string | null } 
-    & { seg_media_key: string | null }
+    { id: number; title: string; sortOrder: number } & { seg_media_key: string | null }
   >(
-    `SELECT s.id, s.title, s.sort_order AS sortOrder, s.audioUrl, s.duration,
+    `SELECT s.id, s.title, s.sort_order AS sortOrder,
             m.object_key AS seg_media_key
      FROM segment s
      LEFT JOIN media m ON s.media_id = m.id
@@ -66,7 +65,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
     segments.map(async (s) => ({
       id: s.id,
       title: s.title,
-      audioUrl: await signFromMedia(s.seg_media_key, s.audioUrl, MATERIAL_EXPIRE),
+      audioUrl: await signFromMedia(s.seg_media_key, null, MATERIAL_EXPIRE),
       sortOrder: s.sortOrder,
       progress: (() => {
         const p = progressMap.get(s.id)
