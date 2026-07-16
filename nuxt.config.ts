@@ -13,9 +13,15 @@ export default defineNuxtConfig({
       host: '127.0.0.1',
       port: '3306',
       user: 'root',
-      password: '',
+      password: '123456',
       database: 'nuxt4_demo',
     },
+    oss: {
+      region:"oss-cn-wuhan-lr",
+      bucket:"nick-img-bucket-xxxxxx-from-xxx",
+      accessKeyId:"",
+      accessKeySecret:""
+    }
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],
   elementPlus: {
