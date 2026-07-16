@@ -30,3 +30,4 @@ public/audio/
 # Vitest 临时配置文件
 vitest.config.ts.timestamp-*.mjs
 auto-imports.d.ts
+public/uploads/
