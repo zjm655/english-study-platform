@@ -153,7 +153,7 @@ export async function speechToText(
       headers: {
         'Content-Type': 'application/octet-stream',
       },
-      body: audioBuffer,
+      body: new Uint8Array(audioBuffer),
       signal: AbortSignal.timeout(RECOGNIZE_TIMEOUT),
     })
 
