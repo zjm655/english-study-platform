@@ -223,6 +223,26 @@ const initDB = async () => {
     )
   `)
 
+  // 媒体资源表 —— 统一管理所有音频、图片等媒体文件
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS media (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      uploader_id INT COMMENT '上传者用户ID，NULL表示系统/TTS生成',
+      type VARCHAR(20) NOT NULL COMMENT '类型: segment_audio/vocab_audio/word_audio/recording/cover/tts/user_material',
+      storage_type VARCHAR(10) NOT NULL DEFAULT 'oss' COMMENT '存储方式: oss/local',
+      bucket VARCHAR(100) COMMENT 'OSS bucket',
+      object_key VARCHAR(1024) NOT NULL COMMENT 'OSS对象键或本地路径',
+      original_name VARCHAR(255) COMMENT '原始文件名',
+      mime_type VARCHAR(100) COMMENT 'MIME类型，如 audio/mpeg',
+      size_bytes INT UNSIGNED COMMENT '文件大小(字节)',
+      duration DECIMAL(8,2) COMMENT '时长(秒)',
+      status TINYINT(1) NOT NULL DEFAULT 1 COMMENT '状态: 0禁用 1正常',
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间'
+    )
+  `)
+
   // 共同体帖子表 —— 用户发帖交流
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS community_post (
