@@ -29,6 +29,37 @@ function extToFormat(filename: string): 'mp3' | 'wav' | 'aac' | 'opus' | 'mp4' {
   return 'mp3'
 }
 
+// ============ 记录追踪辅助函数 ============
+
+async function createUploadRecord(
+  userId: number,
+  title: string,
+  textContent: string,
+  voice: string,
+  isPublic: number
+): Promise<number> {
+  const [res] = await pool.execute<ResultSetHeader>(
+    `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, status)
+     VALUES (?, ?, ?, ?, ?, 'processing')`,
+    [userId, title, textContent, voice, isPublic]
+  )
+  return res.insertId
+}
+
+async function updateRecordFailed(recordId: number, error: string) {
+  await pool.execute(
+    `UPDATE material_upload_record SET status = 'failed', error_message = ? WHERE id = ?`,
+    [error.substring(0, 500), recordId]
+  )
+}
+
+async function updateRecordSuccess(recordId: number, segmentId: number) {
+  await pool.execute(
+    `UPDATE material_upload_record SET status = 'success', segment_id = ? WHERE id = ?`,
+    [segmentId, recordId]
+  )
+}
+
 /**
  * 上传自定义材料
  * 请求：POST /api/segment/upload (multipart/form-data)
@@ -61,9 +92,16 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
 
   if (!textContent) return validateError('材料文本不能为空')
 
+  // 预生成标题（用于记录表）—— 先截取保底，成功后再用 AI 标题更新
+  const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
+
+  // 创建上传记录（事务外，确保失败也能追踪）
+  const recordId = await createUploadRecord(user.id, fallbackTitle, textContent, voice, isPublic)
+
   // ===== Step 1: 文本审核 =====
   const mod1 = await moderateText(textContent)
   if (!mod1.safe) {
+    await updateRecordFailed(recordId, `材料内容不合规: ${mod1.reason}`)
     return validateError(`材料内容不合规: ${mod1.reason}`)
   }
 
@@ -79,6 +117,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
     // 2b. 语音转文字
     const sttResult = await speechToText(audioBuffer, extToFormat(audioFile.name))
     if (!sttResult.success) {
+      await updateRecordFailed(recordId, `音频识别失败: ${sttResult.error}`)
       return validateError(`音频识别失败: ${sttResult.error}`)
     }
 
@@ -87,12 +126,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
     if (recognizedText.trim()) {
       const mod2 = await moderateText(recognizedText)
       if (!mod2.safe) {
+        await updateRecordFailed(recordId, `音频内容不合规: ${mod2.reason}`)
         return validateError(`音频内容不合规: ${mod2.reason}`)
       }
 
       // 2d. 文本相似度对比
       const sim = compareTextSimilarity(textContent, recognizedText)
       if (!sim.passed) {
+        await updateRecordFailed(recordId, `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`)
         return validateError(`音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`)
       }
     }
@@ -100,6 +141,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
     // 2e. 无音频：TTS 生成
     const ttsResult = await textToSpeech(textContent, voice)
     if (!ttsResult.success || !ttsResult.audio) {
+      await updateRecordFailed(recordId, '音频生成失败')
       return validateError('音频生成失败，请稍后重试')
     }
     audioBuffer = ttsResult.audio
@@ -115,6 +157,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
     await uploadWithKey(audioBuffer, ossKey)
   } catch (err) {
     console.error('[material upload] OSS 上传失败:', err)
+    await updateRecordFailed(recordId, '文件上传失败')
     return validateError('文件上传失败，请稍后重试', 500)
   }
 
@@ -131,6 +174,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   const meta = await extractAudioMeta(audioBuffer)
   if (!meta) {
     await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
+    await updateRecordFailed(recordId, '无法解析音频信息')
     return validateError('无法解析音频信息')
   }
 
@@ -139,10 +183,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
 
   if (meta.duration > maxDuration) {
     await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
+    await updateRecordFailed(recordId, `音频时长超限: ${meta.duration.toFixed(1)}s`)
     return validateError(`音频时长 ${meta.duration.toFixed(1)}s 超过限制（${maxDuration}s）`)
   }
   if (meta.size > maxSize) {
     await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
+    await updateRecordFailed(recordId, `音频大小超限: ${(meta.size / 1024 / 1024).toFixed(1)}MB`)
     return validateError(`音频大小 ${(meta.size / 1024 / 1024).toFixed(1)}MB 超过限制`)
   }
 
@@ -153,6 +199,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   const aiResult = await generateLearningContent(textContent)
   if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
     await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
+    await updateRecordFailed(recordId, 'AI 内容生成失败')
     return validateError('AI 内容生成失败，请稍后重试')
   }
 
@@ -218,7 +265,16 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   } catch (err) {
     console.error('[material upload] 事务失败:', err)
     await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
+    await updateRecordFailed(recordId, '入库失败')
     return validateError('入库失败，请稍后重试', 500)
+  }
+
+  // 更新记录为成功
+  await updateRecordSuccess(recordId, segmentId)
+
+  // 如果 AI 生成的标题与 fallback 不同，更新记录标题
+  if (title !== fallbackTitle) {
+    await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [title, recordId])
   }
 
   return validateSuccess<UploadMaterialResult>({ segmentId, title }, '材料上传成功')

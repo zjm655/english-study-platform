@@ -259,6 +259,27 @@ const initDB = async () => {
       FOREIGN KEY (user_id) REFERENCES user(id)
     )
   `)
+
+  // 材料上传记录表 —— 追踪每一次上传尝试（成功或失败）
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS material_upload_record (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL COMMENT '上传用户ID',
+      title VARCHAR(100) NOT NULL COMMENT '材料标题',
+      text_content TEXT NOT NULL COMMENT '材料原文',
+      voice VARCHAR(50) NOT NULL DEFAULT 'en-US-AriaNeural' COMMENT '朗读音色',
+      is_public TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否公开: 0不公开 1公开',
+      status VARCHAR(20) NOT NULL DEFAULT 'processing' COMMENT '状态: processing/success/failed',
+      error_message VARCHAR(500) COMMENT '失败原因',
+      segment_id INT DEFAULT NULL COMMENT '关联的片段ID（成功时填充）',
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+      FOREIGN KEY (segment_id) REFERENCES segment(id) ON DELETE SET NULL,
+      INDEX idx_user_created (user_id, createdAt),
+      INDEX idx_status (status)
+    )
+  `)
 }
 initDB().catch(err => console.error('[DB] 建表失败:', err))
 

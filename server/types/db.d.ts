@@ -133,3 +133,17 @@ export interface WordBankRow {
   tags: string | null
   createdAt: string
 }
+
+export interface MaterialUploadRecordRow {
+  id: number
+  user_id: number
+  title: string
+  text_content: string
+  voice: string
+  is_public: number
+  status: string
+  error_message: string | null
+  segment_id: number | null
+  createdAt: string
+  updatedAt: string
+}

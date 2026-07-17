@@ -121,6 +121,11 @@ export const uploadMaterialAdminSchema = uploadMaterialSchema.extend({
   unitId: z.number().int().positive('unitId 必须为正整数'),
 })
 
+// 材料上传记录更新校验
+export const updateMaterialRecordSchema = z.object({
+  isPublic: z.coerce.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
+})
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code: number = 400): ResPayload<never> {
