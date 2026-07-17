@@ -23,7 +23,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
   const userId: number = event.context.user.id
   const unitId = Number(getRouterParam(event, 'unitId'))
 
-  if (!unitId || isNaN(unitId)) {
+  if (isNaN(unitId)) {
     return validateError('无效的单元ID')
   }
 
