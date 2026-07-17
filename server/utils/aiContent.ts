@@ -36,6 +36,16 @@ export interface GeneratedQuestion {
   answer: string
 }
 
+/** 标题生成结果 */
+export interface GenerateTitleResult {
+  /** 是否生成成功 */
+  success: boolean
+  /** 成功时的中文标题 */
+  title?: string
+  /** 失败时的错误原因 */
+  error?: string
+}
+
 export interface AiContentResult {
   /** 是否生成成功 */
   success: boolean
@@ -310,5 +320,88 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 
     console.error('[aiContent] 生成失败:', errMsg)
     return { success: false, error: `AI 内容生成失败: ${errMsg}` }
+  }
+}
+
+// ==================== 标题生成 ====================
+
+/** 标题生成系统提示词 */
+const TITLE_SYSTEM_PROMPT = `你是一位英语教育内容编辑。请根据以下英文学习材料，生成一个简洁、准确、吸引人的中文标题（不超过 20 个字）。标题应概括材料主题，适合学习者快速识别内容。只返回标题文本，不要返回任何其他内容。`
+
+/** 标题生成超时（毫秒） */
+const TITLE_API_TIMEOUT = 10_000
+
+/** 标题生成最大 token 数 */
+const TITLE_MAX_TOKENS = 100
+
+/**
+ * 根据英文原文生成中文标题
+ * @param text 英文原文
+ * @returns 标题生成结果，失败时返回 error
+ */
+export async function generateTitle(text: string): Promise<GenerateTitleResult> {
+  const trimmed = text.trim()
+  if (!trimmed) {
+    return { success: false, error: '文本不能为空' }
+  }
+
+  const config = useRuntimeConfig()
+  const ds = config.deepseek as unknown as DeepSeekConfig
+
+  if (!ds?.apiKey || !ds?.baseUrl || !ds?.model) {
+    console.error('[aiContent] DeepSeek 配置不完整')
+    return { success: false, error: 'AI 服务配置缺失' }
+  }
+
+  const url = `${ds.baseUrl.replace(/\/+$/, '')}/chat/completions`
+
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ds.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: ds.model,
+        messages: [
+          { role: 'system', content: TITLE_SYSTEM_PROMPT },
+          { role: 'user', content: trimmed.substring(0, 500) },
+        ],
+        temperature: 0.3,
+        max_tokens: TITLE_MAX_TOKENS,
+      }),
+      signal: AbortSignal.timeout(TITLE_API_TIMEOUT),
+    })
+
+    if (!resp.ok) {
+      const body = await resp.text()
+      console.error(`[aiContent] 标题生成 API 返回 ${resp.status}: ${body}`)
+      return { success: false, error: 'AI 服务暂时不可用' }
+    }
+
+    const data = await resp.json()
+    let title: string = data?.choices?.[0]?.message?.content ?? ''
+
+    if (!title) {
+      console.error('[aiContent] 标题生成返回空内容')
+      return { success: false, error: 'AI 未返回有效内容' }
+    }
+
+    // 清洗：去除引号、换行、前后空格
+    title = title.replace(/^["']|["']$/g, '').replace(/\n/g, ' ').trim()
+    if (!title) {
+      return { success: false, error: 'AI 返回标题为空' }
+    }
+
+    return { success: true, title }
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err)
+    if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
+      console.error('[aiContent] 标题生成超时')
+      return { success: false, error: 'AI 生成超时' }
+    }
+    console.error('[aiContent] 标题生成失败:', errMsg)
+    return { success: false, error: `标题生成失败: ${errMsg}` }
   }
 }

@@ -3,7 +3,7 @@ import { moderateText } from '#server/utils/contentModeration'
 import { speechToText } from '#server/utils/speechToText'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { extractAudioMeta } from '#server/utils/audioMeta'
-import { generateLearningContent } from '#server/utils/aiContent'
+import { generateLearningContent, generateTitle } from '#server/utils/aiContent'
 import { textToSpeech } from '#server/utils/tts'
 import { uploadWithKey } from '#server/utils/oss'
 import { withTransaction, pool } from '#server/utils/db'
@@ -40,6 +40,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   // 1. 解析表单
   const formData = await readFormData(event)
   const textContent = formData.get('textContent') as string | null
+  const voice = (formData.get('voice') as string | null) || 'en-US-AriaNeural'
   const isPublic = Number(formData.get('isPublic'))
   const unitIdRaw = formData.get('unitId') as string | null
   const audioFile = formData.get('audio') as File | null
@@ -50,7 +51,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
 
   // 3. Zod 校验
   const schema = isAdmin ? uploadMaterialAdminSchema : uploadMaterialSchema
-  const parseInput: Record<string, unknown> = { textContent, isPublic }
+  const parseInput: Record<string, unknown> = { textContent, isPublic, voice }
   if (isAdmin) parseInput.unitId = finalUnitId
 
   const parsed = schema.safeParse(parseInput)
@@ -97,7 +98,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
     }
   } else {
     // 2e. 无音频：TTS 生成
-    const ttsResult = await textToSpeech(textContent)
+    const ttsResult = await textToSpeech(textContent, voice)
     if (!ttsResult.success || !ttsResult.audio) {
       return validateError('音频生成失败，请稍后重试')
     }
@@ -160,7 +161,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   const questions: NonNullable<typeof aiResult.questions> = aiResult.questions
 
   // ===== Step 5: 词汇 TTS + 全部入库（事务） =====
-  const title = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
+  const titleResult = await generateTitle(textContent)
+  let title: string
+  if (titleResult.success && titleResult.title) {
+    title = titleResult.title
+  } else {
+    console.warn('[material upload] 标题生成失败，降级为文本截取:', titleResult.error)
+    title = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
+  }
 
   let segmentId: number
   try {

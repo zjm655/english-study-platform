@@ -13,6 +13,17 @@ const textContent = ref('')
 const audioFile = ref<File | null>(null)
 const isPublic = ref<1>(1)
 
+/** 可选朗读音色列表 */
+const VOICE_OPTIONS = [
+  { value: 'en-US-AriaNeural', label: 'Aria — 美式女声（默认）' },
+  { value: 'en-US-GuyNeural', label: 'Guy — 美式男声' },
+  { value: 'en-US-JennyNeural', label: 'Jenny — 美式女声' },
+  { value: 'en-GB-SoniaNeural', label: 'Sonia — 英式女声' },
+  { value: 'en-GB-RyanNeural', label: 'Ryan — 英式男声' },
+] as const
+
+const selectedVoice = ref<string>('en-US-AriaNeural')
+
 const MAX_TEXT_LENGTH = 5000
 const MIN_TEXT_LENGTH = 10
 const MAX_AUDIO_SIZE = 2 * 1024 * 1024
@@ -45,6 +56,7 @@ async function handleSubmit() {
   const formData = new FormData()
   formData.append('textContent', textContent.value)
   formData.append('isPublic', String(isPublic.value))
+  formData.append('voice', selectedVoice.value)
   if (audioFile.value) {
     formData.append('audio', audioFile.value)
   }
@@ -81,6 +93,20 @@ async function handleSubmit() {
         <div v-if="textContent.length > 0 && textContent.length < MIN_TEXT_LENGTH" class="form-hint error">
           至少输入 {{ MIN_TEXT_LENGTH }} 个字符
         </div>
+      </div>
+
+      <!-- 朗读音色 -->
+      <div class="form-section">
+        <label class="form-label">朗读音色</label>
+        <el-select v-model="selectedVoice" style="width: 100%">
+          <el-option
+            v-for="opt in VOICE_OPTIONS"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+        <p class="form-desc">未上传音频时，将使用所选音色自动生成语音</p>
       </div>
 
       <!-- 音频文件 -->
@@ -134,7 +160,7 @@ export default { components: { Upload } }
 
 <style scoped>
 .upload-page {
-  padding: 16px;
+  padding: 12px;
   max-width: 640px;
   margin: 0 auto;
 }
@@ -175,11 +201,11 @@ export default { components: { Upload } }
   background: var(--card);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow);
-  padding: 24px;
+  padding: 20px;
 }
 
 .form-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .form-section:last-child {
