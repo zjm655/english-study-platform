@@ -238,14 +238,15 @@ function extractAudioData(data: Buffer): Buffer | null {
   if (data.length < 2) return null
 
   const headerLength = data.readUInt16BE(0)
-  // 最小有效消息: 2(header_len) + headerLength + 2(\r\n\r\n) + 至少 1 字节音频
-  const minLen = 2 + headerLength + 2
-  if (data.length < minLen + 1) {
+  // 协议结构: [0:2] headerLength(含自身2字节) | [2:headerLength] 头部 | [headerLength:headerLength+2] \r\n\r\n | [headerLength+2:] 音频
+  // 对照 edge-tts Python 源码 communicate.py:71 — data[header_length + 2:]
+  const payloadStart = headerLength + 2
+  if (data.length <= payloadStart) {
     // 这是音频流终止标记（无 Content-Type 的空音频消息）
     return null
   }
 
-  return data.slice(2 + headerLength + 2)
+  return data.slice(payloadStart)
 }
 
 // ==================== 核心导出函数 ====================
