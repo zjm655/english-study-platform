@@ -3,11 +3,11 @@ import { useRecorder, RecorderError } from '~/composables/media/useRecorder'
 import { useUploadRecording } from '~/composables/recording'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { toastError } from '~/utils/popup'
-import type { Recording } from '#shared/types/recording'
+import type { UploadRecordingResult } from '#shared/types/recording'
 
 const props = defineProps<{
   segmentId: number
-  phase: number
+  phase: 3 | 4
 }>()
 
 // 音频播放
@@ -26,7 +26,7 @@ const permissionError = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
 // === 本次录音（上传后显示） ===
-const currentRecording = ref<Recording | null>(null)
+const currentRecording = ref<UploadRecordingResult | null>(null)
 
 // === 格式化时长 ===
 function formatDuration(seconds: number | null): string {

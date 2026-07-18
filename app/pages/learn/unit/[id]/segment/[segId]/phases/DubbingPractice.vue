@@ -741,4 +741,11 @@ onMounted(() => {
   background: var(--primary-light);
 }
 
-/* ===== 底部录音卡片 ===== */</style>
+/* ===== 底部录音卡片 ===== */
+.recording-card-bottom {
+  position: fixed;
+  bottom: 0;
+  padding-bottom: 56px;
+  width: 358px;
+}
+</style>

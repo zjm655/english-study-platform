@@ -4,9 +4,9 @@ import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useStudyTimer } from '~/composables/user/useStudyTimer'
-import BlindListening from './[segId]/phases/BlindListening.vue'
-import TextLearning from './[segId]/phases/TextLearning.vue'
-import DubbingPractice from './[segId]/phases/DubbingPractice.vue'
+import BlindListening from './phases/BlindListening.vue'
+import TextLearning from './phases/TextLearning.vue'
+import DubbingPractice from './phases/DubbingPractice.vue'
 
 definePageMeta({
   title: '片段学习',
@@ -183,6 +183,7 @@ function onPhaseComplete() {
           <div class="phase-panel__title">配音练习</div>
           <div class="phase-panel__desc">跟随原文朗读，录制你的声音</div>
           <DubbingPractice :segment="segment" @complete="onPhaseComplete" />
+          <div class="phase-panel__margin--phase3"></div>
         </div>
 
         <!-- 阶段四：跟读 -->
@@ -192,24 +193,6 @@ function onPhaseComplete() {
           <!-- TODO: 跟读组件 -->
           <div class="phase-panel__placeholder">跟读区域（待开发）</div>
         </div>
-      </div>
-
-      <!-- 底部导航 -->
-      <div class="phase-nav">
-        <button
-          class="nav-btn"
-          :disabled="currentPhase <= 1"
-          @click="goToPhase(currentPhase - 1)"
-        >
-          上一阶段
-        </button>
-        <button
-          class="nav-btn nav-btn--primary"
-          :disabled="currentPhase >= 4"
-          @click="goToPhase(currentPhase + 1)"
-        >
-          下一阶段
-        </button>
       </div>
     </template>
   </div>
@@ -383,40 +366,7 @@ function onPhaseComplete() {
   font-size: 14px;
 }
 
-/* ===== 底部导航 ===== */
-.phase-nav {
-  display: flex;
-  gap: 12px;
-}
-
-.nav-btn {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid var(--border-ll);
-  border-radius: var(--r);
-  background: var(--card);
-  color: var(--text-2);
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
-}
-
-.nav-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.nav-btn:not(:disabled):active {
-  background: var(--bg);
-}
-
-.nav-btn--primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-}
-
-.nav-btn--primary:not(:disabled):active {
-  opacity: 0.9;
+.phase-panel__margin--phase3 {
+  margin-bottom: 250px;
 }
 </style>
