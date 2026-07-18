@@ -27,6 +27,11 @@ content/
 .uploads/
 public/audio/
 .trae/
+.qoder/
+.agents/
+.claude/
+AGENTS.md
+
 # Vitest 临时配置文件
 vitest.config.ts.timestamp-*.mjs
 auto-imports.d.ts

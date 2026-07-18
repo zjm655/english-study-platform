@@ -1,5 +1,32 @@
 import OSS from 'ali-oss'
-import type { Options } from 'ali-oss'
+interface Options {
+        /** access secret you create */
+        accessKeyId: string;
+        /** access secret you create */
+        accessKeySecret: string;
+        /** used by temporary authorization */
+        stsToken?: string | undefined;
+        /** the default bucket you want to access If you don't have any bucket, please use putBucket() create one first. */
+        bucket?: string | undefined;
+        /** oss region domain. It takes priority over region. */
+        endpoint?: string | undefined;
+        /** the bucket data region location, please see Data Regions, default is oss-cn-hangzhou. */
+        region?: string | undefined;
+        /** access OSS with aliyun internal network or not, default is false. If your servers are running on aliyun too, you can set true to save lot of money. */
+        internal?: boolean | undefined;
+        /** instruct OSS client to use HTTPS (secure: true) or HTTP (secure: false) protocol. */
+        secure?: boolean | undefined;
+        /** instance level timeout for all operations, default is 60s */
+        timeout?: string | number | undefined;
+        /** use custom domain name */
+        cname?: boolean | undefined;
+        /** use time (ms) of refresh STSToken interval it should be less than sts info expire interval, default is 300000ms(5min) when sts info expires. */
+        refreshSTSTokenInterval?: number;
+        /** used by auto set stsToken、accessKeyId、accessKeySecret when sts info expires. return value must be object contains stsToken、accessKeyId、accessKeySecret */
+        refreshSTSToken?: () => Promise<{ accessKeyId: string; accessKeySecret: string; stsToken: string }>;
+        /** Use V4 signature. Default is false. */
+        authorizationV4?: boolean | undefined;
+    }
 
 
 /** 上传成功后的返回结构 */

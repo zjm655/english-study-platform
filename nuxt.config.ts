@@ -33,12 +33,7 @@ export default defineNuxtConfig({
       gateway:"nls-gateway.aliyuncs.com",
       appKey:""
     },
-    aiContent: {
-      appId:"",
-      appSecret:"",
-      accessKeyId:"",
-      accessKeySecret:""
-    }
+
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],
   elementPlus: {
