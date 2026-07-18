@@ -1,8 +1,8 @@
 import { getRecordingList } from '~/api/recording'
-import type { RecordingListQuery, Recording } from '#shared/types/recording'
+import type { RecordingListQuery, PaginatedRecordings } from '#shared/types/recording'
 
 export const useRecordingList = () => {
-  const cfg = createResCfg<RecordingListQuery, Recording[]>({
+  const cfg = createResCfg<RecordingListQuery, PaginatedRecordings>({
     handle: getRecordingList,
     success: '获取录音列表成功',
     clientFail: '获取录音列表失败',

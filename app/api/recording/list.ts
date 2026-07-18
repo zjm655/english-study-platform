@@ -1,5 +1,5 @@
 import { recordingPath } from '../paths'
-import type { RecordingListQuery, Recording } from '#shared/types/recording'
+import type { RecordingListQuery, PaginatedRecordings } from '#shared/types/recording'
 
 export const getRecordingList = async (query: RecordingListQuery) => {
   const params = new URLSearchParams({
@@ -8,7 +8,13 @@ export const getRecordingList = async (query: RecordingListQuery) => {
   if (query.phase !== undefined && query.phase !== null) {
     params.set('phase', String(query.phase))
   }
-  return request<Recording[]>(`${recordingPath}?${params.toString()}`, {
+  if (query.page !== undefined) {
+    params.set('page', String(query.page))
+  }
+  if (query.size !== undefined) {
+    params.set('size', String(query.size))
+  }
+  return request<PaginatedRecordings>(`${recordingPath}?${params.toString()}`, {
     method: 'GET',
   })
 }

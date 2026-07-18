@@ -47,5 +47,11 @@ export default defineNuxtConfig({
   },
   devServer: {
     port: 5173
-  }
+  },
+
+  nitro: {
+    externals: {
+      trace: false,
+    },
+  },
 })

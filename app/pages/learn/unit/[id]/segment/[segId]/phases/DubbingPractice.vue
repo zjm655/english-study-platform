@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
-import { useRecorder } from '~/composables/media/useRecorder'
 import { useUploadRecording, useRecordingList, useAnalyzeRecording } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording, WordScore } from '#shared/types/recording'
-import { RecorderError } from '~/composables/media/useRecorder'
-import { toastError, toastInfo } from '~/utils/popup'
+import { toastError } from '~/utils/popup'
 
 interface Props {
   segment: SegmentDetail
@@ -16,9 +14,6 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'complete'): void
 }>()
-
-// 录音
-const { isRecording, isPaused, duration, start, pause, resume, stop } = useRecorder()
 
 // 音频播放（材料 + 录音回放，共享全局 Howler）
 const { load: loadAudio, play: playAudio } = useAudioPlayer()
@@ -32,28 +27,27 @@ const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 // UI 状态
 const translationExpanded = ref(false)
 const recordings = ref<Recording[]>([])
+const totalRecordings = ref(0)
 const selectedRecordingId = ref<number | null>(null)
+const currentRecording = ref<Recording | null>(null)
 
-// 录音权限/错误状态
-const permissionError = ref('')
+// 是否还有更多历史记录
+const hasMoreRecordings = computed(() =>
+  recordings.value.length < totalRecordings.value
+)
 
-// 上传失败时保留的 Blob，用于重试
-const pendingBlob = ref<Blob | null>(null)
-const isUploadError = ref(false)
-
-// 列表加载错误
-const isListError = ref(false)
-const listErrorMsg = ref('')
-
-// 本地文件选择 ref
-const fileInputRef = ref<HTMLInputElement | null>(null)
+// 格式化时长
+function formatDuration(seconds: number | null): string {
+  if (seconds === null || seconds === undefined) return '00:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
 
 // 当前选中的录音
 const selectedRecording = computed(() =>
   recordings.value.find(r => r.id === selectedRecordingId.value) || null
 )
-
-// 当前选中录音是否有分析结果
 const hasAnalysis = computed(() =>
   selectedRecording.value?.score !== null && selectedRecording.value?.score !== undefined
 )
@@ -69,13 +63,9 @@ const bestScore = computed(() => {
 // 完成按钮是否可用
 const canComplete = computed(() => bestScore.value !== null)
 
-// 格式化时长
-function formatDuration(seconds: number | null): string {
-  if (seconds === null || seconds === undefined) return '00:00'
-  const m = Math.floor(seconds / 60)
-  const s = Math.floor(seconds % 60)
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
+// 列表加载错误
+const isListError = ref(false)
+const listErrorMsg = ref('')
 
 // 播放材料音频
 async function playMaterialAudio() {
@@ -84,90 +74,21 @@ async function playMaterialAudio() {
   playAudio()
 }
 
-// 开始/暂停切换
-async function toggleRecording() {
-  // 清除之前的权限错误提示
-  permissionError.value = ''
-
-  if (!isRecording.value) {
-    try {
-      await start()
-    } catch (err) {
-      if (err instanceof RecorderError) {
-        permissionError.value = err.message
-        toastError(err.message)
-      } else if (err instanceof Error) {
-        const msg = `录音启动失败: ${err.message}`
-        permissionError.value = msg
-        toastError(msg)
-      } else {
-        const msg = '录音启动失败，请检查麦克风权限后重试'
-        permissionError.value = msg
-        toastError(msg)
-      }
-    }
-  } else if (isPaused.value) {
-    resume()
-  } else {
-    pause()
-  }
-}
-
-// 结束录音并上传
-async function finishRecording() {
-  if (!isRecording.value) return
-  isUploadError.value = false
-  pendingBlob.value = null
-
-  try {
-    const finalDuration = duration.value
-    const blob = await stop()
-    await doUpload(blob, finalDuration)
-  } catch (err) {
-    console.error('录音处理失败:', err)
-    if (err instanceof Error) {
-      toastError(err.message)
-    } else {
-      toastError('录音处理失败，请重试')
-    }
-  }
-}
-
-// 执行上传（可被重试调用，支持本地文件选择时传入外部时长）
-async function doUpload(blob: Blob, overrideDuration?: number) {
+// 录音完成回调（来自 VoiceRecorder 组件）
+async function onVoiceRecorded(payload: { blob: Blob; duration: number }) {
   const res = await uploadRecording({
-    audioBlob: blob,
+    audioBlob: payload.blob,
     segmentId: props.segment.id,
     phase: 3,
-    duration: overrideDuration ?? duration.value,
+    duration: payload.duration,
   })
   if (res?.code === 200 && res.data) {
-    isUploadError.value = false
-    pendingBlob.value = null
-    await loadRecordings()
+    currentRecording.value = res.data
     selectedRecordingId.value = res.data.id
+    await loadRecordings()
   } else {
-    // 保留 blob 供用户重试
-    pendingBlob.value = blob
-    isUploadError.value = true
     const msg = res?.message || '上传失败，请检查网络后重试'
     toastError(msg)
-  }
-}
-
-// 重试上传
-async function retryUpload() {
-  if (!pendingBlob.value) return
-  isUploadError.value = false
-  try {
-    await doUpload(pendingBlob.value)
-  } catch (err) {
-    isUploadError.value = true
-    if (err instanceof Error) {
-      toastError(`重试上传失败: ${err.message}`)
-    } else {
-      toastError('重试上传失败')
-    }
   }
 }
 
@@ -185,6 +106,26 @@ async function playRecording() {
   
   await loadAudio(url)
   playAudio()
+}
+
+// 播放本次录音
+async function playCurrentRecording() {
+  if (!currentRecording.value?.audioPath) return
+  
+  let url = currentRecording.value.audioPath
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = url.startsWith('/') ? url : `/${url}`
+  }
+  
+  await loadAudio(url)
+  playAudio()
+}
+
+// 对本次录音发起分析
+async function handleAnalyzeCurrent() {
+  if (!currentRecording.value?.id || isAnalyzing.value) return
+  selectedRecordingId.value = currentRecording.value.id
+  await handleAnalyze()
 }
 
 // 发起分析
@@ -225,7 +166,7 @@ async function completePhase() {
   }
 }
 
-// 加载录音列表
+// 加载录音列表（第一页）
 async function loadRecordings() {
   isListError.value = false
   listErrorMsg.value = ''
@@ -233,9 +174,12 @@ async function loadRecordings() {
     const res = await fetchRecordingList({
       segmentId: props.segment.id,
       phase: 3,
+      page: 1,
+      size: 3,
     })
     if (res?.code === 200 && res.data) {
-      recordings.value = res.data
+      recordings.value = res.data.items
+      totalRecordings.value = res.data.total
     } else {
       isListError.value = true
       listErrorMsg.value = res?.message || '加载录音列表失败'
@@ -247,65 +191,28 @@ async function loadRecordings() {
   }
 }
 
-// ===== 本地文件选择（录音权限失败后的备选方案） =====
-function triggerFileSelect() {
-  fileInputRef.value?.click()
-}
-
-async function handleFileSelected(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  // 前端 MIME 校验（与后端白名单一致）
-  const allowedTypes = [
-    'audio/webm', 'audio/ogg', 'audio/wav', 'audio/x-wav',
-    'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a',
-  ]
-  if (!allowedTypes.includes(file.type)) {
-    toastError(`不支持的音频格式: ${file.type}，请选择 webm、ogg、wav、mp3 文件`)
-    input.value = ''
-    return
-  }
-
-  // 前端大小校验（50MB，与后端一致）
-  if (file.size > 50 * 1024 * 1024) {
-    toastError('文件大小超过 50MB 限制')
-    input.value = ''
-    return
-  }
-
-  // 清除错误状态，走相同上传逻辑
-  isUploadError.value = false
-  pendingBlob.value = null
-  permissionError.value = ''
-
+// 加载更多历史录音
+const isListLoadingMore = ref(false)
+async function loadMoreRecordings() {
+  if (isListLoadingMore.value || !hasMoreRecordings.value) return
+  isListLoadingMore.value = true
   try {
-    const fileDuration = await getAudioDuration(file)
-    await doUpload(file, fileDuration)
+    const nextPage = Math.floor(recordings.value.length / 3) + 1
+    const res = await fetchRecordingList({
+      segmentId: props.segment.id,
+      phase: 3,
+      page: nextPage,
+      size: 3,
+    })
+    if (res?.code === 200 && res.data) {
+      recordings.value = [...recordings.value, ...res.data.items]
+      totalRecordings.value = res.data.total
+    }
   } catch (err) {
-    console.error('文件上传失败:', err)
-    toastError('上传失败，请重试')
+    console.error('加载更多录音失败:', err)
+  } finally {
+    isListLoadingMore.value = false
   }
-
-  input.value = ''
-}
-
-/** 从 Audio 元素获取音频时长（用于本地文件） */
-function getAudioDuration(file: File): Promise<number> {
-  return new Promise((resolve) => {
-    const audio = new Audio()
-    audio.preload = 'metadata'
-    audio.onloadedmetadata = () => {
-      resolve(Math.floor(audio.duration) || 0)
-      URL.revokeObjectURL(audio.src)
-    }
-    audio.onerror = () => {
-      resolve(0)
-      URL.revokeObjectURL(audio.src)
-    }
-    audio.src = URL.createObjectURL(file)
-  })
 }
 
 // 获取词的颜色类
@@ -364,109 +271,11 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 卡片 3：录音操作 -->
-    <div class="card">
-      <div class="card__header">录音</div>
-
-      <!-- 权限错误提示 -->
-      <div v-if="permissionError" class="permission-error">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
-        </svg>
-        <span>{{ permissionError }}</span>
-      </div>
-
-      <!-- 本地文件选择（仅录音失败后显示） -->
-      <div v-if="permissionError" class="file-upload-fallback">
-        <input
-          ref="fileInputRef"
-          type="file"
-          accept=".webm,.ogg,.wav,.mp3,.mp4,audio/webm,audio/ogg,audio/wav,audio/mpeg,audio/mp4"
-          class="file-input-hidden"
-          @change="handleFileSelected"
-        />
-        <button class="fallback-btn" @click="triggerFileSelect">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
-          </svg>
-          从本地选择音频文件
-        </button>
-        <p class="fallback-hint">支持 webm、ogg、wav、mp3 格式</p>
-      </div>
-
-      <!-- 上传失败提示 + 重试 -->
-      <div v-if="isUploadError && pendingBlob" class="upload-error">
-        <span>上传失败</span>
-        <button class="retry-btn" @click="retryUpload">重试上传</button>
-      </div>
-
-      <!-- 波形条可视化（装饰性，非真实音频数据） -->
-      <div class="wave-bars" aria-hidden="true">
-        <div
-          v-for="i in 7"
-          :key="i"
-          class="bar"
-          :class="{
-            'bar--recording': isRecording && !isPaused,
-            'bar--paused': isRecording && isPaused,
-          }"
-          :style="{ animationDelay: `${(i - 1) * 0.1}s` }"
-        ></div>
-      </div>
-
-      <!-- 时长显示 -->
-      <div class="duration-display">
-        {{ formatDuration(duration) }}
-      </div>
-
-      <!-- 操作按钮 -->
-      <div class="record-actions">
-        <!-- 左：结束录制 -->
-        <button
-          class="action-btn action-btn--stop"
-          aria-label="结束录制"
-          :disabled="!isRecording"
-          @click="finishRecording"
-        >
-          <div class="action-btn__icon stop-icon"></div>
-        </button>
-
-        <!-- 中：开始/暂停 -->
-        <button
-          class="action-btn action-btn--main"
-          :aria-label="isRecording ? '暂停录制' : '开始录制'"
-          :class="{ 'action-btn--recording': isRecording }"
-          :disabled="isUploading"
-          @click="toggleRecording"
-        >
-          <svg v-if="!isRecording || isPaused" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          <svg v-else viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M6 4h4v16H6zM14 4h4v16h-4z" />
-          </svg>
-        </button>
-
-        <!-- 右：音量调节（占位） -->
-        <button class="action-btn action-btn--volume" disabled aria-label="音量调节（开发中）" title="音量调节（开发中）">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- 上传中提示 -->
-      <div v-if="isUploading" class="uploading-tip" aria-live="polite">
-        <DotPulse />
-        <span>正在上传...</span>
-      </div>
-    </div>
-
-    <!-- 卡片 4：录音文件列表 -->
+    <!-- 卡片 3：历史录音列表 -->
     <div class="card">
       <div class="card__header">
-        <span>我的录音</span>
-        <span class="recording-count">{{ recordings.length }} 条</span>
+        <span>历史录音</span>
+        <span class="recording-count">{{ totalRecordings }} 条</span>
       </div>
 
       <div v-if="isListLoading" class="card__body empty-state">
@@ -479,7 +288,7 @@ onMounted(() => {
       </div>
 
       <div v-else-if="recordings.length === 0" class="card__body empty-state">
-        <p>还没有录音，点击上方按钮开始录制</p>
+        <p>还没有录音，点击下方按钮开始录制</p>
       </div>
 
       <div v-else class="recording-list">
@@ -499,6 +308,22 @@ onMounted(() => {
           <div class="recording-item__date">
             {{ new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(item.createdAt)) }}
           </div>
+        </div>
+
+        <!-- 加载更多 -->
+        <div v-if="hasMoreRecordings" class="load-more-wrap">
+          <button
+            class="load-more-btn"
+            :disabled="isListLoadingMore"
+            @click="loadMoreRecordings"
+          >
+            <template v-if="isListLoadingMore">
+              <DotPulse />
+            </template>
+            <template v-else>
+              查看更多（共 {{ totalRecordings }} 条）
+            </template>
+          </button>
         </div>
 
         <!-- 选中录音的操作按钮 -->
@@ -529,7 +354,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 卡片 5：AI 分析结果 -->
+    <!-- 卡片 4：AI 分析结果 -->
     <div class="card">
       <div class="card__header">AI 评分</div>
 
@@ -538,7 +363,6 @@ onMounted(() => {
       </div>
 
       <div v-else class="analysis-result">
-        <!-- 综合评分 -->
         <div class="score-section">
           <div class="score-number">{{ selectedRecording.score }}</div>
           <div class="score-label">综合评分</div>
@@ -547,13 +371,11 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- AI 反馈 -->
         <div class="feedback-section">
           <div class="feedback-title">AI 评价</div>
           <p class="feedback-text">{{ selectedRecording.feedback }}</p>
         </div>
 
-        <!-- 逐词评分 -->
         <div class="word-scores-section">
           <div class="word-scores-title">逐词评分</div>
           <div class="word-scores">
@@ -569,6 +391,44 @@ onMounted(() => {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- 本次录音（上传后显示） -->
+    <div v-if="currentRecording" class="card card--current">
+      <div class="card__header">
+        <span>本次录音</span>
+        <span class="recording-item__time">{{ formatDuration(currentRecording.duration) }}</span>
+      </div>
+      <div class="card__body current-actions">
+        <button class="selected-action-btn" @click="playCurrentRecording">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          播放
+        </button>
+        <button
+          class="selected-action-btn selected-action-btn--primary"
+          :disabled="isAnalyzing"
+          @click="handleAnalyzeCurrent"
+        >
+          <template v-if="isAnalyzing">
+            <DotPulse />
+            分析中
+          </template>
+          <template v-else>
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+            </svg>
+            {{ currentRecording.score !== null ? '重新分析' : '发起分析' }}
+          </template>
+        </button>
+      </div>
+    </div>
+
+    <!-- 卡片 5：录音操作 -->
+    <div class="card recording-card-bottom">
+      <div class="card__header">录音</div>
+      <VoiceRecorder @recorded="onVoiceRecorded" />
     </div>
 
     <!-- 完成按钮 -->
@@ -671,136 +531,6 @@ onMounted(() => {
   padding-top: 8px;
   border-top: 1px solid var(--border-ll);
   color: var(--text-2);
-}
-
-/* ===== 录音卡片 ===== */
-.wave-bars {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 60px;
-  margin-bottom: 12px;
-}
-
-.bar {
-  width: 4px;
-  background: var(--primary);
-  border-radius: 2px;
-  height: 20%;
-  transition: background 0.2s;
-}
-
-.bar--recording {
-  animation: wave 1s ease-in-out infinite;
-}
-
-.bar--paused {
-  animation-play-state: paused;
-  background: var(--warning);
-}
-
-@keyframes wave {
-  0%, 100% { height: 20%; }
-  50% { height: 100%; }
-}
-
-.duration-display {
-  text-align: center;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-1);
-  font-family: 'Courier New', monospace;
-  margin-bottom: 16px;
-}
-
-.record-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-}
-
-.action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.2s, opacity 0.2s;
-}
-
-.action-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.action-btn--stop {
-  width: 44px;
-  height: 44px;
-  background: var(--card);
-  border: 2px solid var(--border-ll);
-  color: var(--text-3);
-}
-
-.action-btn--stop:not(:disabled):active {
-  background: var(--danger-light);
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.stop-icon {
-  width: 14px;
-  height: 14px;
-  background: currentColor;
-  border-radius: 2px;
-}
-
-.action-btn--main {
-  width: 64px;
-  height: 64px;
-  background: var(--primary);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
-}
-
-.action-btn--main svg {
-  width: 28px;
-  height: 28px;
-}
-
-.action-btn--main:not(:disabled):active {
-  transform: scale(0.95);
-  opacity: 0.9;
-}
-
-.action-btn--main.action-btn--recording {
-  background: var(--danger);
-  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3);
-}
-
-.action-btn--volume {
-  width: 44px;
-  height: 44px;
-  background: var(--card);
-  border: 2px solid var(--border-ll);
-  color: var(--text-3);
-}
-
-.action-btn--volume svg {
-  width: 20px;
-  height: 20px;
-}
-
-.uploading-tip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 12px;
-  font-size: 13px;
-  color: var(--text-3);
 }
 
 /* ===== 录音列表卡片 ===== */
@@ -1048,102 +778,49 @@ onMounted(() => {
   opacity: 0.9;
 }
 
-/* ===== 权限/上传错误提示 ===== */
-.permission-error {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  background: rgba(245, 108, 108, 0.08);
-  border: 1px solid rgba(245, 108, 108, 0.2);
-  border-radius: var(--r);
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: var(--danger);
-  line-height: 1.5;
-}
-
-.permission-error svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.upload-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: rgba(245, 108, 108, 0.08);
-  border: 1px solid rgba(245, 108, 108, 0.2);
-  border-radius: var(--r);
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: var(--danger);
-}
-
-.retry-btn {
-  padding: 4px 10px;
-  background: var(--danger);
-  border: none;
-  border-radius: var(--r);
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.retry-btn:hover {
-  opacity: 0.9;
-}
-
 .retry-btn--small {
   margin-top: 8px;
   padding: 6px 14px;
   font-size: 13px;
 }
 
-/* ===== 本地文件选择备选 ===== */
-.file-upload-fallback {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+/* ===== 加载更多 ===== */
+.load-more-wrap {
+  text-align: center;
+  padding-top: 8px;
 }
 
-.file-input-hidden {
-  display: none;
-}
-
-.fallback-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--primary-light);
+.load-more-btn {
+  padding: 6px 16px;
+  background: var(--card);
   border: 1px solid var(--border-ll);
   border-radius: var(--r);
   color: var(--primary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
-}
-
-.fallback-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.fallback-btn:active {
-  background: var(--primary);
-  color: #fff;
-  border-color: var(--primary);
-}
-
-.fallback-hint {
   font-size: 12px;
-  color: var(--text-3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.load-more-btn:not(:disabled):active {
+  background: var(--primary-light);
+}
+
+/* ===== 本次录音卡片 ===== */
+.card--current {
+  border: 1px solid var(--primary);
+  background: rgba(64, 158, 255, 0.03);
+}
+
+.current-actions {
+  display: flex;
+  gap: 10px;
 }
 </style>
