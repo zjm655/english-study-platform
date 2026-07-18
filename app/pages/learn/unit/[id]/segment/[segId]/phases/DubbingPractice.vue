@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
-import { useUploadRecording, useRecordingList, useAnalyzeRecording } from '~/composables/recording'
+import { useRecordingList, useAnalyzeRecording } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording, WordScore } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
@@ -19,7 +19,6 @@ const emit = defineEmits<{
 const { load: loadAudio, play: playAudio } = useAudioPlayer()
 
 // API
-const { execute: uploadRecording, isLoading: isUploading } = useUploadRecording()
 const { execute: fetchRecordingList, isLoading: isListLoading } = useRecordingList()
 const { execute: analyzeRecording, isLoading: isAnalyzing } = useAnalyzeRecording()
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
@@ -29,7 +28,6 @@ const translationExpanded = ref(false)
 const recordings = ref<Recording[]>([])
 const totalRecordings = ref(0)
 const selectedRecordingId = ref<number | null>(null)
-const currentRecording = ref<Recording | null>(null)
 
 // 是否还有更多历史记录
 const hasMoreRecordings = computed(() =>
@@ -74,24 +72,6 @@ async function playMaterialAudio() {
   playAudio()
 }
 
-// 录音完成回调（来自 VoiceRecorder 组件）
-async function onVoiceRecorded(payload: { blob: Blob; duration: number }) {
-  const res = await uploadRecording({
-    audioBlob: payload.blob,
-    segmentId: props.segment.id,
-    phase: 3,
-    duration: payload.duration,
-  })
-  if (res?.code === 200 && res.data) {
-    currentRecording.value = res.data
-    selectedRecordingId.value = res.data.id
-    await loadRecordings()
-  } else {
-    const msg = res?.message || '上传失败，请检查网络后重试'
-    toastError(msg)
-  }
-}
-
 // 播放录音
 async function playRecording() {
   if (!selectedRecording.value?.audioPath) return
@@ -106,26 +86,6 @@ async function playRecording() {
   
   await loadAudio(url)
   playAudio()
-}
-
-// 播放本次录音
-async function playCurrentRecording() {
-  if (!currentRecording.value?.audioPath) return
-  
-  let url = currentRecording.value.audioPath
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = url.startsWith('/') ? url : `/${url}`
-  }
-  
-  await loadAudio(url)
-  playAudio()
-}
-
-// 对本次录音发起分析
-async function handleAnalyzeCurrent() {
-  if (!currentRecording.value?.id || isAnalyzing.value) return
-  selectedRecordingId.value = currentRecording.value.id
-  await handleAnalyze()
 }
 
 // 发起分析
@@ -393,42 +353,10 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 本次录音（上传后显示） -->
-    <div v-if="currentRecording" class="card card--current">
-      <div class="card__header">
-        <span>本次录音</span>
-        <span class="recording-item__time">{{ formatDuration(currentRecording.duration) }}</span>
-      </div>
-      <div class="card__body current-actions">
-        <button class="selected-action-btn" @click="playCurrentRecording">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-          播放
-        </button>
-        <button
-          class="selected-action-btn selected-action-btn--primary"
-          :disabled="isAnalyzing"
-          @click="handleAnalyzeCurrent"
-        >
-          <template v-if="isAnalyzing">
-            <DotPulse />
-            分析中
-          </template>
-          <template v-else>
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-            </svg>
-            {{ currentRecording.score !== null ? '重新分析' : '发起分析' }}
-          </template>
-        </button>
-      </div>
-    </div>
-
     <!-- 卡片 5：录音操作 -->
     <div class="card recording-card-bottom">
       <div class="card__header">录音</div>
-      <VoiceRecorder @recorded="onVoiceRecorded" />
+      <VoiceRecorder :segment-id="segment.id" :phase="3" />
     </div>
 
     <!-- 完成按钮 -->
@@ -813,14 +741,4 @@ onMounted(() => {
   background: var(--primary-light);
 }
 
-/* ===== 本次录音卡片 ===== */
-.card--current {
-  border: 1px solid var(--primary);
-  background: rgba(64, 158, 255, 0.03);
-}
-
-.current-actions {
-  display: flex;
-  gap: 10px;
-}
-</style>
+/* ===== 底部录音卡片 ===== */</style>

@@ -1,26 +1,32 @@
 <script setup lang="ts">
 import { useRecorder, RecorderError } from '~/composables/media/useRecorder'
+import { useUploadRecording } from '~/composables/recording'
+import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { toastError } from '~/utils/popup'
+import type { Recording } from '#shared/types/recording'
 
-const emit = defineEmits<{
-  (e: 'recorded', payload: { blob: Blob; duration: number }): void
-  (e: 'recording-start'): void
-  (e: 'recording-stop'): void
-  (e: 'error', message: string): void
+const props = defineProps<{
+  segmentId: number
+  phase: number
 }>()
 
-// === 录音 ===
+// 音频播放
+const { load: loadAudio, play: playAudio } = useAudioPlayer()
+
+// 录音
 const { isRecording, isPaused, duration, start, pause, resume, stop } = useRecorder()
+
+// 上传
+const { execute: uploadRecording, isLoading: isUploading } = useUploadRecording()
 
 // === 录音权限/错误状态 ===
 const permissionError = ref('')
 
-// === 上传失败时保留的 Blob，用于重试 ===
-const pendingBlob = ref<Blob | null>(null)
-const isUploadError = ref(false)
-
 // === 本地文件选择 ref ===
 const fileInputRef = ref<HTMLInputElement | null>(null)
+
+// === 本次录音（上传后显示） ===
+const currentRecording = ref<Recording | null>(null)
 
 // === 格式化时长 ===
 function formatDuration(seconds: number | null): string {
@@ -37,22 +43,18 @@ async function toggleRecording() {
   if (!isRecording.value) {
     try {
       await start()
-      emit('recording-start')
     } catch (err) {
       if (err instanceof RecorderError) {
         permissionError.value = err.message
         toastError(err.message)
-        emit('error', err.message)
       } else if (err instanceof Error) {
         const msg = `录音启动失败: ${err.message}`
         permissionError.value = msg
         toastError(msg)
-        emit('error', msg)
       } else {
         const msg = '录音启动失败，请检查麦克风权限后重试'
         permissionError.value = msg
         toastError(msg)
-        emit('error', msg)
       }
     }
   } else if (isPaused.value) {
@@ -65,14 +67,11 @@ async function toggleRecording() {
 // === 结束录音并上传 ===
 async function finishRecording() {
   if (!isRecording.value) return
-  isUploadError.value = false
-  pendingBlob.value = null
 
   try {
     const finalDuration = duration.value
     const blob = await stop()
-    emit('recording-stop')
-    emit('recorded', { blob, duration: finalDuration })
+    await uploadAndSet(blob, finalDuration)
   } catch (err) {
     console.error('录音处理失败:', err)
     if (err instanceof Error) {
@@ -83,20 +82,18 @@ async function finishRecording() {
   }
 }
 
-// === 重试上传 ===
-async function retryUpload() {
-  if (!pendingBlob.value) return
-  isUploadError.value = false
-  try {
-    emit('recorded', { blob: pendingBlob.value, duration: duration.value })
-    pendingBlob.value = null
-  } catch (err) {
-    isUploadError.value = true
-    if (err instanceof Error) {
-      toastError(`重试上传失败: ${err.message}`)
-    } else {
-      toastError('重试上传失败')
-    }
+// === 上传并更新本次录音状态 ===
+async function uploadAndSet(blob: Blob, dur: number) {
+  const res = await uploadRecording({
+    audioBlob: blob,
+    segmentId: props.segmentId,
+    phase: props.phase,
+    duration: dur,
+  })
+  if (res?.code === 200 && res.data) {
+    currentRecording.value = res.data
+  } else {
+    toastError(res?.message || '上传失败，请检查网络后重试')
   }
 }
 
@@ -126,13 +123,11 @@ async function handleFileSelected(event: Event) {
     return
   }
 
-  isUploadError.value = false
-  pendingBlob.value = null
   permissionError.value = ''
 
   try {
     const fileDuration = await getAudioDuration(file)
-    emit('recorded', { blob: file, duration: fileDuration })
+    await uploadAndSet(file, fileDuration)
   } catch (err) {
     console.error('文件上传失败:', err)
     toastError('上传失败，请重试')
@@ -155,6 +150,17 @@ function getAudioDuration(file: File): Promise<number> {
     }
     audio.src = URL.createObjectURL(file)
   })
+}
+
+// === 播放本次录音 ===
+async function playCurrentRecording() {
+  if (!currentRecording.value?.audioPath) return
+  let url = currentRecording.value.audioPath
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = url.startsWith('/') ? url : `/${url}`
+  }
+  await loadAudio(url)
+  playAudio()
 }
 </script>
 
@@ -184,12 +190,6 @@ function getAudioDuration(file: File): Promise<number> {
         从本地选择音频文件
       </button>
       <p class="fallback-hint">支持 webm、ogg、wav、mp3 格式</p>
-    </div>
-
-    <!-- 上传失败提示 + 重试 -->
-    <div v-if="isUploadError && pendingBlob" class="upload-error">
-      <span>上传失败</span>
-      <button class="retry-btn" @click="retryUpload">重试上传</button>
     </div>
 
     <!-- 波形条可视化 -->
@@ -242,10 +242,83 @@ function getAudioDuration(file: File): Promise<number> {
         </svg>
       </button>
     </div>
+
+    <!-- 上传中提示 -->
+    <div v-if="isUploading" class="uploading-tip" aria-live="polite">
+      <DotPulse />
+      <span>正在上传...</span>
+    </div>
+
+    <!-- 本次录音（上传后显示） -->
+    <div v-if="currentRecording" class="current-recording-card">
+      <div class="current-recording-header">
+        <span>本次录音</span>
+        <span class="current-recording-time">{{ formatDuration(currentRecording.duration) }}</span>
+      </div>
+      <div class="current-recording-actions">
+        <button class="action-btn-sm" @click="playCurrentRecording">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          播放
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
+/* ===== 本次录音卡片 ===== */
+.current-recording-card {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--r);
+  background: rgba(64, 158, 255, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.current-recording-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.current-recording-time {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-2);
+  font-family: 'Courier New', monospace;
+}
+
+.current-recording-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--card);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.action-btn-sm:active {
+  background: var(--primary-light);
+}
+
 /* ===== 权限/上传错误提示 ===== */
 .permission-error {
   display: flex;
@@ -266,34 +339,6 @@ function getAudioDuration(file: File): Promise<number> {
   height: 18px;
   flex-shrink: 0;
   margin-top: 1px;
-}
-
-.upload-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  background: rgba(245, 108, 108, 0.08);
-  border: 1px solid rgba(245, 108, 108, 0.2);
-  border-radius: var(--r);
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: var(--danger);
-}
-
-.retry-btn {
-  padding: 4px 10px;
-  background: var(--danger);
-  border: none;
-  border-radius: var(--r);
-  color: #fff;
-  font-size: 12px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-
-.retry-btn:hover {
-  opacity: 0.9;
 }
 
 /* ===== 本地文件选择备选 ===== */
@@ -457,5 +502,15 @@ function getAudioDuration(file: File): Promise<number> {
 .action-btn--volume svg {
   width: 20px;
   height: 20px;
+}
+
+.uploading-tip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-3);
 }
 </style>
