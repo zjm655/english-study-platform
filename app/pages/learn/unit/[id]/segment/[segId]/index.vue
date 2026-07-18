@@ -164,8 +164,16 @@ function onPhaseComplete() {
 
       <!-- 阶段内容区 -->
       <div class="phase-content">
+
+
+        <!-- <div class="phase-panel">
+          <NuxtPage>
+
+          </NuxtPage>
+        </div> -->
+
         <!-- 阶段一：盲听 -->
-        <div v-if="currentPhase === 1" class="phase-panel">
+        <div v-if="currentPhase === 1" class="">
           <div class="phase-panel__title">盲听理解</div>
           <div class="phase-panel__desc">仔细听音频，理解大意后回答问题</div>
           <BlindListening :segment="segment" @complete="onPhaseComplete" />
