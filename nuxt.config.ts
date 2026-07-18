@@ -3,6 +3,33 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: process.env.NODE_ENV === 'development' },
   css: ['~/assets/css/global.css'],
+  app: {
+    head: {
+      script: [
+        // require polyfill：engine.js 是 Emscripten 打包的 Node 目标包，
+        // 内部有 require("path")，浏览器没有 require，需要在 engine.js 之前注入
+        {
+          innerHTML: `
+            window.require = window.require || function(name) {
+              var polyfills = {
+                'path': {
+                  normalize: function(p) { return p || '' },
+                  resolve: function() { return Array.prototype.slice.call(arguments).join('/') || '/' },
+                  dirname: function(p) { var parts = (p || '').split('/'); parts.pop(); return parts.join('/') || '.' },
+                  basename: function(p) { return (p || '').split('/').pop() || '' },
+                  join: function() { return Array.prototype.slice.call(arguments).join('/') },
+                  sep: '/',
+                  delimiter: ':'
+                }
+              };
+              return polyfills[name] || {};
+            };
+          `,
+          tagPosition: 'head'
+        }
+      ]
+    }
+  },
   runtimeConfig: {
     public: {
       isOpenLog: true,
@@ -32,6 +59,11 @@ export default defineNuxtConfig({
       accessKeySecret:"",
       gateway:"nls-gateway.aliyuncs.com",
       appKey:""
+    },
+    eval: {
+      appId: '',
+      appSecret: '',
+      gateway: '',
     },
 
   },
