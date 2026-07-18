@@ -10,6 +10,12 @@ const props = defineProps<{
   phase: 3 | 4
 }>()
 
+const emit = defineEmits<{
+  (e: 'recording-ready', data: { blob: Blob; duration: number }): void
+  (e: 'recording-saved', data: UploadRecordingResult): void
+  (e: 'recording-analyze'): void
+}>()
+
 // 音频播放
 const { load: loadAudio, play: playAudio } = useAudioPlayer()
 
@@ -25,8 +31,18 @@ const permissionError = ref('')
 // === 本地文件选择 ref ===
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
+// === 本次录音状态（未保存前） ===
+const pendingBlob = ref<Blob | null>(null)
+const pendingDuration = ref(0)
+
 // === 本次录音（上传后显示） ===
 const currentRecording = ref<UploadRecordingResult | null>(null)
+
+// 是否有未保存的录音
+const hasPendingRecording = computed(() => pendingBlob.value !== null)
+
+// 当前播放用的 object URL（pending 状态时）
+let pendingAudioUrl = ''
 
 // === 格式化时长 ===
 function formatDuration(seconds: number | null): string {
@@ -64,14 +80,26 @@ async function toggleRecording() {
   }
 }
 
-// === 结束录音并上传 ===
+// === 设置 pending 录音（从 blob） ===
+function setPendingRecording(blob: Blob, dur: number) {
+  // 清理旧的 object URL
+  if (pendingAudioUrl) {
+    URL.revokeObjectURL(pendingAudioUrl)
+    pendingAudioUrl = ''
+  }
+  pendingBlob.value = blob
+  pendingDuration.value = dur
+  emit('recording-ready', { blob, duration: dur })
+}
+
+// === 结束录音 ===
 async function finishRecording() {
   if (!isRecording.value) return
 
   try {
     const finalDuration = duration.value
     const blob = await stop()
-    await uploadAndSet(blob, finalDuration)
+    setPendingRecording(blob, finalDuration)
   } catch (err) {
     console.error('录音处理失败:', err)
     if (err instanceof Error) {
@@ -82,8 +110,12 @@ async function finishRecording() {
   }
 }
 
-// === 上传并更新本次录音状态 ===
-async function uploadAndSet(blob: Blob, dur: number) {
+// === 保存到 OSS ===
+async function saveRecording() {
+  if (!pendingBlob.value) return
+  const blob = pendingBlob.value
+  const dur = pendingDuration.value
+
   const res = await uploadRecording({
     audioBlob: blob,
     segmentId: props.segmentId,
@@ -92,9 +124,38 @@ async function uploadAndSet(blob: Blob, dur: number) {
   })
   if (res?.code === 200 && res.data) {
     currentRecording.value = res.data
+    // 标记已保存：保留 currentRecording，清除 pending
+    pendingBlob.value = null
+    if (pendingAudioUrl) {
+      URL.revokeObjectURL(pendingAudioUrl)
+      pendingAudioUrl = ''
+    }
+    emit('recording-saved', res.data)
   } else {
-    toastError(res?.message || '上传失败，请检查网络后重试')
+    toastError(res?.message || '保存失败，请检查网络后重试')
   }
+}
+
+// === 播放本次录音（优先播放 pending blob） ===
+async function playCurrentRecording() {
+  // pending 状态：用本地 blob 生成 object URL
+  if (pendingBlob.value) {
+    if (!pendingAudioUrl) {
+      pendingAudioUrl = URL.createObjectURL(pendingBlob.value)
+    }
+    await loadAudio(pendingAudioUrl)
+    playAudio()
+    return
+  }
+
+  // 已保存状态：用 OSS URL
+  if (!currentRecording.value?.audioPath) return
+  let url = currentRecording.value.audioPath
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = url.startsWith('/') ? url : `/${url}`
+  }
+  await loadAudio(url)
+  playAudio()
 }
 
 // === 本地文件选择 ===
@@ -127,10 +188,10 @@ async function handleFileSelected(event: Event) {
 
   try {
     const fileDuration = await getAudioDuration(file)
-    await uploadAndSet(file, fileDuration)
+    setPendingRecording(file, fileDuration)
   } catch (err) {
-    console.error('文件上传失败:', err)
-    toastError('上传失败，请重试')
+    console.error('文件处理失败:', err)
+    toastError('文件处理失败，请重试')
   }
 
   input.value = ''
@@ -150,17 +211,6 @@ function getAudioDuration(file: File): Promise<number> {
     }
     audio.src = URL.createObjectURL(file)
   })
-}
-
-// === 播放本次录音 ===
-async function playCurrentRecording() {
-  if (!currentRecording.value?.audioPath) return
-  let url = currentRecording.value.audioPath
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = url.startsWith('/') ? url : `/${url}`
-  }
-  await loadAudio(url)
-  playAudio()
 }
 </script>
 
@@ -246,14 +296,23 @@ async function playCurrentRecording() {
     <!-- 上传中提示 -->
     <div v-if="isUploading" class="uploading-tip" aria-live="polite">
       <DotPulse />
-      <span>正在上传...</span>
+      <span>正在保存...</span>
     </div>
 
-    <!-- 本次录音（上传后显示） -->
-    <div v-if="currentRecording" class="current-recording-card">
-      <div class="current-recording-header">
-        <span>本次录音</span>
-        <span class="current-recording-time">{{ formatDuration(currentRecording.duration) }}</span>
+    <!-- 本次录音（pending 或已保存） -->
+    <div v-if="hasPendingRecording || currentRecording" class="current-recording-card">
+      <div class="current-recording-info">
+        <div class="current-recording-header">
+          <span>本次录音</span>
+          <span class="current-recording-badge" :class="{ 'badge--saved': currentRecording, 'badge--pending': !currentRecording }">
+            {{ currentRecording ? '已保存' : '未保存' }}
+          </span>
+        </div>
+        <div class="current-recording-meta">
+          <span class="current-recording-time">
+            {{ formatDuration(pendingBlob ? pendingDuration : currentRecording?.duration ?? null) }}
+          </span>
+        </div>
       </div>
       <div class="current-recording-actions">
         <button class="action-btn-sm" @click="playCurrentRecording">
@@ -261,6 +320,27 @@ async function playCurrentRecording() {
             <path d="M8 5v14l11-7z" />
           </svg>
           播放
+        </button>
+        <button
+          v-if="!currentRecording"
+          class="action-btn-sm action-btn-sm--accent"
+          @click="emit('recording-analyze')"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+          </svg>
+          分析
+        </button>
+        <button
+          v-if="!currentRecording"
+          class="action-btn-sm action-btn-sm--primary"
+          :disabled="isUploading"
+          @click="saveRecording"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+            <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
+          </svg>
+          保存
         </button>
       </div>
     </div>
@@ -280,18 +360,46 @@ async function playCurrentRecording() {
   justify-content: space-between;
 }
 
+.current-recording-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .current-recording-header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-1);
 }
 
+.current-recording-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.badge--saved {
+  color: var(--success);
+  background: rgba(103, 194, 58, 0.1);
+}
+
+.badge--pending {
+  color: var(--warning);
+  background: var(--warning-light);
+}
+
+.current-recording-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .current-recording-time {
   font-size: 12px;
-  font-weight: 400;
   color: var(--text-2);
   font-family: 'Courier New', monospace;
 }
@@ -317,6 +425,31 @@ async function playCurrentRecording() {
 
 .action-btn-sm:active {
   background: var(--primary-light);
+}
+
+.action-btn-sm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.action-btn-sm--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.action-btn-sm--primary:not(:disabled):active {
+  opacity: 0.9;
+}
+
+.action-btn-sm--accent {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+
+.action-btn-sm--accent:not(:disabled):active {
+  opacity: 0.9;
 }
 
 /* ===== 权限/上传错误提示 ===== */

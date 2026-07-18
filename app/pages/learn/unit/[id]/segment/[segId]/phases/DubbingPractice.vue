@@ -5,6 +5,9 @@ import { useRecordingList, useAnalyzeRecording } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording, WordScore } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
+import { getEvaluationAuth } from '~/api/evaluation/auth'
+import { useUserStore } from '~/store/useUserStore'
+import { useSpeechEvaluation } from '~/composables/evaluation/useSpeechEvaluation'
 
 interface Props {
   segment: SegmentDetail
@@ -22,6 +25,75 @@ const { load: loadAudio, play: playAudio } = useAudioPlayer()
 const { execute: fetchRecordingList, isLoading: isListLoading } = useRecordingList()
 const { execute: analyzeRecording, isLoading: isAnalyzing } = useAnalyzeRecording()
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
+
+// 评测 SDK
+const {
+  isLoading: isEvalLoading,
+  initEngine,
+  analyzeRecording: evalAnalyzeRecording,
+  destroy: destroyEngine,
+} = useSpeechEvaluation()
+
+// 用户信息
+const userStore = useUserStore()
+
+// 本次录音（未保存，来自 VoiceRecorder）
+const pendingRecording = ref<{ blob: Blob; duration: number } | null>(null)
+
+// 来自 VoiceRecorder 的事件
+function handleRecordingReady(data: { blob: Blob; duration: number }) {
+  pendingRecording.value = data
+}
+
+function handleRecordingSaved() {
+  pendingRecording.value = null
+  loadRecordings()
+}
+
+// 点击"分析"按钮 — 使用 SDK 评测当前录音
+async function handleRecordingAnalyze() {
+  if (!pendingRecording.value) {
+    toastError('请先录音')
+    return
+  }
+  if (isEvalLoading.value) {
+    return
+  }
+
+  const userId = userStore.user?.id
+  if (!userId) {
+    toastError('用户信息异常，请重新登录')
+    return
+  }
+
+  const blob = pendingRecording.value.blob
+  const refText = props.segment.textContent
+
+  // 先销毁已有引擎（initEngine 有缓存，多次分析需重新初始化）
+  destroyEngine()
+
+  try {
+    const authRes = await getEvaluationAuth()
+    if (authRes?.code !== 200 || !authRes.data) {
+      toastError(authRes?.message || '获取评测授权失败')
+      return
+    }
+
+    const { warrantId, applicationId } = authRes.data
+
+    await initEngine(applicationId, String(userId), warrantId)
+
+    const result = await evalAnalyzeRecording(blob, refText)
+
+    logger.info('[Dubbing] 评测结果:', result)
+
+    // TODO: 将结果发送到后端保存（留空）
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '评测请求失败'
+    toastError(msg)
+    logger.error('[Dubbing] 评测失败:', err)
+  }
+}
 
 // UI 状态
 const translationExpanded = ref(false)
@@ -294,22 +366,6 @@ onMounted(() => {
             </svg>
             播放录音
           </button>
-          <button
-            class="selected-action-btn selected-action-btn--primary"
-            :disabled="isAnalyzing"
-            @click="handleAnalyze"
-          >
-            <template v-if="isAnalyzing">
-              <DotPulse />
-              分析中
-            </template>
-            <template v-else>
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-              </svg>
-              {{ hasAnalysis ? '重新分析' : '发起分析' }}
-            </template>
-          </button>
         </div>
       </div>
     </div>
@@ -356,7 +412,13 @@ onMounted(() => {
     <!-- 卡片 5：录音操作 -->
     <div class="card recording-card-bottom">
       <div class="card__header">录音</div>
-      <VoiceRecorder :segment-id="segment.id" :phase="3" />
+      <VoiceRecorder
+        :segment-id="segment.id"
+        :phase="3"
+        @recording-ready="handleRecordingReady"
+        @recording-saved="handleRecordingSaved"
+        @recording-analyze="handleRecordingAnalyze"
+      />
     </div>
 
     <!-- 完成按钮 -->
