@@ -45,4 +45,7 @@ export default defineNuxtConfig({
       exclude: ['**/__tests__/**', '**/*.spec.ts', '**/*.test.ts'],
     },
   },
+  devServer: {
+    port: 5173
+  }
 })

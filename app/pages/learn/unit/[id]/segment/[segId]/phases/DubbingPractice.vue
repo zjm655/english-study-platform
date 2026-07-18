@@ -120,8 +120,9 @@ async function finishRecording() {
   pendingBlob.value = null
 
   try {
+    const finalDuration = duration.value
     const blob = await stop()
-    await doUpload(blob)
+    await doUpload(blob, finalDuration)
   } catch (err) {
     console.error('录音处理失败:', err)
     if (err instanceof Error) {
