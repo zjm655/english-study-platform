@@ -1,5 +1,4 @@
-
-·/**
+/**
  * 阿里云智能科教生成平台 EngineEvaluat 类型声明
  * window.EngineEvaluat 由 engine.js 挂载
  */
