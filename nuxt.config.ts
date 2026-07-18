@@ -40,11 +40,13 @@ export default defineNuxtConfig({
       gateway:"nls-gateway.aliyuncs.com",
       appKey:""
     },
-    eval: {
-      appId: '',
-      appSecret: '',
-      gateway: '',
-    },
+    aiContent: {
+      appId:"",
+      appSecret:"",
+      accessKeyId:"",
+      accessKeySecret:"",
+      authUrl: "https://api.cloud.ssapi.cn/auth/authorize"
+    }
 
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],
