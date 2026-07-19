@@ -170,10 +170,13 @@ async function start() {
       },
     })
     if (saveRes?.code === 200 && saveRes.data) {
+      // analyze 接口返回的 audioPath 为 recording 表原始列（空），
+      // 用上传接口返回的已签名 OSS 地址回填，保证列表内可即时播放
+      const newRecording: Recording = { ...saveRes.data, audioPath: uploadRes.data.audioPath }
       // 分析成功：前插入历史列表并选中，评分卡片随即展示
-      recordings.value.unshift(saveRes.data)
+      recordings.value.unshift(newRecording)
       totalRecordings.value++
-      selectedRecordingId.value = saveRes.data.id
+      selectedRecordingId.value = newRecording.id
     }
 
     // 回到 idle，可再次跟读或完成
@@ -227,6 +230,16 @@ function selectRecording(id: number) {
   selectedRecordingId.value = id
 }
 
+// 从已签名 URL 推断 Howler 格式提示：录音统一为 opus 编码，
+// ogg 容器显式按 opus 门控，避免 Howler 默认按 vorbis 误判而报“加载失败”
+function recordingFormat(url: string): string | undefined {
+  const ext = (url.split('?')[0] ?? '').split('.').pop()?.toLowerCase()
+  if (!ext) return undefined
+  if (ext === 'ogg') return 'opus'
+  if (/^(webm|wav|mp3|m4a|mp4|opus)$/.test(ext)) return ext
+  return undefined
+}
+
 // 播放选中的录音（跟读进行中禁止，避免打断材料播放）
 async function playRecording() {
   if (stage.value !== 'idle') return
@@ -236,7 +249,8 @@ async function playRecording() {
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = url.startsWith('/') ? url : `/${url}`
   }
-  await loadAudio(url)
+  const format = recordingFormat(url)
+  await loadAudio(url, format ? { format } : undefined)
   playAudio()
 }
 
