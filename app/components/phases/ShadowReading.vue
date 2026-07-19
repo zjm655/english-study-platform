@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
+import { useRecorder } from '~/composables/media/useRecorder'
 import { useUploadRecording, useAnalyzeRecording, useRecordingHistory } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import { toastError } from '~/utils/popup'
@@ -55,6 +56,11 @@ const {
   destroy: destroyEngine,
 } = useSpeechEvaluation()
 
+// 浏览器端录音（MediaRecorder → webm，可播放）：SDK 返回的是 Ogg-Speex，浏览器无法播放，
+// 因此改用浏览器自行录制用于保存/回放，SDK 录音仅用于评测
+const { start: startRecorder, stop: stopRecorder, isRecording: isRecorderActive } = useRecorder()
+let recorderStopPromise: Promise<Blob | null> | null = null
+
 const userStore = useUserStore()
 
 // ── 跟读控制状态机：idle → running（播放+跟读）→ evaluating（评测/入库）→ idle ──
@@ -84,6 +90,13 @@ function triggerStop() {
   clearTimers()
   stopAudio()
   stopRealtime()
+  // 停止浏览器端录音并暂存 blob promise，供 start() 收尾时 await
+  if (isRecorderActive.value && !recorderStopPromise) {
+    recorderStopPromise = stopRecorder().catch((e) => {
+      logger.warn('[ShadowReading] 停止浏览器录音失败:', e)
+      return null
+    })
+  }
 }
 
 /** 音频播放结束 → 再等 5s → 停止录音 */
@@ -120,6 +133,7 @@ async function start() {
   errorMsg.value = ''
   stopped = false
   canStop.value = false
+  recorderStopPromise = null
   stage.value = 'running'
 
   const refText = props.segment.textContent
@@ -135,6 +149,9 @@ async function start() {
     const { warrantId, applicationId } = authRes.data
 
     await initEngine(applicationId, String(userId), warrantId)
+
+    // 启动浏览器端录音（webm，可播放），与 SDK 评测并行
+    await startRecorder()
 
     // 启动实时录音评测（不设 evalTime，手动停止）
     recordStartMs = Date.now()
@@ -154,9 +171,16 @@ async function start() {
     const result = await resultPromise
     stage.value = 'evaluating'
 
-    // 收集录音（ogg）并走 Phase3 相同的后端管道入库
+    // 收集浏览器录音（webm，可播放）并走 Phase3 相同的后端管道入库
+    if (!recorderStopPromise) {
+      recorderStopPromise = stopRecorder().catch(() => null)
+    }
     const duration = Math.max(1, Math.round((Date.now() - recordStartMs) / 1000))
-    const audioBlob = await waitForRecordedAudio()
+    let audioBlob = await recorderStopPromise
+    if (!audioBlob) {
+      // 极端情况下浏览器录音不可用，回退 SDK 返回的音频（保证评分仍可入库）
+      audioBlob = await waitForRecordedAudio()
+    }
     if (!audioBlob) {
       throw new Error('未能获取跟读录音数据，请重试')
     }
