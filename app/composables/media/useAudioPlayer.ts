@@ -9,7 +9,9 @@ export function useAudioPlayer() {
   const store = useAudioStore()
   
   // 加载音频（动态导入 Howler，SSR 安全）
-  async function load(src: string, options?: { onEnded?: () => void }) {
+  // format: 当 src 为无扩展名的 blob object URL 时，需显式告知 Howler 编码格式，
+  //         否则 Howler 无法从 URL 推断编解码器，会误报 "No codec support"（HTML5 实际仍可播放）。
+  async function load(src: string, options?: { onEnded?: () => void; format?: string | string[] }) {
     // SSR 保护
     if (!import.meta.client) return
     
@@ -25,6 +27,9 @@ export function useAudioPlayer() {
     // 创建新实例
     howl = new Howl({
       src: [src],
+      ...(options?.format
+        ? { format: Array.isArray(options.format) ? options.format : [options.format] }
+        : {}),
       html5: true, // 流式播放，边加载边播放
       preload: true,
       onend: () => {

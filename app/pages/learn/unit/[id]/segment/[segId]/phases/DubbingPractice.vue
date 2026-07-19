@@ -45,11 +45,6 @@ function handleRecordingReady(data: { blob: Blob; duration: number }) {
   pendingRecording.value = data
 }
 
-function handleRecordingSaved() {
-  pendingRecording.value = null
-  loadRecordings()
-}
-
 // 点击"分析"按钮 — 使用 SDK 评测当前录音
 async function handleRecordingAnalyze(data: { blob: Blob; duration: number; recording: { id: number } }) {
   if (isEvalLoading.value || isAnalyzing.value) return
@@ -379,7 +374,6 @@ onMounted(() => {
         :segment-id="segment.id"
         :phase="3"
         @recording-ready="handleRecordingReady"
-        @recording-saved="handleRecordingSaved"
         @recording-analyze="handleRecordingAnalyze"
       />
     </div>

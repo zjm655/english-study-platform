@@ -12,7 +12,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'recording-ready', data: { blob: Blob; duration: number }): void
-  (e: 'recording-saved', data: UploadRecordingResult): void
   (e: 'recording-analyze', data: { blob: Blob; duration: number; recording: UploadRecordingResult }): void
 }>()
 
@@ -130,7 +129,6 @@ async function saveRecording() {
       URL.revokeObjectURL(pendingAudioUrl)
       pendingAudioUrl = ''
     }
-    emit('recording-saved', res.data)
   } else {
     toastError(res?.message || '保存失败，请检查网络后重试')
   }
@@ -148,14 +146,31 @@ async function handleAnalyzeClick() {
   }
 }
 
-// === 播放本次录音（优先播放 pending blob） ===
+// === 将 blob MIME 类型映射为 Howler 编码格式（blob URL 无扩展名，需显式告知）===
+function blobTypeToFormat(mime: string): string | undefined {
+  const subtype = mime.split(';')[0]?.split('/')[1]?.toLowerCase()
+  if (!subtype) return undefined
+  const map: Record<string, string> = {
+    webm: 'webm',
+    ogg: 'ogg',
+    wav: 'wav',
+    'x-wav': 'wav',
+    mpeg: 'mp3',
+    mp3: 'mp3',
+    mp4: 'mp4',
+    'x-m4a': 'm4a',
+  }
+  return map[subtype]
+}
+
+// === 播放本次录音（优先播放 pending blob）===
 async function playCurrentRecording() {
   // pending 状态：用本地 blob 生成 object URL
   if (pendingBlob.value) {
     if (!pendingAudioUrl) {
       pendingAudioUrl = URL.createObjectURL(pendingBlob.value)
     }
-    await loadAudio(pendingAudioUrl)
+    await loadAudio(pendingAudioUrl, { format: blobTypeToFormat(pendingBlob.value.type) })
     playAudio()
     return
   }
