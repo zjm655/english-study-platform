@@ -124,6 +124,8 @@ async function handleRecordingAnalyze(data: { blob: Blob; duration: number; reco
 
 // UI 状态
 const translationExpanded = ref(false)
+// 底部录音卡片折叠状态
+const recorderCollapsed = ref(false)
 // VoiceRecorder remount key：分析成功后自增以清空本次录音卡片
 const recorderKey = ref(0)
 
@@ -224,16 +226,34 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 卡片 5：录音操作 -->
-    <div class="card recording-card-bottom">
-      <div class="card__header">录音</div>
-      <VoiceRecorder
-        :key="recorderKey"
-        :segment-id="segment.id"
-        :phase="3"
-        @recording-ready="handleRecordingReady"
-        @recording-analyze="handleRecordingAnalyze"
-      />
+    <!-- 卡片 5：录音操作（可折叠） -->
+    <div
+      class="card recording-card-bottom"
+      :class="{ 'recording-card-bottom--collapsed': recorderCollapsed }"
+    >
+      <div
+        class="card__header recording-card__header"
+        @click="recorderCollapsed = !recorderCollapsed"
+      >
+        <span>录音</span>
+        <svg
+          class="recorder-toggle-icon"
+          :class="{ 'recorder-toggle-icon--collapsed': recorderCollapsed }"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+        >
+          <path d="M7 10l5 5 5-5z" />
+        </svg>
+      </div>
+      <div v-show="!recorderCollapsed" class="recording-card__body">
+        <VoiceRecorder
+          :key="recorderKey"
+          :segment-id="segment.id"
+          :phase="3"
+          @recording-ready="handleRecordingReady"
+          @recording-analyze="handleRecordingAnalyze"
+        />
+      </div>
     </div>
 
     <!-- 完成按钮 -->
@@ -376,11 +396,32 @@ onMounted(() => {
   opacity: 0.9;
 }
 
-/* ===== 底部录音卡片 ===== */
+/* ===== 底部录音卡片（可折叠） ===== */
 .recording-card-bottom {
   position: fixed;
   bottom: 0;
   padding-bottom: 56px;
   width: 358px;
+}
+
+.recording-card__header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.recorder-toggle-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-3);
+  transition: transform 0.2s;
+}
+
+.recorder-toggle-icon--collapsed {
+  transform: rotate(180deg);
+}
+
+/* 折叠态：收起主体，仅留页眉小条 */
+.recording-card-bottom--collapsed {
+  padding-bottom: 12px;
 }
 </style>
