@@ -16,6 +16,26 @@ export function formatDatetime(d: Date): string {
   return `${formatDate(d)} ${d.toTimeString().slice(0, 8)}`
 }
 
+/**
+ * 判断连续签到是否已中断。
+ * lastCheckinTime 的日期既非「今天」也非「昨天」则视为已断。
+ * @param lastCheckinTime 上次签到时间（DB datetime 字符串或 Date），null 视为未中断
+ * @param now 当前时间
+ */
+export function isStreakBroken(lastCheckinTime: string | Date | null, now: Date): boolean {
+  if (!lastCheckinTime) return false
+  const lastDate = new Date(lastCheckinTime)
+  if (Number.isNaN(lastDate.getTime())) return false
+
+  const lastStr = formatDate(lastDate)
+  const todayStr = formatDate(now)
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  const yesterdayStr = formatDate(yesterday)
+
+  return lastStr !== todayStr && lastStr !== yesterdayStr
+}
+
 /** 查询并转换用户打卡统计 */
 export async function getStats(conn: PoolConnection, userId: number): Promise<CheckinStats> {
   const [rows] = await conn.execute<RowDataPacket[]>(
