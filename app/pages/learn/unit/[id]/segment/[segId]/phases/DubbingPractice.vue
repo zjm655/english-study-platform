@@ -84,7 +84,7 @@ async function handleRecordingAnalyze(data: { blob: Blob; duration: number; reco
     // 保存评测结果到后端
     const saveRes = await analyzeRecording({
       id: savedRecording.id,
-      sdkResult: result,
+      sdkResult: result as unknown as Record<string, unknown>,
     })
     if (saveRes?.code === 200 && saveRes.data) {
       // 更新列表中的记录
@@ -169,24 +169,8 @@ async function playRecording() {
   playAudio()
 }
 
-// 发起分析
-async function handleAnalyze() {
-  if (!selectedRecordingId.value || isAnalyzing.value) return
-  try {
-    const res = await analyzeRecording(selectedRecordingId.value)
-    if (res?.code === 200 && res.data) {
-      const idx = recordings.value.findIndex(r => r.id === res.data!.id)
-      if (idx !== -1) {
-        recordings.value[idx] = res.data
-      }
-    } else {
-      toastError(res?.message || '分析失败，请稍后重试')
-    }
-  } catch (err) {
-    logger.error('分析请求失败:', err)
-    toastError('分析请求失败，请检查网络后重试')
-  }
-}
+// 发起分析（已废弃 — 新版通过 handleRecordingAnalyze 走 SDK 评测流程）
+// async function handleAnalyze() {}
 
 // 选中一条录音
 function selectRecording(id: number) {

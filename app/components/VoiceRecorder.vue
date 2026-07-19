@@ -13,7 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'recording-ready', data: { blob: Blob; duration: number }): void
   (e: 'recording-saved', data: UploadRecordingResult): void
-  (e: 'recording-analyze', data: { blob: Blob; duration: number }): void
+  (e: 'recording-analyze', data: { blob: Blob; duration: number; recording: UploadRecordingResult }): void
 }>()
 
 // 音频播放
@@ -144,7 +144,7 @@ async function handleAnalyzeClick() {
   const dur = pendingDuration.value
   await saveRecording()
   if (currentRecording.value) {
-    emit('recording-analyze', { blob, duration: dur })
+    emit('recording-analyze', { blob, duration: dur, recording: currentRecording.value })
   }
 }
 
