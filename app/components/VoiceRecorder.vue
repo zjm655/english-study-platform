@@ -343,17 +343,6 @@ function getAudioDuration(file: File): Promise<number> {
           </svg>
           分析
         </button>
-        <button
-          v-if="!currentRecording"
-          class="action-btn-sm action-btn-sm--primary"
-          :disabled="isUploading"
-          @click="saveRecording"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-            <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z" />
-          </svg>
-          保存
-        </button>
       </div>
     </div>
   </div>
@@ -419,11 +408,15 @@ function getAudioDuration(file: File): Promise<number> {
 .current-recording-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .action-btn-sm {
+  flex: 1;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   padding: 4px 10px;
   background: var(--card);

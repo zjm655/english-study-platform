@@ -9,7 +9,7 @@ export function useAudioPlayer() {
   const store = useAudioStore()
   
   // 加载音频（动态导入 Howler，SSR 安全）
-  async function load(src: string) {
+  async function load(src: string, options?: { onEnded?: () => void }) {
     // SSR 保护
     if (!import.meta.client) return
     
@@ -31,6 +31,7 @@ export function useAudioPlayer() {
         store.isPlaying = false
         store.currentTime = 0
         stopProgressUpdate()
+        options?.onEnded?.()
       },
       onplay: () => {
         store.isPlaying = true

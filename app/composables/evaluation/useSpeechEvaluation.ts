@@ -15,6 +15,7 @@
  */
 
 import type { WordScore } from '#shared/types/recording'
+import { toWav16kMono } from '~/utils/audioToWav'
 
 // ─── SDK 原生结果类型 ────────────────────────────────────────
 
@@ -110,6 +111,31 @@ export function useSpeechEvaluation() {
   let pendingResolve: ((r: EvaluationResult) => void) | null = null
   let pendingReject: ((e: Error) => void) | null = null
 
+  // Phase 4 实时录音音频收集（saveAudio:1 时经 audioDataCallback 分片回流）
+  let audioParts: BlobPart[] = []
+  let recordedAudioBlob: Blob | null = null
+
+  /** 把 audioDataCallback 的分片（类型运行时不确定）归一化为 BlobPart */
+  function normalizeAudioChunk(data: unknown): BlobPart | null {
+    if (!data) return null
+    if (data instanceof Blob) return data
+    if (data instanceof ArrayBuffer) return data
+    if (ArrayBuffer.isView(data)) return data as ArrayBufferView
+    if (typeof data === 'string') {
+      // 可能是 base64 字符串
+      try {
+        const bin = atob(data)
+        const bytes = new Uint8Array(bin.length)
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+        return bytes
+      } catch {
+        return null
+      }
+    }
+    if (process.dev) logger.warn('[SpeechEval] 未知的 audioDataCallback 分片类型:', typeof data)
+    return null
+  }
+
   // ── SDK 加载等待 ──
 
   function ensureSDKLoaded(): Promise<void> {
@@ -173,6 +199,15 @@ export function useSpeechEvaluation() {
               isLoading.value = false
             },
 
+            // Phase 4：saveAudio:1 时实时回流录音分片（ogg），累积后组装
+            audioDataCallback: (data: unknown, isLast: boolean) => {
+              const chunk = normalizeAudioChunk(data)
+              if (chunk) audioParts.push(chunk)
+              if (isLast) {
+                recordedAudioBlob = new Blob(audioParts, { type: 'audio/ogg' })
+              }
+            },
+
             noNetwork: () => {
               error.value = '网络连接异常，无法进行评测'
               pendingReject?.(new Error('网络连接异常'))
@@ -214,7 +249,17 @@ export function useSpeechEvaluation() {
     isLoading.value = true
     error.value = null
 
-    const file = new File([blob], 'recording.webm', { type: blob.type })
+    // 关键：MediaRecorder 产出的 WebM/Opus@48kHz 无法被 SDK 客户端解码链完整解析，
+    // 先转码为评测引擎推荐的 16kHz 单声道 WAV，文件名/魔数须与内容一致。
+    let wavBlob: Blob
+    try {
+      wavBlob = await toWav16kMono(blob)
+    } catch (e) {
+      isLoading.value = false
+      throw new Error(`音频转码失败: ${e instanceof Error ? e.message : String(e)}`)
+    }
+
+    const file = new File([wavBlob], 'recording.wav', { type: 'audio/wav' })
     const mockEvent = { target: { files: [file] } } as unknown as Event
     const eng = engine // eslint-disable-line prefer-const -- 回调内类型收窄
 
@@ -233,17 +278,59 @@ export function useSpeechEvaluation() {
     })
   }
 
-  // ── Phase 4 占位 ──
+  // ── Phase 4：实时录音评测（影子跟读）──
 
-  async function startRealtime(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _refText: string,
+  /**
+   * 开始实时录音评测。不设 evalTime，改由 stopRealtime() 手动停止。
+   * saveAudio:1 以便经 audioDataCallback 收集录音（ogg）。
+   * @returns 评测结果 Promise（由 engineBackResultDone 回流 resolve）
+   */
+  function startRealtime(
+    refText: string,
+    coreType: string = 'en.pred.score',
+    warrantId?: string,
   ): Promise<EvaluationResult> {
-    throw new Error('Phase 4 影子跟读评测尚未实现')
+    if (!engine || !isReady.value) {
+      return Promise.reject(new Error('引擎未初始化或未就绪，请先调用 initEngine'))
+    }
+    if (isLoading.value) {
+      return Promise.reject(new Error('已有评测请求正在进行中'))
+    }
+
+    isLoading.value = true
+    error.value = null
+    audioParts = []
+    recordedAudioBlob = null
+    const eng = engine
+
+    return new Promise<EvaluationResult>((resolve, reject) => {
+      pendingResolve = resolve
+      pendingReject = reject
+      try {
+        eng.startRecord({ coreType, refText, warrantId, saveAudio: 1 })
+      } catch (e) {
+        pendingResolve = null
+        pendingReject = null
+        isLoading.value = false
+        reject(e)
+      }
+    })
   }
 
+  /** 停止实时录音，结果经 engineBackResultDone 回流 startRealtime 的 Promise。 */
   function stopRealtime(): void {
-    // Phase 4 占位
+    if (engine) {
+      try {
+        engine.stopRecord()
+      } catch (e) {
+        if (process.dev) logger.warn('[SpeechEval] stopRecord 异常:', e)
+      }
+    }
+  }
+
+  /** 获取实时录音收集到的音频 Blob（ogg）。需在评测完成后调用。 */
+  function getRecordedAudio(): Blob | null {
+    return recordedAudioBlob
   }
 
   // ── 清理 ──
@@ -263,6 +350,8 @@ export function useSpeechEvaluation() {
     pendingResolve = null
     pendingReject = null
     initPromise = null
+    audioParts = []
+    recordedAudioBlob = null
   }
 
   onBeforeUnmount(destroy)
@@ -278,10 +367,12 @@ export function useSpeechEvaluation() {
     initEngine,
     /** Phase 3：分析已有录音文件 */
     analyzeRecording,
-    /** Phase 4：开始实时录音评测（未实现） */
+    /** Phase 4：开始实时录音评测（影子跟读） */
     startRealtime,
-    /** Phase 4：停止实时评测（未实现） */
+    /** Phase 4：停止实时评测 */
     stopRealtime,
+    /** Phase 4：获取实时录音收集到的 ogg 音频 Blob */
+    getRecordedAudio,
     /** 销毁引擎，释放 WebSocket 连接 */
     destroy,
   }

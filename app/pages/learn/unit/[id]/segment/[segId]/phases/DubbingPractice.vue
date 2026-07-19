@@ -3,7 +3,7 @@ import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useRecordingList, useAnalyzeRecording } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
-import type { Recording, WordScore } from '#shared/types/recording'
+import type { Recording } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
 import { getEvaluationAuth } from '~/api/evaluation/auth'
 import { useUserStore } from '~/store/useUserStore'
@@ -92,17 +92,16 @@ async function handleRecordingAnalyze(data: { blob: Blob; duration: number; reco
       },
     })
     if (saveRes?.code === 200 && saveRes.data) {
-      // 更新列表中的记录
-      const idx = recordings.value.findIndex(r => r.id === saveRes.data!.id)
-      if (idx !== -1) {
-        recordings.value[idx] = saveRes.data
-      }
-      // 选中刚分析的录音
+      // 方案B：已分析记录直接前插入历史列表并选中；本次录音卡片随后 remount 清空
+      recordings.value.unshift(saveRes.data)
+      totalRecordings.value++
       selectedRecordingId.value = saveRes.data.id
+      // 清空本次录音卡片：置空 pending 并触发 VoiceRecorder remount
+      pendingRecording.value = null
+      recorderKey.value++
     }
-
-    // TODO: 保存结果到后端（留空）
   } catch (err) {
+    // 失败分支不清空卡片，保留录音供重试
     const msg = err instanceof Error ? err.message : '评测请求失败'
     toastError(msg)
     logger.error('[Dubbing] 评测失败:', err)
@@ -114,6 +113,8 @@ const translationExpanded = ref(false)
 const recordings = ref<Recording[]>([])
 const totalRecordings = ref(0)
 const selectedRecordingId = ref<number | null>(null)
+// VoiceRecorder remount key：分析成功后自增以清空本次录音卡片
+const recorderKey = ref(0)
 
 // 是否还有更多历史记录
 const hasMoreRecordings = computed(() =>
@@ -245,17 +246,6 @@ async function loadMoreRecordings() {
   }
 }
 
-// 获取词的颜色类
-function getWordStatusClass(word: WordScore): string {
-  switch (word.status) {
-    case 'correct': return 'word--correct'
-    case 'minor': return 'word--minor'
-    case 'wrong': return 'word--wrong'
-    case 'missing': return 'word--missing'
-    default: return ''
-  }
-}
-
 onMounted(() => {
   loadRecordings()
 })
@@ -376,34 +366,8 @@ onMounted(() => {
         <p>选择一条录音并发起分析</p>
       </div>
 
-      <div v-else class="analysis-result">
-        <div class="score-section">
-          <div class="score-number">{{ selectedRecording.score }}</div>
-          <div class="score-label">综合评分</div>
-          <div class="score-bar">
-            <div class="score-bar__fill" :style="{ width: `${selectedRecording.score}%` }"></div>
-          </div>
-        </div>
-
-        <div class="feedback-section">
-          <div class="feedback-title">AI 评价</div>
-          <p class="feedback-text">{{ selectedRecording.feedback }}</p>
-        </div>
-
-        <div class="word-scores-section">
-          <div class="word-scores-title">逐词评分</div>
-          <div class="word-scores">
-            <span
-              v-for="(word, idx) in selectedRecording.wordScores || []"
-              :key="idx"
-              class="word-score"
-              :class="getWordStatusClass(word)"
-              :title="`${word.word}: ${word.score} 分`"
-            >
-              {{ word.word }}
-            </span>
-          </div>
-        </div>
+      <div v-else class="analysis-result-wrap">
+        <EvaluationResultCard :recording="selectedRecording!" :reference-text="segment.textContent" />
       </div>
     </div>
 
@@ -411,6 +375,7 @@ onMounted(() => {
     <div class="card recording-card-bottom">
       <div class="card__header">录音</div>
       <VoiceRecorder
+        :key="recorderKey"
         :segment-id="segment.id"
         :phase="3"
         @recording-ready="handleRecordingReady"
@@ -633,110 +598,7 @@ onMounted(() => {
   background: var(--primary);
 }
 
-/* ===== 分析结果卡片 ===== */
-.analysis-result {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.score-section {
-  text-align: center;
-}
-
-.score-number {
-  font-size: 48px;
-  font-weight: 700;
-  color: var(--primary);
-  line-height: 1;
-  margin-bottom: 4px;
-}
-
-.score-label {
-  font-size: 13px;
-  color: var(--text-3);
-  margin-bottom: 12px;
-}
-
-.score-bar {
-  height: 6px;
-  background: var(--border-ll);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.score-bar__fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--primary), var(--success));
-  border-radius: 3px;
-  transition: width 0.5s ease;
-}
-
-.feedback-section {
-  padding-top: 12px;
-  border-top: 1px solid var(--border-ll);
-}
-
-.feedback-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 8px;
-}
-
-.feedback-text {
-  font-size: 13px;
-  color: var(--text-2);
-  line-height: 1.6;
-  margin: 0;
-}
-
-.word-scores-section {
-  padding-top: 12px;
-  border-top: 1px solid var(--border-ll);
-}
-
-.word-scores-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 10px;
-}
-
-.word-scores {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 8px;
-}
-
-.word-score {
-  font-size: 13px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  cursor: default;
-  transition: opacity 0.2s;
-}
-
-.word--correct {
-  color: var(--success);
-  background: rgba(103, 194, 58, 0.1);
-}
-
-.word--minor {
-  color: var(--warning);
-  background: var(--warning-light);
-}
-
-.word--wrong {
-  color: var(--danger);
-  background: rgba(245, 108, 108, 0.1);
-}
-
-.word--missing {
-  color: var(--text-3);
-  background: var(--bg);
-  text-decoration: line-through;
-}
+/* ===== 分析结果卡片（内容已抽出至 EvaluationResultCard） ===== */
 
 /* ===== 完成按钮 ===== */
 .complete-btn {
