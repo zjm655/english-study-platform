@@ -4,12 +4,23 @@ import { uploadWithKey } from '#server/utils/oss'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import { signUrl, RECORDING_EXPIRE } from '#server/utils/oss'
+import { speechToText } from '#server/utils/speechToText'
 import type { RecordingRow } from '#server/types/db'
 import type { UploadRecordingResult } from '#shared/types/recording'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 
 // ============ 安全配置 ============
 const MAX_FILE_SIZE = 50 * 1024 * 1024  // 50MB
+
+// MIME → speechToText 格式映射
+const MIME_TO_STT_FORMAT: Record<string, string> = {
+  'audio/webm':  'opus',
+  'audio/ogg':   'opus',
+  'audio/wav':   'wav',
+  'audio/x-wav': 'wav',
+  'audio/mp3':   'mp3',
+  'audio/mpeg':  'mp3',
+}
 
 // MIME 白名单 + 对应魔数签名（前 N 字节）
 const AUDIO_SIGNATURES: Record<string, number[]> = {
@@ -142,8 +153,28 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
     return validateError('上传失败', 500)
   }
 
+  // 10. ⚡ 异步触发语音识别，不阻塞上传响应
+  recognizeAudio(fileBuffer, mimeType, result.id).catch(err => {
+    logger.error('[recording upload] ASR 异步识别失败:', err)
+  })
+
   return validateSuccess(result, '上传成功')
 })
+
+/** 异步语音识别：转文字后更新 recording.recognizedText */
+async function recognizeAudio(audioBuffer: Buffer, mimeType: string, recordingId: number): Promise<void> {
+  const format = MIME_TO_STT_FORMAT[mimeType] || 'mp3'
+  const sttResult = await speechToText(audioBuffer, format as 'mp3' | 'wav' | 'aac' | 'opus' | 'mp4')
+  if (sttResult.success && sttResult.text) {
+    await pool.execute(
+      'UPDATE recording SET recognizedText = ? WHERE id = ?',
+      [sttResult.text, recordingId]
+    )
+    logger.log('[recording upload] ASR 识别完成:', sttResult.text.slice(0, 60))
+  } else {
+    logger.warn('[recording upload] ASR 识别无结果:', sttResult.error)
+  }
+}
 
 /** 验证文件魔数签名 */
 function verifyMagicBytes(buf: Buffer, mimeType: string): boolean {
