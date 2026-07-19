@@ -4,10 +4,10 @@ import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useStudyTimer } from '~/composables/user/useStudyTimer'
-import BlindListening from './phases/BlindListening.vue'
-import TextLearning from './phases/TextLearning.vue'
-import DubbingPractice from './phases/DubbingPractice.vue'
-import ShadowReading from './phases/ShadowReading.vue'
+import BlindListening from '~/components/phases/BlindListening.vue'
+import TextLearning from '~/components/phases/TextLearning.vue'
+import DubbingPractice from '~/components/phases/DubbingPractice.vue'
+import ShadowReading from '~/components/phases/ShadowReading.vue'
 
 definePageMeta({
   title: '片段学习',
