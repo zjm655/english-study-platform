@@ -11,11 +11,29 @@ vi.mock('vue-router', () => ({
 
 // Mock useUnitProgress
 const mockIsLoading = ref(false)
+const mockIsLoadingMore = ref(false)
 const mockFetchUnitProgress = vi.fn()
+const mockLoadMore = vi.fn()
 vi.mock('~/composables/unit/useUnitProgress', () => ({
   useUnitProgress: () => ({
     isLoading: mockIsLoading,
+    isLoadingMore: mockIsLoadingMore,
     fetchUnitProgress: mockFetchUnitProgress,
+    loadMore: mockLoadMore,
+  }),
+}))
+
+// Mock useFavorites（避免真实网络请求触发测试环境 logger 未定义）
+const mockFetchFavSegments = vi.fn()
+const mockIsSegmentFav = vi.fn(() => false)
+const mockToggleSegment = vi.fn()
+const mockTogglingSegment = ref<number | null>(null)
+vi.mock('~/composables/useFavorites', () => ({
+  useFavorites: () => ({
+    fetchFavSegments: mockFetchFavSegments,
+    isSegmentFav: mockIsSegmentFav,
+    toggleSegment: mockToggleSegment,
+    togglingSegment: mockTogglingSegment,
   }),
 }))
 
@@ -37,6 +55,7 @@ const mockSuccessData = {
         title: '片段一',
         audioUrl: null,
         sortOrder: 1,
+        isMine: true,
         progress: {
           phase1_done: true,
           phase2_done: false,
@@ -52,6 +71,7 @@ const mockSuccessData = {
         title: '片段二',
         audioUrl: null,
         sortOrder: 2,
+        isMine: false,
         progress: {
           phase1_done: true,
           phase2_done: true,
@@ -63,12 +83,16 @@ const mockSuccessData = {
         },
       },
     ],
+    pagination: { page: 1, pageSize: 10, total: 2, hasMore: false },
   },
 }
 
 function createWrapper() {
   return mount(UnitDetail, {
     global: {
+      directives: {
+        'infinite-scroll': {},
+      },
       stubs: {
         NuxtLink: {
           props: ['to'],
@@ -88,7 +112,9 @@ function createWrapper() {
 describe('UnitDetail Page', () => {
   beforeEach(() => {
     mockIsLoading.value = false
+    mockIsLoadingMore.value = false
     mockFetchUnitProgress.mockReset()
+    mockLoadMore.mockReset()
     mockFetchUnitProgress.mockResolvedValue(mockSuccessData)
   })
 
@@ -154,6 +180,7 @@ describe('UnitDetail Page', () => {
       data: {
         unit: { id: 1, title: '测试单元', description: null, level: 1, sortOrder: 1, audioUrl: null },
         segments: [],
+        pagination: { page: 1, pageSize: 10, total: 0, hasMore: false },
       },
     })
     const wrapper = createWrapper()
@@ -184,7 +211,23 @@ describe('UnitDetail Page', () => {
       expect(cards.length).toBe(2)
     })
     const cards = wrapper.findAll('.segment-card')
-    expect(cards[0]!.attributes('href')).toBe('/learn/unit/1/segment/1')
-    expect(cards[1]!.attributes('href')).toBe('/learn/unit/1/segment/2')
+    expect(cards[0]!.find('.segment-card__link').attributes('href')).toBe('/learn/unit/1/segment/1')
+    expect(cards[1]!.find('.segment-card__link').attributes('href')).toBe('/learn/unit/1/segment/2')
+  })
+
+  it('marks own segments with badge and highlight', async () => {
+    const wrapper = createWrapper()
+    await vi.waitFor(() => {
+      const cards = wrapper.findAll('.segment-card')
+      expect(cards.length).toBe(2)
+    })
+    const cards = wrapper.findAll('.segment-card')
+    // 片段一 isMine=true → 高亮类 + 「我的」角标
+    expect(cards[0]!.classes()).toContain('segment-card--mine')
+    expect(cards[0]!.find('.segment-card__badge').exists()).toBe(true)
+    expect(cards[0]!.find('.segment-card__badge').text()).toBe('我的')
+    // 片段二 isMine=false → 无高亮与角标
+    expect(cards[1]!.classes()).not.toContain('segment-card--mine')
+    expect(cards[1]!.find('.segment-card__badge').exists()).toBe(false)
   })
 })

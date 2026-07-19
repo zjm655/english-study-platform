@@ -42,8 +42,15 @@ export interface UnitProgressDetail {
     title: string
     audioUrl: string | null
     sortOrder: number
+    isMine: boolean
     progress: SegmentPhaseProgress
   }[]
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+    hasMore: boolean
+  }
 }
 
 /** 用户整体进度 */

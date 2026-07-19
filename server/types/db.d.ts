@@ -36,6 +36,7 @@ export interface SegmentRow {
   textContent: string
   translation: string | null
   questions: string | null     // JSON string
+  is_public: number            // 0不公开 1公开
   sort_order: number
   createdAt: string
 }

@@ -11,21 +11,38 @@ definePageMeta({
 const route = useRoute()
 const unitId = computed(() => Number(route.params.id))
 
-const { isLoading, fetchUnitProgress } = useUnitProgress()
+const { isLoading, isLoadingMore, fetchUnitProgress, loadMore } = useUnitProgress()
 const { fetchFavSegments, isSegmentFav, toggleSegment, togglingSegment } = useFavorites()
 
 const unitData = ref<UnitProgressDetail['unit'] | null>(null)
 const segments = ref<UnitProgressDetail['segments']>([])
 const error = ref<string | null>(null)
 
+// 分页状态（服务端默认每页 10 条）
+const page = ref(1)
+const hasMore = ref(true)
+
 async function loadData() {
   error.value = null
+  page.value = 1
+  hasMore.value = true
   const res = await fetchUnitProgress(unitId.value)
   if (res?.code === 200 && res.data) {
     unitData.value = res.data.unit
     segments.value = res.data.segments
+    hasMore.value = res.data.pagination.hasMore
   } else {
     error.value = res?.message || '加载失败'
+  }
+}
+
+async function loadMoreSegments() {
+  if (!hasMore.value || isLoadingMore.value) return
+  const res = await loadMore(unitId.value, page.value + 1)
+  if (res?.code === 200 && res.data) {
+    segments.value.push(...res.data.segments)
+    page.value++
+    hasMore.value = res.data.pagination.hasMore
   }
 }
 
@@ -73,17 +90,23 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
         <p v-if="unitData?.description" class="unit-header__desc">{{ unitData.description }}</p>
       </div>
 
-      <div class="segment-list">
+      <div
+        v-infinite-scroll="loadMoreSegments"
+        :infinite-scroll-disabled="!hasMore || isLoadingMore"
+        class="segment-list"
+      >
         <div
           v-for="segment in segments"
           :key="segment.id"
           class="segment-card"
+          :class="{ 'segment-card--mine': segment.isMine }"
         >
           <NuxtLink
             :to="`/learn/unit/${unitId}/segment/${segment.id}`"
             class="segment-card__link"
           >
             <div class="segment-card__header">
+              <span v-if="segment.isMine" class="segment-card__badge">我的</span>
               <div class="segment-card__title">{{ segment.title }}</div>
             </div>
             <div class="segment-card__phases">
@@ -116,6 +139,10 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
             </svg>
           </button>
         </div>
+
+        <!-- 底部加载提示 -->
+        <div v-if="isLoadingMore" class="list-footer">加载中…</div>
+        <div v-else-if="!hasMore && segments.length" class="list-footer">没有更多了</div>
       </div>
     </template>
   </div>
@@ -229,8 +256,33 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 .segment-card__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
+}
+
+/* 自己的材料：淡背景高亮 + 「我的」角标 */
+.segment-card--mine {
+  /* background: var(--primary-light); */
+  background: #f6f6f70d;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.segment-card__badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: #fff;
+}
+
+/* 列表底部加载提示 */
+.list-footer {
+  text-align: center;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-3);
 }
 
 .segment-fav-btn {
