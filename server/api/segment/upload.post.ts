@@ -98,6 +98,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   // 创建上传记录（事务外，确保失败也能追踪）
   const recordId = await createUploadRecord(user.id, fallbackTitle, textContent, voice, isPublic)
 
+  logger.info(`[material upload] 开始处理 user=${user.id} record=${recordId} ${audioFile ? '用户上传音频' : 'TTS合成'} 文本${textContent.length}字`)
+
   // ===== Step 1: 文本审核 =====
   const mod1 = await moderateText(textContent)
   if (!mod1.safe) {
@@ -277,5 +279,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
     await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [title, recordId])
   }
 
+  logger.info(`[material upload] 上传成功 record=${recordId} segment=${segmentId} title=${title}`)
   return validateSuccess<UploadMaterialResult>({ segmentId, title }, '材料上传成功')
 })

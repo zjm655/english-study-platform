@@ -83,6 +83,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
     return validateError(parseResult.error.issues[0]?.message || '参数校验失败')
   }
 
+  logger.info(`[recording upload] 收到录音上传 user=${userId} segment=${segmentId} phase=${phase} ${mimeType} ${file.size}B`)
+
   // 8. 上传到 OSS
   const ext = mimeType === 'audio/webm' ? 'webm'
     : mimeType === 'audio/ogg' ? 'ogg'
@@ -158,6 +160,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
     logger.error('[recording upload] ASR 异步识别失败:', err)
   })
 
+  logger.info(`[recording upload] 上传成功 id=${result.id} key=${ossKey}`)
   return validateSuccess(result, '上传成功')
 })
 

@@ -235,15 +235,18 @@ onMounted(() => {
         class="card__header recording-card__header"
         @click="recorderCollapsed = !recorderCollapsed"
       >
-        <span>录音</span>
-        <svg
-          class="recorder-toggle-icon"
-          :class="{ 'recorder-toggle-icon--collapsed': recorderCollapsed }"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-        >
-          <path d="M7 10l5 5 5-5z" />
-        </svg>
+        <span class="recording-card__title">🎙️ 录音</span>
+        <span class="recorder-toggle-hint">
+          {{ recorderCollapsed ? '展开' : '收起' }}
+          <svg
+            class="recorder-toggle-icon"
+            :class="{ 'recorder-toggle-icon--collapsed': recorderCollapsed }"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M7 10l5 5 5-5z" />
+          </svg>
+        </span>
       </div>
       <div v-show="!recorderCollapsed" class="recording-card__body">
         <VoiceRecorder
@@ -397,22 +400,55 @@ onMounted(() => {
 }
 
 /* ===== 底部录音卡片（可折叠） ===== */
+/* 修复：卡片坐在 56px 高的 Footer 上方（bottom:60px）并水平居中，
+   避免折叠后被 position:fixed / z-index:100 的 Footer 遮盖而不可见 */
 .recording-card-bottom {
   position: fixed;
-  bottom: 0;
-  padding-bottom: 56px;
+  bottom: 60px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   width: 358px;
+  max-width: calc(100vw - 32px);
+  z-index: 90;
+  background: var(--card);
+  box-shadow: var(--shadow);
 }
 
+/* 醒目的可点击页眉条 */
 .recording-card__header {
   cursor: pointer;
   user-select: none;
+  padding: 8px 12px;
+  background: var(--primary-light);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  transition: background 0.2s;
+}
+
+.recording-card__header:active {
+  background: #d9ecff;
+}
+
+.recording-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.recorder-toggle-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
 }
 
 .recorder-toggle-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--text-3);
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
   transition: transform 0.2s;
 }
 
@@ -420,8 +456,8 @@ onMounted(() => {
   transform: rotate(180deg);
 }
 
-/* 折叠态：收起主体，仅留页眉小条 */
+/* 折叠态：主体隐藏，仅留醒目页眉条，收紧内边距 */
 .recording-card-bottom--collapsed {
-  padding-bottom: 12px;
+  padding: 12px;
 }
 </style>

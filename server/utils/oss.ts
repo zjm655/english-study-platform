@@ -1,4 +1,5 @@
 import OSS from 'ali-oss'
+import { fileLog, fileLogError } from './fileLogger'
 interface Options {
         /** access secret you create */
         accessKeyId: string;
@@ -198,12 +199,21 @@ export async function uploadWithKey(
   ossKey: string
 ): Promise<UploadResult> {
   const client = getClient();
-  const result = await client.put(ossKey, fileBuffer);
-  return {
-    url: result.url,
-    name: result.name,
-    size: fileBuffer.length,
-  };
+  try {
+    const result = await client.put(ossKey, fileBuffer);
+    logger.info(`[OSS] 上传成功: ${ossKey} (${fileBuffer.length}B)`);
+    fileLog('oss', 'info', `[OSS] 上传成功: ${ossKey}`, { size: fileBuffer.length });
+    return {
+      url: result.url,
+      name: result.name,
+      size: fileBuffer.length,
+    };
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    logger.error(`[OSS] 上传失败: ${ossKey}, 错误: ${errMsg}`);
+    fileLogError('oss', `[OSS] 上传失败: ${ossKey}`, errMsg);
+    throw error;
+  }
 }
 
 // ---------- 核心功能：签名链接 ----------
@@ -248,10 +258,12 @@ export async function signUrl(
 
     // logger.log(`[OSS] signUrl 成功: ${rawUrl} → ${signedUrl} (${useInternal ? '内网' : '公网'})`)
     logger.log(`[OSS] signUrl 成功: ${rawUrl} (${useInternal ? '内网' : '公网'})`)
+    fileLog('oss', 'info', `[OSS] signUrl 成功: ${rawUrl} (${useInternal ? '内网' : '公网'})`)
     return signedUrl;
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
     logger.error(`[OSS] signUrl 失败: ${rawUrl}, 错误: ${errMsg}`);
+    fileLogError('oss', `[OSS] signUrl 失败: ${rawUrl}`, errMsg);
     return rawUrl; // 降级
   }
 }

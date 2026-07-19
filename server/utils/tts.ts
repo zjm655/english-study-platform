@@ -11,6 +11,7 @@
 
 import crypto from 'node:crypto'
 import WebSocket from 'ws'
+import { fileLog, fileLogError } from './fileLogger'
 
 // ==================== 常量 ====================
 
@@ -264,6 +265,7 @@ export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE):
     return { success: false, error: '文本不能为空' }
   }
 
+  const start = Date.now()
   const fullVoice = toFullVoiceName(voice)
   const sanitized = sanitizeText(trimmed)
   const chunks = splitText(sanitized)
@@ -372,13 +374,21 @@ export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE):
 
     // 7. 拼接音频并返回
     if (audioChunks.length === 0) {
+      logger.error('[tts] 转换失败: 未返回音频数据')
+      fileLogError('tts', '[tts] 转换失败: 未返回音频数据', { textLength: trimmed.length })
       return { success: false, error: 'TTS 转换未返回音频数据' }
     }
 
-    return { success: true, audio: Buffer.concat(audioChunks) }
+    const audio = Buffer.concat(audioChunks)
+    const ms = Date.now() - start
+    logger.info(`[tts] 转换成功 (${ms}ms, ${audio.length}B)`)
+    fileLog('tts', 'info', '[tts] 转换成功', { ms, audioBytes: audio.length, textLength: trimmed.length })
+    return { success: true, audio }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
+    const ms = Date.now() - start
     logger.error('[tts] 转换失败:', errMsg)
+    fileLogError('tts', `[tts] 转换失败 (${ms}ms)`, errMsg, { textLength: trimmed.length })
 
     if (errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('连接超时')) {
       return { success: false, error: 'TTS 服务连接失败，可能需要代理' }

@@ -10,6 +10,8 @@
  * 音标由 LLM 生成（Edge TTS 只输出音频，无法生成音标文本）。
  */
 
+import { fileLog, fileLogError } from './fileLogger'
+
 // ==================== 导出类型 ====================
 
 export interface GeneratedVocabulary {
@@ -243,7 +245,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
   const url = `${ds.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
   try {
-    const resp = await fetch(url, {
+    const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -258,7 +260,8 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
         temperature: 0.3,
         max_tokens: MAX_TOKENS,
       }),
-      signal: AbortSignal.timeout(API_TIMEOUT),
+      timeout: API_TIMEOUT,
+      tag: '[aiContent]',
     })
 
     if (!resp.ok) {
@@ -304,6 +307,12 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
       return { success: false, error: 'AI 生成内容不完整（题目格式错误）' }
     }
 
+    logger.info(`[aiContent] 学习内容生成成功 (词汇${vocabulary.length}/题目${questions.length})`)
+    fileLog('ai', 'info', '[aiContent] 学习内容生成成功', {
+      textLength: trimmed.length,
+      vocabCount: vocabulary.length,
+      questionCount: questions.length,
+    })
     return {
       success: true,
       translation,
@@ -315,10 +324,12 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       logger.error('[aiContent] 生成超时')
+      fileLogError('ai', '[aiContent] 学习内容生成超时', errMsg)
       return { success: false, error: 'AI 生成超时' }
     }
 
     logger.error('[aiContent] 生成失败:', errMsg)
+    fileLogError('ai', '[aiContent] 学习内容生成失败', errMsg)
     return { success: false, error: `AI 内容生成失败: ${errMsg}` }
   }
 }
@@ -356,7 +367,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
   const url = `${ds.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
   try {
-    const resp = await fetch(url, {
+    const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -371,7 +382,8 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
         temperature: 0.3,
         max_tokens: TITLE_MAX_TOKENS,
       }),
-      signal: AbortSignal.timeout(TITLE_API_TIMEOUT),
+      timeout: TITLE_API_TIMEOUT,
+      tag: '[aiContent]',
     })
 
     if (!resp.ok) {
@@ -394,14 +406,18 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
       return { success: false, error: 'AI 返回标题为空' }
     }
 
+    logger.info(`[aiContent] 标题生成成功: ${title}`)
+    fileLog('ai', 'info', '[aiContent] 标题生成成功', { title })
     return { success: true, title }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       logger.error('[aiContent] 标题生成超时')
+      fileLogError('ai', '[aiContent] 标题生成超时', errMsg)
       return { success: false, error: 'AI 生成超时' }
     }
     logger.error('[aiContent] 标题生成失败:', errMsg)
+    fileLogError('ai', '[aiContent] 标题生成失败', errMsg)
     return { success: false, error: `标题生成失败: ${errMsg}` }
   }
 }

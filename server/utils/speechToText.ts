@@ -8,6 +8,7 @@
  */
 
 import RPCClient from '@alicloud/pop-core'
+import { fileLog, fileLogError } from './fileLogger'
 
 // ==================== 导出类型 ====================
 
@@ -124,6 +125,7 @@ export async function speechToText(
 
   if (!nls?.accessKeyId || !nls?.accessKeySecret || !nls?.gateway || !nls?.appKey) {
     logger.error('[speechToText] NLS 配置不完整')
+    fileLogError('nls', '[speechToText] NLS 配置不完整')
     return { success: false, error: 'NLS 配置缺失' }
   }
 
@@ -141,6 +143,7 @@ export async function speechToText(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     logger.error('[speechToText] Token 获取失败:', errMsg)
+    fileLogError('nls', '[speechToText] Token 获取失败', errMsg)
     return { success: false, error: 'Token 获取失败' }
   }
 
@@ -162,6 +165,7 @@ export async function speechToText(
     if (data.status !== 20000000) {
       const msg = data.message || `识别失败（status: ${data.status}）`
       logger.error('[speechToText] 识别失败:', msg)
+      fileLogError('nls', '[speechToText] 识别失败', msg, { status: data.status })
       return { success: false, error: msg }
     }
 
@@ -169,6 +173,8 @@ export async function speechToText(
     const text = sentences.map(s => s.text).join('')
     const duration = data.flash_result?.duration
 
+    logger.info(`[speechToText] 识别成功 (${text.length}字${duration !== undefined ? `, ${duration}ms` : ''})`)
+    fileLog('nls', 'info', '[speechToText] 识别成功', { format, textLength: text.length, duration })
     return {
       success: true,
       text,
@@ -177,6 +183,7 @@ export async function speechToText(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     logger.error('[speechToText] 识别请求失败:', errMsg)
+    fileLogError('nls', '[speechToText] 识别请求失败', errMsg)
 
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       return { success: false, error: '语音识别超时' }

@@ -51,6 +51,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     return validateError('缺少有效的评测结果数据', 400)
   }
 
+  logger.info(`[recording analyze] 保存分析结果 id=${id} score=${evalResult.score}`)
+
   // 3. 处理评测结果（补全 status + 生成 feedback）
   const parsed = processEvaluationResult(evalResult)
 
@@ -72,7 +74,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
       return rowToRecording(rows[0] as RecordingRow)
     })
   } catch (err) {
-    console.error('[recording analyze] 事务失败:', err)
+    logger.error('[recording analyze] 事务失败:', err)
     return validateError('分析保存失败，请稍后重试', 500)
   }
 
@@ -80,5 +82,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     return validateError('分析保存失败', 500)
   }
 
+  logger.info(`[recording analyze] 分析完成 id=${id} score=${parsed.score}`)
   return validateSuccess(updatedRecording, '分析完成')
 })
