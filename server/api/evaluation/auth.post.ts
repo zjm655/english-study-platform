@@ -11,6 +11,25 @@
  */
 
 import crypto from 'node:crypto'
+import { networkInterfaces } from 'node:os'
+
+/**
+ * 获取本机非回环 IPv4 地址
+ * 当 getRequestIP 返回回环地址时，使用此地址作为 user_client_ip
+ */
+function getMachineIp(): string {
+  const interfaces = networkInterfaces()
+  for (const name of Object.keys(interfaces)) {
+    const iface = interfaces[name]
+    if (!iface) continue
+    for (const info of iface) {
+      if (info.family === 'IPv4' && !info.internal) {
+        return info.address
+      }
+    }
+  }
+  return '127.0.0.1'
+}
 
 export default defineEventHandler(async (event): Promise<ResPayload<{
   warrantId: string
@@ -29,8 +48,15 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
   }
 
   const timestamp = Math.floor(Date.now() / 1000).toString()
-  // 获取客户端公网 IP，兜底用本地回环
-  const userClientIp = getRequestIP(event, { xForwardedFor: true }) || '127.0.0.1'
+  // 获取客户端 IP，若为回环地址则使用机器真实 IP
+  const requestIp = getRequestIP(event, { xForwardedFor: true }) ?? ''
+  const userClientIp = (requestIp && requestIp !== '127.0.0.1' && requestIp !== '::1' && requestIp !== '::ffff:127.0.0.1')
+    ? requestIp
+    : getMachineIp()
+
+  if (process.dev) {
+    console.log(`[evaluation auth] requestIp: "${requestIp}", 使用 IP: "${userClientIp}", userId: ${userId}`)
+  }
 
   // ── 签名 ──
   // 参数按 key 字母序排列：app_secret, appid, timestamp, user_client_ip, user_id
