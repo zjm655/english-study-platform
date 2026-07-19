@@ -25,6 +25,7 @@ export function rowToRecording(
     feedback: row.feedback,
     recognizedText: row.recognizedText,
     wordScores,
+    rawResult: row.rawResult,
     duration: row.duration !== null ? Number(row.duration) : null,
     createdAt: row.createdAt,
   }

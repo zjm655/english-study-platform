@@ -17,6 +17,7 @@ export interface Recording {
   feedback: string | null    // AI整体评价
   recognizedText: string | null
   wordScores: WordScore[] | null
+  rawResult: string | null   // SDK评测原始响应JSON
   duration: number | null    // 秒
   createdAt: string
 }

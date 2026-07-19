@@ -84,7 +84,12 @@ async function handleRecordingAnalyze(data: { blob: Blob; duration: number; reco
     // 保存评测结果到后端
     const saveRes = await analyzeRecording({
       id: savedRecording.id,
-      sdkResult: result as unknown as Record<string, unknown>,
+      result: {
+        score: result.score,
+        wordScores: result.wordScores,
+        recognizedText: result.recognizedText,
+        rawResult: result.rawResult,
+      },
     })
     if (saveRes?.code === 200 && saveRes.data) {
       // 更新列表中的记录

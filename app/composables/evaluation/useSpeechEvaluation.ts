@@ -40,6 +40,8 @@ export interface EvaluationResult {
   wordScores: WordScore[]
   /** SDK 逐词 char 拼接出的识别文本 */
   recognizedText: string
+  /** SDK 原始响应 JSON 字符串 */
+  rawResult: string
 }
 
 // ─── 辅助函数 ───────────────────────────────────────────────
@@ -52,19 +54,43 @@ function scoreToStatus(score: number): WordScore['status'] {
 }
 
 function parseResult(msg: string): EvaluationResult {
-  const data: SdkEngineResult = JSON.parse(msg)
-  const details = data.result?.details ?? []
-  const wordScores: WordScore[] = details.map((d) => ({
-    word: d.char,
-    score: d.score,
-    status: scoreToStatus(d.score),
+  const data = JSON.parse(msg) as {
+    result?: {
+      overall?: number
+      details?: {
+        text: string
+        score: number
+        snt_details: { char: string; score: number }[]
+      }[]
+    }
+  }
+  const result = data.result
+  const allWords: { char: string; score: number }[] = []
+
+  if (result?.details) {
+    for (const sentence of result.details) {
+      if (sentence.snt_details) {
+        for (const word of sentence.snt_details) {
+          if (word.char?.trim()) {
+            allWords.push(word)
+          }
+        }
+      }
+    }
+  }
+
+  const wordScores: WordScore[] = allWords.map((w) => ({
+    word: w.char,
+    score: w.score,
+    status: scoreToStatus(w.score),
   }))
-  const recognizedText = details.map((d) => d.char).join(' ')
+  const recognizedText = allWords.map((w) => w.char).join(' ')
 
   return {
-    score: data.result?.overall ?? 0,
+    score: result?.overall ?? 0,
     wordScores,
     recognizedText,
+    rawResult: msg,
   }
 }
 

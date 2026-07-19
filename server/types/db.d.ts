@@ -95,6 +95,7 @@ export interface RecordingRow {
   feedback: string | null
   recognizedText: string | null
   wordScores: string | null   // JSON string
+  rawResult: string | null    // 原始评测响应JSON
   duration: string | null     // DECIMAL → string
   createdAt: string
   deleted_at: string | null

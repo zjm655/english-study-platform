@@ -1,15 +1,15 @@
 import { query, withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
-import { parseSdkResult } from '#server/utils/evaluationResult'
-import type { RecordingRow, SegmentRow } from '#server/types/db'
+import { processEvaluationResult } from '#server/utils/evaluationResult'
+import type { RecordingRow } from '#server/types/db'
 import type { RowDataPacket } from 'mysql2'
-import type { Recording, WordScore } from '#shared/types/recording'
+import type { Recording } from '#shared/types/recording'
 
 /**
  * 保存录音 AI 分析结果
  * 请求：POST /api/recording/[id]/analyze
- * Body: { sdkResult: object } — SDK 评测返回的完整结果 JSON
+ * Body: { result: { score, wordScores, recognizedText, rawResult? } }
  */
 export default defineEventHandler(async (event): Promise<ResPayload<Recording | null>> => {
   const userId = event.context.user?.id
@@ -36,16 +36,23 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     return validateError('无权限访问该录音', 403)
   }
 
-  // 2. 读取 SDK 结果
-  const body = await readBody<{ sdkResult?: Record<string, unknown> }>(event)
-  const sdkResult = body?.sdkResult
+  // 2. 读取前端传来的评测结果
+  const body = await readBody<{
+    result?: {
+      score: number
+      wordScores: { word: string; score: number }[]
+      recognizedText: string
+      rawResult?: string
+    }
+  }>(event)
+  const evalResult = body?.result
 
-  if (!sdkResult || typeof sdkResult !== 'object') {
-    return validateError('缺少 SDK 评测结果数据', 400)
+  if (!evalResult || typeof evalResult.score !== 'number') {
+    return validateError('缺少有效的评测结果数据', 400)
   }
 
-  // 3. 解析 SDK 结果
-  const parsed = parseSdkResult(sdkResult)
+  // 3. 处理评测结果（补全 status + 生成 feedback）
+  const parsed = processEvaluationResult(evalResult)
 
   // 4. 更新 recording 表
   let updatedRecording: ReturnType<typeof rowToRecording> = null
@@ -53,9 +60,9 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     updatedRecording = await withTransaction(async (conn) => {
       await conn.execute(
         `UPDATE recording
-         SET score = ?, feedback = ?, recognizedText = ?, wordScores = ?
+         SET score = ?, feedback = ?, recognizedText = ?, wordScores = ?, rawResult = ?
          WHERE id = ?`,
-        [parsed.score, parsed.feedback, parsed.recognizedText, JSON.stringify(parsed.wordScores), id]
+        [parsed.score, parsed.feedback, parsed.recognizedText, JSON.stringify(parsed.wordScores), evalResult.rawResult ?? null, id]
       )
 
       const [rows] = await conn.execute<RowDataPacket[]>(
@@ -65,7 +72,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
       return rowToRecording(rows[0] as RecordingRow)
     })
   } catch (err) {
-    logger.error('[recording analyze] 事务失败:', err)
+    console.error('[recording analyze] 事务失败:', err)
     return validateError('分析保存失败，请稍后重试', 500)
   }
 
