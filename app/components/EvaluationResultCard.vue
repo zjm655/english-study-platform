@@ -55,12 +55,10 @@ const recognizedDiff = computed(() => {
         {{ recording.recognizedText }}
       </p>
       <p v-else class="recognized-text">
-        <span
-          v-for="(tok, idx) in recognizedDiff"
-          :key="idx"
+        <template v-for="(tok, idx) in recognizedDiff" :key="idx"><span
           class="rec-word"
           :class="{ 'rec-word--mismatch': !tok.match }"
-        >{{ tok.word }}</span>
+        >{{ tok.word }}</span>{{ ' ' }}</template>
       </p>
     </div>
 
@@ -157,6 +155,8 @@ const recognizedDiff = computed(() => {
   color: var(--text-2);
   line-height: 1.7;
   margin: 0;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .recognized-placeholder {
@@ -164,10 +164,6 @@ const recognizedDiff = computed(() => {
   color: var(--text-3);
   font-style: italic;
   margin: 0;
-}
-
-.rec-word {
-  margin-right: 4px;
 }
 
 .rec-word--mismatch {

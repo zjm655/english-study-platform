@@ -32,13 +32,16 @@ const error = ref<string | null>(null)
 // 当前阶段（1-4）
 const currentPhase = ref(1)
 
-// 阶段定义
+// 阶段注册表：承载指示器文案 + 页眉文案 + 对应阶段组件
 const phases = [
-  { phase: 1, name: '盲听' },
-  { phase: 2, name: '学习' },
-  { phase: 3, name: '配音' },
-  { phase: 4, name: '跟读' },
+  { phase: 1, name: '盲听', title: '盲听理解', desc: '仔细听音频，理解大意后回答问题', component: BlindListening },
+  { phase: 2, name: '学习', title: '文本学习', desc: '对照原文学习，点击单词查看详情', component: TextLearning },
+  { phase: 3, name: '配音', title: '配音练习', desc: '跟随原文朗读，录制你的声音', component: DubbingPractice, spacer: true },
+  { phase: 4, name: '跟读', title: '影子跟读', desc: '跟随音频同步朗读，模仿语音语调', component: ShadowReading },
 ]
+
+// 当前激活阶段（驱动动态组件 + 页眉）
+const activePhase = computed(() => phases.find(p => p.phase === currentPhase.value)!)
 
 async function loadData() {
   error.value = null
@@ -165,41 +168,10 @@ function onPhaseComplete() {
 
       <!-- 阶段内容区 -->
       <div class="phase-content">
-
-
-        <!-- <div class="phase-panel">
-          <NuxtPage>
-
-          </NuxtPage>
-        </div> -->
-
-        <!-- 阶段一：盲听 -->
-        <div v-if="currentPhase === 1" class="phase-panel">
-          <div class="phase-panel__title">盲听理解</div>
-          <div class="phase-panel__desc">仔细听音频，理解大意后回答问题</div>
-          <BlindListening :segment="segment" @complete="onPhaseComplete" />
-        </div>
-
-        <!-- 阶段二：学习 -->
-        <div v-else-if="currentPhase === 2" class="phase-panel">
-          <div class="phase-panel__title">文本学习</div>
-          <div class="phase-panel__desc">对照原文学习，点击单词查看详情</div>
-          <TextLearning :segment="segment" @complete="onPhaseComplete" />
-        </div>
-
-        <!-- 阶段三：配音 -->
-        <div v-else-if="currentPhase === 3" class="phase-panel">
-          <div class="phase-panel__title">配音练习</div>
-          <div class="phase-panel__desc">跟随原文朗读，录制你的声音</div>
-          <DubbingPractice :segment="segment" @complete="onPhaseComplete" />
-          <div class="phase-panel__margin--phase3"></div>
-        </div>
-
-        <!-- 阶段四：跟读 -->
-        <div v-else-if="currentPhase === 4" class="phase-panel">
-          <div class="phase-panel__title">影子跟读</div>
-          <div class="phase-panel__desc">跟随音频同步朗读，模仿语音语调</div>
-          <ShadowReading :segment="segment" @complete="onPhaseComplete" />
+        <div class="phase-panel">
+          <PhaseHeader :title="activePhase.title" :desc="activePhase.desc" />
+          <component :is="activePhase.component" :segment="segment" @complete="onPhaseComplete" />
+          <div v-if="activePhase.spacer" class="phase-panel__margin--phase3"></div>
         </div>
       </div>
     </template>
@@ -349,20 +321,9 @@ function onPhaseComplete() {
   padding: 20px;
   flex: 1;
   height: 100%;
-  overflow-y:auto;
-}
-
-.phase-panel__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 8px;
-}
-
-.phase-panel__desc {
-  font-size: 13px;
-  color: var(--text-3);
-  margin-bottom: 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 .phase-panel__placeholder {
