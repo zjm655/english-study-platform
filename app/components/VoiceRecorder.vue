@@ -13,7 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'recording-ready', data: { blob: Blob; duration: number }): void
   (e: 'recording-saved', data: UploadRecordingResult): void
-  (e: 'recording-analyze'): void
+  (e: 'recording-analyze', data: { blob: Blob; duration: number }): void
 }>()
 
 // 音频播放
@@ -101,7 +101,7 @@ async function finishRecording() {
     const blob = await stop()
     setPendingRecording(blob, finalDuration)
   } catch (err) {
-    console.error('录音处理失败:', err)
+    logger.error('录音处理失败:', err)
     if (err instanceof Error) {
       toastError(err.message)
     } else {
@@ -133,6 +133,18 @@ async function saveRecording() {
     emit('recording-saved', res.data)
   } else {
     toastError(res?.message || '保存失败，请检查网络后重试')
+  }
+}
+
+// === 分析：先保存录音，再通知父组件开始评测 ===
+async function handleAnalyzeClick() {
+  if (!pendingBlob.value) return
+  // 保存 blob 引用（saveRecording 会清除 pendingBlob）
+  const blob = pendingBlob.value
+  const dur = pendingDuration.value
+  await saveRecording()
+  if (currentRecording.value) {
+    emit('recording-analyze', { blob, duration: dur })
   }
 }
 
@@ -190,7 +202,7 @@ async function handleFileSelected(event: Event) {
     const fileDuration = await getAudioDuration(file)
     setPendingRecording(file, fileDuration)
   } catch (err) {
-    console.error('文件处理失败:', err)
+    logger.error('文件处理失败:', err)
     toastError('文件处理失败，请重试')
   }
 
@@ -324,7 +336,7 @@ function getAudioDuration(file: File): Promise<number> {
         <button
           v-if="!currentRecording"
           class="action-btn-sm action-btn-sm--accent"
-          @click="emit('recording-analyze')"
+          @click="handleAnalyzeClick"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />

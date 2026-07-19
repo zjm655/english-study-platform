@@ -128,7 +128,7 @@ export function useSpeechEvaluation() {
             serverTimeout: 30_000,
 
             engineFirstInitDone: () => {
-              if (process.dev) console.log('[SpeechEval] 引擎初始化成功')
+              if (process.dev) logger.log('[SpeechEval] 引擎初始化成功')
               isReady.value = true
               resolve()
             },

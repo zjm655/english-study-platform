@@ -131,7 +131,7 @@
 //
 //   const totalMigrated = Object.values(results).reduce((sum, s) => sum + s.migrated, 0)
 //   const totalFailed = Object.values(results).reduce((sum, s) => sum + s.failed, 0)
-//   console.log(`[migrate-media] 完成: 迁移 ${totalMigrated} | 失败 ${totalFailed}`)
+//   logger.log(`[migrate-media] 完成: 迁移 ${totalMigrated} | 失败 ${totalFailed}`)
 //
 //   return {
 //     code: 200,

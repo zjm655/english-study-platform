@@ -46,7 +46,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
   const ds = config.deepseek as unknown as DeepSeekConfig
 
   if (!ds?.apiKey || !ds?.baseUrl || !ds?.model) {
-    console.error('[contentModeration] DeepSeek 配置不完整')
+    logger.error('[contentModeration] DeepSeek 配置不完整')
     return { safe: false, reason: '内容审核服务配置缺失' }
   }
 
@@ -74,7 +74,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
 
     if (!resp.ok) {
       const body = await resp.text()
-      console.error(`[contentModeration] API 返回 ${resp.status}: ${body}`)
+      logger.error(`[contentModeration] API 返回 ${resp.status}: ${body}`)
       return { safe: false, reason: '内容审核服务暂时不可用' }
     }
 
@@ -90,7 +90,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
       reason: result.safe ? null : (result.reason || '内容不合规'),
     }
   } catch (err) {
-    console.error('[contentModeration] 审核调用失败:', err)
+    logger.error('[contentModeration] 审核调用失败:', err)
     return { safe: false, reason: '内容审核服务暂时不可用' }
   }
 }

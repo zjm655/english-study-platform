@@ -33,14 +33,14 @@
 //     try {
 //       await pool.execute(sql)
 //       results.push({ step: 'add_column', sql: sql.substring(0, 60), success: true })
-//       console.log(`[alter-media] 字段添加成功: ${sql.substring(0, 60)}...`)
+//       logger.log(`[alter-media] 字段添加成功: ${sql.substring(0, 60)}...`)
 //     } catch (err: any) {
 //       if (err?.errno === 1060) {
 //         results.push({ step: 'add_column', sql: sql.substring(0, 60), success: true, affected: 0 })
-//         console.log(`[alter-media] 字段已存在，跳过: ${sql.substring(0, 60)}...`)
+//         logger.log(`[alter-media] 字段已存在，跳过: ${sql.substring(0, 60)}...`)
 //       } else {
 //         results.push({ step: 'add_column', sql: sql.substring(0, 60), success: false, error: err?.message })
-//         console.error(`[alter-media] 字段添加失败:`, err?.message)
+//         logger.error(`[alter-media] 字段添加失败:`, err?.message)
 //       }
 //     }
 //   }
@@ -93,7 +93,7 @@
 //         success: true,
 //         affected: result.affectedRows,
 //       })
-//       console.log(`[alter-media] ${up.name} 更新 ${result.affectedRows} 条`)
+//       logger.log(`[alter-media] ${up.name} 更新 ${result.affectedRows} 条`)
 //     } catch (err: any) {
 //       results.push({
 //         step: `update_${up.name}`,
@@ -101,7 +101,7 @@
 //         success: false,
 //         error: err?.message,
 //       })
-//       console.error(`[alter-media] ${up.name} 失败:`, err?.message)
+//       logger.error(`[alter-media] ${up.name} 失败:`, err?.message)
 //     }
 //   }
 //

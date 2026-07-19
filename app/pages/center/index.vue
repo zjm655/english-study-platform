@@ -138,23 +138,23 @@ async function initStats() {
 
 // 事件处理
 const handleEditProfile = () => {
-  console.log('编辑资料')
+  logger.log('编辑资料')
 }
 
 const handleLearningGoal = () => {
-  console.log('学习目标')
+  logger.log('学习目标')
 }
 
 const handleNotification = () => {
-  console.log('提醒设置')
+  logger.log('提醒设置')
 }
 
 const handleDarkMode = () => {
-  console.log('深色模式:', isDarkMode.value)
+  logger.log('深色模式:', isDarkMode.value)
 }
 
 const handleAbout = () => {
-  console.log('关于我们')
+  logger.log('关于我们')
 }
 
 const handleLogout = async () => {

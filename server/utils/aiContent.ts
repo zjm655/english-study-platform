@@ -235,7 +235,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
   const ds = config.deepseek as unknown as DeepSeekConfig
 
   if (!ds?.apiKey || !ds?.baseUrl || !ds?.model) {
-    console.error('[aiContent] DeepSeek 配置不完整')
+    logger.error('[aiContent] DeepSeek 配置不完整')
     return { success: false, error: 'AI 服务配置缺失' }
   }
 
@@ -263,7 +263,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 
     if (!resp.ok) {
       const body = await resp.text()
-      console.error(`[aiContent] API 返回 ${resp.status}: ${body}`)
+      logger.error(`[aiContent] API 返回 ${resp.status}: ${body}`)
       return { success: false, error: 'AI 服务暂时不可用' }
     }
 
@@ -271,7 +271,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     const content: string = data?.choices?.[0]?.message?.content ?? ''
 
     if (!content) {
-      console.error('[aiContent] API 返回空内容')
+      logger.error('[aiContent] API 返回空内容')
       return { success: false, error: 'AI 未返回有效内容' }
     }
 
@@ -281,26 +281,26 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     try {
       parsed = JSON.parse(cleaned)
     } catch {
-      console.error('[aiContent] JSON 解析失败:', cleaned.substring(0, 200))
+      logger.error('[aiContent] JSON 解析失败:', cleaned.substring(0, 200))
       return { success: false, error: 'AI 生成内容解析失败' }
     }
 
     // 5. 校验输出
     const translation = typeof parsed.translation === 'string' ? parsed.translation.trim() : ''
     if (!translation) {
-      console.error('[aiContent] 翻译字段缺失或为空')
+      logger.error('[aiContent] 翻译字段缺失或为空')
       return { success: false, error: 'AI 生成内容不完整（缺少翻译）' }
     }
 
     const vocabulary = validateVocabulary(parsed.vocabulary)
     if (!vocabulary) {
-      console.error('[aiContent] 词汇校验失败')
+      logger.error('[aiContent] 词汇校验失败')
       return { success: false, error: 'AI 生成内容不完整（词汇格式错误）' }
     }
 
     const questions = validateQuestions(parsed.questions)
     if (!questions) {
-      console.error('[aiContent] 题目校验失败')
+      logger.error('[aiContent] 题目校验失败')
       return { success: false, error: 'AI 生成内容不完整（题目格式错误）' }
     }
 
@@ -314,11 +314,11 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     const errMsg = err instanceof Error ? err.message : String(err)
 
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
-      console.error('[aiContent] 生成超时')
+      logger.error('[aiContent] 生成超时')
       return { success: false, error: 'AI 生成超时' }
     }
 
-    console.error('[aiContent] 生成失败:', errMsg)
+    logger.error('[aiContent] 生成失败:', errMsg)
     return { success: false, error: `AI 内容生成失败: ${errMsg}` }
   }
 }
@@ -349,7 +349,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
   const ds = config.deepseek as unknown as DeepSeekConfig
 
   if (!ds?.apiKey || !ds?.baseUrl || !ds?.model) {
-    console.error('[aiContent] DeepSeek 配置不完整')
+    logger.error('[aiContent] DeepSeek 配置不完整')
     return { success: false, error: 'AI 服务配置缺失' }
   }
 
@@ -376,7 +376,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
 
     if (!resp.ok) {
       const body = await resp.text()
-      console.error(`[aiContent] 标题生成 API 返回 ${resp.status}: ${body}`)
+      logger.error(`[aiContent] 标题生成 API 返回 ${resp.status}: ${body}`)
       return { success: false, error: 'AI 服务暂时不可用' }
     }
 
@@ -384,7 +384,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
     let title: string = data?.choices?.[0]?.message?.content ?? ''
 
     if (!title) {
-      console.error('[aiContent] 标题生成返回空内容')
+      logger.error('[aiContent] 标题生成返回空内容')
       return { success: false, error: 'AI 未返回有效内容' }
     }
 
@@ -398,10 +398,10 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
-      console.error('[aiContent] 标题生成超时')
+      logger.error('[aiContent] 标题生成超时')
       return { success: false, error: 'AI 生成超时' }
     }
-    console.error('[aiContent] 标题生成失败:', errMsg)
+    logger.error('[aiContent] 标题生成失败:', errMsg)
     return { success: false, error: `标题生成失败: ${errMsg}` }
   }
 }

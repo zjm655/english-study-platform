@@ -43,7 +43,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
   const { appId, appSecret, authUrl } = aiContent
 
   if (!appId || !appSecret || !authUrl) {
-    console.error('[evaluation auth] aiContent 配置不完整')
+    logger.error('[evaluation auth] aiContent 配置不完整')
     return validateError('评测服务配置不完整', 500)
   }
 
@@ -55,7 +55,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
     : getMachineIp()
 
   if (process.dev) {
-    console.log(`[evaluation auth] requestIp: "${requestIp}", 使用 IP: "${userClientIp}", userId: ${userId}`)
+    logger.log(`[evaluation auth] requestIp: "${requestIp}", 使用 IP: "${userClientIp}", userId: ${userId}`)
   }
 
   // ── 签名 ──
@@ -74,8 +74,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
   const requestSign = crypto.createHash('md5').update(signStr, 'utf8').digest('hex')
 
   if (process.dev) {
-    console.log('[evaluation auth] signStr:', signStr)
-    console.log('[evaluation auth] requestSign:', requestSign)
+    logger.log('[evaluation auth] signStr:', signStr)
+    logger.log('[evaluation auth] requestSign:', requestSign)
   }
 
   // ── 请求阿里云鉴权接口 ──
@@ -104,7 +104,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
     })
 
     if (resp.code !== 0) {
-      console.error('[evaluation auth] 阿里云返回错误:', resp)
+      logger.error('[evaluation auth] 阿里云返回错误:', resp)
       return validateError(resp.message || '获取评测授权失败', 502)
     }
 
@@ -114,7 +114,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
       expireAt: resp.data.expire_at,
     })
   } catch (err) {
-    console.error('[evaluation auth] 请求阿里云鉴权接口失败:', err)
+    logger.error('[evaluation auth] 请求阿里云鉴权接口失败:', err)
     return validateError('评测授权服务暂时不可用', 502)
   }
 })

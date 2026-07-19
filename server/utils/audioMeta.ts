@@ -30,7 +30,7 @@ export async function extractAudioMeta(audioBuffer: Buffer): Promise<AudioMeta |
       size: audioBuffer.length,
     }
   } catch (err) {
-    console.error('[audioMeta] 元数据提取失败:', err instanceof Error ? err.message : err)
+    logger.error('[audioMeta] 元数据提取失败:', err instanceof Error ? err.message : err)
     return null
   }
 }

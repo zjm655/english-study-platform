@@ -135,7 +135,7 @@ export function useRecorder() {
       }
     } catch (err) {
       // enumerateDevices 本身也可能失败，继续尝试 getUserMedia
-      console.warn('enumerateDevices 预检失败:', err)
+      logger.warn('enumerateDevices 预检失败:', err)
     }
 
     // ========== 请求麦克风权限 ==========
@@ -205,7 +205,7 @@ export function useRecorder() {
         }
       }, 500) // 每 500ms 刷新一次，提高 UI 响应性
     } catch (error) {
-      console.error('录音启动失败:', error)
+      logger.error('录音启动失败:', error)
       throw classifyGetUserMediaError(error)
     }
   }

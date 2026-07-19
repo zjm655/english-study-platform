@@ -156,7 +156,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   try {
     await uploadWithKey(audioBuffer, ossKey)
   } catch (err) {
-    console.error('[material upload] OSS 上传失败:', err)
+    logger.error('[material upload] OSS 上传失败:', err)
     await updateRecordFailed(recordId, '文件上传失败')
     return validateError('文件上传失败，请稍后重试', 500)
   }
@@ -213,7 +213,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
   if (titleResult.success && titleResult.title) {
     title = titleResult.title
   } else {
-    console.warn('[material upload] 标题生成失败，降级为文本截取:', titleResult.error)
+    logger.warn('[material upload] 标题生成失败，降级为文本截取:', titleResult.error)
     title = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
   }
 
@@ -263,7 +263,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadMateri
       return newSegmentId
     })
   } catch (err) {
-    console.error('[material upload] 事务失败:', err)
+    logger.error('[material upload] 事务失败:', err)
     await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
     await updateRecordFailed(recordId, '入库失败')
     return validateError('入库失败，请稍后重试', 500)

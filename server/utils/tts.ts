@@ -378,7 +378,7 @@ export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE):
     return { success: true, audio: Buffer.concat(audioChunks) }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    console.error('[tts] 转换失败:', errMsg)
+    logger.error('[tts] 转换失败:', errMsg)
 
     if (errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('连接超时')) {
       return { success: false, error: 'TTS 服务连接失败，可能需要代理' }

@@ -30,7 +30,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
       await conn.execute('DELETE FROM material_upload_record WHERE id = ?', [id])
     })
   } catch (err) {
-    console.error('[material record] 删除失败:', err)
+    logger.error('[material record] 删除失败:', err)
     return validateError('删除失败，请稍后重试', 500)
   }
 

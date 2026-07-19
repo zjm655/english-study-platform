@@ -51,14 +51,8 @@ function handleRecordingSaved() {
 }
 
 // 点击"分析"按钮 — 使用 SDK 评测当前录音
-async function handleRecordingAnalyze() {
-  if (!pendingRecording.value) {
-    toastError('请先录音')
-    return
-  }
-  if (isEvalLoading.value) {
-    return
-  }
+async function handleRecordingAnalyze(data: { blob: Blob; duration: number; recording: { id: number } }) {
+  if (isEvalLoading.value || isAnalyzing.value) return
 
   const userId = userStore.user?.id
   if (!userId) {
@@ -66,7 +60,7 @@ async function handleRecordingAnalyze() {
     return
   }
 
-  const blob = pendingRecording.value.blob
+  const { blob, recording: savedRecording } = data
   const refText = props.segment.textContent
 
   // 先销毁已有引擎（initEngine 有缓存，多次分析需重新初始化）
@@ -87,7 +81,22 @@ async function handleRecordingAnalyze() {
 
     logger.info('[Dubbing] 评测结果:', result)
 
-    // TODO: 将结果发送到后端保存（留空）
+    // 保存评测结果到后端
+    const saveRes = await analyzeRecording({
+      id: savedRecording.id,
+      sdkResult: result,
+    })
+    if (saveRes?.code === 200 && saveRes.data) {
+      // 更新列表中的记录
+      const idx = recordings.value.findIndex(r => r.id === saveRes.data!.id)
+      if (idx !== -1) {
+        recordings.value[idx] = saveRes.data
+      }
+      // 选中刚分析的录音
+      selectedRecordingId.value = saveRes.data.id
+    }
+
+    // TODO: 保存结果到后端（留空）
   } catch (err) {
     const msg = err instanceof Error ? err.message : '评测请求失败'
     toastError(msg)
@@ -174,7 +183,7 @@ async function handleAnalyze() {
       toastError(res?.message || '分析失败，请稍后重试')
     }
   } catch (err) {
-    console.error('分析请求失败:', err)
+    logger.error('分析请求失败:', err)
     toastError('分析请求失败，请检查网络后重试')
   }
 }
@@ -217,7 +226,7 @@ async function loadRecordings() {
       listErrorMsg.value = res?.message || '加载录音列表失败'
     }
   } catch (err) {
-    console.error('加载录音列表失败:', err)
+    logger.error('加载录音列表失败:', err)
     isListError.value = true
     listErrorMsg.value = '网络异常，加载录音列表失败'
   }
@@ -241,7 +250,7 @@ async function loadMoreRecordings() {
       totalRecordings.value = res.data.total
     }
   } catch (err) {
-    console.error('加载更多录音失败:', err)
+    logger.error('加载更多录音失败:', err)
   } finally {
     isListLoadingMore.value = false
   }

@@ -60,7 +60,7 @@
 
 //     if (!fs.existsSync(localPath)) {
 //       stats.skipped++
-//       console.warn(`[migrate] ${tableName}#${row.id} 文件不存在: ${localPath}`)
+//       logger.warn(`[migrate] ${tableName}#${row.id} 文件不存在: ${localPath}`)
 //       continue
 //     }
 
@@ -79,7 +79,7 @@
 //       stats.failed++
 //       const msg = err instanceof Error ? err.message : String(err)
 //       stats.errors.push(`${tableName}#${row.id}: ${msg}`)
-//       console.error(`[migrate] ${tableName}#${row.id} 失败:`, msg)
+//       logger.error(`[migrate] ${tableName}#${row.id} 失败:`, msg)
 //     }
 //   }
 
@@ -87,7 +87,7 @@
 // }
 
 // export default defineEventHandler(async (): Promise<ResPayload<Record<string, MigrateStats>>> => {
-//   console.log('[migrate] 开始音频迁移到 OSS...')
+//   logger.log('[migrate] 开始音频迁移到 OSS...')
 
 //   const [segStats, wbStats, vocabStats] = await Promise.all([
 //     // segment: audio/primary/xxx.mp3 → audio/segment/primary/xxx.mp3
@@ -103,7 +103,7 @@
 //   // 打印汇总到服务端日志
 //   const totalUploaded = segStats.uploaded + wbStats.uploaded + vocabStats.uploaded
 //   const totalFailed = segStats.failed + wbStats.failed + vocabStats.failed
-//   console.log(`[migrate] 完成: 上传 ${totalUploaded} | 失败 ${totalFailed}`)
+//   logger.log(`[migrate] 完成: 上传 ${totalUploaded} | 失败 ${totalFailed}`)
 
 //   // 如果有任何失败，仍然返回 200 但在 message 中提示
 //   const hasErrors = totalFailed > 0

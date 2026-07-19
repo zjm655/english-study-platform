@@ -281,6 +281,6 @@ const initDB = async () => {
     )
   `)
 }
-initDB().catch(err => console.error('[DB] 建表失败:', err))
+initDB().catch(err => logger.error('[DB] 建表失败:', err))
 
 export default pool

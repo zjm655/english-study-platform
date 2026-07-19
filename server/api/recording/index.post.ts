@@ -82,7 +82,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
   try {
     await uploadWithKey(fileBuffer, ossKey)
   } catch (err) {
-    console.error('[recording upload] OSS 上传失败:', err)
+    logger.error('[recording upload] OSS 上传失败:', err)
     return validateError('文件上传失败，请稍后重试', 500)
   }
 
@@ -134,7 +134,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UploadRecord
       } satisfies UploadRecordingResult
     })
   } catch (err) {
-    console.error('[recording upload] 事务失败:', err)
+    logger.error('[recording upload] 事务失败:', err)
     return validateError('上传失败，请稍后重试', 500)
   }
 

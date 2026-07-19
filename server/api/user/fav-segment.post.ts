@@ -71,7 +71,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
   } catch (err) {
     const msg = err instanceof Error ? err.message : ''
     if (msg.startsWith('NOT_FOUND:')) return validateError(msg.slice(10), 404)
-    console.error('[fav-segment]', err)
+    logger.error('[fav-segment]', err)
     return validateError('操作失败，请重试')
   }
 })

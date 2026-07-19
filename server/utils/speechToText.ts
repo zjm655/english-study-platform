@@ -123,7 +123,7 @@ export async function speechToText(
   const nls = config.nls as unknown as Partial<NlsConfig>
 
   if (!nls?.accessKeyId || !nls?.accessKeySecret || !nls?.gateway || !nls?.appKey) {
-    console.error('[speechToText] NLS 配置不完整')
+    logger.error('[speechToText] NLS 配置不完整')
     return { success: false, error: 'NLS 配置缺失' }
   }
 
@@ -140,7 +140,7 @@ export async function speechToText(
     token = await getToken(fullConfig)
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    console.error('[speechToText] Token 获取失败:', errMsg)
+    logger.error('[speechToText] Token 获取失败:', errMsg)
     return { success: false, error: 'Token 获取失败' }
   }
 
@@ -161,7 +161,7 @@ export async function speechToText(
 
     if (data.status !== 20000000) {
       const msg = data.message || `识别失败（status: ${data.status}）`
-      console.error('[speechToText] 识别失败:', msg)
+      logger.error('[speechToText] 识别失败:', msg)
       return { success: false, error: msg }
     }
 
@@ -176,7 +176,7 @@ export async function speechToText(
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    console.error('[speechToText] 识别请求失败:', errMsg)
+    logger.error('[speechToText] 识别请求失败:', errMsg)
 
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       return { success: false, error: '语音识别超时' }

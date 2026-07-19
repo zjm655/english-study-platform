@@ -246,11 +246,11 @@ export async function signUrl(
       decodedKey
     );
 
-    console.log(`[OSS] signUrl 成功: ${rawUrl} → ${signedUrl} (${useInternal ? '内网' : '公网'})`);
+    logger.log(`[OSS] signUrl 成功: ${rawUrl} → ${signedUrl} (${useInternal ? '内网' : '公网'})`);
     return signedUrl;
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    console.error(`[OSS] signUrl 失败: ${rawUrl}, 错误: ${errMsg}`);
+    logger.error(`[OSS] signUrl 失败: ${rawUrl}, 错误: ${errMsg}`);
     return rawUrl; // 降级
   }
 }
