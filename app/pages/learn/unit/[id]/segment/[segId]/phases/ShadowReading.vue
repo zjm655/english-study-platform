@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
-import { useUploadRecording } from '~/composables/recording'
-import { useAnalyzeRecording } from '~/composables/recording'
+import { useUploadRecording, useAnalyzeRecording, useRecordingList } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
@@ -19,12 +18,13 @@ const emit = defineEmits<{
   (e: 'complete'): void
 }>()
 
-// 音频播放（材料音频，共享全局 Howler）
+// 音频播放（材料音频 + 录音回放，共享全局 Howler）
 const { load: loadAudio, play: playAudio, stop: stopAudio } = useAudioPlayer()
 
 // API
 const { execute: uploadRecording } = useUploadRecording()
 const { execute: analyzeRecording } = useAnalyzeRecording()
+const { execute: fetchRecordingList, isLoading: isListLoading } = useRecordingList()
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 
 // 评测 SDK
@@ -38,12 +38,21 @@ const {
 
 const userStore = useUserStore()
 
-// ── 状态机：idle → running（播放+跟读）→ evaluating（评测/入库）→ done ──
-type Stage = 'idle' | 'running' | 'evaluating' | 'done'
+// ── 跟读控制状态机：idle → running（播放+跟读）→ evaluating（评测/入库）→ idle ──
+type Stage = 'idle' | 'running' | 'evaluating'
 const stage = ref<Stage>('idle')
 
-const resultRecording = ref<Recording | null>(null)
 const errorMsg = ref('')
+// 是否允许手动结束（仅录音真正开始后才允许，避免引擎初始化期间误点）
+const canStop = ref(false)
+
+// ── 历史记录列表 ──
+const recordings = ref<Recording[]>([])
+const totalRecordings = ref(0)
+const selectedRecordingId = ref<number | null>(null)
+const isListError = ref(false)
+const listErrorMsg = ref('')
+const isListLoadingMore = ref(false)
 
 // 停止相关的定时器（结束+5s、兜底最大超时）
 let stopTimer: ReturnType<typeof setTimeout> | null = null
@@ -56,10 +65,11 @@ function clearTimers() {
   if (maxTimer) { clearTimeout(maxTimer); maxTimer = null }
 }
 
-/** 停止录音（幂等）：音频结束+5s 或兜底超时触发 */
+/** 停止录音（幂等）：手动点击、音频结束+5s 或兜底超时触发 */
 function triggerStop() {
   if (stopped) return
   stopped = true
+  canStop.value = false
   clearTimers()
   stopAudio()
   stopRealtime()
@@ -97,8 +107,8 @@ async function start() {
   }
 
   errorMsg.value = ''
-  resultRecording.value = null
   stopped = false
+  canStop.value = false
   stage.value = 'running'
 
   const refText = props.segment.textContent
@@ -122,6 +132,8 @@ async function start() {
     // 并行播放材料音频；播放结束 +5s 停止
     await loadAudio(props.segment.audioUrl, { onEnded: onMaterialEnded })
     playAudio()
+    // 录音与播放均已启动，开放手动结束
+    canStop.value = true
 
     // 兜底：音频时长 + 5s + 8s 缓冲，防 onEnded 未触发导致永不停止
     const maxMs = ((props.segment.duration ?? 60) + 5 + 8) * 1000
@@ -158,18 +170,14 @@ async function start() {
       },
     })
     if (saveRes?.code === 200 && saveRes.data) {
-      resultRecording.value = saveRes.data
+      // 分析成功：前插入历史列表并选中，评分卡片随即展示
+      recordings.value.unshift(saveRes.data)
+      totalRecordings.value++
+      selectedRecordingId.value = saveRes.data.id
     }
 
-    // 更新进度
-    await updateProgress({
-      segmentId: props.segment.id,
-      phase: 4,
-      done: true,
-      score: result.score,
-    })
-
-    stage.value = 'done'
+    // 回到 idle，可再次跟读或完成
+    stage.value = 'idle'
   } catch (err) {
     triggerStop()
     const msg = err instanceof Error ? err.message : '跟读评测失败'
@@ -180,15 +188,123 @@ async function start() {
   }
 }
 
-function restart() {
-  stage.value = 'idle'
-  resultRecording.value = null
-  errorMsg.value = ''
+// ── 历史列表相关 ──
+
+// 是否还有更多历史记录
+const hasMoreRecordings = computed(() =>
+  recordings.value.length < totalRecordings.value
+)
+
+// 当前选中的录音
+const selectedRecording = computed(() =>
+  recordings.value.find(r => r.id === selectedRecordingId.value) || null
+)
+const hasAnalysis = computed(() =>
+  selectedRecording.value?.score !== null && selectedRecording.value?.score !== undefined
+)
+
+// 最高分
+const bestScore = computed(() => {
+  const scores = recordings.value
+    .filter(r => r.score !== null)
+    .map(r => r.score as number)
+  return scores.length > 0 ? Math.max(...scores) : null
+})
+
+// 完成按钮是否可用
+const canComplete = computed(() => bestScore.value !== null)
+
+// 格式化时长
+function formatDuration(seconds: number | null): string {
+  if (seconds === null || seconds === undefined) return '00:00'
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-function finish() {
-  emit('complete')
+// 选中一条录音
+function selectRecording(id: number) {
+  selectedRecordingId.value = id
 }
+
+// 播放选中的录音（跟读进行中禁止，避免打断材料播放）
+async function playRecording() {
+  if (stage.value !== 'idle') return
+  if (!selectedRecording.value?.audioPath) return
+
+  let url = selectedRecording.value.audioPath
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = url.startsWith('/') ? url : `/${url}`
+  }
+  await loadAudio(url)
+  playAudio()
+}
+
+// 加载录音列表（第一页）
+async function loadRecordings() {
+  isListError.value = false
+  listErrorMsg.value = ''
+  try {
+    const res = await fetchRecordingList({
+      segmentId: props.segment.id,
+      phase: 4,
+      page: 1,
+      size: 3,
+    })
+    if (res?.code === 200 && res.data) {
+      recordings.value = res.data.items
+      totalRecordings.value = res.data.total
+    } else {
+      isListError.value = true
+      listErrorMsg.value = res?.message || '加载跟读记录失败'
+    }
+  } catch (err) {
+    logger.error('加载跟读记录失败:', err)
+    isListError.value = true
+    listErrorMsg.value = '网络异常，加载跟读记录失败'
+  }
+}
+
+// 加载更多历史录音
+async function loadMoreRecordings() {
+  if (isListLoadingMore.value || !hasMoreRecordings.value) return
+  isListLoadingMore.value = true
+  try {
+    const nextPage = Math.floor(recordings.value.length / 3) + 1
+    const res = await fetchRecordingList({
+      segmentId: props.segment.id,
+      phase: 4,
+      page: nextPage,
+      size: 3,
+    })
+    if (res?.code === 200 && res.data) {
+      recordings.value = [...recordings.value, ...res.data.items]
+      totalRecordings.value = res.data.total
+    }
+  } catch (err) {
+    logger.error('加载更多跟读记录失败:', err)
+  } finally {
+    isListLoadingMore.value = false
+  }
+}
+
+// 完成跟读
+async function completePhase() {
+  if (!canComplete.value || isUpdating.value) return
+  const res = await updateProgress({
+    segmentId: props.segment.id,
+    phase: 4,
+    done: true,
+    score: bestScore.value!,
+  })
+  if (res?.code === 200) {
+    emit('complete')
+  }
+}
+
+onMounted(() => {
+  loadRecordings()
+})
 
 onBeforeUnmount(() => {
   clearTimers()
@@ -206,43 +322,132 @@ onBeforeUnmount(() => {
       <span>请佩戴耳机，点击开始后跟随音频朗读（不展示原文）</span>
     </div>
 
-    <!-- 未开始 / 进行中 -->
-    <div v-if="stage === 'idle' || stage === 'running' || stage === 'evaluating'" class="stage-body">
-      <button
-        v-if="stage === 'idle'"
-        class="start-btn"
-        @click="start"
-      >
-        开始跟读
-      </button>
+    <!-- 卡片：历史跟读列表 -->
+    <div class="card">
+      <div class="card__header">
+        <span>历史跟读</span>
+        <span class="recording-count">{{ totalRecordings }} 条</span>
+      </div>
 
-      <div v-else class="running-state">
+      <div v-if="isListLoading" class="card__body empty-state">
         <DotPulse />
-        <p class="running-text">
-          {{ stage === 'running' ? '正在播放材料，请跟读…' : '正在评测…' }}
-        </p>
+      </div>
+
+      <div v-else-if="isListError" class="card__body empty-state">
+        <p>{{ listErrorMsg }}</p>
+        <button class="retry-btn--small" @click="loadRecordings">重新加载</button>
+      </div>
+
+      <div v-else-if="recordings.length === 0" class="card__body empty-state">
+        <p>还没有跟读记录，点击下方按钮开始跟读</p>
+      </div>
+
+      <div v-else class="recording-list">
+        <div
+          v-for="item in recordings"
+          :key="item.id"
+          class="recording-item"
+          :class="{ 'recording-item--selected': item.id === selectedRecordingId }"
+          @click="selectRecording(item.id)"
+        >
+          <div class="recording-item__info">
+            <span class="recording-item__time">{{ formatDuration(item.duration) }}</span>
+            <span v-if="item.score !== null" class="recording-item__score">
+              {{ item.score }} 分
+            </span>
+          </div>
+          <div class="recording-item__date">
+            {{ new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(item.createdAt)) }}
+          </div>
+        </div>
+
+        <!-- 加载更多 -->
+        <div v-if="hasMoreRecordings" class="load-more-wrap">
+          <button
+            class="load-more-btn"
+            :disabled="isListLoadingMore"
+            @click="loadMoreRecordings"
+          >
+            <template v-if="isListLoadingMore">
+              <DotPulse />
+            </template>
+            <template v-else>
+              查看更多（共 {{ totalRecordings }} 条）
+            </template>
+          </button>
+        </div>
+
+        <!-- 选中录音的操作按钮 -->
+        <div v-if="selectedRecording" class="selected-actions">
+          <button class="selected-action-btn" :disabled="stage !== 'idle'" @click="playRecording">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            播放录音
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- 结果 -->
-    <template v-else-if="stage === 'done' && resultRecording">
-      <div class="card">
-        <div class="card__header">跟读评分</div>
-        <EvaluationResultCard :recording="resultRecording" :reference-text="segment.textContent" />
+    <!-- 卡片：AI 评分 -->
+    <div class="card">
+      <div class="card__header">AI 评分</div>
+
+      <div v-if="!selectedRecording || !hasAnalysis" class="card__body empty-state">
+        <p>选择一条跟读记录查看评分</p>
       </div>
 
-      <div class="result-actions">
-        <button class="retry-btn" @click="restart">再试一次</button>
-        <button class="complete-btn complete-btn--active" :disabled="isUpdating" @click="finish">
-          <template v-if="isUpdating">
-            <DotPulse />
-          </template>
-          <template v-else>
-            完成跟读
-          </template>
-        </button>
+      <div v-else class="analysis-result-wrap">
+        <EvaluationResultCard :recording="selectedRecording!" :reference-text="segment.textContent" />
       </div>
-    </template>
+    </div>
+
+    <!-- 卡片：跟读控制 -->
+    <div class="card">
+      <div class="card__header">影子跟读</div>
+
+      <div class="stage-body">
+        <button
+          v-if="stage === 'idle'"
+          class="start-btn"
+          @click="start"
+        >
+          {{ recordings.length > 0 ? '再次跟读' : '开始跟读' }}
+        </button>
+
+        <div v-else class="running-state">
+          <DotPulse />
+          <p class="running-text">
+            {{ stage === 'running' ? '正在播放材料，请跟读…' : '正在评测…' }}
+          </p>
+          <!-- 手动结束；若不点击则由“音频结束+5s / 兜底超时”自动结束 -->
+          <button
+            v-if="stage === 'running' && canStop"
+            class="stop-btn"
+            @click="triggerStop"
+          >
+            结束跟读
+          </button>
+        </div>
+
+        <p v-if="errorMsg && stage === 'idle'" class="error-text">{{ errorMsg }}</p>
+      </div>
+    </div>
+
+    <!-- 完成按钮 -->
+    <button
+      class="complete-btn"
+      :class="{ 'complete-btn--active': canComplete }"
+      :disabled="!canComplete || isUpdating"
+      @click="completePhase"
+    >
+      <template v-if="isUpdating">
+        <DotPulse />
+      </template>
+      <template v-else>
+        完成跟读
+      </template>
+    </button>
   </div>
 </template>
 
@@ -270,12 +475,178 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+/* ===== 卡片通用样式 ===== */
+.card {
+  background: var(--bg);
+  border-radius: var(--r);
+  padding: 16px;
+}
+
+.card__header {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card__body {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+/* ===== 历史列表 ===== */
+.recording-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.recording-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recording-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--card);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.recording-item:hover {
+  border-color: var(--primary);
+}
+
+.recording-item--selected {
+  border-color: var(--primary);
+  background: rgba(64, 158, 255, 0.05);
+}
+
+.recording-item__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recording-item__time {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+  font-family: 'Courier New', monospace;
+}
+
+.recording-item__score {
+  font-size: 12px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.recording-item__date {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.selected-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.selected-action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.selected-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.selected-action-btn:not(:disabled):active {
+  background: var(--bg);
+}
+
+.selected-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== 加载更多 ===== */
+.load-more-wrap {
+  text-align: center;
+  padding-top: 8px;
+}
+
+.load-more-btn {
+  padding: 6px 16px;
+  background: var(--card);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  color: var(--primary);
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.load-more-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.load-more-btn:not(:disabled):active {
+  background: var(--primary-light);
+}
+
+.retry-btn--small {
+  margin-top: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  background: var(--card);
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+/* ===== 跟读控制 ===== */
 .stage-body {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 24px 20px;
+  gap: 12px;
 }
 
 .start-btn {
@@ -307,52 +678,52 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-.card {
-  background: var(--bg);
+.stop-btn {
+  margin-top: 4px;
+  padding: 10px 28px;
+  background: var(--danger);
+  color: #fff;
+  border: none;
   border-radius: var(--r);
-  padding: 16px;
-}
-
-.card__header {
   font-size: 14px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
 }
 
-.result-actions {
-  display: flex;
-  gap: 12px;
+.stop-btn:active {
+  opacity: 0.9;
 }
 
-.retry-btn {
-  flex: 1;
+.error-text {
+  font-size: 13px;
+  color: var(--danger);
+  margin: 0;
+  text-align: center;
+}
+
+/* ===== 完成按钮 ===== */
+.complete-btn {
+  width: 100%;
   padding: 14px;
   background: var(--card);
   border: 1px solid var(--border-ll);
   border-radius: var(--r);
-  color: var(--text-2);
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.complete-btn {
-  flex: 1;
-  padding: 14px;
-  border: 1px solid var(--border-ll);
-  border-radius: var(--r);
+  color: var(--text-3);
   font-size: 15px;
   font-weight: 500;
+  cursor: not-allowed;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
 }
 
-.complete-btn--active {
+.complete-btn--active:not(:disabled) {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
+  cursor: pointer;
 }
 
 .complete-btn--active:not(:disabled):active {
