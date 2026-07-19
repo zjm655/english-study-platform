@@ -1,5 +1,7 @@
 // 数据库行类型（对应 MySQL 查询结果）
 
+import type { WordScore } from '#shared/types/recording'
+
 export interface UserRow {
   id: number
   account: string
@@ -94,7 +96,7 @@ export interface RecordingRow {
   score: string | null        // DECIMAL → string
   feedback: string | null
   recognizedText: string | null
-  wordScores: string | null   // JSON string
+  wordScores: WordScore[] | string | null   // json 列：mysql2 自动解析为数组，兼容字符串
   rawResult: string | null    // 原始评测响应JSON
   duration: string | null     // DECIMAL → string
   createdAt: string

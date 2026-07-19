@@ -9,10 +9,16 @@ export function rowToRecording(
   if (!row) return null
   let wordScores: WordScore[] | null = null
   if (row.wordScores) {
-    try {
-      wordScores = JSON.parse(row.wordScores)
-    } catch {
-      wordScores = null
+    // wordScores 是 MySQL json 列，mysql2 驱动会自动解析为数组返回；
+    // 同时兼容以 JSON 字符串形态写入的历史数据
+    if (Array.isArray(row.wordScores)) {
+      wordScores = row.wordScores
+    } else {
+      try {
+        wordScores = JSON.parse(row.wordScores)
+      } catch {
+        wordScores = null
+      }
     }
   }
   return {

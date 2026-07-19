@@ -246,7 +246,8 @@ export async function signUrl(
       decodedKey
     );
 
-    logger.log(`[OSS] signUrl 成功: ${rawUrl} → ${signedUrl} (${useInternal ? '内网' : '公网'})`);
+    // logger.log(`[OSS] signUrl 成功: ${rawUrl} → ${signedUrl} (${useInternal ? '内网' : '公网'})`)
+    logger.log(`[OSS] signUrl 成功: ${rawUrl} (${useInternal ? '内网' : '公网'})`)
     return signedUrl;
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
