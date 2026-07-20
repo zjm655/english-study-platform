@@ -32,16 +32,19 @@ export interface AccountBalanceResult {
 const BSS_ENDPOINT = 'https://business.aliyuncs.com'
 const BSS_API_VERSION = '2017-12-14'
 
-/** 懒加载客户端：配置缺失时返回 null（避免模块加载期读 runtimeConfig 失败） */
+/** 懒加载客户端（单例缓存）：配置缺失时返回 null（避免模块加载期读 runtimeConfig 失败） */
+let cachedClient: RPCClient | null = null
 function getClient(): RPCClient | null {
+  if (cachedClient) return cachedClient
   const config = useRuntimeConfig().bss as BssConfig
   if (!config?.accessKeyId || !config?.accessKeySecret) return null
-  return new RPCClient({
+  cachedClient = new RPCClient({
     endpoint: BSS_ENDPOINT,
     apiVersion: BSS_API_VERSION,
     accessKeyId: config.accessKeyId,
     accessKeySecret: config.accessKeySecret,
   })
+  return cachedClient
 }
 
 /**
@@ -77,6 +80,82 @@ export async function queryAccountBalance(): Promise<AccountBalanceResult> {
     // pop-core 错误对象含 code / message（如 InvalidAccessKeyId / Forbidden.RAM）
     const e = err as { code?: string; message?: string }
     logger.error('[bss] 查询账户余额失败:', err)
+    return {
+      success: false,
+      error: e?.code ? `${e.code}: ${e.message ?? ''}` : String(err),
+    }
+  }
+}
+
+// ==================== 账单查询（管理后台云服务模块） ====================
+
+/** 账单查询结果 */
+export interface BillResult {
+  success: boolean
+  billingCycle?: string
+  totalCount?: number
+  items?: {
+    productCode: string
+    productName: string
+    subscriptionType: string
+    pretaxAmount: number
+    deductedByCoupons: number
+    paymentAmount: number
+  }[]
+  error?: string
+}
+
+/**
+ * 查询指定账期的账单明细。
+ * 【探索性质】QueryBill 文档不全，失败时返回 success=false + error，绝不抛异常。
+ * @param billingCycle 账期，格式 YYYY-MM（如 2026-07）
+ */
+export async function queryBill(billingCycle: string): Promise<BillResult> {
+  const client = getClient()
+  if (!client) {
+    return { success: false, error: 'BSS AccessKey 未配置' }
+  }
+  try {
+    const res = await client.request('QueryBill', {
+      BillingCycle: billingCycle,
+      PageSize: 100,
+      PageNum: 1,
+    }) as {
+      Data?: {
+        TotalCount?: number
+        Items?: {
+          Item?: {
+            ProductCode?: string
+            ProductName?: string
+            SubscriptionType?: string
+            PretaxAmount?: number
+            DeductedByCoupons?: number
+            PaymentAmount?: number
+          }[]
+        }
+      }
+    }
+    const data = res?.Data
+    if (!data) {
+      return { success: false, error: 'BSS 响应结构异常（无 Data 字段）' }
+    }
+    const rawItems = data.Items?.Item ?? []
+    return {
+      success: true,
+      billingCycle,
+      totalCount: data.TotalCount ?? rawItems.length,
+      items: rawItems.map(i => ({
+        productCode: i.ProductCode ?? '',
+        productName: i.ProductName ?? '',
+        subscriptionType: i.SubscriptionType ?? '',
+        pretaxAmount: Number(i.PretaxAmount ?? 0),
+        deductedByCoupons: Number(i.DeductedByCoupons ?? 0),
+        paymentAmount: Number(i.PaymentAmount ?? 0),
+      })),
+    }
+  } catch (err) {
+    const e = err as { code?: string; message?: string }
+    logger.error('[bss] 查询账单失败:', err)
     return {
       success: false,
       error: e?.code ? `${e.code}: ${e.message ?? ''}` : String(err),

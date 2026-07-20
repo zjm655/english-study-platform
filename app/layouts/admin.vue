@@ -24,11 +24,16 @@
           <el-icon><DataAnalysis /></el-icon>
           <span>运营统计</span>
         </el-menu-item>
-        <el-menu-item index="/admin/cloud" disabled>
-          <el-icon><Cloudy /></el-icon>
-          <span>阿里云服务</span>
-          <el-tag size="small" type="info" class="admin-menu__todo">TODO</el-tag>
-        </el-menu-item>
+        <el-sub-menu index="/admin/cloud">
+          <template #title>
+            <el-icon><Cloudy /></el-icon>
+            <span>阿里云服务</span>
+          </template>
+          <el-menu-item index="/admin/cloud/oss">OSS 对象存储</el-menu-item>
+          <el-menu-item index="/admin/cloud/nls">NLS 语音交互</el-menu-item>
+          <el-menu-item index="/admin/cloud/edu">智能科教平台</el-menu-item>
+          <el-menu-item index="/admin/cloud/bss">BSS 费用中心</el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/admin/ai" disabled>
           <el-icon><MagicStick /></el-icon>
           <span>DeepSeek</span>
