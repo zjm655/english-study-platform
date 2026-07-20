@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
   }
   const { limit = 5 } = result.data
 
-  // 联查 user_progress + segment + media（duration 取自 media 表，segment.duration 为待删除旧字段）
+  // 联查 user_progress + segment + media（duration 取自 media 表）
   const rows = await query<
     SegmentRow & { seg_media_key: string | null; seg_media_duration: string | null }
   >(

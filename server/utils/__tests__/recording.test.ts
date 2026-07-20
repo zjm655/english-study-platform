@@ -8,7 +8,6 @@ function makeRow(overrides: Partial<RecordingRow> = {}): RecordingRow {
     user_id: 1,
     segment_id: 1,
     phase: 3,
-    audioPath: null,
     media_id: null,
     score: '92.00',
     feedback: '整体表现优秀',
@@ -49,8 +48,8 @@ describe('rowToRecording wordScores 解析', () => {
     expect(rec?.wordScores).toBeNull()
   })
 
-  it('audioPathOverride 优先于 row.audioPath', () => {
-    const rec = rowToRecording(makeRow({ audioPath: 'raw-key' }), 'https://signed/url')
+  it('audioPathOverride 覆盖音频路径', () => {
+    const rec = rowToRecording(makeRow(), 'https://signed/url')
     expect(rec?.audioPath).toBe('https://signed/url')
   })
 

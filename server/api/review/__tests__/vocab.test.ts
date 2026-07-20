@@ -31,8 +31,6 @@ function makeRow(
     meaning: '影子',
     exampleSentence: 'The shadow is long.',
     exampleTranslation: '影子很长。',
-    audioUrl: null,
-    duration: null,
     media_id: null,
     sort_order: 1,
     createdAt: '2026-01-01T00:00:00.000Z',

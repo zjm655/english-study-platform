@@ -39,14 +39,9 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
   // 签名音频路径
   const results = await Promise.all(
     rows.map(async (row) => {
-      let signedPath: string | null = null
-      if (row.rec_media_key) {
-        signedPath = await signUrl(row.rec_media_key, RECORDING_EXPIRE)
-      } else if (row.audioPath) {
-        signedPath = row.audioPath.startsWith('https://')
-          ? await signUrl(row.audioPath, RECORDING_EXPIRE)
-          : row.audioPath
-      }
+      const signedPath = row.rec_media_key
+        ? await signUrl(row.rec_media_key, RECORDING_EXPIRE)
+        : null
       return rowToRecording(row, signedPath)
     })
   )

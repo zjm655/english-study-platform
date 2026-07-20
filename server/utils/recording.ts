@@ -26,7 +26,7 @@ export function rowToRecording(
     userId: row.user_id,
     segmentId: row.segment_id,
     phase: row.phase,
-    audioPath: audioPathOverride ?? row.audioPath,
+    audioPath: audioPathOverride ?? null,
     score: row.score !== null ? Number(row.score) : null,
     feedback: row.feedback,
     recognizedText: row.recognizedText,

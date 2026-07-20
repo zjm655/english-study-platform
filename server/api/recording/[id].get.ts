@@ -31,14 +31,9 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
   }
 
   // 签名音频路径
-  let signedPath: string | null = null
-  if (row.rec_media_key) {
-    signedPath = await signUrl(row.rec_media_key, RECORDING_EXPIRE)
-  } else if (row.audioPath) {
-    signedPath = row.audioPath.startsWith('https://')
-      ? await signUrl(row.audioPath, RECORDING_EXPIRE)
-      : row.audioPath
-  }
+  const signedPath = row.rec_media_key
+    ? await signUrl(row.rec_media_key, RECORDING_EXPIRE)
+    : null
 
   const recording = rowToRecording(row, signedPath)
   return validateSuccess(recording, '获取成功')

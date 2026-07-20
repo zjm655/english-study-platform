@@ -20,7 +20,6 @@ export interface UnitRow {
   id: number
   title: string
   description: string | null
-  coverUrl: string | null      // 旧字段，待删除
   cover_media_id: number | null
   level: number
   sort_order: number
@@ -31,8 +30,6 @@ export interface SegmentRow {
   id: number
   unit_id: number
   title: string
-  audioUrl: string | null      // 旧字段，待删除
-  duration: string | null      // 旧字段，待删除
   media_id: number | null
   textContent: string
   translation: string | null
@@ -93,7 +90,6 @@ export interface RecordingRow {
   user_id: number
   segment_id: number
   phase: number
-  audioPath: string | null    // 旧字段，待删除
   media_id: number | null
   score: string | null        // DECIMAL → string
   feedback: string | null
@@ -114,8 +110,6 @@ export interface VocabularyRow {
   meaning: string
   exampleSentence: string | null
   exampleTranslation: string | null
-  audioUrl: string | null      // 旧字段，待删除
-  duration: string | null      // 旧字段，待删除
   media_id: number | null
   sort_order: number
   createdAt: string
@@ -129,8 +123,6 @@ export interface WordBankRow {
   forms: string | null
   exampleSentence: string | null
   exampleTranslation: string | null
-  audioUrl: string | null      // 旧字段，待删除
-  duration: string | null      // 旧字段，待删除
   media_id: number | null
   level: number
   source: string | null

@@ -23,8 +23,6 @@ function makeRow(overrides: Partial<ReviewRow> = {}): ReviewRow {
     id: 1,
     unit_id: 1,
     title: '片段标题',
-    audioUrl: null,
-    duration: '12.50',
     media_id: null,
     textContent: '原文内容',
     translation: '中文翻译',
