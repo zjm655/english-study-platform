@@ -12,6 +12,7 @@
  * 不做自动重试（POST 重试存在重复生成/计费等副作用风险）。
  */
 import { fileLog, fileLogError } from './fileLogger'
+import { logger } from '../../shared/utils/logger'
 
 export interface ServerFetchOptions extends RequestInit {
   /** 超时毫秒数，默认 30000 */

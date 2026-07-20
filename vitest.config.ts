@@ -22,6 +22,7 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: true,
+    include: ['app/**/*.test.ts'],
   },
   resolve: {
     alias: {

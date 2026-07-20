@@ -10,6 +10,7 @@
 import RPCClient from '@alicloud/pop-core'
 import { fileLog, fileLogError } from './fileLogger'
 import { serverFetch } from './request'
+import { logger } from '../../shared/utils/logger'
 
 // ==================== 导出类型 ====================
 
