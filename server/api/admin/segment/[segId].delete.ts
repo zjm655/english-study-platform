@@ -1,5 +1,6 @@
 import { query } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
+import { logAdminOperation } from '#server/utils/adminLog'
 import { ROLE_ADMIN } from '#shared/utils/role'
 import type { ResultSetHeader } from 'mysql2'
 
@@ -29,5 +30,6 @@ export default defineEventHandler(async (event) => {
     return validateError('材料不存在或已删除', 404)
   }
 
+  await logAdminOperation(user.id, 'segment.delete', 'segment', segId)
   return validateSuccess(null, '删除成功')
 })

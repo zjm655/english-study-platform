@@ -27,12 +27,20 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
 
   // 3. 查数据库验证用户
   const rows = await query<UserRow>(
-    'SELECT id, account, nickname, email, role, passwordHash, avatarUrl, level FROM user WHERE account = ?',
+    'SELECT id, account, nickname, email, role, status, deleted_at, passwordHash, avatarUrl, level FROM user WHERE account = ?',
     [account]
   )
   const user = rows[0]
   if (!user) {
     return validateError('账号不存在', 401)
+  }
+
+  // 3b. 销号/封禁拦截（在密码校验前，避免泄露账号存在性细节）
+  if (user.deleted_at) {
+    return validateError('账号已注销', 401)
+  }
+  if (user.status === 0) {
+    return validateError('账号已被封禁，请联系管理员', 403)
   }
 
   // 4. 验证密码

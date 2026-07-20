@@ -175,6 +175,28 @@ export const adminSegmentUpdateSchema = z.object({
   isPublic: z.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1').optional(),
 })
 
+// ============== 管理员用户管理 ==============
+
+/** 管理员用户列表查询参数校验（query string 均为字符串，必须 z.coerce） */
+export const adminUserListSchema = z.object({
+  page: z.coerce.number().int().min(1, 'page 不能小于 1').optional().default(1),
+  pageSize: z.coerce.number().int().min(1, 'pageSize 不能小于 1').max(50, 'pageSize 不能大于 50').optional().default(10),
+  keyword: z.string().max(50, '搜索关键词不能超过 50 个字符').optional(),
+  state: z.enum(['all', 'normal', 'banned', 'deleted'], { message: 'state 必须为 all/normal/banned/deleted' }).optional().default('all'),
+})
+
+/** 管理员修改用户资料校验（nickname/email/level；本次不含角色变更） */
+export const adminUserUpdateSchema = z.object({
+  nickname: z.string().max(50, '昵称不能超过 50 个字符').nullish(),
+  email: z.string().email('邮箱格式不正确').max(255).nullish(),
+  level: z.number().int().min(0, 'level 不能小于 0').max(3, 'level 不能大于 3').optional(),
+})
+
+/** 管理员封禁/解封校验 */
+export const adminUserStatusSchema = z.object({
+  status: z.number().refine(v => v === 0 || v === 1, 'status 必须为 0 或 1'),
+})
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code: number = 400): ResPayload<never> {

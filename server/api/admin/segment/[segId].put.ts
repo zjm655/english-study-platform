@@ -1,6 +1,7 @@
 import { readBody } from 'h3'
 import { query, withTransaction } from '#server/utils/db'
 import { adminSegmentUpdateSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { logAdminOperation } from '#server/utils/adminLog'
 import { ROLE_ADMIN } from '#shared/utils/role'
 
 /**
@@ -103,5 +104,6 @@ export default defineEventHandler(async (event) => {
     return validateError('保存失败，请稍后重试', 500)
   }
 
+  await logAdminOperation(user.id, 'segment.update', 'segment', segId, { title })
   return validateSuccess(null, '保存成功')
 })

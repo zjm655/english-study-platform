@@ -9,6 +9,8 @@ export interface UserRow {
   nickname: string | null
   email: string | null
   role: number
+  status: number             // 0封禁 1正常
+  deleted_at: string | null  // 软删除时间(销号)
   passwordHash: string
   avatarUrl: string | null
   level: number
@@ -144,4 +146,14 @@ export interface MaterialUploadRecordRow {
   segment_id: number | null
   createdAt: string
   updatedAt: string
+}
+
+export interface AdminOperationLogRow {
+  id: number
+  admin_id: number | null    // 账号删除后为 NULL
+  action: string             // user.ban/user.unban/user.delete/user.update/segment.update/segment.delete
+  target_type: string        // user/segment
+  target_id: number
+  detail: Record<string, unknown> | string | null  // json 列
+  createdAt: string
 }

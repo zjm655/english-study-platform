@@ -16,10 +16,9 @@
           <el-menu-item index="/admin/material">材料列表</el-menu-item>
           <el-menu-item index="/admin/material/upload">材料上传</el-menu-item>
         </el-sub-menu>
-        <el-menu-item index="/admin/users" disabled>
+        <el-menu-item index="/admin/users">
           <el-icon><User /></el-icon>
           <span>用户管理</span>
-          <el-tag size="small" type="info" class="admin-menu__todo">TODO</el-tag>
         </el-menu-item>
         <el-menu-item index="/admin/cloud" disabled>
           <el-icon><Cloudy /></el-icon>
