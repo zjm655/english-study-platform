@@ -124,9 +124,11 @@ export const uploadMaterialAdminSchema = uploadMaterialSchema.extend({
 // 管理员批量上传通用参数校验
 export const adminUploadSchema = z.object({
   mode: z.enum(['single', 'batch']),
-  unitId: z.number().int().min(0, 'unitId 不能为负数'),
+  // multipart 中 unitId 为字符串，必须 z.coerce（否则 z.number() 拒字符串，接口恒 400）
+  unitId: z.coerce.number().int().min(0, 'unitId 不能为负数'),
   voice: z.enum(ALLOWED_VOICES).optional().default('en-US-AriaNeural'),
-  isPublic: z.coerce.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1').default(1),
+  // 缺失时 formData.get 返回 null；nullish 让 null/undefined 绕过 coerce，transform 兼底为 1（默认公开）
+  isPublic: z.coerce.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1').nullish().transform(v => v ?? 1),
 })
 
 // 材料上传记录更新校验

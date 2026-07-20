@@ -44,6 +44,11 @@
       <div class="settings-section">
         <div class="section-title">设置</div>
         <div class="menu-list">
+          <div v-if="isAdmin" class="menu-item" @click="goAdmin">
+            <el-icon><Platform /></el-icon>
+            <span>管理员后台</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
           <div class="menu-item" @click="handleEditProfile">
             <el-icon><Edit /></el-icon>
             <span>编辑资料</span>
@@ -82,10 +87,11 @@
 </template>
 
 <script setup lang="ts">
-import { UserFilled, Edit, TrophyBase, Bell, Moon, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
+import { UserFilled, Edit, TrophyBase, Bell, Moon, ArrowRight, InfoFilled, Platform } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
 import { useCheckinStats, useLogout } from '~/composables/user'
 import { toastConfirm } from '~/utils/popup'
+import { ROLE_ADMIN } from '#shared/utils/role'
 import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
@@ -99,6 +105,8 @@ useSeoMeta({
 const userStore = useUserStore()
 const user = computed(() => userStore.user)
 const isLogin = computed(() => userStore.isLogin)
+// 仅管理员可见后台入口（UX 层隐藏，真正防线在后端 /api/admin/* 门禁）
+const isAdmin = computed(() => user.value?.role === ROLE_ADMIN)
 
 // 打卡统计
 const { isLoading: statsLoading, execute: fetchCheckinStats } = useCheckinStats()
@@ -137,6 +145,8 @@ async function initStats() {
 }
 
 // 事件处理
+const goAdmin = () => navigateTo('/admin/material/upload')
+
 const handleEditProfile = () => {
   logger.log('编辑资料')
 }

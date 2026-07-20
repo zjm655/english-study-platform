@@ -4,10 +4,12 @@ import { processAdminMaterial, processAdminBatch } from '#server/utils/adminUplo
 import { parseTxtFile } from '#server/utils/textParser'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
+import { ROLE_ADMIN } from '#shared/utils/role'
 
 export default defineEventHandler(async (event) => {
+  // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
   const user = event.context.user
-  if (!user || user.role !== 1) {
+  if (!user || user.role !== ROLE_ADMIN) {
     return validateError('无管理员权限', 403)
   }
 
@@ -34,8 +36,12 @@ export default defineEventHandler(async (event) => {
     const title = formData.get('title') as string | null
     const audio = formData.get('audio') as File | null
 
-    if (!textContent?.trim()) {
-      return validateError('textContent 不能为空', 400)
+    const trimmedText = textContent?.trim() ?? ''
+    if (trimmedText.length < 10) {
+      return validateError('材料文本不能少于10个字符', 400)
+    }
+    if (trimmedText.length > 5000) {
+      return validateError('材料文本不能超过5000个字符', 400)
     }
 
     let audioBuffer: Buffer | undefined
@@ -46,7 +52,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const result = await processAdminMaterial({
-      userId, unitId: validUnitId, textContent: textContent.trim(),
+      userId, unitId: validUnitId, textContent: trimmedText,
       title, voice: validVoice, isPublic: validIsPublic, bucket,
       audioBuffer, audioFileName,
     })
@@ -57,6 +63,9 @@ export default defineEventHandler(async (event) => {
     const files = formData.getAll('files') as File[]
     if (!files.length) {
       return validateError('请上传至少一个 txt 文件', 400)
+    }
+    if (files.length > 20) {
+      return validateError('单次批量上传不能超过 20 个文件', 400)
     }
 
     const txtFiles: Array<{ name: string, content: string }> = []
