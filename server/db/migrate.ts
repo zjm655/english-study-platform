@@ -115,10 +115,16 @@ async function getExecutedVersions(connection: mysql.Connection): Promise<string
 }
 
 async function checkExistingTables(connection: mysql.Connection): Promise<boolean> {
-  const [rows] = await connection.execute(
-    "SHOW TABLES LIKE 'user'"
-  )
-  return Array.isArray(rows) && rows.length > 0
+  // 校验多张核心表均存在才判定「已初始化」，避免部分建库被误判跳过 001。
+  // 表名为硬编码常量，无注入风险；直接拼接以规避 SHOW 语句预编译参数兼容问题。
+  const coreTables = ['user', 'unit', 'segment']
+  for (const table of coreTables) {
+    const [rows] = await connection.execute(`SHOW TABLES LIKE '${table}'`)
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return false
+    }
+  }
+  return true
 }
 
 async function markAsExecuted(connection: mysql.Connection, version: string, filename: string) {
@@ -152,10 +158,20 @@ async function executeMigrationFile(connection: mysql.Connection, filename: stri
   const filePath = join(__dirname, 'migrations', filename)
   const content = await readFile(filePath, 'utf-8')
 
-  const statements = content
+  // 先按行剥离 `--` 单行注释与 `/* */` 块注释，再按 `;` 切分语句。
+  // 旧实现按 `;` 切分后过滤 startsWith('--') 的块，会把「注释行 + 语句」整块丢弃
+  // （如 002 种子数据 INSERT 紧跟注释行），导致语句被静默跳过、新库缺失数据。
+  // 已知限制：不处理字符串字面量内的 `;`（现有迁移文件均为中文文本，无内嵌分号）。
+  const stripped = content
+    .split('\n')
+    .filter(line => !line.trim().startsWith('--'))
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+
+  const statements = stripped
     .split(';')
     .map(s => s.trim())
-    .filter(s => s.length > 0 && !s.startsWith('--') && !s.startsWith('/*'))
+    .filter(s => s.length > 0)
 
   for (const stmt of statements) {
     await connection.execute(stmt)

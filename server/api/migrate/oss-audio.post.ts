@@ -121,3 +121,8 @@
 //     },
 //   }
 // })
+
+// @deprecated 一次性数据迁移已完成，此端点已停用，调用返回 410 Gone。
+export default defineEventHandler(() => {
+  return validateError('迁移端点已禁用', 410)
+})

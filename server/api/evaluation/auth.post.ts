@@ -97,6 +97,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
       timeout: 30000,
       tag: '[evaluation auth]',
     })
+    // serverFetch 透明返回原生 Response，非 2xx 不会抛异常，需显式检查
+    if (!resp.ok) {
+      logger.error('[evaluation auth] 阿里云 HTTP 错误:', resp.status)
+      return validateError(`评测服务异常（${resp.status}）`, 502)
+    }
     const respData = await resp.json() as {
       code: number
       message: string

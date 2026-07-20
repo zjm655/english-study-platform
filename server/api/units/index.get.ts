@@ -81,7 +81,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
         description: unit.description,
         level: unit.level,
         sortOrder: unit.sort_order,
-        audioUrl: await signFromMedia(unit.unit_media_key, null, MATERIAL_EXPIRE),
+        audioUrl: await signFromMedia(unit.unit_media_key, MATERIAL_EXPIRE),
         progress,
       }
     })
@@ -90,14 +90,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
   return validateSuccess(result, '获取成功')
 })
 
-/** 生成签名 URL：优先使用 media 表的 object_key */
+/** 生成签名 URL：使用 media 表的 object_key */
 async function signFromMedia(
   objectKey: string | null,
-  fallbackUrl: string | null,
   expires: number = MATERIAL_EXPIRE
 ): Promise<string | null> {
   if (objectKey) return signUrl(objectKey, expires)
-  if (!fallbackUrl) return null
-  if (!fallbackUrl.startsWith('https://')) return fallbackUrl
-  return signUrl(fallbackUrl, expires)
+  return null
 }

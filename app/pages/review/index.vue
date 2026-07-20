@@ -50,13 +50,18 @@ const {
 async function loadVocab() {
   vocabLoading.value = true
   vocabError.value = null
-  const res = await getReviewVocab(10)
-  vocabLoading.value = false
-  vocabLoaded.value = true
-  if (res?.code === 200 && res.data) {
-    vocabList.value = res.data
-  } else {
-    vocabError.value = res?.message || '加载失败'
+  try {
+    const res = await getReviewVocab(10)
+    if (res?.code === 200 && res.data) {
+      vocabList.value = res.data
+    } else {
+      vocabError.value = res?.message || '加载失败'
+    }
+  } catch {
+    vocabError.value = '网络异常，请重试'
+  } finally {
+    vocabLoading.value = false
+    vocabLoaded.value = true
   }
 }
 
@@ -81,13 +86,19 @@ async function loadMaterial() {
   if (materialLoaded.value) return
   materialLoading.value = true
   materialError.value = null
-  const res = await getReviewMaterial(5)
-  materialLoading.value = false
-  materialLoaded.value = true
-  if (res?.code === 200 && res.data) {
-    materialList.value = res.data
-  } else {
-    materialError.value = res?.message || '加载失败'
+  try {
+    const res = await getReviewMaterial(5)
+    if (res?.code === 200 && res.data) {
+      materialList.value = res.data
+      // 仅加载成功才置位，失败时保持 false 使「重试」按钮可用
+      materialLoaded.value = true
+    } else {
+      materialError.value = res?.message || '加载失败'
+    }
+  } catch {
+    materialError.value = '网络异常，请重试'
+  } finally {
+    materialLoading.value = false
   }
 }
 
@@ -363,6 +374,9 @@ onMounted(() => {
           <!-- 题目为空 -->
           <div v-if="currentMaterialQuestions.length === 0" class="empty-questions">
             <p>暂无理解题</p>
+            <button class="next-btn next-btn--primary" @click="nextMaterial">
+              下一段
+            </button>
           </div>
 
           <!-- 答题区域 -->

@@ -1,5 +1,5 @@
 /**
- * 服务端 HTTP 请求透明封装（渐进式替换原生 fetch）
+ * 服务端 HTTP 请求透明封装（所有服务端第三方 HTTP 调用的统一入口）
  *
  * 设计要点：
  * - 透明返回原生 Response：调用方的 resp.ok / resp.json() 逻辑零改动，回归风险最低
@@ -7,7 +7,8 @@
  * - 自动记录请求/响应耗时（控制台简要 + 文件日志详细，source='api'）
  * - 异常（网络错误/超时）记录后原样抛出，交由调用方既有 try/catch 处理
  *
- * 约定：新增第三方 HTTP 调用必须使用 serverFetch，存量代码渐进迁移。
+ * 约定：所有服务端第三方 HTTP 调用均已使用 serverFetch。
+ * 例外：tts.ts（WebSocket 协议）、@alicloud/pop-core SDK（内含 HMAC-SHA1 签名）因协议/签名限制无法替换。
  * 不做自动重试（POST 重试存在重复生成/计费等副作用风险）。
  */
 import { fileLog, fileLogError } from './fileLogger'

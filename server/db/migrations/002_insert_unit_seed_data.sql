@@ -3,11 +3,11 @@
 -- ----------------------------
 
 -- 用户自定义材料单元（id=0 为保留记录，用于用户上传的材料）
-INSERT INTO `unit` (`id`, `title`, `description`, `level`, `sort_order`) VALUES
+INSERT IGNORE INTO `unit` (`id`, `title`, `description`, `level`, `sort_order`) VALUES
 (0, '用户自定义材料', '此单元中的材料由用户上传。您可以在此查看自己上传的材料，以及他人上传并选择公开的材料。', 0, 0);
 
 -- 系统预设学习单元
-INSERT INTO `unit` (`id`, `title`, `description`, `level`, `sort_order`) VALUES
+INSERT IGNORE INTO `unit` (`id`, `title`, `description`, `level`, `sort_order`) VALUES
 (1, '小学英语基础', '人教版小学3-6年级词汇与日常对话，包含问候、家庭、学校、动物、颜色等基础主题。适合英语启蒙阶段的学习者。', 1, 1),
 (2, '初中英语进阶', '人教版初中七至九年级词汇与情景对话，涵盖日常生活、物品描述、时间表达、运动健康等主题。', 2, 2),
 (3, '高中英语提高', '高考英语3500核心词汇与短文，涉及能力发展、留学生活、健康安全、决策建议等进阶话题。', 3, 3),

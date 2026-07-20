@@ -19,7 +19,8 @@ const questions = computed<Question[]>(() => {
   if (!raw) return []
   if (Array.isArray(raw)) return raw
   try {
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }

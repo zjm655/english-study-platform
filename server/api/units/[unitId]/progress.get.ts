@@ -3,16 +3,13 @@ import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
 import type { UnitRow, UserProgressRow } from '#server/types/db'
 import type { UnitProgressDetail } from '#shared/types/unit'
 
-/** 生成签名 URL：优先使用 media 表的 object_key，降级到旧字段 */
+/** 生成签名 URL：使用 media 表的 object_key */
 async function signFromMedia(
   objectKey: string | null,
-  fallbackUrl: string | null,
   expires: number = MATERIAL_EXPIRE
 ): Promise<string | null> {
   if (objectKey) return signUrl(objectKey, expires)
-  if (!fallbackUrl) return null
-  if (!fallbackUrl.startsWith('https://')) return fallbackUrl
-  return signUrl(fallbackUrl, expires)
+  return null
 }
 
 /**
@@ -86,7 +83,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
     segments.map(async (s) => ({
       id: s.id,
       title: s.title,
-      audioUrl: await signFromMedia(s.seg_media_key, null, MATERIAL_EXPIRE),
+      audioUrl: await signFromMedia(s.seg_media_key, MATERIAL_EXPIRE),
       sortOrder: s.sortOrder,
       isMine: s.isMine === 1,
       progress: (() => {
@@ -122,7 +119,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
       description: unit.description,
       level: unit.level,
       sortOrder: unit.sort_order,
-      audioUrl: await signFromMedia(unit.unit_media_key, null, MATERIAL_EXPIRE),
+      audioUrl: await signFromMedia(unit.unit_media_key, MATERIAL_EXPIRE),
     },
     segments: segmentsWithProgress,
     pagination: { page, pageSize, total, hasMore: offset + pageSize < total },
