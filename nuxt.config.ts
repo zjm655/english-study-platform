@@ -46,6 +46,10 @@ export default defineNuxtConfig({
       accessKeyId:"",
       accessKeySecret:"",
       authUrl: "https://api.cloud.ssapi.cn/auth/authorize"
+    },
+    bss: {
+      accessKeyId:"",
+      accessKeySecret:""      
     }
 
   },
