@@ -38,11 +38,18 @@ export function useVocabCardState(getList: () => ReviewVocabItem[]) {
     markKnown()
   }
 
+  /** ← 箭头：上一个 */
+  function prev() {
+    if (currentIndex.value <= 0) return
+    currentIndex.value--
+    isFlipped.value = false
+  }
+
   /** 再来一轮 */
   function reset() {
     currentIndex.value = 0
     isFlipped.value = false
   }
 
-  return { currentIndex, isFlipped, isCompleted, currentWord, toggleFlip, markKnown, markUnknown, next, reset }
+  return { currentIndex, isFlipped, isCompleted, currentWord, toggleFlip, markKnown, markUnknown, next, prev, reset }
 }

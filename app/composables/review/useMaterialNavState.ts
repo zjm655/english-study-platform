@@ -18,9 +18,14 @@ export function useMaterialNavState(getList: () => ReviewMaterialItem[]) {
     currentIndex.value++
   }
 
+  function prev() {
+    if (currentIndex.value <= 0) return
+    currentIndex.value--
+  }
+
   function reset() {
     currentIndex.value = 0
   }
 
-  return { currentIndex, isCompleted, current, next, reset }
+  return { currentIndex, isCompleted, current, next, prev, reset }
 }

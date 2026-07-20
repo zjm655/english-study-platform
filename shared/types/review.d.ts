@@ -1,3 +1,5 @@
+import type { Question } from './unit'
+
 /** 单词复习 - 词汇项 */
 export interface ReviewVocabItem {
   /** 词汇ID */
@@ -28,8 +30,8 @@ export interface ReviewMaterialItem {
   title: string
   /** 材料音频签名 URL */
   audioUrl: string | null
-  /** 理解题（JSON 字符串或已解析数组，前端自行解析） */
-  questions: string | null
+  /** 理解题（mysql2 自动解析 JSON 为数组） */
+  questions: Question[] | null
   /** 时长（秒） */
   duration: number | null
 }

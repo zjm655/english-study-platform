@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
+import { useAudioStore } from '~/store/useAudioStore'
 import { useVocabCardState } from '~/composables/review/useVocabCardState'
 import { useMaterialNavState } from '~/composables/review/useMaterialNavState'
 import { useStudyTimer } from '~/composables/user/useStudyTimer'
@@ -11,10 +12,17 @@ definePageMeta({
   title: '复习',
 })
 
-const { load, play, stop } = useAudioPlayer()
+const { load, play, pause, togglePlay, seek, stop } = useAudioPlayer()
+const audioStore = useAudioStore()
 
 // 自动上报学习时长
 useStudyTimer()
+
+function formatTime(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
 
 // 顶部子 tab
 const activeTab = ref<'vocab' | 'material'>('vocab')
@@ -34,6 +42,7 @@ const {
   markKnown,
   markUnknown,
   next: nextVocab,
+  prev: prevVocab,
   reset: restartVocab,
 } = useVocabCardState(() => vocabList.value)
 
@@ -61,8 +70,11 @@ const materialList = ref<ReviewMaterialItem[]>([])
 const materialLoading = ref(false)
 const materialError = ref<string | null>(null)
 const materialLoaded = ref(false)
-const selectedOption = ref<string | null>(null)
+
+const questionIndex = ref(0)
+const userAnswers = ref<string[]>([])
 const showMaterialResult = ref(false)
+const isCorrect = ref(false)
 
 async function loadMaterial() {
   if (materialLoaded.value) return
@@ -83,9 +95,9 @@ function switchToMaterial() {
   loadMaterial()
 }
 
-// questions 是 JSON 字符串，try-catch 降级为空数组
-function parseQuestions(raw: string | null): Question[] {
+function parseQuestions(raw: Question[] | string | null | undefined): Question[] {
   if (!raw) return []
+  if (Array.isArray(raw)) return raw
   try {
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed : []
@@ -94,44 +106,91 @@ function parseQuestions(raw: string | null): Question[] {
   }
 }
 
-// 材料导航状态机：currentIndex/isCompleted/current + next/reset
 const {
   currentIndex: materialCurrentIndex,
   isCompleted: materialCompleted,
   current: currentMaterial,
   next: nextMaterialNav,
+  prev: prevMaterialNav,
   reset: resetMaterialNav,
 } = useMaterialNavState(() => materialList.value)
 
-const currentFirstQuestion = computed<Question | null>(() => {
-  if (!currentMaterial.value) return null
-  const qs = parseQuestions(currentMaterial.value.questions)
-  return qs[0] || null
+const currentMaterialQuestions = computed<Question[]>(() => {
+  if (!currentMaterial.value) return []
+  return parseQuestions(currentMaterial.value.questions)
 })
+
+const currentQuestion = computed<Question | null>(() => {
+  const qs = currentMaterialQuestions.value
+  return qs[questionIndex.value] || null
+})
+
+const totalQuestions = computed(() => currentMaterialQuestions.value.length)
+const isLastQuestion = computed(() => questionIndex.value === totalQuestions.value - 1)
 
 async function playMaterialAudio(url: string | null) {
   if (!url) return
-  await load(url)
-  play()
+  if (audioStore.currentSrc !== url) {
+    await load(url)
+  }
+  togglePlay()
 }
 
-function selectOption(option: string) {
+function selectAnswer(option: string) {
   if (showMaterialResult.value) return
-  selectedOption.value = option
+  userAnswers.value[questionIndex.value] = option
+}
+
+function submitAnswer() {
+  const answer = userAnswers.value[questionIndex.value]
+  if (!answer) return
+  isCorrect.value = answer === currentQuestion.value?.answer
   showMaterialResult.value = true
 }
 
+function nextQuestion() {
+  if (!isCorrect.value) {
+    showMaterialResult.value = false
+    userAnswers.value[questionIndex.value] = ''
+    return
+  }
+  if (isLastQuestion.value) {
+    nextMaterial()
+  } else {
+    questionIndex.value++
+    showMaterialResult.value = false
+  }
+}
+
+function prevQuestion() {
+  if (questionIndex.value > 0) {
+    questionIndex.value--
+    showMaterialResult.value = false
+  } else {
+    prevMaterial()
+  }
+}
+
 function nextMaterial() {
-  // 切换材料时停止当前音频
   stop()
-  selectedOption.value = null
+  questionIndex.value = 0
+  userAnswers.value = []
   showMaterialResult.value = false
   nextMaterialNav()
 }
 
+function prevMaterial() {
+  stop()
+  questionIndex.value = 0
+  userAnswers.value = []
+  showMaterialResult.value = false
+  prevMaterialNav()
+}
+
 function restartMaterial() {
   resetMaterialNav()
-  selectedOption.value = null
+  questionIndex.value = 0
+  userAnswers.value = []
   showMaterialResult.value = false
 }
 
@@ -226,6 +285,13 @@ onMounted(() => {
 
         <!-- 底部操作区 -->
         <div class="vocab-actions">
+          <button
+            class="action-btn action-btn--nav"
+            :disabled="vocabCurrentIndex === 0"
+            @click="prevVocab"
+          >
+            ←
+          </button>
           <button class="action-btn action-btn--success" @click="markKnown">认识</button>
           <button class="action-btn action-btn--warning" @click="markUnknown">不认识</button>
           <button class="action-btn action-btn--primary" @click="nextVocab">→</button>
@@ -260,50 +326,113 @@ onMounted(() => {
 
       <!-- 材料内容 -->
       <div v-else-if="currentMaterial" class="material-content">
-        <div class="progress">{{ materialCurrentIndex + 1 }} / {{ materialList.length }}</div>
-
-        <div class="material-card">
-          <div class="material-title">{{ currentMaterial.title }}</div>
-
-          <button
-            v-if="currentMaterial.audioUrl"
-            class="material-play-btn"
-            @click="playMaterialAudio(currentMaterial.audioUrl)"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor">
+        <!-- 播放器 -->
+        <div v-if="currentMaterial.audioUrl" class="audio-player">
+          <button class="play-btn" @click="playMaterialAudio(currentMaterial.audioUrl)">
+            <svg v-if="!audioStore.isPlaying" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5v14l11-7z" />
             </svg>
-            播放音频
+            <svg v-else viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+            </svg>
           </button>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              :style="{ width: `${audioStore.duration > 0 ? (audioStore.currentTime / audioStore.duration) * 100 : 0}%` }"
+              @click="(e: MouseEvent) => {
+                const rect = (e.target as HTMLElement).getBoundingClientRect()
+                const percent = (e.clientX - rect.left) / rect.width
+                seek(percent * audioStore.duration)
+              }"
+            ></div>
+          </div>
+          <span class="time-text">
+            {{ formatTime(audioStore.currentTime) }} / {{ formatTime(audioStore.duration || currentMaterial.duration || 0) }}
+          </span>
+        </div>
 
-          <!-- 第一题 -->
-          <div v-if="currentFirstQuestion" class="material-question">
-            <div class="question-text">{{ currentFirstQuestion.question }}</div>
-            <div class="options">
-              <button
-                v-for="option in currentFirstQuestion.options"
-                :key="option"
-                class="option-btn"
-                :class="{
-                  'option-btn--correct': showMaterialResult && option === currentFirstQuestion.answer,
-                  'option-btn--wrong': showMaterialResult && selectedOption === option && option !== currentFirstQuestion.answer,
-                }"
-                :disabled="showMaterialResult"
-                @click="selectOption(option)"
-              >
-                {{ option }}
-              </button>
-            </div>
+        <!-- 题目卡片 -->
+        <div class="material-card">
+          <!-- 标题 -->
+          <div class="material-header">
+            <h3 class="material-title">{{ currentMaterial.title }}</h3>
           </div>
 
-          <!-- 下一段：无题目时立即显示，有题目时答完显示 -->
-          <button
-            v-if="!currentFirstQuestion || showMaterialResult"
-            class="next-material-btn"
-            @click="nextMaterial"
-          >
-            下一段
-          </button>
+          <!-- 题目为空 -->
+          <div v-if="currentMaterialQuestions.length === 0" class="empty-questions">
+            <p>暂无理解题</p>
+          </div>
+
+          <!-- 答题区域 -->
+          <div v-else class="quiz-area">
+            <!-- 进度指示 -->
+            <div class="quiz-progress">
+              <span>题目 {{ questionIndex + 1 }} / {{ totalQuestions }}</span>
+            </div>
+
+            <!-- 题目 -->
+            <div v-if="currentQuestion" class="question-card">
+              <div class="question-text">{{ currentQuestion.question }}</div>
+
+              <!-- 选项 -->
+              <div class="options">
+                <button
+                  v-for="option in currentQuestion.options"
+                  :key="option"
+                  class="option-btn"
+                  :class="{
+                    'option-btn--selected': userAnswers[questionIndex] === option,
+                    'option-btn--correct': showMaterialResult && option === currentQuestion.answer,
+                    'option-btn--wrong': showMaterialResult && userAnswers[questionIndex] === option && !isCorrect,
+                  }"
+                  :disabled="showMaterialResult"
+                  @click="selectAnswer(option)"
+                >
+                  {{ option }}
+                </button>
+              </div>
+
+              <!-- 结果反馈 -->
+              <div v-if="showMaterialResult" class="result-feedback">
+                <div v-if="isCorrect" class="result-correct">
+                  <span class="result-icon">✓</span>
+                  <span>回答正确！</span>
+                </div>
+                <div v-else class="result-wrong">
+                  <span class="result-icon">✗</span>
+                  <span>回答错误，请重试</span>
+                </div>
+              </div>
+
+              <!-- 操作按钮 -->
+              <div class="quiz-actions">
+                <button
+                  class="nav-btn"
+                  :disabled="materialCurrentIndex === 0 && questionIndex === 0"
+                  @click="prevQuestion"
+                >
+                  ←
+                </button>
+                <button
+                  v-if="!showMaterialResult"
+                  class="submit-btn"
+                  :disabled="!userAnswers[questionIndex]"
+                  @click="submitAnswer"
+                >
+                  提交答案
+                </button>
+                <button
+                  v-else
+                  class="next-btn"
+                  :class="{ 'next-btn--primary': isCorrect }"
+                  @click="nextQuestion"
+                >
+                  {{ isCorrect ? (isLastQuestion ? '下一段' : '下一题') : '重试' }}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -574,6 +703,15 @@ onMounted(() => {
   background: var(--primary);
 }
 
+.action-btn--nav {
+  background: var(--text-3);
+}
+
+.action-btn--nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* ===== 材料复习 ===== */
 .material-content {
   display: flex;
@@ -597,29 +735,58 @@ onMounted(() => {
   color: var(--text-1);
 }
 
-.material-play-btn {
-  display: inline-flex;
+.audio-player {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  background: var(--primary-light);
-  border: 1px solid var(--border-ll);
-  border-radius: var(--r);
-  color: var(--primary);
-  font-size: 14px;
-  cursor: pointer;
-  align-self: flex-start;
-  transition: all 0.2s;
+  gap: 12px;
+  padding: 10px 0;
 }
 
-.material-play-btn:active {
+.play-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--primary);
+  border: none;
+  border-radius: 50%;
   color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
 }
 
-.material-play-btn svg {
+.play-btn:active {
+  opacity: 0.85;
+}
+
+.play-btn svg {
   width: 16px;
   height: 16px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 4px;
+  background: var(--border-ll);
+  border-radius: 2px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.1s linear;
+}
+
+.time-text {
+  font-size: 12px;
+  color: var(--text-3);
+  min-width: 80px;
+  text-align: right;
 }
 
 .material-question {
@@ -674,8 +841,55 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-.next-material-btn {
+.empty-questions {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-3);
+}
+
+.quiz-progress {
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.question-card {
+  background: var(--bg);
+  border-radius: var(--r);
+  padding: 20px;
+}
+
+.result-feedback {
+  margin-bottom: 16px;
   padding: 12px;
+  border-radius: var(--r);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.result-correct {
+  background: rgba(103, 194, 58, 0.1);
+  color: var(--success);
+}
+
+.result-wrong {
+  background: rgba(245, 108, 108, 0.1);
+  color: var(--danger);
+}
+
+.result-icon {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.quiz-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.nav-btn {
+  padding: 12px 16px;
   background: var(--primary);
   border: none;
   border-radius: var(--r);
@@ -683,9 +897,49 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
+  transition: opacity 0.2s;
 }
 
-.next-material-btn:active {
+.nav-btn:active:not(:disabled) {
+  opacity: 0.85;
+}
+
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.submit-btn,
+.next-btn {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--border-ll);
+  border-radius: var(--r);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.submit-btn:disabled,
+.next-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.submit-btn:not(:disabled):active,
+.next-btn:not(:disabled):active {
+  background: var(--bg);
+}
+
+.next-btn--primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.next-btn--primary:not(:disabled):active {
   opacity: 0.9;
 }
 </style>
