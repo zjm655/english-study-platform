@@ -55,7 +55,7 @@ onMounted(() => {
 
   scrollObserver = new IntersectionObserver((entries) => {
     const entry = entries[0]
-    if (entry.isIntersecting && hasMore.value && !isLoadingMore.value) {
+    if (entry?.isIntersecting && hasMore.value && !isLoadingMore.value) {
       loadMoreSegments()
     }
   }, { rootMargin: '0px 0px 100px 0px' })

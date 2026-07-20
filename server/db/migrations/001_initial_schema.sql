@@ -279,4 +279,17 @@ CREATE TABLE `word_bank`  (
   UNIQUE INDEX `uk_word_level`(`word` ASC, `level` ASC) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 191 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
+-- ----------------------------
+-- Table structure for migrations
+-- ----------------------------
+DROP TABLE IF EXISTS `migrations`;
+CREATE TABLE `migrations` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `version` varchar(50) NOT NULL COMMENT '迁移版本号（如 001）',
+  `filename` varchar(255) NOT NULL COMMENT '迁移文件名',
+  `executed_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uk_version` (`version`)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '数据库迁移版本记录表';
+
 SET FOREIGN_KEY_CHECKS = 1;

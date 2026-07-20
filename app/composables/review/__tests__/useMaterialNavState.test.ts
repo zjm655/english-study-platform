@@ -8,7 +8,7 @@ const mockList: ReviewMaterialItem[] = [
     id: 1,
     title: '材料一',
     audioUrl: 'https://example.com/a.ogg',
-    questions: JSON.stringify([{ question: 'Q1', options: ['A', 'B'], answer: 'A' }]),
+    questions: [{ question: 'Q1', options: ['A', 'B'], answer: 'A' }],
     duration: 30,
   },
   {

@@ -66,8 +66,8 @@ describe('rowsToReviewVocab', () => {
       'https://signed.url/1.mp3',
       'https://signed.url/2.mp3',
     ])
-    expect(result[0].audioUrl).toBe('https://signed.url/1.mp3')
-    expect(result[1].audioUrl).toBe('https://signed.url/2.mp3')
+    expect(result[0]!.audioUrl).toBe('https://signed.url/1.mp3')
+    expect(result[1]!.audioUrl).toBe('https://signed.url/2.mp3')
   })
 
   it('phonetic/forms/exampleSentence/exampleTranslation 为 null 时保留 null', () => {
@@ -81,11 +81,11 @@ describe('rowsToReviewVocab', () => {
       }),
     ]
     const result = rowsToReviewVocab(rows, [null])
-    expect(result[0].phonetic).toBeNull()
-    expect(result[0].forms).toBeNull()
-    expect(result[0].exampleSentence).toBeNull()
-    expect(result[0].exampleTranslation).toBeNull()
-    expect(result[0].audioUrl).toBeNull()
+    expect(result[0]!.phonetic).toBeNull()
+    expect(result[0]!.forms).toBeNull()
+    expect(result[0]!.exampleSentence).toBeNull()
+    expect(result[0]!.exampleTranslation).toBeNull()
+    expect(result[0]!.audioUrl).toBeNull()
   })
 
   it('空数组输入返回空数组', () => {

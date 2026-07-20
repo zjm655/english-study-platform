@@ -41,10 +41,10 @@ describe('rowsToReviewMaterial 数据转换', () => {
     const rows = [makeRow()]
     const result = rowsToReviewMaterial(rows, ['https://signed/1.mp3'])
     expect(result).toHaveLength(1)
-    expect(result[0].id).toBe(1)
-    expect(result[0].title).toBe('片段标题')
-    expect(result[0].questions).toEqual([{ question: 'What is the warning about?', options: ['A', 'B', 'C', 'D'], answer: 'B' }])
-    expect(result[0].duration).toBe(12.5)
+    expect(result[0]!.id).toBe(1)
+    expect(result[0]!.title).toBe('片段标题')
+    expect(result[0]!.questions).toEqual([{ question: 'What is the warning about?', options: ['A', 'B', 'C', 'D'], answer: 'B' }])
+    expect(result[0]!.duration).toBe(12.5)
   })
 
   it('audioUrl 使用传入的签名 URL（按索引对应）', () => {
@@ -53,20 +53,20 @@ describe('rowsToReviewMaterial 数据转换', () => {
       makeRow({ id: 2, seg_media_key: 'k2' }),
     ]
     const result = rowsToReviewMaterial(rows, ['https://signed/1.mp3', 'https://signed/2.mp3'])
-    expect(result[0].audioUrl).toBe('https://signed/1.mp3')
-    expect(result[1].audioUrl).toBe('https://signed/2.mp3')
+    expect(result[0]!.audioUrl).toBe('https://signed/1.mp3')
+    expect(result[1]!.audioUrl).toBe('https://signed/2.mp3')
   })
 
   it('questions 为 null 时保留 null', () => {
     const rows = [makeRow({ questions: null })]
     const result = rowsToReviewMaterial(rows, ['https://signed/1.mp3'])
-    expect(result[0].questions).toBeNull()
+    expect(result[0]!.questions).toBeNull()
   })
 
   it('seg_media_duration 为 null 时返回 null（duration 仅取自 media 表）', () => {
     const rows = [makeRow({ seg_media_duration: null })]
     const result = rowsToReviewMaterial(rows, ['https://signed/1.mp3'])
-    expect(result[0].duration).toBeNull()
+    expect(result[0]!.duration).toBeNull()
   })
 
   it('空数组输入返回空数组', () => {

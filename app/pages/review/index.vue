@@ -38,6 +38,7 @@ const {
   currentIndex: vocabCurrentIndex,
   isFlipped,
   isCompleted: vocabCompleted,
+  currentWord,
   toggleFlip,
   markKnown,
   markUnknown,
@@ -245,20 +246,20 @@ onMounted(() => {
       </div>
 
       <!-- 卡片内容 -->
-      <div v-else-if="vocabList.length" class="vocab-content">
+      <div v-else-if="currentWord" class="vocab-content">
         <div class="progress">{{ vocabCurrentIndex + 1 }} / {{ vocabList.length }}</div>
 
         <div class="flip-card" @click="toggleFlip">
           <!-- 正面 -->
           <div v-if="!isFlipped" class="card-face card-front">
-            <div class="vocab-word">{{ vocabList[vocabCurrentIndex].word }}</div>
-            <div v-if="vocabList[vocabCurrentIndex].phonetic" class="vocab-phonetic">
-              {{ vocabList[vocabCurrentIndex].phonetic }}
+            <div class="vocab-word">{{ currentWord.word }}</div>
+            <div v-if="currentWord.phonetic" class="vocab-phonetic">
+              {{ currentWord.phonetic }}
             </div>
             <button
-              v-if="vocabList[vocabCurrentIndex].audioUrl"
+              v-if="currentWord.audioUrl"
               class="audio-btn"
-              @click.stop="playVocabAudio(vocabList[vocabCurrentIndex].audioUrl)"
+              @click.stop="playVocabAudio(currentWord.audioUrl)"
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
@@ -268,17 +269,17 @@ onMounted(() => {
 
           <!-- 背面 -->
           <div v-else class="card-face card-back">
-            <div class="vocab-word">{{ vocabList[vocabCurrentIndex].word }}</div>
-            <div class="vocab-meaning">{{ vocabList[vocabCurrentIndex].meaning }}</div>
-            <div v-if="vocabList[vocabCurrentIndex].forms" class="vocab-forms">
+            <div class="vocab-word">{{ currentWord.word }}</div>
+            <div class="vocab-meaning">{{ currentWord.meaning }}</div>
+            <div v-if="currentWord.forms" class="vocab-forms">
               <span class="vocab-label">变形：</span>
-              <span>{{ vocabList[vocabCurrentIndex].forms }}</span>
+              <span>{{ currentWord.forms }}</span>
             </div>
-            <div v-if="vocabList[vocabCurrentIndex].exampleSentence" class="vocab-example">
-              {{ vocabList[vocabCurrentIndex].exampleSentence }}
+            <div v-if="currentWord.exampleSentence" class="vocab-example">
+              {{ currentWord.exampleSentence }}
             </div>
-            <div v-if="vocabList[vocabCurrentIndex].exampleTranslation" class="vocab-example-trans">
-              {{ vocabList[vocabCurrentIndex].exampleTranslation }}
+            <div v-if="currentWord.exampleTranslation" class="vocab-example-trans">
+              {{ currentWord.exampleTranslation }}
             </div>
           </div>
         </div>
