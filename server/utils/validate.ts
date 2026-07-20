@@ -197,6 +197,11 @@ export const adminUserStatusSchema = z.object({
   status: z.number().refine(v => v === 0 || v === 1, 'status 必须为 0 或 1'),
 })
 
+/** 运营统计查询参数校验（days: 时间范围天数，默认 7，最大 90） */
+export const adminStatsQuerySchema = z.object({
+  days: z.coerce.number().int().min(1, 'days 不能小于 1').max(90, 'days 不能大于 90').optional().default(7),
+})
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code: number = 400): ResPayload<never> {

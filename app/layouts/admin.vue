@@ -20,6 +20,10 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
+        <el-menu-item index="/admin/stats">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>运营统计</span>
+        </el-menu-item>
         <el-menu-item index="/admin/cloud" disabled>
           <el-icon><Cloudy /></el-icon>
           <span>阿里云服务</span>
@@ -47,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { User, Cloudy, MagicStick, Back, Document } from '@element-plus/icons-vue'
+import { User, Cloudy, MagicStick, Back, Document, DataAnalysis } from '@element-plus/icons-vue'
 
 const route = useRoute()
 
