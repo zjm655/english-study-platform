@@ -50,12 +50,11 @@ button, a, [role="button"], input, textarea, select {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 移动端 430px 限宽已下沉到 default 布局的 .app-wrapper（admin 布局为 PC 全宽，不受约束） */
 body {
   font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   background: var(--bg);
   color: var(--text-1);
-  max-width: 430px;
-  margin: 0 auto;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;

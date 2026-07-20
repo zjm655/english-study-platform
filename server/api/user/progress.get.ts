@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const rows = await query<ProgressDetailRow>(
     `SELECT up.*, s.title as segmentTitle, s.unit_id, u.title as unitTitle
      FROM user_progress up
-     JOIN segment s ON up.segment_id = s.id
+     JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
      JOIN unit u ON s.unit_id = u.id
      WHERE up.user_id = ? AND up.deleted_at IS NULL
      ORDER BY u.level, u.sort_order, s.sort_order`,
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
     }
   }, { phase1: 0, phase2: 0, phase3: 0, phase4: 0 })
 
-  const allSegmentsRows = await query<CountRow>('SELECT COUNT(*) as total FROM segment')
+  const allSegmentsRows = await query<CountRow>('SELECT COUNT(*) as total FROM segment WHERE deleted_at IS NULL')
   const totalSegmentsAll = allSegmentsRows[0]?.total ?? 0
 
   // 完全完成的片段数（四阶段都完成）

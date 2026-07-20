@@ -38,11 +38,12 @@ export default defineEventHandler(async (event) => {
   }
   const { limit = 10 } = result.data
 
-  // 查询用户最近学过的 segment_id
+  // 查询用户最近学过的 segment_id（JOIN segment 过滤已软删除的材料，避免其单词进入复习）
   const progressRows = await query<Pick<UserProgressRow, 'segment_id'>>(
-    `SELECT segment_id FROM user_progress
-     WHERE user_id = ? AND phase2_done = 1 AND deleted_at IS NULL
-     ORDER BY updatedAt DESC LIMIT ?`,
+    `SELECT up.segment_id FROM user_progress up
+     JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
+     WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
+     ORDER BY up.updatedAt DESC LIMIT ?`,
     [userId, limit]
   )
 

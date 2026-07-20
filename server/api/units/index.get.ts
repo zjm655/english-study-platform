@@ -36,14 +36,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
     ? await query<{ segment_id: number; unit_id: number }>(
         `SELECT DISTINCT up.segment_id, s.unit_id
          FROM user_progress up
-         JOIN segment s ON up.segment_id = s.id
+         JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
          WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ?)`,
         [userId, level]
       )
     : await query<{ segment_id: number; unit_id: number }>(
         `SELECT DISTINCT up.segment_id, s.unit_id
          FROM user_progress up
-         JOIN segment s ON up.segment_id = s.id
+         JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
          WHERE up.user_id = ?`,
         [userId]
       )
@@ -56,11 +56,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
   // 3. 查每个单元的总片段数
   const segmentCounts = validLevel
     ? await query<{ unit_id: number; count: number }>(
-        `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ?) GROUP BY unit_id`,
+        `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ?) AND deleted_at IS NULL GROUP BY unit_id`,
         [level]
       )
     : await query<{ unit_id: number; count: number }>(
-        `SELECT unit_id, COUNT(*) as count FROM segment GROUP BY unit_id`
+        `SELECT unit_id, COUNT(*) as count FROM segment WHERE deleted_at IS NULL GROUP BY unit_id`
       )
   const countMap = new Map(segmentCounts.map((r) => [r.unit_id, r.count]))
 

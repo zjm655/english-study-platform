@@ -81,10 +81,13 @@ function goBack() {
 
 <style>
 /* ===== Layout ===== */
+/* 移动端 430px 限宽从 body 下沉至此：仅约束 default 布局（学习/复习/首页/我的），admin 布局不受影响 */
 .app-wrapper {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  max-width: 430px;
+  margin: 0 auto;
 }
 
 /* ===== Header ===== */

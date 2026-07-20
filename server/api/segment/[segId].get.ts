@@ -31,7 +31,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     `SELECT s.*, m.object_key AS seg_media_key, m.duration AS seg_media_duration
      FROM segment s
      LEFT JOIN media m ON s.media_id = m.id
-     WHERE s.id = ?`,
+     WHERE s.id = ? AND s.deleted_at IS NULL`,
     [segId]
   )
   const segment = segments[0]

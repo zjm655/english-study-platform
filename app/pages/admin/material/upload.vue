@@ -223,8 +223,9 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* PC 后台页面：铺满 admin 布局内容区，不限宽（移动端才需 max-width 约束） */
 .upload-page {
-  max-width: 960px;
+  width: 100%;
 }
 
 .page-header {

@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
     `SELECT s.id, s.title, s.questions,
             m.object_key AS seg_media_key, m.duration AS seg_media_duration
      FROM user_progress up
-     JOIN segment s ON up.segment_id = s.id
+     JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
      LEFT JOIN media m ON s.media_id = m.id
      WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
      ORDER BY up.updatedAt DESC

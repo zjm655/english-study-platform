@@ -7,11 +7,15 @@
         <span class="admin-brand__text">Shadow 管理后台</span>
       </div>
 
-      <el-menu :default-active="route.path" router class="admin-menu">
-        <el-menu-item index="/admin/material/upload">
-          <el-icon><Upload /></el-icon>
-          <span>材料上传</span>
-        </el-menu-item>
+      <el-menu :default-active="activeMenu" router class="admin-menu">
+        <el-sub-menu index="/admin/material">
+          <template #title>
+            <el-icon><Document /></el-icon>
+            <span>材料管理</span>
+          </template>
+          <el-menu-item index="/admin/material">材料列表</el-menu-item>
+          <el-menu-item index="/admin/material/upload">材料上传</el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/admin/users" disabled>
           <el-icon><User /></el-icon>
           <span>用户管理</span>
@@ -44,9 +48,18 @@
 </template>
 
 <script setup lang="ts">
-import { Upload, User, Cloudy, MagicStick, Back } from '@element-plus/icons-vue'
+import { User, Cloudy, MagicStick, Back, Document } from '@element-plus/icons-vue'
 
 const route = useRoute()
+
+// 侧边栏高亮：编辑页（/admin/material/:id）与列表页同属「材料列表」，
+// 避免动态路由无匹配项导致子菜单收起
+const activeMenu = computed(() => {
+  if (route.path.startsWith('/admin/material') && route.path !== '/admin/material/upload') {
+    return '/admin/material'
+  }
+  return route.path
+})
 </script>
 
 <style scoped>

@@ -23,9 +23,9 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
 
   try {
     const isFav = await withTransaction(async (conn) => {
-      // 检查 segment 是否存在
+      // 检查 segment 是否存在（已软删除的材料不可收藏）
       const [segRows] = await conn.execute<IdRow[]>(
-        'SELECT id FROM segment WHERE id = ? LIMIT 1',
+        'SELECT id FROM segment WHERE id = ? AND deleted_at IS NULL LIMIT 1',
         [segmentId]
       )
       if (segRows.length === 0) {

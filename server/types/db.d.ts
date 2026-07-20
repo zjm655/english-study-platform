@@ -37,6 +37,7 @@ export interface SegmentRow {
   is_public: number            // 0不公开 1公开
   sort_order: number
   createdAt: string
+  deleted_at: string | null    // 软删除时间（NULL 未删除）
 }
 
 export interface UserProgressRow {

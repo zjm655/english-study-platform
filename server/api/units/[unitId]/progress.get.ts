@@ -46,7 +46,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
 
   // 2. 查片段列表（可见性过滤 + 自己的置顶 + 分页）
   //    可见性：管理员可见全部；普通用户只看公开(is_public=1)或自己上传的(media.uploader_id=userId)
-  const visibilityWhere = `s.unit_id = ? AND (? = 1 OR s.is_public = 1 OR m.uploader_id = ?)`
+  const visibilityWhere = `s.unit_id = ? AND s.deleted_at IS NULL AND (? = 1 OR s.is_public = 1 OR m.uploader_id = ?)`
   const segments = await query<
     { id: number; title: string; sortOrder: number; isMine: number } & { seg_media_key: string | null }
   >(
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
 
   // 3. 查进度
   const progressRows = await query<UserProgressRow>(
-    'SELECT * FROM user_progress WHERE user_id = ? AND segment_id IN (SELECT id FROM segment WHERE unit_id = ?)',
+    'SELECT * FROM user_progress WHERE user_id = ? AND segment_id IN (SELECT id FROM segment WHERE unit_id = ? AND deleted_at IS NULL)',
     [userId, unitId]
   )
   const progressMap = new Map(progressRows.map((r) => [r.segment_id, r]))
