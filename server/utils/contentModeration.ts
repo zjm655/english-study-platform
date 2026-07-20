@@ -5,6 +5,8 @@
  * 纯工具函数，零耦合，仅依赖 Nuxt runtimeConfig 中的 DeepSeek 配置。
  */
 
+import { serverFetch } from './request'
+
 export interface ModerationResult {
   /** 是否合规 */
   safe: boolean
@@ -54,7 +56,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
   const url = `${ds.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
   try {
-    const resp = await fetch(url, {
+    const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -69,7 +71,8 @@ export async function moderateText(text: string): Promise<ModerationResult> {
         temperature: 0,
         max_tokens: 200,
       }),
-      signal: AbortSignal.timeout(15000), // 15s 超时
+      timeout: 15000,
+      tag: '[contentModeration]',
     })
 
     if (!resp.ok) {

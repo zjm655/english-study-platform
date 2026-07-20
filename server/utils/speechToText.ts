@@ -9,6 +9,7 @@
 
 import RPCClient from '@alicloud/pop-core'
 import { fileLog, fileLogError } from './fileLogger'
+import { serverFetch } from './request'
 
 // ==================== 导出类型 ====================
 
@@ -151,13 +152,14 @@ export async function speechToText(
   const url = `https://${fullConfig.gateway}/stream/v1/FlashRecognizer?appkey=${fullConfig.appKey}&token=${token}&format=${format}&sample_rate=16000`
 
   try {
-    const resp = await fetch(url, {
+    const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/octet-stream',
       },
       body: new Uint8Array(audioBuffer),
-      signal: AbortSignal.timeout(RECOGNIZE_TIMEOUT),
+      timeout: 60000,
+      tag: '[speechToText]',
     })
 
     const data = await resp.json() as FlashRecognizerResponse

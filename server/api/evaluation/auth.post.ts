@@ -11,6 +11,7 @@
  */
 
 import crypto from 'node:crypto'
+import { serverFetch } from '#server/utils/request'
 import { networkInterfaces } from 'node:os'
 
 /**
@@ -89,7 +90,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
       warrant_available: '300', // 5 分钟有效期
     })
 
-    const resp = await $fetch<{
+    const resp = await serverFetch(authUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      timeout: 30000,
+      tag: '[evaluation auth]',
+    })
+    const respData = await resp.json() as {
       code: number
       message: string
       data: {
@@ -97,21 +105,17 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
         expire_at: number
         timestamp: string
       }
-    }>(authUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    })
+    }
 
-    if (resp.code !== 0) {
-      logger.error('[evaluation auth] 阿里云返回错误:', resp)
-      return validateError(resp.message || '获取评测授权失败', 502)
+    if (respData.code !== 0) {
+      logger.error('[evaluation auth] 阿里云返回错误:', respData)
+      return validateError(respData.message || '获取评测授权失败', 502)
     }
 
     return validateSuccess({
-      warrantId: resp.data.warrant_id,
+      warrantId: respData.data.warrant_id,
       applicationId: appId,
-      expireAt: resp.data.expire_at,
+      expireAt: respData.data.expire_at,
     })
   } catch (err) {
     logger.error('[evaluation auth] 请求阿里云鉴权接口失败:', err)
