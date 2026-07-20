@@ -245,21 +245,6 @@ const initDB = async () => {
     )
   `)
 
-  // 共同体帖子表 —— 用户发帖交流
-  await pool.execute(`
-    CREATE TABLE IF NOT EXISTS community_post (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL COMMENT '发帖用户',
-      title VARCHAR(200) NOT NULL COMMENT '帖子标题',
-      content TEXT NOT NULL COMMENT '帖子内容',
-      likeCount INT NOT NULL DEFAULT 0 COMMENT '点赞数',
-      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间',
-      FOREIGN KEY (user_id) REFERENCES user(id)
-    )
-  `)
-
   // 材料上传记录表 —— 追踪每一次上传尝试（成功或失败）
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS material_upload_record (

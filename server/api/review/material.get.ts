@@ -1,0 +1,63 @@
+import { query } from '#server/utils/db'
+import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
+import { validateError, validateSuccess } from '#server/utils/validate'
+import type { SegmentRow } from '#server/types/db'
+import type { ReviewMaterialItem } from '#shared/types/review'
+
+/** 将数据库行 + 签名 URL 列表转换为复习材料项（duration 从 DECIMAL 字符串转 number） */
+export function rowsToReviewMaterial(
+  rows: (SegmentRow & { seg_media_key: string | null; seg_media_duration: string | null })[],
+  signedAudioUrls: (string | null)[]
+): ReviewMaterialItem[] {
+  return rows.map((row, i) => ({
+    id: row.id,
+    title: row.title,
+    audioUrl: signedAudioUrls[i] ?? null,
+    questions: row.questions,
+    duration: row.seg_media_duration
+      ? Number(row.seg_media_duration)
+      : row.duration
+        ? Number(row.duration)
+        : null,
+  }))
+}
+
+/**
+ * 获取材料复习列表（phase2 已完成的片段）
+ * 请求：GET /api/review/material?limit=5
+ */
+export default defineEventHandler(async (event) => {
+  const userId = event.context.user?.id
+
+  if (!userId) {
+    return validateError('未登录', 401)
+  }
+
+  // limit 默认 5，上限 20
+  const q = getQuery(event)
+  const limit = Math.min(20, Math.max(1, Number(q.limit) || 5))
+
+  // 联查 user_progress + segment + media
+  const rows = await query<
+    SegmentRow & { seg_media_key: string | null; seg_media_duration: string | null }
+  >(
+    `SELECT s.id, s.title, s.questions, s.duration,
+            m.object_key AS seg_media_key, m.duration AS seg_media_duration
+     FROM user_progress up
+     JOIN segment s ON up.segment_id = s.id
+     LEFT JOIN media m ON s.media_id = m.id
+     WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
+     ORDER BY up.updatedAt DESC
+     LIMIT ?`,
+    [userId, limit]
+  )
+
+  // 对每行签名音频（seg_media_key 为 null 时返回 null）
+  const signedAudioUrls = await Promise.all(
+    rows.map((row) => (row.seg_media_key ? signUrl(row.seg_media_key, MATERIAL_EXPIRE) : null))
+  )
+
+  const items = rowsToReviewMaterial(rows, signedAudioUrls)
+
+  return validateSuccess({ items }, '获取材料复习列表成功')
+})

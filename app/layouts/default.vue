@@ -51,7 +51,6 @@
 import {
   HomeFilled,
   List,
-  ChatDotSquare,
   RefreshRight,
   UserFilled,
   Back
@@ -66,8 +65,7 @@ const isHome = computed(() => !!route.meta?.isHome)
 const tabs = [
   { path: '/', label: '首页', icon: HomeFilled },
   { path: '/learn', label: '学习', icon: List },
-  { path: '/', label: '共同体', icon: ChatDotSquare },
-  { path: '/', label: '复习', icon: RefreshRight },
+  { path: '/review', label: '复习', icon: RefreshRight },
   { path: '/center', label: '我的', icon: UserFilled },
 ]
 
