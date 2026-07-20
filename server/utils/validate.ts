@@ -121,6 +121,14 @@ export const uploadMaterialAdminSchema = uploadMaterialSchema.extend({
   unitId: z.number().int().positive('unitId 必须为正整数'),
 })
 
+// 管理员批量上传通用参数校验
+export const adminUploadSchema = z.object({
+  mode: z.enum(['single', 'batch']),
+  unitId: z.number().int().min(0, 'unitId 不能为负数'),
+  voice: z.enum(ALLOWED_VOICES).optional().default('en-US-AriaNeural'),
+  isPublic: z.coerce.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1').default(1),
+})
+
 // 材料上传记录更新校验
 export const updateMaterialRecordSchema = z.object({
   isPublic: z.coerce.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
