@@ -21,6 +21,9 @@ const error = ref<string | null>(null)
 // 分页状态（服务端默认每页 10 条）
 const page = ref(1)
 const hasMore = ref(true)
+const sentinelRef = ref<HTMLElement | null>(null)
+
+let scrollObserver: IntersectionObserver | null = null
 
 async function loadData() {
   error.value = null
@@ -49,6 +52,21 @@ async function loadMoreSegments() {
 onMounted(() => {
   loadData()
   fetchFavSegments()
+
+  scrollObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0]
+    if (entry.isIntersecting && hasMore.value && !isLoadingMore.value) {
+      loadMoreSegments()
+    }
+  }, { rootMargin: '0px 0px 100px 0px' })
+
+  if (sentinelRef.value) {
+    scrollObserver.observe(sentinelRef.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  scrollObserver?.disconnect()
 })
 
 function getSegmentPhases(segment: UnitProgressDetail['segments'][number]) {
@@ -90,11 +108,7 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
         <p v-if="unitData?.description" class="unit-header__desc">{{ unitData.description }}</p>
       </div>
 
-      <div
-        v-infinite-scroll="loadMoreSegments"
-        :infinite-scroll-disabled="!hasMore || isLoadingMore"
-        class="segment-list"
-      >
+      <div class="segment-list">
         <div
           v-for="segment in segments"
           :key="segment.id"
@@ -143,6 +157,9 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
         <!-- 底部加载提示 -->
         <div v-if="isLoadingMore" class="list-footer">加载中…</div>
         <div v-else-if="!hasMore && segments.length" class="list-footer">没有更多了</div>
+
+        <!-- 无限滚动哨兵 -->
+        <div ref="sentinelRef" class="sentinel" />
       </div>
     </template>
   </div>
@@ -379,5 +396,10 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 .phase-dot--current .phase-dot__name {
   color: var(--text-1);
   font-weight: 500;
+}
+
+/* 无限滚动哨兵 */
+.sentinel {
+  height: 1px;
 }
 </style>
