@@ -1,5 +1,5 @@
-import { getAdminCloudOss, getAdminCloudNls, getAdminCloudEdu, getAdminCloudBss } from '~/api/admin/cloud'
-import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult } from '#shared/types/adminCloud'
+import { getAdminCloudOss, getAdminCloudNls, getAdminCloudEdu, getAdminCloudBss, getAdminCloudDeepseek } from '~/api/admin/cloud'
+import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult, DeepSeekStatResult } from '#shared/types/adminCloud'
 
 /** OSS 对象存储用量（本地估算 + 官方 GetBucketStat） */
 export const useAdminCloudOss = () => {
@@ -44,6 +44,18 @@ export const useAdminCloudBss = () => {
     success: '获取 BSS 费用数据成功',
     clientFail: '获取 BSS 费用数据失败',
     serverFail: '服务器异常，获取 BSS 数据失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** DeepSeek 账户余额 */
+export const useAdminCloudDeepseek = () => {
+  const cfg = createResCfg<void, DeepSeekStatResult>({
+    handle: () => getAdminCloudDeepseek(),
+    success: '获取 DeepSeek 余额成功',
+    clientFail: '获取 DeepSeek 余额失败',
+    serverFail: '服务器异常，获取 DeepSeek 余额失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

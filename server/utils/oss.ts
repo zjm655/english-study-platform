@@ -322,27 +322,16 @@ export async function uploadFilePublic(fileBuffer: Buffer, fileName: string): Pr
 
 // ==================== Bucket 统计（管理后台云服务模块） ====================
 
-/** Bucket 统计结果（对齐 bss.ts 的优雅降级风格） */
-export interface BucketStatResult {
-  success: boolean
-  /** 总存储字节 */
-  storage?: number
-  /** Object 数量 */
-  objectCount?: number
-  /** 标准存储字节 */
-  standardStorage?: number
-  /** 失败原因 */
-  error?: string
-}
+import type { OssBucketStat } from '#shared/types/adminCloud'
 
 /**
  * 获取 Bucket 存储统计（官方 GetBucketStat API）。
  * 失败（权限不足 / bucket 不支持 / 网络异常）时返回 success=false + error，绝不抛异常。
  *
  * 注意：@types/ali-oss 缺少 getBucketStat 类型声明，运行时 SDK 已支持（6.18.0+），
- * 此处使用受控 cast。
+ * 此处使用受控 cast。数据延迟可能超过 1 小时，不含流量数据。
  */
-export async function getOssBucketStat(): Promise<BucketStatResult> {
+export async function getOssBucketStat(): Promise<OssBucketStat> {
   try {
     const c = getClient()
     const bucket = config.bucket
@@ -352,11 +341,22 @@ export async function getOssBucketStat(): Promise<BucketStatResult> {
     if (!stat) {
       return { success: false, error: 'OSS 响应结构异常（无 stat 字段）' }
     }
-    const result: BucketStatResult = {
+    const result: OssBucketStat = {
       success: true,
       storage: Number(stat.Storage ?? 0),
       objectCount: Number(stat.ObjectCount ?? 0),
       standardStorage: Number(stat.StandardStorage ?? 0),
+      standardObjectCount: Number(stat.StandardObjectCount ?? 0),
+      multipartUploadCount: Number(stat.MultipartUploadCount ?? 0),
+      lastModifiedTime: Number(stat.LastModifiedTime ?? 0),
+      infrequentAccessStorage: Number(stat.InfrequentAccessStorage ?? 0),
+      infrequentAccessObjectCount: Number(stat.InfrequentAccessObjectCount ?? 0),
+      archiveStorage: Number(stat.ArchiveStorage ?? 0),
+      archiveObjectCount: Number(stat.ArchiveObjectCount ?? 0),
+      coldArchiveStorage: Number(stat.ColdArchiveStorage ?? 0),
+      coldArchiveObjectCount: Number(stat.ColdArchiveObjectCount ?? 0),
+      deepColdArchiveStorage: Number(stat.DeepColdArchiveStorage ?? 0),
+      deepColdArchiveObjectCount: Number(stat.DeepColdArchiveObjectCount ?? 0),
     }
     fileLog('oss', 'info', '[getOssBucketStat] 查询成功', {
       storage: result.storage,

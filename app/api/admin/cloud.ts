@@ -1,5 +1,5 @@
-import { adminCloudOssPath, adminCloudNlsPath, adminCloudEduPath, adminCloudBssPath } from '../paths'
-import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult } from '#shared/types/adminCloud'
+import { adminCloudOssPath, adminCloudNlsPath, adminCloudEduPath, adminCloudBssPath, adminCloudDeepseekPath } from '../paths'
+import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult, DeepSeekStatResult } from '#shared/types/adminCloud'
 
 /** OSS 对象存储用量（本地估算 + 官方 GetBucketStat） */
 export const getAdminCloudOss = (options: CloudEstimateQuery = {}) => {
@@ -31,4 +31,9 @@ export const getAdminCloudBss = (options: { billingCycle?: string } = {}) => {
   if (options.billingCycle) params.append('billingCycle', options.billingCycle)
   const query = params.toString()
   return request.json<BssStatResult>(`${adminCloudBssPath}${query ? '?' + query : ''}`)
+}
+
+/** DeepSeek 账户余额 */
+export const getAdminCloudDeepseek = () => {
+  return request.json<DeepSeekStatResult>(adminCloudDeepseekPath)
 }

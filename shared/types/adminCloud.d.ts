@@ -24,12 +24,23 @@ export interface CloudEstimateSummary {
   days: number
 }
 
-/** OSS Bucket 统计（官方 API） */
+/** OSS Bucket 统计（官方 GetBucketStat API，数据延迟可能 >1h，不含流量） */
 export interface OssBucketStat {
   success: boolean
   storage?: number          // 总存储字节
   objectCount?: number      // Object 数量
   standardStorage?: number  // 标准存储字节
+  standardObjectCount?: number
+  multipartUploadCount?: number
+  lastModifiedTime?: number        // 秒级时间戳（数据非实时）
+  infrequentAccessStorage?: number
+  infrequentAccessObjectCount?: number
+  archiveStorage?: number
+  archiveObjectCount?: number
+  coldArchiveStorage?: number
+  coldArchiveObjectCount?: number
+  deepColdArchiveStorage?: number
+  deepColdArchiveObjectCount?: number
   error?: string
 }
 
@@ -72,4 +83,27 @@ export interface BssBillResult {
 export interface BssStatResult {
   balance: import('./adminStats').CloudBalanceResult
   bill: BssBillResult
+}
+
+// ==================== DeepSeek 余额 ====================
+
+/** DeepSeek 余额条目 */
+export interface DeepSeekBalanceInfo {
+  currency: string           // 'CNY' | 'USD'
+  totalBalance: string       // 总可用余额（含赠金+充值）
+  grantedBalance: string     // 未过期赠金
+  toppedUpBalance: string    // 充值余额
+}
+
+/** DeepSeek 余额查询结果 */
+export interface DeepSeekBalanceResult {
+  success: boolean
+  isAvailable?: boolean
+  balances?: DeepSeekBalanceInfo[]
+  error?: string
+}
+
+/** DeepSeek 页面完整响应 */
+export interface DeepSeekStatResult {
+  balance: DeepSeekBalanceResult
 }

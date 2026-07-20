@@ -77,18 +77,39 @@
       <section class="panel">
         <header class="panel-head">
           <h3 class="panel-title">官方存储统计</h3>
-          <span class="panel-note">GetBucketStat</span>
+          <span class="panel-note">GetBucketStat · 非实时（延迟可能 &gt;1h）</span>
         </header>
         <div v-if="data?.bucketStat.success" class="bucket-stat-body">
           <div class="stat-row">
             <span>总存储量</span><b>{{ formatBytes(data.bucketStat.storage) }}</b>
           </div>
           <div class="stat-row">
-            <span>标准存储</span><b>{{ formatBytes(data.bucketStat.standardStorage) }}</b>
+            <span>Object 总数</span><b>{{ data.bucketStat.objectCount?.toLocaleString() ?? '--' }}</b>
           </div>
           <div class="stat-row">
-            <span>Object 数量</span><b>{{ data.bucketStat.objectCount?.toLocaleString() ?? '--' }}</b>
+            <span>Multipart 残留</span><b>{{ data.bucketStat.multipartUploadCount?.toLocaleString() ?? '0' }}</b>
           </div>
+          <div v-if="data.bucketStat.lastModifiedTime" class="stat-row">
+            <span>数据时间点</span><b>{{ formatTime(data.bucketStat.lastModifiedTime) }}</b>
+          </div>
+          <!-- 存储类型细分 -->
+          <div class="stat-divider"></div>
+          <div class="stat-row" v-if="(data.bucketStat.standardStorage ?? 0) > 0">
+            <span>标准存储</span><b>{{ formatBytes(data.bucketStat.standardStorage) }} / {{ data.bucketStat.standardObjectCount?.toLocaleString() ?? 0 }} 个</b>
+          </div>
+          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.infrequentAccessStorage ?? 0) > 0">
+            <span>低频存储</span><b>{{ formatBytes(data.bucketStat.infrequentAccessStorage) }} / {{ data.bucketStat.infrequentAccessObjectCount?.toLocaleString() ?? 0 }} 个</b>
+          </div>
+          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.archiveStorage ?? 0) > 0">
+            <span>归档存储</span><b>{{ formatBytes(data.bucketStat.archiveStorage) }} / {{ data.bucketStat.archiveObjectCount?.toLocaleString() ?? 0 }} 个</b>
+          </div>
+          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.coldArchiveStorage ?? 0) > 0">
+            <span>冷归档</span><b>{{ formatBytes(data.bucketStat.coldArchiveStorage) }} / {{ data.bucketStat.coldArchiveObjectCount?.toLocaleString() ?? 0 }} 个</b>
+          </div>
+          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.deepColdArchiveStorage ?? 0) > 0">
+            <span>深度冷归档</span><b>{{ formatBytes(data.bucketStat.deepColdArchiveStorage) }} / {{ data.bucketStat.deepColdArchiveObjectCount?.toLocaleString() ?? 0 }} 个</b>
+          </div>
+          <p class="traffic-note">⚠️ 流量数据（内/外网收发）不在 GetBucketStat 中，需通过阿里云 BSS 账单或 CloudMonitor 控制台查看</p>
         </div>
         <div v-else class="unavailable">
           <el-icon :size="22"><WarningFilled /></el-icon>
@@ -124,6 +145,11 @@ function formatBytes(bytes?: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`
+}
+
+function formatTime(timestamp?: number): string {
+  if (!timestamp) return '--'
+  return new Date(timestamp * 1000).toLocaleString('zh-CN')
 }
 
 onMounted(() => fetchData())
@@ -163,6 +189,9 @@ onMounted(() => fetchData())
 .bucket-stat-body { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; background: var(--primary-light); border-radius: var(--r); }
 .stat-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-2); }
 .stat-row b { font-variant-numeric: tabular-nums; color: var(--text-1); }
+.stat-row--dim { opacity: 0.7; }
+.stat-divider { height: 1px; background: var(--border-ll); margin: 4px 0; }
+.traffic-note { margin-top: 8px; font-size: 12px; color: var(--text-3); line-height: 1.5; }
 
 .unavailable { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 16px; color: var(--text-4); text-align: center; }
 .unavailable p { font-size: 13px; font-weight: 600; color: var(--text-3); }
