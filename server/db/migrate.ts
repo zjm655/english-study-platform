@@ -46,6 +46,11 @@ async function main() {
   try {
     connection = await mysql.createConnection(config)
 
+    // 允许向自增列插入字面量 0：002 种子数据需插入 unit id=0（用户自定义材料保留单元），
+    // MySQL 默认 sql_mode 下插 0 会被当作「生成下一个自增值」。用 query()（文本协议）确保 SET 表达式生效，
+    // 避免 execute()（预编译协议）对 SET ... = CONCAT(...) 的兼容风险。该设置对整个迁移会话生效。
+    await connection.query("SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',NO_AUTO_VALUE_ON_ZERO')")
+
     await ensureMigrationsTable(connection)
 
     const executedVersions = await getExecutedVersions(connection)
@@ -128,8 +133,9 @@ async function checkExistingTables(connection: mysql.Connection): Promise<boolea
 }
 
 async function markAsExecuted(connection: mysql.Connection, version: string, filename: string) {
+  // INSERT IGNORE 保证幂等：--force 重跑或 001 走「表已存在」分支时，版本已存在则忽略，不报唯一键冲突。
   await connection.execute(
-    'INSERT INTO migrations (version, filename) VALUES (?, ?)',
+    'INSERT IGNORE INTO migrations (version, filename) VALUES (?, ?)',
     [version, filename]
   )
 }
@@ -177,10 +183,7 @@ async function executeMigrationFile(connection: mysql.Connection, filename: stri
     await connection.execute(stmt)
   }
 
-  await connection.execute(
-    'INSERT INTO migrations (version, filename) VALUES (?, ?)',
-    [version, filename]
-  )
+  await markAsExecuted(connection, version, filename)
 }
 
 main()

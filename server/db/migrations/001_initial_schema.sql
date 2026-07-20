@@ -121,7 +121,7 @@ CREATE TABLE `unit`  (
   `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `cover_media_id` int NULL DEFAULT NULL COMMENT '关联的封面媒体资源ID (media.id)',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE = InnoDB AUTO_INCREMENT = 7 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
+) ENGINE = InnoDB AUTO_INCREMENT = 5 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = DYNAMIC;
 
 -- ----------------------------
 -- Table structure for user
