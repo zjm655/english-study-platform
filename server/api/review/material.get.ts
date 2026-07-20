@@ -14,11 +14,7 @@ export function rowsToReviewMaterial(
     title: row.title,
     audioUrl: signedAudioUrls[i] ?? null,
     questions: row.questions,
-    duration: row.seg_media_duration
-      ? Number(row.seg_media_duration)
-      : row.duration
-        ? Number(row.duration)
-        : null,
+    duration: row.seg_media_duration ? Number(row.seg_media_duration) : null,
   }))
 }
 
@@ -37,11 +33,11 @@ export default defineEventHandler(async (event) => {
   const q = getQuery(event)
   const limit = Math.min(20, Math.max(1, Number(q.limit) || 5))
 
-  // 联查 user_progress + segment + media
+  // 联查 user_progress + segment + media（duration 取自 media 表，segment.duration 为待删除旧字段）
   const rows = await query<
     SegmentRow & { seg_media_key: string | null; seg_media_duration: string | null }
   >(
-    `SELECT s.id, s.title, s.questions, s.duration,
+    `SELECT s.id, s.title, s.questions,
             m.object_key AS seg_media_key, m.duration AS seg_media_duration
      FROM user_progress up
      JOIN segment s ON up.segment_id = s.id

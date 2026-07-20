@@ -2,6 +2,7 @@
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useVocabCardState } from '~/composables/review/useVocabCardState'
 import { useMaterialNavState } from '~/composables/review/useMaterialNavState'
+import { useStudyTimer } from '~/composables/user/useStudyTimer'
 import { getReviewVocab, getReviewMaterial } from '~/api/review'
 import type { ReviewVocabItem, ReviewMaterialItem } from '#shared/types/review'
 import type { Question } from '~~/shared/types/unit'
@@ -11,6 +12,9 @@ definePageMeta({
 })
 
 const { load, play, stop } = useAudioPlayer()
+
+// 自动上报学习时长
+useStudyTimer()
 
 // 顶部子 tab
 const activeTab = ref<'vocab' | 'material'>('vocab')

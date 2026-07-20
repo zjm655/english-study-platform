@@ -65,14 +65,8 @@ describe('rowsToReviewMaterial 数据转换', () => {
     expect(result[0].questions).toBeNull()
   })
 
-  it('seg_media_duration 为 null 但旧字段 duration 有值时，用旧字段转 number', () => {
-    const rows = [makeRow({ seg_media_duration: null, duration: '8.00' })]
-    const result = rowsToReviewMaterial(rows, ['https://signed/1.mp3'])
-    expect(result[0].duration).toBe(8)
-  })
-
-  it('两个 duration 都为 null 时返回 null', () => {
-    const rows = [makeRow({ seg_media_duration: null, duration: null })]
+  it('seg_media_duration 为 null 时返回 null（duration 仅取自 media 表）', () => {
+    const rows = [makeRow({ seg_media_duration: null })]
     const result = rowsToReviewMaterial(rows, ['https://signed/1.mp3'])
     expect(result[0].duration).toBeNull()
   })
