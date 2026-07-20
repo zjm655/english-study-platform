@@ -1,6 +1,7 @@
 // 数据库行类型（对应 MySQL 查询结果）
 
 import type { WordScore } from '#shared/types/recording'
+import type { Question } from '#shared/types/unit'
 
 export interface UserRow {
   id: number
@@ -35,7 +36,7 @@ export interface SegmentRow {
   media_id: number | null
   textContent: string
   translation: string | null
-  questions: string | null     // JSON string
+  questions: Question[] | string | null     // json 列：mysql2 自动解析为数组，兼容字符串
   is_public: number            // 0不公开 1公开
   sort_order: number
   createdAt: string

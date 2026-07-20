@@ -126,6 +126,11 @@ export const updateMaterialRecordSchema = z.object({
   isPublic: z.coerce.number().refine(v => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
 })
 
+/** 复习列表查询参数校验（limit 在 API 层自行设置默认值） */
+export const reviewQuerySchema = z.object({
+  limit: z.coerce.number().min(1, 'limit 不能小于 1').max(50, 'limit 不能大于 50').optional(),
+})
+
 // ============== 通用工具 ==============
 
 export function validateError(message: string, code: number = 400): ResPayload<never> {

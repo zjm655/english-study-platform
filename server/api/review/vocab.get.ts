@@ -1,6 +1,6 @@
 import { query } from '#server/utils/db'
 import { signUrl, WORD_EXPIRE } from '#server/utils/oss'
-import { validateError, validateSuccess } from '#server/utils/validate'
+import { validateError, validateSuccess, reviewQuerySchema } from '#server/utils/validate'
 import type { ReviewVocabItem } from '#shared/types/review'
 import type { VocabularyRow, UserProgressRow } from '#server/types/db'
 
@@ -32,9 +32,11 @@ export default defineEventHandler(async (event) => {
     return validateError('未登录', 401)
   }
 
-  // 读取 limit，默认 10，上限 50
-  const q = getQuery(event)
-  const limit = Math.min(50, Math.max(1, Number(q.limit) || 10))
+  const result = reviewQuerySchema.safeParse(getQuery(event))
+  if (!result.success) {
+    return validateError(result.error.issues[0]?.message || '参数校验失败', 400)
+  }
+  const { limit = 10 } = result.data
 
   // 查询用户最近学过的 segment_id
   const progressRows = await query<Pick<UserProgressRow, 'segment_id'>>(

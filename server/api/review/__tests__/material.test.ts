@@ -28,7 +28,7 @@ function makeRow(overrides: Partial<ReviewRow> = {}): ReviewRow {
     media_id: null,
     textContent: '原文内容',
     translation: '中文翻译',
-    questions: '[{"q":"问题1"}]',
+    questions: [{ question: 'What is the warning about?', options: ['A', 'B', 'C', 'D'], answer: 'B' }],
     is_public: 1,
     sort_order: 1,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -45,7 +45,7 @@ describe('rowsToReviewMaterial 数据转换', () => {
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe(1)
     expect(result[0].title).toBe('片段标题')
-    expect(result[0].questions).toBe('[{"q":"问题1"}]')
+    expect(result[0].questions).toEqual([{ question: 'What is the warning about?', options: ['A', 'B', 'C', 'D'], answer: 'B' }])
     expect(result[0].duration).toBe(12.5)
   })
 

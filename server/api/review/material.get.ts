@@ -1,6 +1,6 @@
 import { query } from '#server/utils/db'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
-import { validateError, validateSuccess } from '#server/utils/validate'
+import { validateError, validateSuccess, reviewQuerySchema } from '#server/utils/validate'
 import type { SegmentRow } from '#server/types/db'
 import type { ReviewMaterialItem } from '#shared/types/review'
 
@@ -29,9 +29,11 @@ export default defineEventHandler(async (event) => {
     return validateError('未登录', 401)
   }
 
-  // limit 默认 5，上限 20
-  const q = getQuery(event)
-  const limit = Math.min(20, Math.max(1, Number(q.limit) || 5))
+  const result = reviewQuerySchema.safeParse(getQuery(event))
+  if (!result.success) {
+    return validateError(result.error.issues[0]?.message || '参数校验失败', 400)
+  }
+  const { limit = 5 } = result.data
 
   // 联查 user_progress + segment + media（duration 取自 media 表，segment.duration 为待删除旧字段）
   const rows = await query<
@@ -55,5 +57,5 @@ export default defineEventHandler(async (event) => {
 
   const items = rowsToReviewMaterial(rows, signedAudioUrls)
 
-  return validateSuccess({ items }, '获取材料复习列表成功')
+  return validateSuccess(items, '获取材料复习列表成功')
 })
