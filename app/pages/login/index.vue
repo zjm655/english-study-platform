@@ -147,7 +147,7 @@ const loginRules = reactive<FormRules<LoginForm>>({
         let categories = 0
         if (/[a-zA-Z]/.test(value)) categories++
         if (/\d/.test(value)) categories++
-        if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(value)) categories++
+        if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(value)) categories++
         if (categories < 2) {
           callback(new Error('密码需包含数字、字母、特殊符号中的至少两类'))
         } else {
@@ -206,7 +206,7 @@ const registerRules = reactive<FormRules<RegisterForm>>({
         let categories = 0
         if (/[a-zA-Z]/.test(value)) categories++
         if (/\d/.test(value)) categories++
-        if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(value)) categories++
+        if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(value)) categories++
         if (categories < 2) {
           callback(new Error('密码需包含数字、字母、特殊符号中的至少两类'))
         } else {

@@ -105,7 +105,7 @@ definePageMeta({ layout: 'admin' })
 
 const days = ref(7)
 const { isLoading, execute } = useAdminCloudNls()
-const { isLoading: trendLoading, execute: executeTrend } = useCloudTrend()
+const { isLoading: _trendLoading, execute: executeTrend } = useCloudTrend()
 const data = ref<NlsStatResult | null>(null)
 
 // 趋势图

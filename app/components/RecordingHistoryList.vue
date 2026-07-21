@@ -30,9 +30,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'select', id: number): void
-  (e: 'loadMore'): void
-  (e: 'retry'): void
-  (e: 'play'): void
+  (e: 'loadMore' | 'retry' | 'play'): void
 }>()
 
 function formatDuration(seconds: number | null): string {

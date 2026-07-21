@@ -69,7 +69,7 @@ interface CachedToken {
 const TOKEN_EXPIRY_BUFFER = 60
 
 /** 识别 API 超时（毫秒） */
-const RECOGNIZE_TIMEOUT = 60_000
+const _RECOGNIZE_TIMEOUT = 60_000
 
 /** CreateToken 固定参数 */
 const TOKEN_ENDPOINT = 'https://nls-meta.cn-shanghai.aliyuncs.com'

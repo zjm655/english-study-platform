@@ -18,7 +18,7 @@ const segId = computed(() => Number(route.params.segId))
 const unitId = computed(() => Number(route.params.id))
 
 const { isLoading, fetchSegmentDetail } = useSegmentDetail()
-const { play, pause } = useAudioPlayer()
+const { play: _play, pause } = useAudioPlayer()
 
 // 自动管理音频生命周期
 useAudioLifecycle()

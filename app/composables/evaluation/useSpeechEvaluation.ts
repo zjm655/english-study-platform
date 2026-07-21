@@ -19,21 +19,6 @@ import { toWav16kMono } from '~/utils/audioToWav'
 
 // ─── SDK 原生结果类型 ────────────────────────────────────────
 
-interface SdkWordDetail {
-  char: string
-  score: number
-}
-
-interface SdkEngineResult {
-  result: {
-    overall: number
-    rank: string
-    details: SdkWordDetail[]
-  }
-  applicationId: string
-  recordId: string
-}
-
 // ─── composable 导出类型 ────────────────────────────────────
 
 export interface EvaluationResult {
@@ -256,7 +241,7 @@ export function useSpeechEvaluation() {
       wavBlob = await toWav16kMono(blob)
     } catch (e) {
       isLoading.value = false
-      throw new Error(`音频转码失败: ${e instanceof Error ? e.message : String(e)}`)
+      throw new Error(`音频转码失败: ${e instanceof Error ? e.message : String(e)}`, { cause: e })
     }
 
     const file = new File([wavBlob], 'recording.wav', { type: 'audio/wav' })

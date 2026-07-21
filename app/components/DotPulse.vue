@@ -5,7 +5,7 @@ interface Props {
   color?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const _props = withDefaults(defineProps<Props>(), {
   size: 10,
   gap: 8,
   color: 'var(--primary)',

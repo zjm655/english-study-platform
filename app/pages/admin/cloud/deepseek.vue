@@ -82,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { Refresh, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
+import { Refresh, WarningFilled } from '@element-plus/icons-vue'
 import { use, graphic, init } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
@@ -96,7 +96,7 @@ use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer
 definePageMeta({ layout: 'admin' })
 
 const { isLoading, execute } = useAdminCloudDeepseek()
-const { isLoading: trendLoading, execute: executeTrend } = useCloudTrend()
+const { isLoading: _trendLoading, execute: executeTrend } = useCloudTrend()
 const data = ref<DeepSeekStatResult | null>(null)
 
 // 趋势图
@@ -163,11 +163,6 @@ function renderTrendChart(dates: string[], callCounts: number[], totalTokens: nu
       },
     ],
   })
-}
-
-function formatBalance(amount?: number): string {
-  if (amount === undefined || amount === null) return '--'
-  return `${amount.toFixed(4)}`
 }
 
 onMounted(() => fetchData())

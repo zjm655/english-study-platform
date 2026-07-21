@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { NuxtError } from '#app'
 
-const props = defineProps<{ error: NuxtError }>()
+const _props = defineProps<{ error: NuxtError }>()
 
-const router = useRouter()
+const _router = useRouter()
 
 function handleBack() {
   clearError({ redirect: '/' })

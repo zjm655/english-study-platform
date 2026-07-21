@@ -12,7 +12,7 @@ definePageMeta({
   title: '复习',
 })
 
-const { load, play, pause, togglePlay, seek, stop } = useAudioPlayer()
+const { load, play, pause: _pause, togglePlay, seek, stop } = useAudioPlayer()
 const audioStore = useAudioStore()
 
 // 自动上报学习时长

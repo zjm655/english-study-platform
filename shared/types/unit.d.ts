@@ -24,7 +24,7 @@ export interface SegmentPhaseProgress {
   phase3_score: number | null
   phase4_done: boolean
   phase4_score: number | null
-  updatedAt: string | null
+  updatedAt?: string | null
 }
 
 /** 单元详情进度（含片段列表） */

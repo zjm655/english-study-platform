@@ -28,7 +28,7 @@ vi.mock('~/composables/media/useAudioPlayer', () => ({
 function makeRecording(overrides: Partial<Recording> = {}): Recording {
   return {
     id: 1,
-    mediaId: 1,
+    userId: 1,
     segmentId: 1,
     phase: 3,
     duration: 10,
@@ -75,7 +75,6 @@ describe('useRecordingHistory', () => {
 
   describe('recordingFormat', () => {
     it('mp3 返回 "mp3"', () => {
-      const { formatDuration } = useRecordingHistory(1, 3)
       // recordingFormat is internal, but formatDuration is exposed
       // We can test through playRecording behavior (see below)
     })
@@ -99,7 +98,7 @@ describe('useRecordingHistory', () => {
       const rec = makeRecording({ id: 42 })
       addRecording(rec)
       expect(recordings.value).toHaveLength(1)
-      expect(recordings.value[0].id).toBe(42)
+      expect(recordings.value[0]!.id).toBe(42)
       expect(totalRecordings.value).toBe(1)
       expect(selectedRecordingId.value).toBe(42)
     })
@@ -111,8 +110,8 @@ describe('useRecordingHistory', () => {
       addRecording(makeRecording({ id: 2 }))
       expect(recordings.value).toHaveLength(2)
       // 最后添加的在最前面
-      expect(recordings.value[0].id).toBe(2)
-      expect(recordings.value[1].id).toBe(1)
+      expect(recordings.value[0]!.id).toBe(2)
+      expect(recordings.value[1]!.id).toBe(1)
       expect(totalRecordings.value).toBe(2)
       expect(selectedRecordingId.value).toBe(2)
     })

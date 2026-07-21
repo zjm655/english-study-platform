@@ -1,12 +1,7 @@
 // server/api/user/stats.get.ts
 // 用户学习统计：已完成片段数、配音平均分、最近学习时间
-import { z } from 'zod'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { query } from '#server/utils/db'
-
-const querySchema = z.object({
-  // 无参数，从 event.context.user 获取 userId
-})
 
 export default defineEventHandler(async (event) => {
   const userId = event.context.user?.id

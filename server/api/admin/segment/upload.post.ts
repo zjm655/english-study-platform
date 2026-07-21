@@ -1,7 +1,6 @@
 import { readFormData } from 'h3'
 import { adminUploadSchema, validateSuccess, validateError } from '#server/utils/validate'
 import { processAdminMaterial, processAdminBatch } from '#server/utils/adminUpload'
-import { parseTxtFile } from '#server/utils/textParser'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
 import { ROLE_ADMIN } from '#shared/utils/role'
@@ -34,7 +33,7 @@ export default defineEventHandler(async (event) => {
   const bucket = oss.bucket as string
   const userId = user.id
 
-  let results: AdminUploadItemResult[] = []
+  let results: AdminUploadItemResult[]
 
   if (validMode === 'single') {
     const textContent = formData.get('textContent') as string | null

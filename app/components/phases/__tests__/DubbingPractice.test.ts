@@ -86,6 +86,7 @@ const mockSegment: SegmentDetail = {
     phase3_score: null,
     phase4_done: false,
     phase4_score: null,
+    updatedAt: null,
   },
 }
 

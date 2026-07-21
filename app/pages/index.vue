@@ -111,9 +111,7 @@ onMounted(() => {
       <!-- 开始学习按钮 -->
       <div class="learn-section">
         <NuxtLink v-if="isCheckedIn" to="/learn" class="learn-btn"> 开始学习 </NuxtLink>
-        <div v-else="isCheckedIn" class="learn-btn" style="cursor: pointer" @click="handleCheckin">
-          点击签到
-        </div>
+        <div v-else class="learn-btn" style="cursor: pointer" @click="handleCheckin">点击签到</div>
       </div>
 
       <!-- 统计卡片 -->

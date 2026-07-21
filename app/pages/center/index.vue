@@ -134,9 +134,9 @@ const isLogin = computed(() => userStore.isLogin)
 const isAdmin = computed(() => user.value?.role === ROLE_ADMIN)
 
 // 打卡统计
-const { isLoading: statsLoading, execute: fetchCheckinStats } = useCheckinStats()
+const { isLoading: _statsLoading, execute: fetchCheckinStats } = useCheckinStats()
 const { execute: doLogout } = useLogout()
-const { isLoading: userStatsLoading, execute: fetchUserStats } = useUserStats()
+const { isLoading: _userStatsLoading, execute: fetchUserStats } = useUserStats()
 const checkinStats = ref<CheckinStats | null>(null)
 const userStats = ref<UserStats | null>(null)
 

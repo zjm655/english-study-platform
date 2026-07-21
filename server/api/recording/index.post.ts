@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { withTransaction, pool } from '#server/utils/db'
 import { uploadWithKey, signUrl, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
-import { rowToRecording } from '#server/utils/recording'
 
 import { speechToText } from '#server/utils/speechToText'
 import type { RecordingRow } from '#server/types/db'
@@ -109,7 +108,7 @@ export default defineEventHandler(
     }
 
     // 9. 写入 media 表 + recording 表（事务）
-    let result: UploadRecordingResult | null = null
+    let result: UploadRecordingResult | null
 
     try {
       result = await withTransaction(async (conn) => {

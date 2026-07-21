@@ -5,5 +5,5 @@ throw createError({ statusCode: 404, message: '您访问的页面不存在' })
 </script>
 
 <template>
-  <!-- 不会被渲染，createError 会触发 error.vue -->
+  <div />
 </template>

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { VocabularyRow } from '#server/types/db'
-import type { ReviewVocabItem } from '#shared/types/review'
 
 import { rowsToReviewVocab } from '../vocab.get'
 

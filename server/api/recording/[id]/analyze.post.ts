@@ -57,7 +57,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
   const parsed = processEvaluationResult(evalResult)
 
   // 4. 更新 recording 表
-  let updatedRecording: ReturnType<typeof rowToRecording> = null
+  let updatedRecording: ReturnType<typeof rowToRecording>
   try {
     updatedRecording = await withTransaction(async (conn) => {
       await conn.execute(

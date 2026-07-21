@@ -89,8 +89,10 @@ function escapeXml(text: string): string {
  * 文本清洗：移除不兼容 Unicode 字符 + XML 转义
  */
 function sanitizeText(text: string): string {
-  const cleaned = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, ' ')
-  return escapeXml(cleaned)
+  const sanitized = text.replace(/[\p{Cc}]/gu, (char) => {
+    return char === '\t' || char === '\n' || char === '\r' ? char : ' '
+  })
+  return escapeXml(sanitized)
 }
 
 /**

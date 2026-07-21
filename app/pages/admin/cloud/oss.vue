@@ -190,7 +190,7 @@ definePageMeta({ layout: 'admin' })
 
 const days = ref(7)
 const { isLoading, execute } = useAdminCloudOss()
-const { isLoading: trendLoading, execute: executeTrend } = useCloudTrend()
+const { isLoading: _trendLoading, execute: executeTrend } = useCloudTrend()
 const data = ref<OssStatResult | null>(null)
 
 // 趋势图

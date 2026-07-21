@@ -64,7 +64,7 @@ export const useAdminCloudBss = () => {
 
 /** DeepSeek 账户余额 */
 export const useAdminCloudDeepseek = () => {
-  const cfg = createResCfg<void, DeepSeekStatResult>({
+  const cfg = createResCfg<undefined, DeepSeekStatResult>({
     handle: () => getAdminCloudDeepseek(),
     success: '获取 DeepSeek 余额成功',
     clientFail: '获取 DeepSeek 余额失败',

@@ -17,7 +17,7 @@ export const loginSchema = z.object({
       let categories = 0
       if (/[a-zA-Z]/.test(val)) categories++ // 包含字母
       if (/\d/.test(val)) categories++ // 包含数字
-      if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(val)) categories++ // 包含特殊符号
+      if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(val)) categories++ // 包含特殊符号
       return categories >= 2
     }, '密码必须包含数字、字母、特殊符号中的至少两类'),
 })
@@ -40,7 +40,7 @@ export const registerSchema = z
         let categories = 0
         if (/[a-zA-Z]/.test(val)) categories++ // 包含字母
         if (/\d/.test(val)) categories++ // 包含数字
-        if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(val)) categories++ // 包含特殊符号
+        if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(val)) categories++ // 包含特殊符号
         return categories >= 2
       }, '密码必须包含数字、字母、特殊符号中的至少两类'),
     password2: z.string().min(8, '密码长度不能少于8位').max(25, '密码长度不能超过25位'),

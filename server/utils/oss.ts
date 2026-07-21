@@ -112,7 +112,7 @@ function getInternalClient(): OSS {
 function sanitizeFileName(fileName: string): string {
   return (
     fileName
-      .replace(/[^\x00-\x7F]/g, '') // 移除非 ASCII 字符（中文、emoji 等）
+      .replace(/\P{ASCII}/gu, '') // 移除非 ASCII 字符（中文、emoji 等）
       .trim()
       .replace(/\s+/g, '_') // 连续空格转单下划线
       .replace(/[^a-zA-Z0-9._-]/g, '') || // 只保留字母数字 . _ -

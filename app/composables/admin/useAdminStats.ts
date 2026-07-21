@@ -19,7 +19,7 @@ export const useAdminStats = () => {
 
 /** 云账户余额（阿里云 BSS，探索性；失败不弹错，由页面优雅降级） */
 export const useAdminStatsCloud = () => {
-  const cfg = createResCfg<void, CloudBalanceResult>({
+  const cfg = createResCfg<undefined, CloudBalanceResult>({
     handle: () => getAdminStatsCloud(),
     success: '获取云账户余额成功',
     clientFail: '获取云账户余额失败',

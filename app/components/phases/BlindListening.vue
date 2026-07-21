@@ -86,7 +86,7 @@ async function completePhase() {
 }
 
 // 重新开始
-function restart() {
+function _restart() {
   currentIndex.value = 0
   userAnswers.value = []
   showResult.value = false
