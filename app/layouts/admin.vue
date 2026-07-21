@@ -33,8 +33,11 @@
           <el-menu-item index="/admin/cloud/nls">NLS 语音交互</el-menu-item>
           <el-menu-item index="/admin/cloud/edu">智能科教平台</el-menu-item>
           <el-menu-item index="/admin/cloud/bss">BSS 费用中心</el-menu-item>
-          <el-menu-item index="/admin/cloud/deepseek">DeepSeek 余额</el-menu-item>
         </el-sub-menu>
+        <el-menu-item index="/admin/cloud/deepseek">
+          <el-icon><MagicStick /></el-icon>
+          <span>DeepSeek</span>
+        </el-menu-item>
       </el-menu>
 
       <div class="admin-sidebar__footer">
