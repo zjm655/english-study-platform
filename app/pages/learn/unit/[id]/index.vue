@@ -53,12 +53,15 @@ onMounted(() => {
   loadData()
   fetchFavSegments()
 
-  scrollObserver = new IntersectionObserver((entries) => {
-    const entry = entries[0]
-    if (entry?.isIntersecting && hasMore.value && !isLoadingMore.value) {
-      loadMoreSegments()
-    }
-  }, { rootMargin: '0px 0px 100px 0px' })
+  scrollObserver = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0]
+      if (entry?.isIntersecting && hasMore.value && !isLoadingMore.value) {
+        loadMoreSegments()
+      }
+    },
+    { rootMargin: '0px 0px 100px 0px' },
+  )
 
   if (sentinelRef.value) {
     scrollObserver.observe(sentinelRef.value)
@@ -97,9 +100,7 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
     </div>
 
     <!-- Empty -->
-    <div v-else-if="!segments.length" class="empty-state">
-      暂无片段数据
-    </div>
+    <div v-else-if="!segments.length" class="empty-state">暂无片段数据</div>
 
     <!-- Content -->
     <template v-else>
@@ -115,10 +116,7 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
           class="segment-card"
           :class="{ 'segment-card--mine': segment.isMine }"
         >
-          <NuxtLink
-            :to="`/learn/unit/${unitId}/segment/${segment.id}`"
-            class="segment-card__link"
-          >
+          <NuxtLink :to="`/learn/unit/${unitId}/segment/${segment.id}`" class="segment-card__link">
             <div class="segment-card__header">
               <span v-if="segment.isMine" class="segment-card__badge">我的</span>
               <div class="segment-card__title">{{ segment.title }}</div>
@@ -130,7 +128,8 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
                 class="phase-dot"
                 :class="{
                   'phase-dot--done': item.done,
-                  'phase-dot--current': !item.done && getCurrentPhaseIndex(getSegmentPhases(segment)) === idx,
+                  'phase-dot--current':
+                    !item.done && getCurrentPhaseIndex(getSegmentPhases(segment)) === idx,
                 }"
               >
                 <div class="phase-dot__icon">
@@ -149,7 +148,9 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
             @click="toggleSegment(segment.id)"
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+              <path
+                d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+              />
             </svg>
           </button>
         </div>

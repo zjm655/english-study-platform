@@ -18,7 +18,10 @@ export const useUnitProgress = () => {
 
   // 加载更多：直接调 API，绕过 useHandleRes 防重复锁，避免每页弹 toast
   const isLoadingMore = ref(false)
-  const loadMore = async (unitId: number, page: number): Promise<ResPayload<UnitProgressDetail>> => {
+  const loadMore = async (
+    unitId: number,
+    page: number,
+  ): Promise<ResPayload<UnitProgressDetail>> => {
     if (isLoadingMore.value) {
       return { code: -2, message: '加载中', data: null as unknown as UnitProgressDetail }
     }

@@ -10,16 +10,22 @@ import type { AdminUploadItemResult } from '../../shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
 
 // ============ 管理员音频限制 ============
-const ADMIN_MAX_DURATION = 600   // 10 分钟
-const ADMIN_MAX_SIZE = 5 * 1024 * 1024   // 5MB
+const ADMIN_MAX_DURATION = 600 // 10 分钟
+const ADMIN_MAX_SIZE = 5 * 1024 * 1024 // 5MB
 
 // ============ 记录追踪 ============
 
-async function createUploadRecord(userId: number, title: string, textContent: string, voice: string, isPublic: number): Promise<number> {
+async function createUploadRecord(
+  userId: number,
+  title: string,
+  textContent: string,
+  voice: string,
+  isPublic: number,
+): Promise<number> {
   const [res] = await pool.execute<ResultSetHeader>(
     `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, status)
      VALUES (?, ?, ?, ?, ?, 'processing')`,
-    [userId, title, textContent, voice, isPublic]
+    [userId, title, textContent, voice, isPublic],
   )
   return res.insertId
 }
@@ -27,14 +33,14 @@ async function createUploadRecord(userId: number, title: string, textContent: st
 async function updateRecordFailed(recordId: number, error: string) {
   await pool.execute(
     `UPDATE material_upload_record SET status = 'failed', error_message = ? WHERE id = ?`,
-    [error.substring(0, 500), recordId]
+    [error.substring(0, 500), recordId],
   )
 }
 
 async function updateRecordSuccess(recordId: number, segmentId: number) {
   await pool.execute(
     `UPDATE material_upload_record SET status = 'success', segment_id = ? WHERE id = ?`,
-    [segmentId, recordId]
+    [segmentId, recordId],
   )
 }
 
@@ -52,8 +58,20 @@ export interface ProcessAdminMaterialParams {
   audioFileName?: string
 }
 
-export async function processAdminMaterial(params: ProcessAdminMaterialParams): Promise<AdminUploadItemResult> {
-  const { userId, unitId, textContent, title, voice, isPublic, bucket, audioBuffer, audioFileName } = params
+export async function processAdminMaterial(
+  params: ProcessAdminMaterialParams,
+): Promise<AdminUploadItemResult> {
+  const {
+    userId,
+    unitId,
+    textContent,
+    title,
+    voice,
+    isPublic,
+    bucket,
+    audioBuffer,
+    audioFileName,
+  } = params
 
   // 1. 对话检测（免费正则）
   if (isDialogueText(textContent)) {
@@ -64,7 +82,13 @@ export async function processAdminMaterial(params: ProcessAdminMaterialParams): 
   let recordId: number
 
   try {
-    recordId = await createUploadRecord(userId, title || fallbackTitle, textContent, voice, isPublic)
+    recordId = await createUploadRecord(
+      userId,
+      title || fallbackTitle,
+      textContent,
+      voice,
+      isPublic,
+    )
   } catch (err) {
     logger.error('[admin upload] 创建记录失败:', err)
     return { index: 0, success: false, error: '创建上传记录失败' }
@@ -104,7 +128,7 @@ export async function processAdminMaterial(params: ProcessAdminMaterialParams): 
     const [mediaRes] = await pool.execute<ResultSetHeader>(
       `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, original_name, mime_type, size_bytes, status)
        VALUES (?, ?, 'oss', ?, ?, ?, ?, ?, 1)`,
-      [userId, mediaType, bucket, ossKey, originalName, `audio/${ext}`, audioBuffer_.length]
+      [userId, mediaType, bucket, ossKey, originalName, `audio/${ext}`, audioBuffer_.length],
     )
     const segmentMediaId = mediaRes.insertId
 
@@ -127,7 +151,10 @@ export async function processAdminMaterial(params: ProcessAdminMaterialParams): 
       return { index: 0, success: false, error: '音频大小超限' }
     }
 
-    await pool.execute('UPDATE media SET duration = ? WHERE id = ?', [meta.duration, segmentMediaId])
+    await pool.execute('UPDATE media SET duration = ? WHERE id = ?', [
+      meta.duration,
+      segmentMediaId,
+    ])
 
     // 6. AI 内容生成（翻译+词汇+题目）
     const aiResult = await generateLearningContent(textContent)
@@ -159,7 +186,15 @@ export async function processAdminMaterial(params: ProcessAdminMaterialParams): 
       const [segRes] = await conn.execute<ResultSetHeader>(
         `INSERT INTO segment (unit_id, title, textContent, translation, questions, is_public, media_id, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-        [unitId, finalTitle, textContent, aiResult.translation ?? '', JSON.stringify(questions), isPublic, segmentMediaId]
+        [
+          unitId,
+          finalTitle,
+          textContent,
+          aiResult.translation ?? '',
+          JSON.stringify(questions),
+          isPublic,
+          segmentMediaId,
+        ],
       )
       const newSegmentId = segRes.insertId
 
@@ -179,7 +214,7 @@ export async function processAdminMaterial(params: ProcessAdminMaterialParams): 
           const [vmRes] = await conn.execute<ResultSetHeader>(
             `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, mime_type, size_bytes, duration, status)
              VALUES (NULL, 'vocab_audio', 'oss', ?, ?, 'audio/mpeg', ?, 0, 1)`,
-            [bucket, vocabKey, vocabTts.audio.length]
+            [bucket, vocabKey, vocabTts.audio.length],
           )
           vocabMediaId = vmRes.insertId
         }
@@ -187,8 +222,17 @@ export async function processAdminMaterial(params: ProcessAdminMaterialParams): 
         await conn.execute(
           `INSERT INTO vocabulary (segment_id, word, forms, phonetic, meaning, exampleSentence, exampleTranslation, media_id, sort_order)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newSegmentId, vocab.word, vocab.forms ?? null, vocab.phonetic ?? null, vocab.meaning,
-            vocab.exampleSentence ?? null, vocab.exampleTranslation ?? null, vocabMediaId, vocabIndex++]
+          [
+            newSegmentId,
+            vocab.word,
+            vocab.forms ?? null,
+            vocab.phonetic ?? null,
+            vocab.meaning,
+            vocab.exampleSentence ?? null,
+            vocab.exampleTranslation ?? null,
+            vocabMediaId,
+            vocabIndex++,
+          ],
         )
       }
 
@@ -198,14 +242,21 @@ export async function processAdminMaterial(params: ProcessAdminMaterialParams): 
     // 9. 更新记录为成功
     await updateRecordSuccess(recordId, segmentId)
     if (finalTitle !== fallbackTitle) {
-      await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [finalTitle, recordId])
+      await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [
+        finalTitle,
+        recordId,
+      ])
     }
 
     logger.info(`[admin upload] 成功 record=${recordId} segment=${segmentId} title=${finalTitle}`)
     return { index: 0, success: true, segmentId, title: finalTitle }
   } catch (err) {
     logger.error('[admin upload] 处理失败:', err)
-    try { await updateRecordFailed(recordId, '处理失败') } catch { /* ignore */ }
+    try {
+      await updateRecordFailed(recordId, '处理失败')
+    } catch {
+      /* ignore */
+    }
     return { index: 0, success: false, error: '处理失败' }
   }
 }
@@ -218,7 +269,7 @@ export async function processAdminBatch(params: {
   voice: string
   isPublic: number
   bucket: string
-  files: Array<{ name: string, content: string }>
+  files: Array<{ name: string; content: string }>
 }): Promise<AdminUploadItemResult[]> {
   const { userId, unitId, voice, isPublic, bucket, files } = params
   const results: AdminUploadItemResult[] = []
@@ -238,10 +289,13 @@ export async function processAdminBatch(params: {
     }
 
     const result = await processAdminMaterial({
-      userId, unitId,
+      userId,
+      unitId,
       textContent: parsed.textContent,
       title: parsed.title,
-      voice, isPublic, bucket,
+      voice,
+      isPublic,
+      bucket,
     })
     results.push({ ...result, index: i })
   }

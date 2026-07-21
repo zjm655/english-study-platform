@@ -66,7 +66,11 @@ function handleRecordingReady(data: { blob: Blob; duration: number }) {
 }
 
 // 点击"分析"按钮 — 使用 SDK 评测当前录音
-async function handleRecordingAnalyze(data: { blob: Blob; duration: number; recording: UploadRecordingResult }) {
+async function handleRecordingAnalyze(data: {
+  blob: Blob
+  duration: number
+  recording: UploadRecordingResult
+}) {
   if (isEvalLoading.value || isAnalyzing.value) return
 
   const userId = userStore.user?.id
@@ -161,11 +165,7 @@ onMounted(() => {
     <div class="card">
       <div class="card__header">
         <span>原文</span>
-        <button
-          v-if="segment.audioUrl"
-          class="material-play-btn"
-          @click="playMaterialAudio"
-        >
+        <button v-if="segment.audioUrl" class="material-play-btn" @click="playMaterialAudio">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z" />
           </svg>
@@ -179,7 +179,10 @@ onMounted(() => {
 
     <!-- 卡片 2：翻译（可折叠） -->
     <div class="card">
-      <div class="card__header card__header--clickable" @click="translationExpanded = !translationExpanded">
+      <div
+        class="card__header card__header--clickable"
+        @click="translationExpanded = !translationExpanded"
+      >
         <span>翻译</span>
         <svg
           class="arrow-icon"
@@ -222,7 +225,10 @@ onMounted(() => {
       </div>
 
       <div v-else class="analysis-result-wrap">
-        <EvaluationResultCard :recording="selectedRecording!" :reference-text="segment.textContent" />
+        <EvaluationResultCard
+          :recording="selectedRecording!"
+          :reference-text="segment.textContent"
+        />
       </div>
     </div>
 
@@ -269,9 +275,7 @@ onMounted(() => {
       <template v-if="isUpdating">
         <DotPulse />
       </template>
-      <template v-else>
-        完成配音
-      </template>
+      <template v-else> 完成配音 </template>
     </button>
   </div>
 </template>
@@ -330,7 +334,10 @@ onMounted(() => {
   color: var(--primary);
   font-size: 12px;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .material-play-btn svg {
@@ -382,7 +389,11 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 500;
   cursor: not-allowed;
-  transition: background 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s,
+    opacity 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;

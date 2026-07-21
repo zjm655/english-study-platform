@@ -6,7 +6,7 @@ import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
 import type { UserStats } from '#shared/types/user'
 
 definePageMeta({
-  title: '学习'
+  title: '学习',
 })
 
 const { isLoading: unitsLoading, execute: fetchUnits } = useUnits()
@@ -34,13 +34,13 @@ const currentProgress = computed(() => {
         { phase: 1, name: '盲听', done: false },
         { phase: 2, name: '学习', done: false },
         { phase: 3, name: '配音', done: false },
-        { phase: 4, name: '跟读', done: false }
-      ]
+        { phase: 4, name: '跟读', done: false },
+      ],
     }
   }
 
   const currentDetail = userProgress.value.details.find(
-    (d) => !(d.phase1_done && d.phase2_done && d.phase3_done && d.phase4_done)
+    (d) => !(d.phase1_done && d.phase2_done && d.phase3_done && d.phase4_done),
   )
 
   if (!currentDetail) {
@@ -54,8 +54,8 @@ const currentProgress = computed(() => {
         { phase: 1, name: '盲听', done: true },
         { phase: 2, name: '学习', done: true },
         { phase: 3, name: '配音', done: true },
-        { phase: 4, name: '跟读', done: true }
-      ]
+        { phase: 4, name: '跟读', done: true },
+      ],
     }
   }
 
@@ -63,26 +63,26 @@ const currentProgress = computed(() => {
     { phase: 1, name: '盲听', done: currentDetail.phase1_done },
     { phase: 2, name: '学习', done: currentDetail.phase2_done },
     { phase: 3, name: '配音', done: currentDetail.phase3_done },
-    { phase: 4, name: '跟读', done: currentDetail.phase4_done }
+    { phase: 4, name: '跟读', done: currentDetail.phase4_done },
   ]
 
   return {
     unitTitle: currentDetail.unitTitle,
     segmentTitle: currentDetail.segmentTitle,
-    currentPhase: phases.findIndex(p => !p.done) + 1,
-    phases
+    currentPhase: phases.findIndex((p) => !p.done) + 1,
+    phases,
   }
 })
 
 const progressPercent = computed(() => {
   if (!currentProgress.value) return 0
-  const doneCount = currentProgress.value.phases.filter(p => p.done).length
+  const doneCount = currentProgress.value.phases.filter((p) => p.done).length
   return (doneCount / 4) * 100
 })
 
 const continueText = computed(() => {
   if (!currentProgress.value) return '开始学习'
-  const current = currentProgress.value.phases.find(p => !p.done)
+  const current = currentProgress.value.phases.find((p) => !p.done)
   return current ? `继续${current.name}` : '已完成'
 })
 
@@ -93,7 +93,7 @@ function getContinueLink() {
   }
 
   const currentDetail = userProgress.value.details.find(
-    (d) => !(d.phase1_done && d.phase2_done && d.phase3_done && d.phase4_done)
+    (d) => !(d.phase1_done && d.phase2_done && d.phase3_done && d.phase4_done),
   )
 
   if (currentDetail) {
@@ -128,8 +128,7 @@ async function initUnits() {
   if (unitsRes?.code === 200) {
     units.value = unitsRes.data || []
   }
-  if (!isLoading.value)
-    dataReady.value = true
+  if (!isLoading.value) dataReady.value = true
 }
 
 async function initUser() {
@@ -138,8 +137,7 @@ async function initUser() {
   if (statsRes?.code === 200) {
     userStats.value = statsRes.data
   }
-  if (!isLoading.value)
-    dataReady.value = true
+  if (!isLoading.value) dataReady.value = true
 }
 
 onMounted(() => {
@@ -154,36 +152,39 @@ onMounted(() => {
       <!-- 进度卡片骨架 -->
       <div class="skeleton-card">
         <div class="skeleton-card__header">
-          <el-skeleton-item variant="text" style="width: 30%; height: 14px;" />
-          <el-skeleton-item variant="text" style="width: 60%; height: 20px; margin-top: 8px;" />
+          <el-skeleton-item variant="text" style="width: 30%; height: 14px" />
+          <el-skeleton-item variant="text" style="width: 60%; height: 20px; margin-top: 8px" />
         </div>
         <div class="skeleton-steps">
           <div v-for="i in 4" :key="i" class="skeleton-step">
-            <el-skeleton-item variant="circle" style="width: 28px; height: 28px;" />
-            <el-skeleton-item variant="text" style="width: 28px; height: 11px; margin-top: 6px;" />
+            <el-skeleton-item variant="circle" style="width: 28px; height: 28px" />
+            <el-skeleton-item variant="text" style="width: 28px; height: 11px; margin-top: 6px" />
           </div>
         </div>
-        <el-skeleton-item variant="p" style="width: 100%; height: 4px; margin-top: 16px;" />
-        <el-skeleton-item variant="rect" style="width: 100%; height: 44px; border-radius: 8px; margin-top: 16px;" />
+        <el-skeleton-item variant="p" style="width: 100%; height: 4px; margin-top: 16px" />
+        <el-skeleton-item
+          variant="rect"
+          style="width: 100%; height: 44px; border-radius: 8px; margin-top: 16px"
+        />
       </div>
 
       <!-- 统计概览骨架 -->
       <div class="skeleton-stats">
         <div v-for="i in 3" :key="i" class="skeleton-stat-item">
-          <el-skeleton-item variant="text" style="width: 50px; height: 20px;" />
-          <el-skeleton-item variant="text" style="width: 60px; height: 12px; margin-top: 4px;" />
+          <el-skeleton-item variant="text" style="width: 50px; height: 20px" />
+          <el-skeleton-item variant="text" style="width: 60px; height: 12px; margin-top: 4px" />
         </div>
       </div>
 
       <!-- 单元列表骨架 -->
       <div class="skeleton-units">
-        <el-skeleton-item variant="text" style="width: 80px; height: 16px; margin-bottom: 12px;" />
+        <el-skeleton-item variant="text" style="width: 80px; height: 16px; margin-bottom: 12px" />
         <div v-for="i in 3" :key="i" class="skeleton-unit-card">
-          <div style="flex: 1;">
-            <el-skeleton-item variant="text" style="width: 60%; height: 15px;" />
-            <el-skeleton-item variant="text" style="width: 40%; height: 12px; margin-top: 6px;" />
+          <div style="flex: 1">
+            <el-skeleton-item variant="text" style="width: 60%; height: 15px" />
+            <el-skeleton-item variant="text" style="width: 40%; height: 12px; margin-top: 6px" />
           </div>
-          <el-skeleton-item variant="text" style="width: 40px; height: 12px;" />
+          <el-skeleton-item variant="text" style="width: 40px; height: 12px" />
         </div>
       </div>
     </div>
@@ -202,7 +203,9 @@ onMounted(() => {
             class="phase-step"
             :class="{
               'phase-step--done': item.done,
-              'phase-step--current': !item.done && currentProgress.phases[currentProgress.phases.indexOf(item) - 1]?.done
+              'phase-step--current':
+                !item.done &&
+                currentProgress.phases[currentProgress.phases.indexOf(item) - 1]?.done,
             }"
           >
             <div class="phase-step__icon">
@@ -230,11 +233,15 @@ onMounted(() => {
           <span class="stats-label">已完成片段</span>
         </div>
         <div class="stats-item">
-          <span class="stats-value">{{ userStats.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--' }}</span>
+          <span class="stats-value">{{
+            userStats.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--'
+          }}</span>
           <span class="stats-label">配音平均分</span>
         </div>
         <div class="stats-item">
-          <span class="stats-value">{{ userStats.lastStudyTime ? formatLastStudy(userStats.lastStudyTime) : '--' }}</span>
+          <span class="stats-value">{{
+            userStats.lastStudyTime ? formatLastStudy(userStats.lastStudyTime) : '--'
+          }}</span>
           <span class="stats-label">最近学习</span>
         </div>
       </div>
@@ -253,7 +260,9 @@ onMounted(() => {
               <div class="unit-card__meta">{{ unit.progress.totalSegments }} 个片段</div>
             </div>
             <div class="unit-card__progress">
-              <span class="unit-card__progress-text">{{ unit.progress.completedSegments }}/{{ unit.progress.totalSegments }}</span>
+              <span class="unit-card__progress-text"
+                >{{ unit.progress.completedSegments }}/{{ unit.progress.totalSegments }}</span
+              >
               <div class="unit-card__progress-bar">
                 <div
                   class="unit-card__progress-fill"
@@ -573,7 +582,9 @@ onMounted(() => {
   box-shadow: var(--shadow);
   color: var(--text-2);
   font-size: 14px;
-  transition: color 0.2s, box-shadow 0.2s;
+  transition:
+    color 0.2s,
+    box-shadow 0.2s;
 }
 
 .upload-entry:hover {

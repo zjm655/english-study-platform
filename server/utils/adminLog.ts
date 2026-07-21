@@ -18,13 +18,13 @@ export async function logAdminOperation(
   action: string,
   targetType: string,
   targetId: number,
-  detail?: Record<string, unknown>
+  detail?: Record<string, unknown>,
 ): Promise<void> {
   try {
     await query(
       `INSERT INTO admin_operation_log (admin_id, action, target_type, target_id, detail)
        VALUES (?, ?, ?, ?, ?)`,
-      [adminId, action, targetType, targetId, detail ? JSON.stringify(detail) : null]
+      [adminId, action, targetType, targetId, detail ? JSON.stringify(detail) : null],
     )
   } catch (err) {
     // 日志写入失败不影响业务

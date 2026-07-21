@@ -29,34 +29,33 @@ export default defineNuxtConfig({
       database: 'nuxt4_demo',
     },
     oss: {
-      region:"oss-cn-wuhan-lr",
-      bucket:"nick-img-bucket-xxxxxx-from-xxx",
-      accessKeyId:"",
-      accessKeySecret:""
+      region: 'oss-cn-wuhan-lr',
+      bucket: 'nick-img-bucket-xxxxxx-from-xxx',
+      accessKeyId: '',
+      accessKeySecret: '',
     },
     deepseek: {
-      model:"deepseek-v4-flash",
-      apiKey:"",
-      baseUrl:""
+      model: 'deepseek-v4-flash',
+      apiKey: '',
+      baseUrl: '',
     },
     nls: {
-      accessKeyId:"",
-      accessKeySecret:"",
-      gateway:"nls-gateway.aliyuncs.com",
-      appKey:""
+      accessKeyId: '',
+      accessKeySecret: '',
+      gateway: 'nls-gateway.aliyuncs.com',
+      appKey: '',
     },
     aiContent: {
-      appId:"",
-      appSecret:"",
-      accessKeyId:"",
-      accessKeySecret:"",
-      authUrl: "https://api.cloud.ssapi.cn/auth/authorize"
+      appId: '',
+      appSecret: '',
+      accessKeyId: '',
+      accessKeySecret: '',
+      authUrl: 'https://api.cloud.ssapi.cn/auth/authorize',
     },
     bss: {
-      accessKeyId:"",
-      accessKeySecret:""      
-    }
-
+      accessKeyId: '',
+      accessKeySecret: '',
+    },
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],
   elementPlus: {
@@ -69,7 +68,7 @@ export default defineNuxtConfig({
     },
   },
   devServer: {
-    port: 5173
+    port: 5173,
   },
 
   nitro: {

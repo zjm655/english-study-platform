@@ -34,14 +34,39 @@ const currentPhase = ref(1)
 
 // 阶段注册表：承载指示器文案 + 页眉文案 + 对应阶段组件
 const phases = [
-  { phase: 1, name: '盲听', title: '盲听理解', desc: '仔细听音频，理解大意后回答问题', component: BlindListening },
-  { phase: 2, name: '学习', title: '文本学习', desc: '对照原文学习，点击单词查看详情', component: TextLearning },
-  { phase: 3, name: '配音', title: '配音练习', desc: '跟随原文朗读，录制你的声音', component: DubbingPractice, spacer: true },
-  { phase: 4, name: '跟读', title: '影子跟读', desc: '跟随音频同步朗读，模仿语音语调', component: ShadowReading },
+  {
+    phase: 1,
+    name: '盲听',
+    title: '盲听理解',
+    desc: '仔细听音频，理解大意后回答问题',
+    component: BlindListening,
+  },
+  {
+    phase: 2,
+    name: '学习',
+    title: '文本学习',
+    desc: '对照原文学习，点击单词查看详情',
+    component: TextLearning,
+  },
+  {
+    phase: 3,
+    name: '配音',
+    title: '配音练习',
+    desc: '跟随原文朗读，录制你的声音',
+    component: DubbingPractice,
+    spacer: true,
+  },
+  {
+    phase: 4,
+    name: '跟读',
+    title: '影子跟读',
+    desc: '跟随音频同步朗读，模仿语音语调',
+    component: ShadowReading,
+  },
 ]
 
 // 当前激活阶段（驱动动态组件 + 页眉）
-const activePhase = computed(() => phases.find(p => p.phase === currentPhase.value)!)
+const activePhase = computed(() => phases.find((p) => p.phase === currentPhase.value)!)
 
 async function loadData() {
   error.value = null
@@ -98,11 +123,16 @@ function isPhaseDone(phase: number): boolean {
   if (!segment.value) return false
   const p = segment.value.progress
   switch (phase) {
-    case 1: return p.phase1_done
-    case 2: return p.phase2_done
-    case 3: return p.phase3_done
-    case 4: return p.phase4_done
-    default: return false
+    case 1:
+      return p.phase1_done
+    case 2:
+      return p.phase2_done
+    case 3:
+      return p.phase3_done
+    case 4:
+      return p.phase4_done
+    default:
+      return false
   }
 }
 
@@ -154,7 +184,12 @@ function onPhaseComplete() {
           @keydown.enter.prevent="goToPhase(item.phase)"
         >
           <div class="phase-step__circle">
-            <svg v-if="isPhaseDone(item.phase)" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg
+              v-if="isPhaseDone(item.phase)"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
               <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
             </svg>
             <span v-else>{{ item.phase }}</span>
@@ -267,7 +302,10 @@ function onPhaseComplete() {
   font-weight: 600;
   background: var(--border-ll);
   color: var(--text-3);
-  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    box-shadow 0.2s;
 }
 
 .phase-step__circle svg {

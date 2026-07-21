@@ -16,11 +16,16 @@ const wordScoresExpanded = ref(true)
 // 逐词评分颜色类
 function getWordStatusClass(word: WordScore): string {
   switch (word.status) {
-    case 'correct': return 'word--correct'
-    case 'minor': return 'word--minor'
-    case 'wrong': return 'word--wrong'
-    case 'missing': return 'word--missing'
-    default: return ''
+    case 'correct':
+      return 'word--correct'
+    case 'minor':
+      return 'word--minor'
+    case 'wrong':
+      return 'word--wrong'
+    case 'missing':
+      return 'word--missing'
+    default:
+      return ''
   }
 }
 
@@ -71,10 +76,12 @@ const recognizedDiff = computed(() => {
           {{ recording.recognizedText }}
         </p>
         <p v-else class="recognized-text">
-          <template v-for="(tok, idx) in recognizedDiff" :key="idx"><span
-            class="rec-word"
-            :class="{ 'rec-word--mismatch': !tok.match }"
-          >{{ tok.word }}</span>{{ ' ' }}</template>
+          <template v-for="(tok, idx) in recognizedDiff" :key="idx"
+            ><span class="rec-word" :class="{ 'rec-word--mismatch': !tok.match }">{{
+              tok.word
+            }}</span
+            >{{ ' ' }}</template
+          >
         </p>
       </div>
     </div>

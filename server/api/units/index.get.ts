@@ -22,13 +22,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
          LEFT JOIN media m ON u.cover_media_id = m.id
          WHERE u.level = ?
          ORDER BY u.sort_order`,
-        [level]
+        [level],
       )
     : await query<UnitRow & { unit_media_key: string | null }>(
         `SELECT u.*, m.object_key AS unit_media_key
          FROM unit u
          LEFT JOIN media m ON u.cover_media_id = m.id
-         ORDER BY u.level, u.sort_order`
+         ORDER BY u.level, u.sort_order`,
       )
 
   // 2. 查该用户所有已学习片段（单元内去重）
@@ -38,14 +38,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
          FROM user_progress up
          JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
          WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ?)`,
-        [userId, level]
+        [userId, level],
       )
     : await query<{ segment_id: number; unit_id: number }>(
         `SELECT DISTINCT up.segment_id, s.unit_id
          FROM user_progress up
          JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
          WHERE up.user_id = ?`,
-        [userId]
+        [userId],
       )
   const progressMap = new Map<number, Set<number>>()
   for (const row of progressRows) {
@@ -57,10 +57,10 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
   const segmentCounts = validLevel
     ? await query<{ unit_id: number; count: number }>(
         `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ?) AND deleted_at IS NULL GROUP BY unit_id`,
-        [level]
+        [level],
       )
     : await query<{ unit_id: number; count: number }>(
-        `SELECT unit_id, COUNT(*) as count FROM segment WHERE deleted_at IS NULL GROUP BY unit_id`
+        `SELECT unit_id, COUNT(*) as count FROM segment WHERE deleted_at IS NULL GROUP BY unit_id`,
       )
   const countMap = new Map(segmentCounts.map((r) => [r.unit_id, r.count]))
 
@@ -84,7 +84,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
         audioUrl: await signFromMedia(unit.unit_media_key, MATERIAL_EXPIRE),
         progress,
       }
-    })
+    }),
   )
 
   return validateSuccess(result, '获取成功')
@@ -93,7 +93,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
 /** 生成签名 URL：使用 media 表的 object_key */
 async function signFromMedia(
   objectKey: string | null,
-  expires: number = MATERIAL_EXPIRE
+  expires: number = MATERIAL_EXPIRE,
 ): Promise<string | null> {
   if (objectKey) return signUrl(objectKey, expires)
   return null

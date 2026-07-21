@@ -65,7 +65,7 @@ export type CloudProductKey = keyof typeof PRODUCT_REGISTRY
  */
 export async function estimateServiceUsage(
   product: CloudProductKey,
-  days: number
+  days: number,
 ): Promise<CloudEstimateSummary> {
   const config = PRODUCT_REGISTRY[product]
   if (!config) {

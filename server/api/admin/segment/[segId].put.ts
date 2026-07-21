@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   // 校验材料存在且未删除，并取当前 is_public（payload 未传时保持不变）
   const existing = await query<{ id: number; is_public: number }>(
     'SELECT id, is_public FROM segment WHERE id = ? AND deleted_at IS NULL',
-    [segId]
+    [segId],
   )
   if (existing.length === 0) {
     return validateError('材料不存在或已删除', 404)
@@ -43,7 +43,8 @@ export default defineEventHandler(async (event) => {
   // 空翻译归一为 null（与无翻译材料的存储约定一致）
   const finalTranslation = translation == null || translation === '' ? null : translation
   // 空题目数组归一为 null（与无题目材料的存储约定一致）
-  const finalQuestions = questions == null || questions.length === 0 ? null : JSON.stringify(questions)
+  const finalQuestions =
+    questions == null || questions.length === 0 ? null : JSON.stringify(questions)
 
   try {
     await withTransaction(async (conn) => {
@@ -52,19 +53,19 @@ export default defineEventHandler(async (event) => {
         `UPDATE segment
          SET title = ?, textContent = ?, translation = ?, questions = ?, is_public = ?
          WHERE id = ? AND deleted_at IS NULL`,
-        [title, textContent, finalTranslation, finalQuestions, finalIsPublic, segId]
+        [title, textContent, finalTranslation, finalQuestions, finalIsPublic, segId],
       )
 
       // 2. 词汇 diff（payload 未传 vocabulary 时不动词汇）
       if (vocabulary != null) {
-        const keepIds = vocabulary.filter(v => v.id != null).map(v => v.id as number)
+        const keepIds = vocabulary.filter((v) => v.id != null).map((v) => v.id as number)
 
         // 2a. 删除 payload 中未保留的词汇
         if (keepIds.length > 0) {
           const placeholders = keepIds.map(() => '?').join(', ')
           await conn.execute(
             `DELETE FROM vocabulary WHERE segment_id = ? AND id NOT IN (${placeholders})`,
-            [segId, ...keepIds]
+            [segId, ...keepIds],
           )
         } else {
           // payload 无带 id 项 → 清空该材料的全部词汇
@@ -85,7 +86,17 @@ export default defineEventHandler(async (event) => {
                SET word = ?, forms = ?, phonetic = ?, meaning = ?,
                    exampleSentence = ?, exampleTranslation = ?, sort_order = ?
                WHERE id = ? AND segment_id = ?`,
-              [v.word, forms, phonetic, v.meaning, exampleSentence, exampleTranslation, i, v.id, segId]
+              [
+                v.word,
+                forms,
+                phonetic,
+                v.meaning,
+                exampleSentence,
+                exampleTranslation,
+                i,
+                v.id,
+                segId,
+              ],
             )
           } else {
             // INSERT 新词 media_id=NULL（不触发 TTS 再生成，无音频为预期行为）
@@ -93,7 +104,7 @@ export default defineEventHandler(async (event) => {
               `INSERT INTO vocabulary
                  (segment_id, word, forms, phonetic, meaning, exampleSentence, exampleTranslation, sort_order)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              [segId, v.word, forms, phonetic, v.meaning, exampleSentence, exampleTranslation, i]
+              [segId, v.word, forms, phonetic, v.meaning, exampleSentence, exampleTranslation, i],
             )
           }
         }

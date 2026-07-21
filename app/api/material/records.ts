@@ -1,5 +1,8 @@
 import { materialRecordsPath } from '../paths'
-import type { MaterialUploadRecordListItem, UpdateMaterialRecordPayload } from '#shared/types/material'
+import type {
+  MaterialUploadRecordListItem,
+  UpdateMaterialRecordPayload,
+} from '#shared/types/material'
 
 interface ListOptions {
   limit?: number
@@ -12,7 +15,7 @@ export const getMaterialRecords = async (options: ListOptions = {}) => {
   if (options.offset) params.append('offset', String(options.offset))
   const query = params.toString()
   return request.json<MaterialUploadRecordListItem[]>(
-    `${materialRecordsPath}${query ? '?' + query : ''}`
+    `${materialRecordsPath}${query ? '?' + query : ''}`,
   )
 }
 

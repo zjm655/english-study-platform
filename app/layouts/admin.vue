@@ -69,7 +69,9 @@ const activeMenu = computed(() => {
     return '/admin/material'
   }
   // 云服务子项：映射到父菜单保持展开，deepseek 独立菜单不受影响
-  if (['/admin/cloud/oss', '/admin/cloud/nls', '/admin/cloud/edu', '/admin/cloud/bss'].includes(path)) {
+  if (
+    ['/admin/cloud/oss', '/admin/cloud/nls', '/admin/cloud/edu', '/admin/cloud/bss'].includes(path)
+  ) {
     return '/admin/cloud'
   }
   return path

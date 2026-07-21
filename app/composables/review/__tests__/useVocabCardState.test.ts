@@ -128,7 +128,8 @@ describe('useVocabCardState', () => {
   })
 
   it('完成态下调用任何方法都不改变状态', () => {
-    const { currentIndex, isFlipped, isCompleted, markKnown, markUnknown, toggleFlip, reset } = makeState()
+    const { currentIndex, isFlipped, isCompleted, markKnown, markUnknown, toggleFlip, reset } =
+      makeState()
     // 推到完成态
     markKnown()
     markKnown()

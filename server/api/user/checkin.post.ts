@@ -19,7 +19,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     // 1. 查今天的 log 记录（事务内必须用 conn.execute）
     const [logRows] = await conn.execute(
       'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
-      [userId, todayStr]
+      [userId, todayStr],
     )
     const todayLog = (logRows as CheckinLogRow[])[0]
 
@@ -27,7 +27,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     if (todayLog && todayLog.checked_in === 1) {
       return {
         alreadyCheckedIn: true,
-        stats: await getStats(conn, userId)
+        stats: await getStats(conn, userId),
       }
     }
 
@@ -36,13 +36,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
       // 存在但未签到（study-time 创建的）→ 标记已签到
       await conn.execute<ResultSetHeader>(
         'UPDATE user_checkin_log SET checked_in = 1 WHERE id = ?',
-        [todayLog.id]
+        [todayLog.id],
       )
     } else {
       // 不存在 → 创建（已签到）
       await conn.execute<ResultSetHeader>(
         'INSERT INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, ?, 1)',
-        [userId, todayStr]
+        [userId, todayStr],
       )
     }
 
@@ -76,7 +76,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
            current_streak_days = ?,
            max_streak_days = ?
        WHERE user_id = ?`,
-      [nowStr, newStreak, newMax, userId]
+      [nowStr, newStreak, newMax, userId],
     )
 
     return {
@@ -86,8 +86,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
         lastCheckinTime: nowStr,
         currentStreakDays: newStreak,
         maxStreakDays: newMax,
-        totalStudySeconds: stats.totalStudySeconds
-      }
+        totalStudySeconds: stats.totalStudySeconds,
+      },
     }
   })
 

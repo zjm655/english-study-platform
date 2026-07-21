@@ -23,11 +23,13 @@ export default defineNitroPlugin((nitroApp) => {
       event.node.res.statusCode = 429
       event.node.res.setHeader('Content-Type', 'application/json; charset=utf-8')
       event.node.res.setHeader('Retry-After', String(retryAfter))
-      event.node.res.end(JSON.stringify({
-        code: 429,
-        message: `请求过于频繁，请 ${retryAfter} 秒后重试`,
-        data: null,
-      }))
+      event.node.res.end(
+        JSON.stringify({
+          code: 429,
+          message: `请求过于频繁，请 ${retryAfter} 秒后重试`,
+          data: null,
+        }),
+      )
       // 标记已处理，阻止后续 handler 执行
       ;(event as any)._handled = true
       return

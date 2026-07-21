@@ -2,7 +2,7 @@
 
 /** 估算查询参数 */
 export interface CloudEstimateQuery {
-  days?: number  // 1-90，默认 7
+  days?: number // 1-90，默认 7
 }
 
 /** 单路径估算明细 */
@@ -19,7 +19,7 @@ export interface CloudEstimateSummary {
   totalCalls: number
   totalEstimatedCost: number
   unitPrice: number
-  unit: string           // '次' | '小时' 等
+  unit: string // '次' | '小时' 等
   byPath: CloudPathEstimate[]
   days: number
 }
@@ -27,12 +27,12 @@ export interface CloudEstimateSummary {
 /** OSS Bucket 统计（官方 GetBucketStat API，数据延迟可能 >1h，不含流量） */
 export interface OssBucketStat {
   success: boolean
-  storage?: number          // 总存储字节
-  objectCount?: number      // Object 数量
-  standardStorage?: number  // 标准存储字节
+  storage?: number // 总存储字节
+  objectCount?: number // Object 数量
+  standardStorage?: number // 标准存储字节
   standardObjectCount?: number
   multipartUploadCount?: number
-  lastModifiedTime?: number        // 秒级时间戳（数据非实时）
+  lastModifiedTime?: number // 秒级时间戳（数据非实时）
   infrequentAccessStorage?: number
   infrequentAccessObjectCount?: number
   archiveStorage?: number
@@ -89,10 +89,10 @@ export interface BssStatResult {
 
 /** DeepSeek 余额条目 */
 export interface DeepSeekBalanceInfo {
-  currency: string           // 'CNY' | 'USD'
-  totalBalance: string       // 总可用余额（含赠金+充值）
-  grantedBalance: string     // 未过期赠金
-  toppedUpBalance: string    // 充值余额
+  currency: string // 'CNY' | 'USD'
+  totalBalance: string // 总可用余额（含赠金+充值）
+  grantedBalance: string // 未过期赠金
+  toppedUpBalance: string // 充值余额
 }
 
 /** DeepSeek 余额查询结果 */

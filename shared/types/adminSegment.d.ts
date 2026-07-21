@@ -7,7 +7,7 @@ export interface AdminSegmentListItem {
   title: string
   unitId: number
   unitTitle: string
-  isPublic: number        // 0 私有 1 公开
+  isPublic: number // 0 私有 1 公开
   sortOrder: number
   createdAt: string
 }
@@ -16,9 +16,9 @@ export interface AdminSegmentListItem {
 export interface AdminSegmentListQuery {
   page?: number
   pageSize?: number
-  unitId?: number         // 0 = 用户自定义材料单元
-  isPublic?: number       // 0 | 1
-  keyword?: string        // 按标题模糊搜索
+  unitId?: number // 0 = 用户自定义材料单元
+  isPublic?: number // 0 | 1
+  keyword?: string // 按标题模糊搜索
 }
 
 /** 材料列表响应（服务端分页） */
@@ -60,5 +60,5 @@ export interface AdminSegmentUpdatePayload {
   translation?: string | null
   questions?: Question[]
   vocabulary?: AdminVocabEditItem[]
-  isPublic?: number       // 0 | 1
+  isPublic?: number // 0 | 1
 }

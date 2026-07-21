@@ -4,7 +4,7 @@ import type { CheckinStats } from '~~/shared/types/user'
 export const putStudyTime = async (studySeconds: number) => {
   const res = await request<CheckinStats>(userStudyTimePath, {
     method: 'PUT',
-    body: { studySeconds }
+    body: { studySeconds },
   })
   return res
 }

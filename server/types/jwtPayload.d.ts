@@ -1,4 +1,4 @@
-import type { JWTPayload } from "jose"
+import type { JWTPayload } from 'jose'
 export interface JwtPayload extends JWTPayload {
   id: number
   nickname?: string

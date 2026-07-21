@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
   // 目标用户须存在且未注销
   const targetRows = await query<{ id: number; role: number; status: number; account: string }>(
     'SELECT id, role, status, account FROM user WHERE id = ? AND deleted_at IS NULL',
-    [userId]
+    [userId],
   )
   if (targetRows.length === 0) {
     return validateError('用户不存在或已注销', 404)
@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
 
   const result = await query<ResultSetHeader>(
     'UPDATE user SET status = ? WHERE id = ? AND deleted_at IS NULL',
-    [status, userId]
+    [status, userId],
   )
   const affectedRows = (result as unknown as ResultSetHeader).affectedRows ?? 0
   if (affectedRows === 0) {

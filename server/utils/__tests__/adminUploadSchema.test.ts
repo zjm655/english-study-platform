@@ -8,36 +8,65 @@ import { adminUploadSchema } from '../validate'
 // （传数字 unitId）绕过了 handler，故未暴露。此处用 handler 真实会传入的入参类型校验 schema。
 describe('adminUploadSchema（multipart 字符串入参回归）', () => {
   it('C1: unitId 字符串 "0" 应被 coerce 为数字 0（而非拒绝）', () => {
-    const parsed = adminUploadSchema.safeParse({ mode: 'single', unitId: '0', voice: 'en-US-AriaNeural', isPublic: '1' })
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '0',
+      voice: 'en-US-AriaNeural',
+      isPublic: '1',
+    })
     expect(parsed.success).toBe(true)
     if (parsed.success) expect(parsed.data.unitId).toBe(0)
   })
 
   it('C1: unitId 字符串 "5" 应被 coerce 为 5', () => {
-    const parsed = adminUploadSchema.safeParse({ mode: 'batch', unitId: '5', voice: 'en-US-AriaNeural', isPublic: '0' })
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'batch',
+      unitId: '5',
+      voice: 'en-US-AriaNeural',
+      isPublic: '0',
+    })
     expect(parsed.success).toBe(true)
     if (parsed.success) expect(parsed.data.unitId).toBe(5)
   })
 
   it('C1: unitId 负数应被拒绝', () => {
-    const parsed = adminUploadSchema.safeParse({ mode: 'single', unitId: '-1', voice: 'en-US-AriaNeural', isPublic: '1' })
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '-1',
+      voice: 'en-US-AriaNeural',
+      isPublic: '1',
+    })
     expect(parsed.success).toBe(false)
   })
 
   it('C3: isPublic 缺失（null）应默认公开 1', () => {
-    const parsed = adminUploadSchema.safeParse({ mode: 'single', unitId: '0', voice: 'en-US-AriaNeural', isPublic: null })
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '0',
+      voice: 'en-US-AriaNeural',
+      isPublic: null,
+    })
     expect(parsed.success).toBe(true)
     if (parsed.success) expect(parsed.data.isPublic).toBe(1)
   })
 
   it('C3: isPublic 缺失（undefined）应默认公开 1', () => {
-    const parsed = adminUploadSchema.safeParse({ mode: 'single', unitId: '0', voice: 'en-US-AriaNeural' })
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '0',
+      voice: 'en-US-AriaNeural',
+    })
     expect(parsed.success).toBe(true)
     if (parsed.success) expect(parsed.data.isPublic).toBe(1)
   })
 
   it('C3: isPublic "0" 应为私有 0', () => {
-    const parsed = adminUploadSchema.safeParse({ mode: 'single', unitId: '0', voice: 'en-US-AriaNeural', isPublic: '0' })
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '0',
+      voice: 'en-US-AriaNeural',
+      isPublic: '0',
+    })
     expect(parsed.success).toBe(true)
     if (parsed.success) expect(parsed.data.isPublic).toBe(0)
   })

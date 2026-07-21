@@ -46,12 +46,12 @@ export default defineEventHandler(async (event) => {
      WHERE ${whereSql}
      ORDER BY createdAt DESC, id DESC
      LIMIT ? OFFSET ?`,
-    [...params, pageSize, offset]
+    [...params, pageSize, offset],
   )
 
   const countRows = await query<{ total: number }>(
     `SELECT COUNT(*) AS total FROM user WHERE ${whereSql}`,
-    params
+    params,
   )
   const total = Number(countRows[0]?.total ?? 0)
 

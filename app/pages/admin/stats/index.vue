@@ -49,7 +49,9 @@
           </div>
         </header>
         <div ref="trendChartRef" class="chart-body chart-body--trend"></div>
-        <p v-if="!hasData && !isLoading" class="chart-empty">暂无调用数据，等待埋点上报后将自动生成趋势</p>
+        <p v-if="!hasData && !isLoading" class="chart-empty">
+          暂无调用数据，等待埋点上报后将自动生成趋势
+        </p>
       </section>
 
       <section class="panel panel--top">
@@ -96,7 +98,9 @@
           </header>
           <div class="security-body">
             <div class="security-hero">
-              <span class="security-number">{{ (statsData?.summary?.unauthCalls ?? 0).toLocaleString() }}</span>
+              <span class="security-number">{{
+                (statsData?.summary?.unauthCalls ?? 0).toLocaleString()
+              }}</span>
               <span class="security-caption">未认证调用（user_id 为空）</span>
             </div>
             <ul class="security-notes">
@@ -141,10 +145,7 @@
 import { Refresh, WarningFilled } from '@element-plus/icons-vue'
 import { use, graphic, init } from 'echarts/core'
 import { LineChart, BarChart } from 'echarts/charts'
-import {
-  GridComponent,
-  TooltipComponent,
-} from 'echarts/components'
+import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { AdminStatsResult, DailyTrendItem, CloudBalanceResult } from '#shared/types/adminStats'
@@ -232,7 +233,7 @@ let topChart: EChartsType | null = null
 let resizeObserver: ResizeObserver | null = null
 
 const maxErrorCount = computed(() =>
-  Math.max(1, ...(statsData.value?.errorPaths.map(i => i.count) ?? [1]))
+  Math.max(1, ...(statsData.value?.errorPaths.map((i) => i.count) ?? [1])),
 )
 
 function barWidth(count: number, max: number) {
@@ -241,7 +242,7 @@ function barWidth(count: number, max: number) {
 
 /** 补齐无数据日期为 0，保证趋势轴连续 */
 function fillTrendGap(trend: DailyTrendItem[], range: number): DailyTrendItem[] {
-  const map = new Map(trend.map(i => [i.date, i]))
+  const map = new Map(trend.map((i) => [i.date, i]))
   const result: DailyTrendItem[] = []
   for (let i = range - 1; i >= 0; i--) {
     const d = new Date()
@@ -261,7 +262,7 @@ function updateCharts() {
 function updateTrendChart() {
   if (!trendChart || !statsData.value) return
   const trend = fillTrendGap(statsData.value.dailyTrend, days.value)
-  const dates = trend.map(i => i.date.slice(5))  // MM-DD 展示更紧凑
+  const dates = trend.map((i) => i.date.slice(5)) // MM-DD 展示更紧凑
   trendChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -270,8 +271,9 @@ function updateTrendChart() {
       textStyle: { color: '#303133', fontSize: 12 },
       formatter(params: any) {
         const full = trend[params[0].dataIndex]!
-        const lines = params.map((p: any) =>
-          `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}：<b>${p.value.toLocaleString()}</b>`
+        const lines = params.map(
+          (p: any) =>
+            `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}：<b>${p.value.toLocaleString()}</b>`,
         )
         return `<div style="font-weight:600;margin-bottom:4px;">${full.date}</div>${lines.join('<br/>')}<br/><span style="color:#909399;">平均耗时 ${full.avgDuration} ms</span>`
       },
@@ -295,7 +297,7 @@ function updateTrendChart() {
       {
         name: '调用量',
         type: 'line',
-        data: trend.map(i => i.count),
+        data: trend.map((i) => i.count),
         smooth: 0.35,
         symbol: 'circle',
         symbolSize: 6,
@@ -312,7 +314,7 @@ function updateTrendChart() {
       {
         name: '错误数',
         type: 'line',
-        data: trend.map(i => i.errorCount),
+        data: trend.map((i) => i.errorCount),
         smooth: 0.35,
         symbol: 'circle',
         symbolSize: 6,
@@ -357,7 +359,7 @@ function updateTopChart() {
     },
     yAxis: {
       type: 'category',
-      data: items.map(i => i.path),
+      data: items.map((i) => i.path),
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: {
@@ -371,7 +373,7 @@ function updateTopChart() {
     series: [
       {
         type: 'bar',
-        data: items.map(i => i.count),
+        data: items.map((i) => i.count),
         barWidth: 14,
         itemStyle: {
           borderRadius: [0, 7, 7, 0],
@@ -475,8 +477,14 @@ onUnmounted(() => {
   animation: live-ping 2s ease-out infinite;
 }
 @keyframes live-ping {
-  0% { transform: scale(0.6); opacity: 0.8; }
-  100% { transform: scale(1.6); opacity: 0; }
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
 }
 
 .header-actions {
@@ -525,10 +533,18 @@ onUnmounted(() => {
 .metric-cell:hover::before {
   transform: scaleX(1);
 }
-.metric-cell--blue::before { background: var(--primary); }
-.metric-cell--green::before { background: var(--success); }
-.metric-cell--red::before { background: var(--danger); }
-.metric-cell--orange::before { background: var(--warning); }
+.metric-cell--blue::before {
+  background: var(--primary);
+}
+.metric-cell--green::before {
+  background: var(--success);
+}
+.metric-cell--red::before {
+  background: var(--danger);
+}
+.metric-cell--orange::before {
+  background: var(--warning);
+}
 
 .metric-label {
   font-size: 12px;
@@ -543,8 +559,12 @@ onUnmounted(() => {
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }
-.metric-cell--red .metric-value { color: var(--danger); }
-.metric-cell--green .metric-value { color: var(--success); }
+.metric-cell--red .metric-value {
+  color: var(--danger);
+}
+.metric-cell--green .metric-value {
+  color: var(--success);
+}
 
 .metric-unit {
   font-style: normal;
@@ -558,7 +578,10 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--text-4);
 }
-.metric-cell--red .metric-sub { color: var(--danger); opacity: 0.8; }
+.metric-cell--red .metric-sub {
+  color: var(--danger);
+  opacity: 0.8;
+}
 
 /* ===== 图表面板 ===== */
 .chart-grid {
@@ -620,14 +643,22 @@ onUnmounted(() => {
   height: 8px;
   border-radius: 50%;
 }
-.legend-chip--calls::before { background: var(--primary); }
-.legend-chip--errors::before { background: var(--danger); }
+.legend-chip--calls::before {
+  background: var(--primary);
+}
+.legend-chip--errors::before {
+  background: var(--danger);
+}
 
 .chart-body {
   width: 100%;
 }
-.chart-body--trend { height: 300px; }
-.chart-body--top { height: 300px; }
+.chart-body--trend {
+  height: 300px;
+}
+.chart-body--top {
+  height: 300px;
+}
 
 .chart-empty {
   position: absolute;
@@ -856,8 +887,15 @@ onUnmounted(() => {
 
 /* ===== 响应式（PC 宽屏优先，窄屏兜底） ===== */
 @media (max-width: 1100px) {
-  .metric-band { grid-template-columns: repeat(3, 1fr); }
-  .metric-cell:nth-child(4) { border-left: none; }
-  .chart-grid, .sub-grid { grid-template-columns: 1fr; }
+  .metric-band {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .metric-cell:nth-child(4) {
+    border-left: none;
+  }
+  .chart-grid,
+  .sub-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

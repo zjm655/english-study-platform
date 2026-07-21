@@ -15,15 +15,7 @@ import { join } from 'node:path'
 
 /** 日志来源约定（可扩展）：oss | tts | ai | nls | api | auth | db | error */
 export type LogSource =
-  | 'oss'
-  | 'tts'
-  | 'ai'
-  | 'nls'
-  | 'api'
-  | 'auth'
-  | 'db'
-  | 'error'
-  | (string & {})
+  'oss' | 'tts' | 'ai' | 'nls' | 'api' | 'auth' | 'db' | 'error' | (string & {})
 
 const LOG_DIR = join(process.cwd(), 'logs')
 

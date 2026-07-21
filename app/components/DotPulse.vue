@@ -40,7 +40,9 @@ const props = withDefaults(defineProps<Props>(), {
 }
 
 @keyframes pulse {
-  0%, 80%, 100% {
+  0%,
+  80%,
+  100% {
     transform: scale(0.6);
     opacity: 0.4;
   }

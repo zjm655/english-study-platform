@@ -24,15 +24,21 @@
               />
             </el-form-item>
             <el-form-item>
-              <el-button 
-              type="primary" 
-              native-type="button" 
-              class="login-page__submit" 
-              :loading="userToLogin.isLoading.value"
-              @click="handleLogin">
+              <el-button
+                type="primary"
+                native-type="button"
+                class="login-page__submit"
+                :loading="userToLogin.isLoading.value"
+                @click="handleLogin"
+              >
                 登录
               </el-button>
-              <el-button type="primary" native-type="button" class="login-page__submit" @click="resetForm(loginFormRef)">
+              <el-button
+                type="primary"
+                native-type="button"
+                class="login-page__submit"
+                @click="resetForm(loginFormRef)"
+              >
                 重置
               </el-button>
             </el-form-item>
@@ -74,15 +80,21 @@
               />
             </el-form-item>
             <el-form-item>
-              <el-button 
-              type="primary" 
-              native-type="button" 
-              class="login-page__submit" 
-              :loading="userToRegister.isLoading.value"
-              @click="handleRegister">
+              <el-button
+                type="primary"
+                native-type="button"
+                class="login-page__submit"
+                :loading="userToRegister.isLoading.value"
+                @click="handleRegister"
+              >
                 注册
               </el-button>
-              <el-button type="primary" native-type="button" class="login-page__submit" @click="resetForm(registerFormRef)">
+              <el-button
+                type="primary"
+                native-type="button"
+                class="login-page__submit"
+                @click="resetForm(registerFormRef)"
+              >
                 重置
               </el-button>
             </el-form-item>
@@ -99,17 +111,13 @@ import type { FormInstance, FormRules } from 'element-plus'
 import { useToLogin, useToRegister } from '~/composables/user'
 
 useSeoMeta({
-    title:"登录"
+  title: '登录',
 })
 
 definePageMeta({
   title: '登录',
-  hideTabBar:true
+  hideTabBar: true,
 })
-
-
-
-
 
 const activeName = ref('login')
 
@@ -175,9 +183,7 @@ const registerRules = reactive<FormRules<RegisterForm>>({
     { min: 8, max: 20, message: '账号长度需要 8~20 位', trigger: 'blur' },
     { pattern: /^\d+$/, message: '账号必须是纯数字', trigger: 'blur' },
   ],
-  nickname: [
-    { max: 25, message: '昵称最多 25 个字符', trigger: 'blur' },
-  ],
+  nickname: [{ max: 25, message: '昵称最多 25 个字符', trigger: 'blur' }],
   email: [
     {
       validator: (_rule, value, callback) => {
@@ -248,8 +254,8 @@ async function handleRegister() {
   const valid = await registerFormRef.value.validate().catch(() => false)
   if (!valid) return
   const res = await userToRegister.execute(registerForm)
-  if(res && res?.code === 200){
-    activeName.value = "login"
+  if (res && res?.code === 200) {
+    activeName.value = 'login'
   }
 }
 </script>
@@ -292,8 +298,7 @@ async function handleRegister() {
   margin: 0 auto;
 }
 
-
-:deep(.el-tabs__nav-scroll){
+:deep(.el-tabs__nav-scroll) {
   display: flex;
   justify-content: center;
 }

@@ -16,16 +16,16 @@ export function useToLogin() {
 
   const { isLoading, execute } = useHandleRes(loginCfg)
 
-  const handleLogin = async (payload:LoginPayload) => {
+  const handleLogin = async (payload: LoginPayload) => {
     const res = await execute(payload)
-    if(res && res.code===200){
+    if (res && res.code === 200) {
       useUserStore().setUser(res.data)
       useUserStore().isLogin = true
     }
     return {
-      code:res?.code ?? -1,
-      message:res?.message ?? "登录异常",
-      data:res?.data
+      code: res?.code ?? -1,
+      message: res?.message ?? '登录异常',
+      data: res?.data,
     }
   }
 

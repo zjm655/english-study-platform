@@ -5,7 +5,7 @@ import mysql, { type PoolConnection } from 'mysql2/promise'
 const config = useRuntimeConfig().db
 export const pool = mysql.createPool({
   host: config.host || 'localhost',
-  port: Number(config.port) || 3306,        // 转为数字，提供默认值
+  port: Number(config.port) || 3306, // 转为数字，提供默认值
   user: config.user || 'root',
   password: config.password || '',
   database: config.database || 'nuxt4_demo',
@@ -20,9 +20,7 @@ export async function query<T = unknown>(sql: string, params?: unknown[]): Promi
 }
 
 /** 事务工具：自动获取连接 → begin → commit/rollback → release */
-export async function withTransaction<T>(
-  fn: (conn: PoolConnection) => Promise<T>
-): Promise<T> {
+export async function withTransaction<T>(fn: (conn: PoolConnection) => Promise<T>): Promise<T> {
   const conn = await pool.getConnection()
   await conn.beginTransaction()
   try {

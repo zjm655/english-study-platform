@@ -7,7 +7,9 @@
         <!-- 左侧：Logo（点击回首页） -->
         <NuxtLink to="/" class="header__brand">
           <div v-if="isHome" class="header__logo">S</div>
-          <div v-else class="header__back" @click="goBack"><el-icon><Back /></el-icon></div>
+          <div v-else class="header__back" @click="goBack">
+            <el-icon><Back /></el-icon>
+          </div>
           <div class="header__text">
             <span class="header__name">Shadow</span>
             <span class="header__sub">英语伴学平台</span>
@@ -25,7 +27,10 @@
     </header>
 
     <!-- ===== Main ===== -->
-    <main class="main-content" :class="{ 'main-content--no-header': hideHeader, 'main-content--no-footer': hideTabBar }">
+    <main
+      class="main-content"
+      :class="{ 'main-content--no-header': hideHeader, 'main-content--no-footer': hideTabBar }"
+    >
       <slot />
     </main>
 
@@ -48,13 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  HomeFilled,
-  List,
-  RefreshRight,
-  UserFilled,
-  Back
-} from '@element-plus/icons-vue'
+import { HomeFilled, List, RefreshRight, UserFilled, Back } from '@element-plus/icons-vue'
 
 const { init: initTheme } = useTheme()
 
@@ -107,7 +106,7 @@ onMounted(() => {
   z-index: 10;
   display: flex;
   justify-content: center;
-  box-shadow: 0 1px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
 }
 
 .header__inner {
@@ -134,7 +133,7 @@ onMounted(() => {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.2);
+  background: rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -157,7 +156,7 @@ onMounted(() => {
 
 .header__sub {
   font-size: 10px;
-  color: rgba(255,255,255,0.65);
+  color: rgba(255, 255, 255, 0.65);
 }
 
 /* 中间页面标题 */
@@ -188,13 +187,13 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: rgba(255,255,255,0.9);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 18px;
   transition: background 0.2s;
 }
 
 .header__icon-btn:hover {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .header__dot {
@@ -213,8 +212,8 @@ onMounted(() => {
   padding-top: 56px;
   padding-bottom: 60px;
   flex: 1;
-      display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .main-content--no-header {

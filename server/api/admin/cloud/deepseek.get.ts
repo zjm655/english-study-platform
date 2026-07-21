@@ -16,5 +16,8 @@ export default defineEventHandler(async (event) => {
 
   const balance = await getDeepSeekBalance()
 
-  return validateSuccess({ balance }, balance.success ? '获取 DeepSeek 余额成功' : 'DeepSeek 余额暂不可用')
+  return validateSuccess(
+    { balance },
+    balance.success ? '获取 DeepSeek 余额成功' : 'DeepSeek 余额暂不可用',
+  )
 })

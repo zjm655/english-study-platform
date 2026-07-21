@@ -15,7 +15,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   // 1. 校验记录归属并获取 segment_id
   const rows = await query<{ segment_id: number | null }>(
     'SELECT segment_id FROM material_upload_record WHERE id = ? AND user_id = ?',
-    [id, user.id]
+    [id, user.id],
   )
   if (!rows.length) return validateError('记录不存在或无权限', 404)
 

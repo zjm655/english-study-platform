@@ -7,9 +7,13 @@ import { processAdminMaterial, processAdminBatch } from '../adminUpload'
 
 // 使用 vi.hoisted 确保 mock 引用在 vi.mock 提升之前可用
 const {
-  mockTextToSpeech, mockUploadWithKey, mockExtractAudioMeta,
-  mockGenerateLearningContent, mockGenerateTitle,
-  mockPoolExecute, mockWithTransaction,
+  mockTextToSpeech,
+  mockUploadWithKey,
+  mockExtractAudioMeta,
+  mockGenerateLearningContent,
+  mockGenerateTitle,
+  mockPoolExecute,
+  mockWithTransaction,
 } = vi.hoisted(() => {
   const mockTextToSpeech = vi.fn()
   const mockUploadWithKey = vi.fn()
@@ -61,13 +65,23 @@ function setupDefaults() {
   mockGenerateLearningContent.mockResolvedValue({
     success: true,
     translation: '翻译文本',
-    vocabulary: [{
-      word: 'important', forms: 'important, importantly', phonetic: '/ɪmˈpɔːrtənt/',
-      meaning: '重要的', exampleSentence: 'This is important.', exampleTranslation: '这很重要。',
-    }],
-    questions: [{
-      question: 'What does "important" mean?', options: ['A. 重要的', 'B. 不重要的', 'C. 大的', 'D. 小的'], answer: 'A. 重要的',
-    }],
+    vocabulary: [
+      {
+        word: 'important',
+        forms: 'important, importantly',
+        phonetic: '/ɪmˈpɔːrtənt/',
+        meaning: '重要的',
+        exampleSentence: 'This is important.',
+        exampleTranslation: '这很重要。',
+      },
+    ],
+    questions: [
+      {
+        question: 'What does "important" mean?',
+        options: ['A. 重要的', 'B. 不重要的', 'C. 大的', 'D. 小的'],
+        answer: 'A. 重要的',
+      },
+    ],
   })
   mockGenerateTitle.mockResolvedValue({ success: true, title: 'AI 生成标题' })
   mockWithTransaction.mockImplementation(async (fn: (conn: any) => Promise<any>) => {
@@ -85,9 +99,13 @@ describe('processAdminMaterial', () => {
 
   it('对话文本应返回 success: false', async () => {
     const result = await processAdminMaterial({
-      userId: 1, unitId: 1,
+      userId: 1,
+      unitId: 1,
       textContent: 'Alice: Hello\nBob: Hi there\nAlice: How are you?\nBob: Fine',
-      title: 'Test', voice: 'en-US-AriaNeural', isPublic: 1, bucket: 'test-bucket',
+      title: 'Test',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
     })
 
     expect(result.success).toBe(false)
@@ -99,9 +117,13 @@ describe('processAdminMaterial', () => {
     setupDefaults()
 
     const result = await processAdminMaterial({
-      userId: 1, unitId: 2,
+      userId: 1,
+      unitId: 2,
       textContent: 'The weather is nice today. She went to the park.',
-      title: null, voice: 'en-US-AriaNeural', isPublic: 1, bucket: 'test-bucket',
+      title: null,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
     })
 
     expect(result.success).toBe(true)
@@ -117,9 +139,13 @@ describe('processAdminMaterial', () => {
     setupDefaults()
 
     const result = await processAdminMaterial({
-      userId: 1, unitId: 2,
+      userId: 1,
+      unitId: 2,
       textContent: 'Some text here.',
-      title: 'My Custom Title', voice: 'en-US-AriaNeural', isPublic: 0, bucket: 'test-bucket',
+      title: 'My Custom Title',
+      voice: 'en-US-AriaNeural',
+      isPublic: 0,
+      bucket: 'test-bucket',
     })
 
     expect(result.success).toBe(true)
@@ -135,9 +161,13 @@ describe('processAdminMaterial', () => {
     mockTextToSpeech.mockResolvedValue({ success: false, audio: null })
 
     const result = await processAdminMaterial({
-      userId: 1, unitId: 1,
+      userId: 1,
+      unitId: 1,
       textContent: 'Normal text.',
-      title: 'Test', voice: 'en-US-AriaNeural', isPublic: 1, bucket: 'test-bucket',
+      title: 'Test',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
     })
 
     expect(result.success).toBe(false)
@@ -148,9 +178,13 @@ describe('processAdminMaterial', () => {
     setupDefaults()
 
     const result = await processAdminMaterial({
-      userId: 1, unitId: 1,
+      userId: 1,
+      unitId: 1,
       textContent: 'User provided audio text.',
-      title: 'With Audio', voice: 'en-US-AriaNeural', isPublic: 1, bucket: 'test-bucket',
+      title: 'With Audio',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
       audioBuffer: FAKE_AUDIO,
       audioFileName: 'test.mp3',
     })
@@ -159,7 +193,7 @@ describe('processAdminMaterial', () => {
     // 有音频时不应调用材料级 TTS（词汇 TTS 仍会调用，所以检查材料文本参数）
     expect(mockTextToSpeech).not.toHaveBeenCalledWith(
       'User provided audio text.',
-      expect.anything()
+      expect.anything(),
     )
     expect(mockUploadWithKey).toHaveBeenCalled()
   })
@@ -170,9 +204,13 @@ describe('processAdminMaterial', () => {
 
     const longText = 'A'.repeat(80)
     const result = await processAdminMaterial({
-      userId: 1, unitId: 1,
+      userId: 1,
+      unitId: 1,
       textContent: longText,
-      title: null, voice: 'en-US-AriaNeural', isPublic: 1, bucket: 'test-bucket',
+      title: null,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
     })
 
     expect(result.success).toBe(true)
@@ -191,7 +229,11 @@ describe('processAdminBatch', () => {
     setupDefaults()
 
     const result = await processAdminBatch({
-      userId: 1, unitId: 1, voice: 'en-US-AriaNeural', isPublic: 1, bucket: 'test-bucket',
+      userId: 1,
+      unitId: 1,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
       files: [
         { name: 'dialogue.txt', content: 'Alice: Hello\nBob: Hi' },
         { name: 'article.txt', content: 'Daily Weather\nThe weather is nice today.' },

@@ -18,7 +18,12 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
 
   // zod 校验
-  const parseResult: ZodSafeParseResult<{ segmentId: number; phase: number; done: boolean; score?: number }> = progressSchema.safeParse(body)
+  const parseResult: ZodSafeParseResult<{
+    segmentId: number
+    phase: number
+    done: boolean
+    score?: number
+  }> = progressSchema.safeParse(body)
   if (!parseResult.success) {
     const errorMessage = parseResult.error?.issues[0]?.message || '参数校验失败'
     return validateError(errorMessage)
@@ -30,7 +35,7 @@ export default defineEventHandler(async (event) => {
     // 查现有记录（事务内必须用 conn.execute，否则读不到未提交数据）
     const [existingRows] = await conn.execute(
       'SELECT * FROM user_progress WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL',
-      [userId, segmentId]
+      [userId, segmentId],
     )
     const existing = existingRows as UserProgressRow[]
 
@@ -46,7 +51,7 @@ export default defineEventHandler(async (event) => {
 
       await conn.execute<ResultSetHeader>(
         `INSERT INTO user_progress (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`,
-        values
+        values,
       )
     } else {
       // 存在 → UPDATE
@@ -63,14 +68,14 @@ export default defineEventHandler(async (event) => {
 
       await conn.execute(
         `UPDATE user_progress SET ${updates.join(', ')} WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL`,
-        values
+        values,
       )
     }
 
     // 返回更新后的进度（事务内必须用 conn.execute）
     const [updatedRows] = await conn.execute(
       'SELECT * FROM user_progress WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL',
-      [userId, segmentId]
+      [userId, segmentId],
     )
 
     return (updatedRows as UserProgressRow[])[0]
@@ -80,8 +85,12 @@ export default defineEventHandler(async (event) => {
     return validateError('更新进度失败', 500)
   }
 
-  return validateSuccess({
-    segmentId: result.segment_id,
-    ...mapProgressRow(result),
-  }, '更新进度成功', 200)
+  return validateSuccess(
+    {
+      segmentId: result.segment_id,
+      ...mapProgressRow(result),
+    },
+    '更新进度成功',
+    200,
+  )
 })

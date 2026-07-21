@@ -20,25 +20,21 @@ export function useRecordingHistory(segmentId: number, phase: 3 | 4) {
   const isListLoadingMore = ref(false)
 
   // 是否还有更多历史记录
-  const hasMoreRecordings = computed(() =>
-    recordings.value.length < totalRecordings.value
-  )
+  const hasMoreRecordings = computed(() => recordings.value.length < totalRecordings.value)
 
   // 当前选中的录音
-  const selectedRecording = computed(() =>
-    recordings.value.find(r => r.id === selectedRecordingId.value) || null
+  const selectedRecording = computed(
+    () => recordings.value.find((r) => r.id === selectedRecordingId.value) || null,
   )
 
   // 选中录音是否已有评分
-  const hasAnalysis = computed(() =>
-    selectedRecording.value?.score !== null && selectedRecording.value?.score !== undefined
+  const hasAnalysis = computed(
+    () => selectedRecording.value?.score !== null && selectedRecording.value?.score !== undefined,
   )
 
   // 最高分
   const bestScore = computed(() => {
-    const scores = recordings.value
-      .filter(r => r.score !== null)
-      .map(r => r.score as number)
+    const scores = recordings.value.filter((r) => r.score !== null).map((r) => r.score as number)
     return scores.length > 0 ? Math.max(...scores) : null
   })
 

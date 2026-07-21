@@ -24,24 +24,18 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   // 1. 校验记录归属
   const rows = await query<{ segment_id: number | null }>(
     'SELECT segment_id FROM material_upload_record WHERE id = ? AND user_id = ?',
-    [id, user.id]
+    [id, user.id],
   )
   if (!rows.length) return validateError('记录不存在或无权限', 404)
 
   const segmentId = rows[0]?.segment_id ?? null
 
   // 2. 更新记录
-  await pool.execute(
-    'UPDATE material_upload_record SET is_public = ? WHERE id = ?',
-    [isPublic, id]
-  )
+  await pool.execute('UPDATE material_upload_record SET is_public = ? WHERE id = ?', [isPublic, id])
 
   // 3. 同步更新关联 segment（如果有）
   if (segmentId) {
-    await pool.execute(
-      'UPDATE segment SET is_public = ? WHERE id = ?',
-      [isPublic, segmentId]
-    )
+    await pool.execute('UPDATE segment SET is_public = ? WHERE id = ?', [isPublic, segmentId])
   }
 
   return validateSuccess(null, '更新成功')

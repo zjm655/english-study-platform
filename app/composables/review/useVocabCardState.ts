@@ -12,7 +12,7 @@ export function useVocabCardState(getList: () => ReviewVocabItem[]) {
   const isCompleted = computed(() => currentIndex.value >= getList().length)
 
   const currentWord = computed<ReviewVocabItem | null>(() =>
-    isCompleted.value ? null : getList()[currentIndex.value]!
+    isCompleted.value ? null : getList()[currentIndex.value]!,
   )
 
   /** 点击卡片本体：切换正反面 */
@@ -51,5 +51,16 @@ export function useVocabCardState(getList: () => ReviewVocabItem[]) {
     isFlipped.value = false
   }
 
-  return { currentIndex, isFlipped, isCompleted, currentWord, toggleFlip, markKnown, markUnknown, next, prev, reset }
+  return {
+    currentIndex,
+    isFlipped,
+    isCompleted,
+    currentWord,
+    toggleFlip,
+    markKnown,
+    markUnknown,
+    next,
+    prev,
+    reset,
+  }
 }

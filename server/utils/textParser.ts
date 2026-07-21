@@ -3,7 +3,7 @@
  * 约定：文字首行非空为标题；首行为空或仅一行则 title 为 null。
  * 空内容或仅空白字符抛错。
  */
-export function parseTxtFile(content: string): { title: string | null, textContent: string } {
+export function parseTxtFile(content: string): { title: string | null; textContent: string } {
   if (!content.trim()) {
     throw new Error('TXT 文件内容为空')
   }
@@ -40,7 +40,7 @@ export function isDialogueText(text: string): boolean {
   if (!text.trim()) return false
 
   const lines = text.split('\n')
-  const nonEmptyLines = lines.filter(l => l.trim())
+  const nonEmptyLines = lines.filter((l) => l.trim())
   if (nonEmptyLines.length === 0) return false
 
   let matchCount = 0

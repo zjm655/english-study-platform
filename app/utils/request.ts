@@ -32,5 +32,5 @@ export const request = Object.assign(
         ...options,
       })
     },
-  }
+  },
 )

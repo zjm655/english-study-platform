@@ -22,7 +22,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
      FROM recording r
      LEFT JOIN media m ON r.media_id = m.id
      WHERE r.id = ? AND r.user_id = ? AND r.deleted_at IS NULL`,
-    [id, userId]
+    [id, userId],
   )
 
   const row = rows[0]
@@ -31,9 +31,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
   }
 
   // 签名音频路径
-  const signedPath = row.rec_media_key
-    ? await signUrl(row.rec_media_key, RECORDING_EXPIRE)
-    : null
+  const signedPath = row.rec_media_key ? await signUrl(row.rec_media_key, RECORDING_EXPIRE) : null
 
   const recording = rowToRecording(row, signedPath)
   return validateSuccess(recording, '获取成功')

@@ -33,7 +33,14 @@ vi.mock('h3', () => ({ readBody: mockReadBody }))
 
 const ADMIN = { id: 1, role: 1 }
 
-function makeEvent(opts: { user?: unknown; query?: Record<string, string>; params?: Record<string, string>; body?: unknown } = {}) {
+function makeEvent(
+  opts: {
+    user?: unknown
+    query?: Record<string, string>
+    params?: Record<string, string>
+    body?: unknown
+  } = {},
+) {
   return {
     context: { user: opts.user },
     __query: opts.query,
@@ -69,21 +76,23 @@ describe('管理员材料接口 - 权限', () => {
 describe('管理员材料列表 - 参数强转与筛选', () => {
   it('query 字符串参数（page/unitId/isPublic）经 zod coerce 为数字，不再 400', async () => {
     mockQuery
-      .mockResolvedValueOnce([])                    // 主查询
-      .mockResolvedValueOnce([{ total: 0 }])        // COUNT
+      .mockResolvedValueOnce([]) // 主查询
+      .mockResolvedValueOnce([{ total: 0 }]) // COUNT
 
-    const res = await listHandler(makeEvent({
-      user: ADMIN,
-      query: { page: '2', pageSize: '20', unitId: '0', isPublic: '1' },
-    }))
+    const res = await listHandler(
+      makeEvent({
+        user: ADMIN,
+        query: { page: '2', pageSize: '20', unitId: '0', isPublic: '1' },
+      }),
+    )
 
     expect(res.code).toBe(200)
     // 第一次查询的参数：[unitId, isPublic, pageSize, offset]，均应为数字
     const params = mockQuery.mock.calls[0]![1]
-    expect(params[0]).toBe(0)          // unitId 字符串 '0' → 数字 0
-    expect(params[1]).toBe(1)          // isPublic 字符串 '1' → 数字 1
-    expect(params[2]).toBe(20)         // pageSize
-    expect(params[3]).toBe(20)         // offset = (2-1)*20
+    expect(params[0]).toBe(0) // unitId 字符串 '0' → 数字 0
+    expect(params[1]).toBe(1) // isPublic 字符串 '1' → 数字 1
+    expect(params[2]).toBe(20) // pageSize
+    expect(params[3]).toBe(20) // offset = (2-1)*20
     // WHERE 含软删除过滤与筛选条件
     const sql = mockQuery.mock.calls[0]![0] as string
     expect(sql).toContain('s.deleted_at IS NULL')
@@ -115,11 +124,31 @@ describe('管理员材料详情', () => {
 
   it('成功时返回解析后的 questions 与词汇列表', async () => {
     const segmentRow = {
-      id: 5, unit_id: 1, title: 'T', textContent: 'text', translation: '译',
+      id: 5,
+      unit_id: 1,
+      title: 'T',
+      textContent: 'text',
+      translation: '译',
       questions: [{ question: 'q', options: ['a', 'b'], answer: 'a' }],
-      is_public: 1, sort_order: 0, createdAt: '2026-01-01', deleted_at: null, unitTitle: 'U1',
+      is_public: 1,
+      sort_order: 0,
+      createdAt: '2026-01-01',
+      deleted_at: null,
+      unitTitle: 'U1',
     }
-    const vocabRow = { id: 10, segment_id: 5, word: 'w', forms: null, phonetic: null, meaning: 'm', exampleSentence: null, exampleTranslation: null, media_id: null, sort_order: 0, createdAt: '2026-01-01' }
+    const vocabRow = {
+      id: 10,
+      segment_id: 5,
+      word: 'w',
+      forms: null,
+      phonetic: null,
+      meaning: 'm',
+      exampleSentence: null,
+      exampleTranslation: null,
+      media_id: null,
+      sort_order: 0,
+      createdAt: '2026-01-01',
+    }
     mockQuery.mockResolvedValueOnce([segmentRow]).mockResolvedValueOnce([vocabRow])
 
     const res = await detailHandler(makeEvent({ user: ADMIN, params: { segId: '5' } }))
@@ -147,27 +176,39 @@ describe('管理员材料编辑', () => {
   }
 
   it('title 为空返回 400（schema 拒绝）', async () => {
-    const res = await putHandler(makeEvent({ user: ADMIN, params: { segId: '5' }, body: { ...validBody, title: '' } }))
+    const res = await putHandler(
+      makeEvent({ user: ADMIN, params: { segId: '5' }, body: { ...validBody, title: '' } }),
+    )
     expect(res.code).toBe(400)
     expect(mockWithTransaction).not.toHaveBeenCalled()
   })
 
   it('textContent 少于 10 字符返回 400', async () => {
-    const res = await putHandler(makeEvent({ user: ADMIN, params: { segId: '5' }, body: { ...validBody, textContent: 'short' } }))
+    const res = await putHandler(
+      makeEvent({
+        user: ADMIN,
+        params: { segId: '5' },
+        body: { ...validBody, textContent: 'short' },
+      }),
+    )
     expect(res.code).toBe(400)
   })
 
   it('材料不存在返回 404', async () => {
     mockQuery.mockResolvedValueOnce([])
-    const res = await putHandler(makeEvent({ user: ADMIN, params: { segId: '999' }, body: validBody }))
+    const res = await putHandler(
+      makeEvent({ user: ADMIN, params: { segId: '999' }, body: validBody }),
+    )
     expect(res.code).toBe(404)
   })
 
   it('成功：questions 以 JSON 字符串写入，词汇执行 update/insert/delete diff', async () => {
-    mockQuery.mockResolvedValueOnce([{ id: 5, is_public: 1 }])   // 存在性校验
+    mockQuery.mockResolvedValueOnce([{ id: 5, is_public: 1 }]) // 存在性校验
     mockConnExecute.mockResolvedValue([{ affectedRows: 1 }])
 
-    const res = await putHandler(makeEvent({ user: ADMIN, params: { segId: '5' }, body: validBody }))
+    const res = await putHandler(
+      makeEvent({ user: ADMIN, params: { segId: '5' }, body: validBody }),
+    )
 
     expect(res.code).toBe(200)
     // UPDATE segment + DELETE 未保留词汇 + UPDATE 词汇10 + INSERT 新词 = 4 次

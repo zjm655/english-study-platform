@@ -24,7 +24,12 @@ export default defineEventHandler(async (event) => {
     return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
 
-  const { mode: validMode, unitId: validUnitId, voice: validVoice, isPublic: validIsPublic } = parsed.data
+  const {
+    mode: validMode,
+    unitId: validUnitId,
+    voice: validVoice,
+    isPublic: validIsPublic,
+  } = parsed.data
   const { oss } = useRuntimeConfig()
   const bucket = oss.bucket as string
   const userId = user.id
@@ -52,13 +57,18 @@ export default defineEventHandler(async (event) => {
     }
 
     const result = await processAdminMaterial({
-      userId, unitId: validUnitId, textContent: trimmedText,
-      title, voice: validVoice, isPublic: validIsPublic, bucket,
-      audioBuffer, audioFileName,
+      userId,
+      unitId: validUnitId,
+      textContent: trimmedText,
+      title,
+      voice: validVoice,
+      isPublic: validIsPublic,
+      bucket,
+      audioBuffer,
+      audioFileName,
     })
     results = [{ ...result, index: 0 }]
-  }
-  else {
+  } else {
     // batch
     const files = formData.getAll('files') as File[]
     if (!files.length) {
@@ -68,7 +78,7 @@ export default defineEventHandler(async (event) => {
       return validateError('单次批量上传不能超过 20 个文件', 400)
     }
 
-    const txtFiles: Array<{ name: string, content: string }> = []
+    const txtFiles: Array<{ name: string; content: string }> = []
     for (const file of files) {
       if (!file.name.endsWith('.txt')) continue
       const content = await file.text()
@@ -80,15 +90,23 @@ export default defineEventHandler(async (event) => {
     }
 
     results = await processAdminBatch({
-      userId, unitId: validUnitId, voice: validVoice,
-      isPublic: validIsPublic, bucket, files: txtFiles,
+      userId,
+      unitId: validUnitId,
+      voice: validVoice,
+      isPublic: validIsPublic,
+      bucket,
+      files: txtFiles,
     })
   }
 
-  const successCount = results.filter(r => r.success).length
+  const successCount = results.filter((r) => r.success).length
   const response: AdminUploadResponse = {
     results,
-    summary: { total: results.length, success: successCount, failed: results.length - successCount },
+    summary: {
+      total: results.length,
+      success: successCount,
+      failed: results.length - successCount,
+    },
   }
   return validateSuccess(response)
 })

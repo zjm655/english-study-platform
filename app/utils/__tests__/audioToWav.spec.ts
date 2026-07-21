@@ -48,7 +48,8 @@ function readString(view: DataView, offset: number, len: number): string {
 beforeAll(() => {
   ;(globalThis as unknown as { window: unknown }).window = globalThis
   ;(globalThis as unknown as { AudioContext: unknown }).AudioContext = MockAudioContext
-  ;(globalThis as unknown as { OfflineAudioContext: unknown }).OfflineAudioContext = MockOfflineAudioContext
+  ;(globalThis as unknown as { OfflineAudioContext: unknown }).OfflineAudioContext =
+    MockOfflineAudioContext
 })
 
 describe('toWav16kMono', () => {

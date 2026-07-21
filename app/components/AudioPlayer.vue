@@ -27,9 +27,12 @@ const { load, togglePlay: rawTogglePlay, seek, setSpeed } = useAudioPlayer()
 const isLoaded = ref(false)
 
 // src 变化时重置加载状态
-watch(() => props.src, () => {
-  isLoaded.value = false
-})
+watch(
+  () => props.src,
+  () => {
+    isLoaded.value = false
+  },
+)
 
 // 有效时长：store.duration（实际加载后的值）优先，否则用 props.duration
 const effectiveDuration = computed(() => {
@@ -90,7 +93,9 @@ function cycleSpeed() {
       <div class="progress-bar" @click="onProgressClick">
         <div
           class="progress-fill"
-          :style="{ width: effectiveDuration ? `${(store.currentTime / effectiveDuration) * 100}%` : '0%' }"
+          :style="{
+            width: effectiveDuration ? `${(store.currentTime / effectiveDuration) * 100}%` : '0%',
+          }"
         />
       </div>
       <span class="time">{{ formatTime(effectiveDuration) }}</span>

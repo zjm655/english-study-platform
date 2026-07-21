@@ -55,7 +55,11 @@ async function loadVocab(append = false) {
   vocabLoading.value = true
   vocabError.value = null
   try {
-    const res = await getReviewVocab(VOCAB_PAGE, append ? vocabOffset.value : 0, vocabKeyword.value || undefined)
+    const res = await getReviewVocab(
+      VOCAB_PAGE,
+      append ? vocabOffset.value : 0,
+      vocabKeyword.value || undefined,
+    )
     if (res?.code === 200 && res.data) {
       if (append) {
         vocabList.value = [...vocabList.value, ...res.data.items]
@@ -112,7 +116,11 @@ async function loadMaterial(append = false) {
   materialLoading.value = true
   materialError.value = null
   try {
-    const res = await getReviewMaterial(MATERIAL_PAGE, append ? materialOffset.value : 0, materialKeyword.value || undefined)
+    const res = await getReviewMaterial(
+      MATERIAL_PAGE,
+      append ? materialOffset.value : 0,
+      materialKeyword.value || undefined,
+    )
     if (res?.code === 200 && res.data) {
       if (append) {
         materialList.value = [...materialList.value, ...res.data.items]
@@ -327,7 +335,9 @@ onMounted(() => {
               @click.stop="playVocabAudio(currentWord.audioUrl)"
             >
               <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                <path
+                  d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+                />
               </svg>
             </button>
           </div>
@@ -409,7 +419,10 @@ onMounted(() => {
       </div>
 
       <!-- 材料内容 -->
-      <div v-else-if="materialLoaded && materialList.length && currentMaterial" class="material-content">
+      <div
+        v-else-if="materialLoaded && materialList.length && currentMaterial"
+        class="material-content"
+      >
         <!-- 播放器 -->
         <div v-if="currentMaterial.audioUrl" class="audio-player">
           <button class="play-btn" @click="playMaterialAudio(currentMaterial.audioUrl)">
@@ -423,16 +436,21 @@ onMounted(() => {
           <div class="progress-bar">
             <div
               class="progress-fill"
-              :style="{ width: `${audioStore.duration > 0 ? (audioStore.currentTime / audioStore.duration) * 100 : 0}%` }"
-              @click="(e: MouseEvent) => {
-                const rect = (e.target as HTMLElement).getBoundingClientRect()
-                const percent = (e.clientX - rect.left) / rect.width
-                seek(percent * audioStore.duration)
+              :style="{
+                width: `${audioStore.duration > 0 ? (audioStore.currentTime / audioStore.duration) * 100 : 0}%`,
               }"
+              @click="
+                (e: MouseEvent) => {
+                  const rect = (e.target as HTMLElement).getBoundingClientRect()
+                  const percent = (e.clientX - rect.left) / rect.width
+                  seek(percent * audioStore.duration)
+                }
+              "
             ></div>
           </div>
           <span class="time-text">
-            {{ formatTime(audioStore.currentTime) }} / {{ formatTime(audioStore.duration || currentMaterial.duration || 0) }}
+            {{ formatTime(audioStore.currentTime) }} /
+            {{ formatTime(audioStore.duration || currentMaterial.duration || 0) }}
           </span>
         </div>
 
@@ -446,9 +464,7 @@ onMounted(() => {
           <!-- 题目为空 -->
           <div v-if="currentMaterialQuestions.length === 0" class="empty-questions">
             <p>暂无理解题</p>
-            <button class="next-btn next-btn--primary" @click="nextMaterial">
-              下一段
-            </button>
+            <button class="next-btn next-btn--primary" @click="nextMaterial">下一段</button>
           </div>
 
           <!-- 答题区域 -->
@@ -471,7 +487,8 @@ onMounted(() => {
                   :class="{
                     'option-btn--selected': userAnswers[questionIndex] === option,
                     'option-btn--correct': showMaterialResult && option === currentQuestion.answer,
-                    'option-btn--wrong': showMaterialResult && userAnswers[questionIndex] === option && !isCorrect,
+                    'option-btn--wrong':
+                      showMaterialResult && userAnswers[questionIndex] === option && !isCorrect,
                   }"
                   :disabled="showMaterialResult"
                   @click="selectAnswer(option)"
@@ -1057,7 +1074,9 @@ onMounted(() => {
   color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .load-more-btn:hover {

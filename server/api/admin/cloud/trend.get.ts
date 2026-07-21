@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
      WHERE service = ? AND success = 1 AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
      GROUP BY DATE(createdAt)
      ORDER BY date ASC`,
-    [service, days]
+    [service, days],
   )
 
   const dates: string[] = []

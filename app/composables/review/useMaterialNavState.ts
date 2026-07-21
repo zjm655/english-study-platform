@@ -10,7 +10,7 @@ export function useMaterialNavState(getList: () => ReviewMaterialItem[]) {
   const currentIndex = ref(0)
   const isCompleted = computed(() => currentIndex.value >= getList().length)
   const current = computed<ReviewMaterialItem | null>(() =>
-    isCompleted.value ? null : getList()[currentIndex.value]!
+    isCompleted.value ? null : getList()[currentIndex.value]!,
   )
 
   function next() {

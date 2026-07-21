@@ -19,7 +19,7 @@ function tokenize(text: string): Set<string> {
     .toLowerCase()
     .replace(/[^a-z0-9\s'-]/g, ' ')
     .split(/\s+/)
-    .filter(w => w.length > 0)
+    .filter((w) => w.length > 0)
   return new Set(normalized)
 }
 
@@ -32,7 +32,7 @@ function tokenize(text: string): Set<string> {
 export function compareTextSimilarity(
   original: string,
   recognized: string,
-  threshold: number = 0.4
+  threshold: number = 0.4,
 ): SimilarityResult {
   const setA = tokenize(original)
   const setB = tokenize(recognized)

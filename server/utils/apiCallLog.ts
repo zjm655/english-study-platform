@@ -39,9 +39,15 @@ async function flush(): Promise<void> {
   const batch = queue.splice(0, BATCH_SIZE)
   try {
     const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
-    const params = batch.flatMap(e => [
-      e.path, e.routePattern, e.method, e.statusCode,
-      e.businessCode, e.durationMs, e.userId, e.ip,
+    const params = batch.flatMap((e) => [
+      e.path,
+      e.routePattern,
+      e.method,
+      e.statusCode,
+      e.businessCode,
+      e.durationMs,
+      e.userId,
+      e.ip,
     ])
     await query(
       `INSERT INTO api_call_log (path, route_pattern, method, status_code, business_code, duration_ms, user_id, ip)

@@ -1,7 +1,7 @@
 /** 逐词评分项 */
 export interface WordScore {
   word: string
-  score: number      // 0-100
+  score: number // 0-100
   status: 'correct' | 'minor' | 'wrong' | 'missing'
   phonetic?: string
 }
@@ -11,14 +11,14 @@ export interface Recording {
   id: number
   userId: number
   segmentId: number
-  phase: number              // 3=配音, 4=跟读
+  phase: number // 3=配音, 4=跟读
   audioPath: string | null
-  score: number | null       // 综合评分 0-100
-  feedback: string | null    // AI整体评价
+  score: number | null // 综合评分 0-100
+  feedback: string | null // AI整体评价
   recognizedText: string | null
   wordScores: WordScore[] | null
-  rawResult: string | null   // SDK评测原始响应JSON
-  duration: number | null    // 秒
+  rawResult: string | null // SDK评测原始响应JSON
+  duration: number | null // 秒
   createdAt: string
 }
 
@@ -42,8 +42,8 @@ export interface UploadRecordingResult {
 export interface RecordingListQuery {
   segmentId: number
   phase?: 3 | 4
-  page?: number   // 页码，默认 1
-  size?: number   // 每页条数，默认 3
+  page?: number // 页码，默认 1
+  size?: number // 每页条数，默认 3
 }
 
 /** 分页包装 */

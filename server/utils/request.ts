@@ -24,7 +24,10 @@ export interface ServerFetchOptions extends RequestInit {
 /** 默认超时 30s */
 const DEFAULT_TIMEOUT = 30_000
 
-export async function serverFetch(url: string, options: ServerFetchOptions = {}): Promise<Response> {
+export async function serverFetch(
+  url: string,
+  options: ServerFetchOptions = {},
+): Promise<Response> {
   const { timeout = DEFAULT_TIMEOUT, tag = '[serverFetch]', ...init } = options
   const method = init.method ?? 'GET'
   const start = Date.now()

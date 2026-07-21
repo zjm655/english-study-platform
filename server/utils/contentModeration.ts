@@ -63,7 +63,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ds.apiKey}`,
+        Authorization: `Bearer ${ds.apiKey}`,
       },
       body: JSON.stringify({
         model: ds.model,
@@ -81,7 +81,13 @@ export async function moderateText(text: string): Promise<ModerationResult> {
     if (!resp.ok) {
       const body = await resp.text()
       logger.error(`[contentModeration] API 返回 ${resp.status}: ${body}`)
-      void logCloudServiceCall({ service: 'deepseek', operation: 'moderateText', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'moderateText',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: `HTTP ${resp.status}`,
+      })
       return { safe: false, reason: '内容审核服务暂时不可用' }
     }
 
@@ -113,10 +119,16 @@ export async function moderateText(text: string): Promise<ModerationResult> {
 
     return {
       safe: !!result.safe,
-      reason: result.safe ? null : (result.reason || '内容不合规'),
+      reason: result.safe ? null : result.reason || '内容不合规',
     }
   } catch (err) {
-    void logCloudServiceCall({ service: 'deepseek', operation: 'moderateText', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: String(err).substring(0, 500) })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'moderateText',
+      success: false,
+      durationMs: callStart ? Date.now() - callStart : 0,
+      errorMessage: String(err).substring(0, 500),
+    })
     logger.error('[contentModeration] 审核调用失败:', err)
     return { safe: false, reason: '内容审核服务暂时不可用' }
   }

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ArrowLeft, Delete } from '@element-plus/icons-vue'
-import { useMaterialRecords, useUpdateMaterialRecord, useDeleteMaterialRecord } from '~/composables/material/useUploadRecords'
+import {
+  useMaterialRecords,
+  useUpdateMaterialRecord,
+  useDeleteMaterialRecord,
+} from '~/composables/material/useUploadRecords'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
 import { ElMessageBox } from 'element-plus'
 
@@ -37,18 +41,25 @@ onMounted(() => {
 
 function getStatusType(status: string) {
   switch (status) {
-    case 'success': return 'success'
-    case 'failed': return 'danger'
-    default: return 'info'
+    case 'success':
+      return 'success'
+    case 'failed':
+      return 'danger'
+    default:
+      return 'info'
   }
 }
 
 function getStatusLabel(status: string) {
   switch (status) {
-    case 'success': return '成功'
-    case 'failed': return '失败'
-    case 'processing': return '处理中'
-    default: return status
+    case 'success':
+      return '成功'
+    case 'failed':
+      return '失败'
+    case 'processing':
+      return '处理中'
+    default:
+      return status
   }
 }
 
@@ -74,7 +85,7 @@ async function handleDelete(record: MaterialUploadRecordListItem) {
     })
     const res = await doDelete(record.id)
     if (res?.code === 200) {
-      records.value = records.value.filter(r => r.id !== record.id)
+      records.value = records.value.filter((r) => r.id !== record.id)
     }
   } catch {
     // 用户取消

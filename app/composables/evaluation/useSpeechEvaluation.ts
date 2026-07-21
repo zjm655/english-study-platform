@@ -261,7 +261,7 @@ export function useSpeechEvaluation() {
 
     const file = new File([wavBlob], 'recording.wav', { type: 'audio/wav' })
     const mockEvent = { target: { files: [file] } } as unknown as Event
-    const eng = engine  
+    const eng = engine
 
     return new Promise<EvaluationResult>((resolve, reject) => {
       pendingResolve = resolve

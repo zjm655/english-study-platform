@@ -32,7 +32,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     // 1. 查今天的 log 记录（事务内必须用 conn.execute）
     const [logRows] = await conn.execute(
       'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
-      [userId, todayStr]
+      [userId, todayStr],
     )
     const todayLog = (logRows as CheckinLogRow[])[0]
 
@@ -40,7 +40,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     if (!todayLog) {
       await conn.execute<ResultSetHeader>(
         'INSERT IGNORE INTO user_checkin_log (user_id, checkin_date, checked_in) VALUES (?, ?, 0)',
-        [userId, todayStr]
+        [userId, todayStr],
       )
       // 首次调用，没有历史时间可算，不累计
       return getStats(conn, userId)
@@ -77,12 +77,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     // 5. 更新 log（updatedAt 自动刷新）+ stats
     await conn.execute(
       'UPDATE user_checkin_log SET study_seconds = study_seconds + ? WHERE id = ?',
-      [addSeconds, todayLog.id]
+      [addSeconds, todayLog.id],
     )
 
     await conn.execute(
       'UPDATE user_checkin_stats SET total_study_seconds = total_study_seconds + ? WHERE user_id = ?',
-      [addSeconds, userId]
+      [addSeconds, userId],
     )
 
     // 6. 返回更新后的 stats

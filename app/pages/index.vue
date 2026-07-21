@@ -7,7 +7,7 @@ import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
   title: '首页',
-  isHome: true
+  isHome: true,
 })
 
 const userStore = useUserStore()
@@ -33,9 +33,11 @@ const isCheckedIn = computed(() => {
   if (!checkinStats.value?.lastCheckinTime) return false
   const lastDate = new Date(checkinStats.value.lastCheckinTime)
   const now = new Date()
-  return lastDate.getFullYear() === now.getFullYear() &&
+  return (
+    lastDate.getFullYear() === now.getFullYear() &&
     lastDate.getMonth() === now.getMonth() &&
     lastDate.getDate() === now.getDate()
+  )
 })
 
 // 总loading状态
@@ -85,9 +87,7 @@ onMounted(() => {
       <!-- 顶部问候 -->
       <div class="greeting-section">
         <div class="greeting-text">
-          <ClientOnly>
-            {{ greeting }}，{{ user?.nickname || '学习者' }}
-          </ClientOnly>
+          <ClientOnly> {{ greeting }}，{{ user?.nickname || '学习者' }} </ClientOnly>
         </div>
         <div v-if="checkinStats?.currentStreakDays" class="streak-badge">
           <el-icon><Sunny /></el-icon>
@@ -105,19 +105,15 @@ onMounted(() => {
           <template v-else-if="isCheckedIn">今日已签到</template>
           <template v-else>今日签到</template>
           <!-- <template v-else>开始签到</template> -->
-           
         </div>
       </div>
 
       <!-- 开始学习按钮 -->
       <div class="learn-section">
-        <NuxtLink v-if="isCheckedIn" to="/learn" class="learn-btn">
-          开始学习
-        </NuxtLink>
-        <div v-else="isCheckedIn" class="learn-btn" style="cursor: pointer;" @click="handleCheckin">
+        <NuxtLink v-if="isCheckedIn" to="/learn" class="learn-btn"> 开始学习 </NuxtLink>
+        <div v-else="isCheckedIn" class="learn-btn" style="cursor: pointer" @click="handleCheckin">
           点击签到
         </div>
-
       </div>
 
       <!-- 统计卡片 -->
@@ -189,7 +185,9 @@ onMounted(() => {
   border-radius: var(--r-xl);
   box-shadow: var(--shadow);
   cursor: pointer;
-  transition: transform 0.2s, opacity 0.2s;
+  transition:
+    transform 0.2s,
+    opacity 0.2s;
 }
 
 .checkin-card:active {

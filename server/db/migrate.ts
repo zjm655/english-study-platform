@@ -10,13 +10,16 @@ async function loadEnv() {
   try {
     await access(envPath)
     const content = await readFile(envPath, 'utf-8')
-    content.split('\n').forEach(line => {
+    content.split('\n').forEach((line) => {
       line = line.trim()
       if (!line || line.startsWith('#')) return
       const match = line.match(/^([^=]+)=(.+)$/)
       if (match && match[1] && match[2]) {
         let value = match[2].trim()
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
           value = value.slice(1, -1)
         }
         process.env[match[1].trim()] = value
@@ -49,12 +52,17 @@ async function main() {
     // 允许向自增列插入字面量 0：002 种子数据需插入 unit id=0（用户自定义材料保留单元），
     // MySQL 默认 sql_mode 下插 0 会被当作「生成下一个自增值」。用 query()（文本协议）确保 SET 表达式生效，
     // 避免 execute()（预编译协议）对 SET ... = CONCAT(...) 的兼容风险。该设置对整个迁移会话生效。
-    await connection.query("SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',NO_AUTO_VALUE_ON_ZERO')")
+    await connection.query(
+      "SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',NO_AUTO_VALUE_ON_ZERO')",
+    )
 
     await ensureMigrationsTable(connection)
 
     const executedVersions = await getExecutedVersions(connection)
-    console.log('[INFO] 已执行的迁移版本:', executedVersions.length > 0 ? executedVersions.join(', ') : '无')
+    console.log(
+      '[INFO] 已执行的迁移版本:',
+      executedVersions.length > 0 ? executedVersions.join(', ') : '无',
+    )
 
     const migrationFiles = await getMigrationFiles()
     console.log('[INFO] 发现迁移文件:', migrationFiles.length, '个')
@@ -116,7 +124,7 @@ async function ensureMigrationsTable(connection: mysql.Connection) {
 async function getExecutedVersions(connection: mysql.Connection): Promise<string[]> {
   const [rows] = await connection.execute('SELECT version FROM migrations')
   const versionRows = rows as { version: string }[]
-  return versionRows.map(r => r.version)
+  return versionRows.map((r) => r.version)
 }
 
 async function checkExistingTables(connection: mysql.Connection): Promise<boolean> {
@@ -134,10 +142,10 @@ async function checkExistingTables(connection: mysql.Connection): Promise<boolea
 
 async function markAsExecuted(connection: mysql.Connection, version: string, filename: string) {
   // INSERT IGNORE 保证幂等：--force 重跑或 001 走「表已存在」分支时，版本已存在则忽略，不报唯一键冲突。
-  await connection.execute(
-    'INSERT IGNORE INTO migrations (version, filename) VALUES (?, ?)',
-    [version, filename]
-  )
+  await connection.execute('INSERT IGNORE INTO migrations (version, filename) VALUES (?, ?)', [
+    version,
+    filename,
+  ])
 }
 
 async function getMigrationFiles(): Promise<{ version: string; filename: string }[]> {
@@ -145,8 +153,8 @@ async function getMigrationFiles(): Promise<{ version: string; filename: string 
   const files = await readdir(migrationsDir)
 
   const sqlFiles = files
-    .filter(f => f.endsWith('.sql'))
-    .map(f => {
+    .filter((f) => f.endsWith('.sql'))
+    .map((f) => {
       const match = f.match(/^(\d{3})_/)
       const versionStr = match?.[1]
       return {
@@ -157,10 +165,14 @@ async function getMigrationFiles(): Promise<{ version: string; filename: string 
     })
     .sort((a, b) => a.sortKey - b.sortKey)
 
-  return sqlFiles.map(f => ({ version: f.version, filename: f.filename }))
+  return sqlFiles.map((f) => ({ version: f.version, filename: f.filename }))
 }
 
-async function executeMigrationFile(connection: mysql.Connection, filename: string, version: string) {
+async function executeMigrationFile(
+  connection: mysql.Connection,
+  filename: string,
+  version: string,
+) {
   const filePath = join(__dirname, 'migrations', filename)
   const content = await readFile(filePath, 'utf-8')
 
@@ -170,14 +182,14 @@ async function executeMigrationFile(connection: mysql.Connection, filename: stri
   // 已知限制：不处理字符串字面量内的 `;`（现有迁移文件均为中文文本，无内嵌分号）。
   const stripped = content
     .split('\n')
-    .filter(line => !line.trim().startsWith('--'))
+    .filter((line) => !line.trim().startsWith('--'))
     .join('\n')
     .replace(/\/\*[\s\S]*?\*\//g, '')
 
   const statements = stripped
     .split(';')
-    .map(s => s.trim())
-    .filter(s => s.length > 0)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
 
   for (const stmt of statements) {
     await connection.execute(stmt)

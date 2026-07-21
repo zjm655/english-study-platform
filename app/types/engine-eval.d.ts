@@ -48,7 +48,10 @@ interface EngineEvaluatInstance {
   start(params: Record<string, unknown>): void
   feed(base64String: string): void
   stop(): void
-  wholeFileUpload(event: Event, params: { coreType: string; refText: string; warrantId?: string }): void
+  wholeFileUpload(
+    event: Event,
+    params: { coreType: string; refText: string; warrantId?: string },
+  ): void
   destroyEngine(): void
   setMicVolume(num: number): void
   loadAudio(url: string): void

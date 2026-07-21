@@ -21,7 +21,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
   const countRows = await query<CountRow>(
     `SELECT COUNT(*) as total FROM recording r
      WHERE r.user_id = ? AND r.segment_id = ? AND r.phase = ? AND r.deleted_at IS NULL`,
-    [userId, segmentId, phase]
+    [userId, segmentId, phase],
   )
   const total = countRows[0]?.total ?? 0
 
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
      WHERE r.user_id = ? AND r.segment_id = ? AND r.phase = ? AND r.deleted_at IS NULL
      ORDER BY r.createdAt DESC
      LIMIT ? OFFSET ?`,
-    [userId, segmentId, phase, size, offset]
+    [userId, segmentId, phase, size, offset],
   )
 
   // 签名音频路径
@@ -43,7 +43,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
         ? await signUrl(row.rec_media_key, RECORDING_EXPIRE)
         : null
       return rowToRecording(row, signedPath)
-    })
+    }),
   )
   const items = results.filter((r): r is Recording => r !== null)
 

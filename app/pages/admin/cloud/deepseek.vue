@@ -20,15 +20,16 @@
         <h3 class="panel-title">账户余额</h3>
         <span class="panel-note">
           <el-tag v-if="data?.balance.isAvailable" type="success" size="small">服务可用</el-tag>
-          <el-tag v-else-if="data?.balance.success && !data.balance.isAvailable" type="danger" size="small">余额不足</el-tag>
+          <el-tag
+            v-else-if="data?.balance.success && !data.balance.isAvailable"
+            type="danger"
+            size="small"
+            >余额不足</el-tag
+          >
         </span>
       </header>
       <div v-if="data?.balance.success && data.balance.balances?.length" class="balance-body">
-        <div
-          v-for="(item, idx) in data.balance.balances"
-          :key="idx"
-          class="balance-card"
-        >
+        <div v-for="(item, idx) in data.balance.balances" :key="idx" class="balance-card">
           <div class="balance-hero">
             <span class="balance-number">￥{{ item.totalBalance }}</span>
             <span class="balance-caption">总可用余额（{{ item.currency }}）</span>
@@ -139,10 +140,12 @@ function renderTrendChart(dates: string[], callCounts: number[], totalTokens: nu
         data: callCounts,
         smooth: true,
         itemStyle: { color: '#409EFF' },
-        areaStyle: { color: new graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(64,158,255,0.25)' },
-          { offset: 1, color: 'rgba(64,158,255,0.02)' },
-        ])},
+        areaStyle: {
+          color: new graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(64,158,255,0.25)' },
+            { offset: 1, color: 'rgba(64,158,255,0.02)' },
+          ]),
+        },
       },
       {
         name: 'Token 用量',
@@ -151,10 +154,12 @@ function renderTrendChart(dates: string[], callCounts: number[], totalTokens: nu
         data: totalTokens,
         smooth: true,
         itemStyle: { color: '#67C23A' },
-        areaStyle: { color: new graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(103,194,58,0.25)' },
-          { offset: 1, color: 'rgba(103,194,58,0.02)' },
-        ])},
+        areaStyle: {
+          color: new graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(103,194,58,0.25)' },
+            { offset: 1, color: 'rgba(103,194,58,0.02)' },
+          ]),
+        },
       },
     ],
   })
@@ -166,38 +171,159 @@ function formatBalance(amount?: number): string {
 }
 
 onMounted(() => fetchData())
-onUnmounted(() => { trendChart?.dispose() })
+onUnmounted(() => {
+  trendChart?.dispose()
+})
 </script>
 
 <style scoped>
-.cloud-page { display: flex; flex-direction: column; gap: 16px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.page-title { font-size: 22px; font-weight: 700; color: var(--text-1); }
-.page-desc { margin-top: 6px; font-size: 13px; color: var(--text-3); }
-.header-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.cloud-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.page-desc {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
 
-.panel { background: var(--card); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 18px 20px; }
-.panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.panel-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
-.panel-note { font-size: 12px; color: var(--text-4); }
+.panel {
+  background: var(--card);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.panel-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.panel-note {
+  font-size: 12px;
+  color: var(--text-4);
+}
 
-.balance-body { display: flex; flex-direction: column; gap: 16px; }
-.balance-card { display: flex; flex-direction: column; gap: 14px; }
-.balance-hero { display: flex; flex-direction: column; align-items: center; padding: 16px 0 8px; gap: 4px; }
-.balance-number { font-size: 40px; font-weight: 700; color: var(--primary-dark); font-variant-numeric: tabular-nums; line-height: 1; }
-.balance-caption { font-size: 12px; color: var(--text-3); }
-.balance-rows { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; background: var(--primary-light); border-radius: var(--r); }
-.balance-row { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-2); }
-.balance-row b { font-variant-numeric: tabular-nums; color: var(--text-1); }
+.balance-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.balance-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.balance-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0 8px;
+  gap: 4px;
+}
+.balance-number {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.balance-caption {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.balance-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--primary-light);
+  border-radius: var(--r);
+}
+.balance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.balance-row b {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
 
-.unavailable { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 16px; color: var(--text-4); text-align: center; }
-.unavailable p { font-size: 13px; font-weight: 600; color: var(--text-3); }
-.unavailable span { font-size: 12px; word-break: break-all; }
+.unavailable {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 16px;
+  color: var(--text-4);
+  text-align: center;
+}
+.unavailable p {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+.unavailable span {
+  font-size: 12px;
+  word-break: break-all;
+}
 
-.trend-panel { margin-bottom: 0; }
-.trend-chart { width: 100%; height: 280px; }
+.trend-panel {
+  margin-bottom: 0;
+}
+.trend-chart {
+  width: 100%;
+  height: 280px;
+}
 
-.info-notes { list-style: none; display: flex; flex-direction: column; gap: 8px; padding: 0; }
-.info-notes li { font-size: 13px; color: var(--text-2); line-height: 1.6; padding-left: 14px; position: relative; }
-.info-notes li::before { content: ''; position: absolute; left: 0; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+.info-notes {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+}
+.info-notes li {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.6;
+  padding-left: 14px;
+  position: relative;
+}
+.info-notes li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--primary);
+}
 </style>

@@ -11,8 +11,10 @@ import type {
  */
 export const getAdminUserList = (options: AdminUserListQuery = {}) => {
   const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null) params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null) params.append('pageSize', String(options.pageSize))
+  if (options.page !== undefined && options.page !== null)
+    params.append('page', String(options.page))
+  if (options.pageSize !== undefined && options.pageSize !== null)
+    params.append('pageSize', String(options.pageSize))
   if (options.keyword) params.append('keyword', options.keyword)
   if (options.state) params.append('state', options.state)
   const query = params.toString()

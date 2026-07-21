@@ -60,7 +60,7 @@ export async function queryAccountBalance(): Promise<AccountBalanceResult> {
   let callStart = 0
   try {
     callStart = Date.now()
-    const res = await client.request('QueryAccountBalance', {}) as {
+    const res = (await client.request('QueryAccountBalance', {})) as {
       Data?: {
         AvailableAmount?: string
         AvailableCashAmount?: string
@@ -72,7 +72,12 @@ export async function queryAccountBalance(): Promise<AccountBalanceResult> {
     if (!data) {
       return { success: false, error: 'BSS 响应结构异常（无 Data 字段）' }
     }
-    void logCloudServiceCall({ service: 'bss', operation: 'queryAccountBalance', success: true, durationMs: Date.now() - callStart })
+    void logCloudServiceCall({
+      service: 'bss',
+      operation: 'queryAccountBalance',
+      success: true,
+      durationMs: Date.now() - callStart,
+    })
     return {
       success: true,
       availableAmount: data.AvailableAmount,
@@ -84,7 +89,13 @@ export async function queryAccountBalance(): Promise<AccountBalanceResult> {
     // pop-core 错误对象含 code / message（如 InvalidAccessKeyId / Forbidden.RAM）
     const e = err as { code?: string; message?: string }
     logger.error('[bss] 查询账户余额失败:', err)
-    void logCloudServiceCall({ service: 'bss', operation: 'queryAccountBalance', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: (e?.code ? `${e.code}: ${e.message ?? ''}` : String(err)).substring(0, 500) })
+    void logCloudServiceCall({
+      service: 'bss',
+      operation: 'queryAccountBalance',
+      success: false,
+      durationMs: callStart ? Date.now() - callStart : 0,
+      errorMessage: (e?.code ? `${e.code}: ${e.message ?? ''}` : String(err)).substring(0, 500),
+    })
     return {
       success: false,
       error: e?.code ? `${e.code}: ${e.message ?? ''}` : String(err),
@@ -123,11 +134,11 @@ export async function queryBill(billingCycle: string): Promise<BillResult> {
   let callStart = 0
   try {
     callStart = Date.now()
-    const res = await client.request('QueryBill', {
+    const res = (await client.request('QueryBill', {
       BillingCycle: billingCycle,
       PageSize: 100,
       PageNum: 1,
-    }) as {
+    })) as {
       Data?: {
         TotalCount?: number
         Items?: {
@@ -147,12 +158,17 @@ export async function queryBill(billingCycle: string): Promise<BillResult> {
       return { success: false, error: 'BSS 响应结构异常（无 Data 字段）' }
     }
     const rawItems = data.Items?.Item ?? []
-    void logCloudServiceCall({ service: 'bss', operation: 'queryBill', success: true, durationMs: Date.now() - callStart })
+    void logCloudServiceCall({
+      service: 'bss',
+      operation: 'queryBill',
+      success: true,
+      durationMs: Date.now() - callStart,
+    })
     return {
       success: true,
       billingCycle,
       totalCount: data.TotalCount ?? rawItems.length,
-      items: rawItems.map(i => ({
+      items: rawItems.map((i) => ({
         productCode: i.ProductCode ?? '',
         productName: i.ProductName ?? '',
         subscriptionType: i.SubscriptionType ?? '',
@@ -164,7 +180,13 @@ export async function queryBill(billingCycle: string): Promise<BillResult> {
   } catch (err) {
     const e = err as { code?: string; message?: string }
     logger.error('[bss] 查询账单失败:', err)
-    void logCloudServiceCall({ service: 'bss', operation: 'queryBill', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: (e?.code ? `${e.code}: ${e.message ?? ''}` : String(err)).substring(0, 500) })
+    void logCloudServiceCall({
+      service: 'bss',
+      operation: 'queryBill',
+      success: false,
+      durationMs: callStart ? Date.now() - callStart : 0,
+      errorMessage: (e?.code ? `${e.code}: ${e.message ?? ''}` : String(err)).substring(0, 500),
+    })
     return {
       success: false,
       error: e?.code ? `${e.code}: ${e.message ?? ''}` : String(err),

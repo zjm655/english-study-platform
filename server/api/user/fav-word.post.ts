@@ -26,7 +26,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
       // 检查 vocabulary 是否存在
       const [vocabRows] = await conn.execute<IdRow[]>(
         'SELECT id FROM vocabulary WHERE id = ? LIMIT 1',
-        [vocabularyId]
+        [vocabularyId],
       )
       if (vocabRows.length === 0) {
         throw new Error('NOT_FOUND:单词不存在')
@@ -35,15 +35,15 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
       // 查询现有收藏记录
       const [existing] = await conn.execute<FavRow[]>(
         'SELECT id, deleted_at FROM user_fav_word WHERE user_id = ? AND vocabulary_id = ? LIMIT 1',
-        [userId, vocabularyId]
+        [userId, vocabularyId],
       )
 
       if (existing.length === 0) {
         // 没有记录 → 插入新收藏
-        await conn.execute(
-          'INSERT INTO user_fav_word (user_id, vocabulary_id) VALUES (?, ?)',
-          [userId, vocabularyId]
-        )
+        await conn.execute('INSERT INTO user_fav_word (user_id, vocabulary_id) VALUES (?, ?)', [
+          userId,
+          vocabularyId,
+        ])
         return true
       }
 
@@ -52,18 +52,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
 
       if (record.deleted_at === null) {
         // 已收藏 → 软删除（取消收藏）
-        await conn.execute(
-          'UPDATE user_fav_word SET deleted_at = NOW() WHERE id = ?',
-          [record.id]
-        )
+        await conn.execute('UPDATE user_fav_word SET deleted_at = NOW() WHERE id = ?', [record.id])
         return false
       }
 
       // 曾经收藏过，已软删除 → 恢复
-      await conn.execute(
-        'UPDATE user_fav_word SET deleted_at = NULL WHERE id = ?',
-        [record.id]
-      )
+      await conn.execute('UPDATE user_fav_word SET deleted_at = NULL WHERE id = ?', [record.id])
       return true
     })
 

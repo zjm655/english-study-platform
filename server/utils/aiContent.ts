@@ -156,21 +156,20 @@ function validateVocabulary(raw: unknown): GeneratedVocabulary[] | null {
     const meaning = typeof obj.meaning === 'string' ? obj.meaning.trim() : ''
     if (!meaning) continue
 
-    const forms = typeof obj.forms === 'string' && obj.forms.trim()
-      ? obj.forms.trim()
-      : null
+    const forms = typeof obj.forms === 'string' && obj.forms.trim() ? obj.forms.trim() : null
 
-    const phonetic = typeof obj.phonetic === 'string' && obj.phonetic.trim()
-      ? obj.phonetic.trim()
-      : null
+    const phonetic =
+      typeof obj.phonetic === 'string' && obj.phonetic.trim() ? obj.phonetic.trim() : null
 
-    const exampleSentence = typeof obj.exampleSentence === 'string' && obj.exampleSentence.trim()
-      ? obj.exampleSentence.trim()
-      : null
+    const exampleSentence =
+      typeof obj.exampleSentence === 'string' && obj.exampleSentence.trim()
+        ? obj.exampleSentence.trim()
+        : null
 
-    const exampleTranslation = typeof obj.exampleTranslation === 'string' && obj.exampleTranslation.trim()
-      ? obj.exampleTranslation.trim()
-      : null
+    const exampleTranslation =
+      typeof obj.exampleTranslation === 'string' && obj.exampleTranslation.trim()
+        ? obj.exampleTranslation.trim()
+        : null
 
     result.push({
       word,
@@ -252,7 +251,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ds.apiKey}`,
+        Authorization: `Bearer ${ds.apiKey}`,
       },
       body: JSON.stringify({
         model: ds.model,
@@ -270,7 +269,13 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     if (!resp.ok) {
       const body = await resp.text()
       logger.error(`[aiContent] API 返回 ${resp.status}: ${body}`)
-      void logCloudServiceCall({ service: 'deepseek', operation: 'generateContent', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateContent',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: `HTTP ${resp.status}`,
+      })
       return { success: false, error: 'AI 服务暂时不可用' }
     }
 
@@ -302,7 +307,10 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     }
 
     // 4. 解析 JSON 响应
-    const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+    const cleaned = content
+      .replace(/```json?\n?/g, '')
+      .replace(/```/g, '')
+      .trim()
     let parsed: LlmResponse
     try {
       parsed = JSON.parse(cleaned)
@@ -344,7 +352,13 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    void logCloudServiceCall({ service: 'deepseek', operation: 'generateContent', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: errMsg.substring(0, 500) })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'generateContent',
+      success: false,
+      durationMs: callStart ? Date.now() - callStart : 0,
+      errorMessage: errMsg.substring(0, 500),
+    })
 
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       logger.error('[aiContent] 生成超时')
@@ -397,7 +411,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${ds.apiKey}`,
+        Authorization: `Bearer ${ds.apiKey}`,
       },
       body: JSON.stringify({
         model: ds.model,
@@ -415,7 +429,13 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
     if (!resp.ok) {
       const body = await resp.text()
       logger.error(`[aiContent] 标题生成 API 返回 ${resp.status}: ${body}`)
-      void logCloudServiceCall({ service: 'deepseek', operation: 'generateTitle', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateTitle',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: `HTTP ${resp.status}`,
+      })
       return { success: false, error: 'AI 服务暂时不可用' }
     }
 
@@ -447,7 +467,10 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
     }
 
     // 清洗：去除引号、换行、前后空格
-    title = title.replace(/^["']|["']$/g, '').replace(/\n/g, ' ').trim()
+    title = title
+      .replace(/^["']|["']$/g, '')
+      .replace(/\n/g, ' ')
+      .trim()
     if (!title) {
       return { success: false, error: 'AI 返回标题为空' }
     }
@@ -457,7 +480,13 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
     return { success: true, title }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    void logCloudServiceCall({ service: 'deepseek', operation: 'generateTitle', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: errMsg.substring(0, 500) })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'generateTitle',
+      success: false,
+      durationMs: callStart ? Date.now() - callStart : 0,
+      errorMessage: errMsg.substring(0, 500),
+    })
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       logger.error('[aiContent] 标题生成超时')
       fileLogError('ai', '[aiContent] 标题生成超时', errMsg)

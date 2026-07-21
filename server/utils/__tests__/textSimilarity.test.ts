@@ -29,7 +29,7 @@ describe('compareTextSimilarity', () => {
   it('部分重叠的文本返回 0~1 之间的分数', () => {
     const result = compareTextSimilarity(
       'the quick brown fox jumps over the lazy dog',
-      'the quick brown fox sleeps on the floor'
+      'the quick brown fox sleeps on the floor',
     )
     expect(result.score).toBeGreaterThan(0)
     expect(result.score).toBeLessThan(1)
@@ -54,8 +54,10 @@ describe('compareTextSimilarity', () => {
   })
 
   it('多句长文本相似度计算正确', () => {
-    const original = 'The morning sun cast long shadows across the garden. Birds sang in the tall trees.'
-    const recognized = 'The morning sun cast long shadows across the garden. Birds sang in the trees.'
+    const original =
+      'The morning sun cast long shadows across the garden. Birds sang in the tall trees.'
+    const recognized =
+      'The morning sun cast long shadows across the garden. Birds sang in the trees.'
     const result = compareTextSimilarity(original, recognized)
     expect(result.score).toBeGreaterThan(0.8)
     expect(result.passed).toBe(true)

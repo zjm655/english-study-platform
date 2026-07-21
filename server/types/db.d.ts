@@ -9,8 +9,8 @@ export interface UserRow {
   nickname: string | null
   email: string | null
   role: number
-  status: number             // 0封禁 1正常
-  deleted_at: string | null  // 软删除时间(销号)
+  status: number // 0封禁 1正常
+  deleted_at: string | null // 软删除时间(销号)
   passwordHash: string
   avatarUrl: string | null
   level: number
@@ -35,18 +35,18 @@ export interface SegmentRow {
   media_id: number | null
   textContent: string
   translation: string | null
-  questions: Question[] | string | null     // json 列：mysql2 自动解析为数组，兼容字符串
-  is_public: number            // 0不公开 1公开
+  questions: Question[] | string | null // json 列：mysql2 自动解析为数组，兼容字符串
+  is_public: number // 0不公开 1公开
   sort_order: number
   createdAt: string
-  deleted_at: string | null    // 软删除时间（NULL 未删除）
+  deleted_at: string | null // 软删除时间（NULL 未删除）
 }
 
 export interface UserProgressRow {
   id: number
   user_id: number
   segment_id: number
-  phase1_done: number          // 0 or 1
+  phase1_done: number // 0 or 1
   phase2_done: number
   phase3_done: number
   phase3_score: string | null // decimal as string
@@ -94,12 +94,12 @@ export interface RecordingRow {
   segment_id: number
   phase: number
   media_id: number | null
-  score: string | null        // DECIMAL → string
+  score: string | null // DECIMAL → string
   feedback: string | null
   recognizedText: string | null
-  wordScores: WordScore[] | string | null   // json 列：mysql2 自动解析为数组，兼容字符串
-  rawResult: string | null    // 原始评测响应JSON
-  duration: string | null     // DECIMAL → string
+  wordScores: WordScore[] | string | null // json 列：mysql2 自动解析为数组，兼容字符串
+  rawResult: string | null // 原始评测响应JSON
+  duration: string | null // DECIMAL → string
   createdAt: string
   deleted_at: string | null
 }
@@ -150,10 +150,10 @@ export interface MaterialUploadRecordRow {
 
 export interface AdminOperationLogRow {
   id: number
-  admin_id: number | null    // 账号删除后为 NULL
-  action: string             // user.ban/user.unban/user.delete/user.update/segment.update/segment.delete
-  target_type: string        // user/segment
+  admin_id: number | null // 账号删除后为 NULL
+  action: string // user.ban/user.unban/user.delete/user.update/segment.update/segment.delete
+  target_type: string // user/segment
   target_id: number
-  detail: Record<string, unknown> | string | null  // json 列
+  detail: Record<string, unknown> | string | null // json 列
   createdAt: string
 }

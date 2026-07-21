@@ -27,7 +27,7 @@ export function processEvaluationResult(input: {
   wordScores: { word: string; score: number }[]
   recognizedText: string
 }): ParsedEvalResult {
-  const wordScores: ParsedEvalResult['wordScores'] = input.wordScores.map(w => ({
+  const wordScores: ParsedEvalResult['wordScores'] = input.wordScores.map((w) => ({
     word: w.word,
     score: w.score,
     status: scoreToStatus(w.score),

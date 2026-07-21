@@ -9,7 +9,7 @@ interface BaseCfg {
   credentials?: RequestCredentials
 }
 
-export const createFetch = ({ baseURL='', credentials = 'include'}: BaseCfg = {}) =>
+export const createFetch = ({ baseURL = '', credentials = 'include' }: BaseCfg = {}) =>
   $fetch.create({
     baseURL,
     credentials: import.meta.client ? credentials : undefined,
@@ -23,9 +23,7 @@ export const createFetch = ({ baseURL='', credentials = 'include'}: BaseCfg = {}
       //     options.headers.set('cookie', headers.cookie)
       //   }
       // }
-      logger.info(
-        `请求拦截器 - 发送请求: ${request}  请求类型：${options.method ?? 'GET'}`,
-      )
+      logger.info(`请求拦截器 - 发送请求: ${request}  请求类型：${options.method ?? 'GET'}`)
     },
 
     onResponse(ctx: FetchContext) {
@@ -34,22 +32,20 @@ export const createFetch = ({ baseURL='', credentials = 'include'}: BaseCfg = {}
       logger.info(
         `响应拦截器 - 收到响应: ${(response._data as ResPayload<unknown>)?.message || '无提示'}, 来源：${response.url}`,
       )
-      if(import.meta.client){
-        logger.info("完整响应：", response)
+      if (import.meta.client) {
+        logger.info('完整响应：', response)
       }
     },
 
     onResponseError(ctx: FetchContext) {
-        const response = ctx.response
-        if (!response) return
-        const body = response._data as Record<string, unknown> | undefined
-        logger.warn(
-            `响应拦截器 - 错误响应: ${response.status}, ${(body)?.message}`,
-        )
-        throw {
-            code: response.status,
-            message: (body?.message as string) || '请求失败',
-            data: null,
-        } satisfies ResPayload<null>
+      const response = ctx.response
+      if (!response) return
+      const body = response._data as Record<string, unknown> | undefined
+      logger.warn(`响应拦截器 - 错误响应: ${response.status}, ${body?.message}`)
+      throw {
+        code: response.status,
+        message: (body?.message as string) || '请求失败',
+        data: null,
+      } satisfies ResPayload<null>
     },
   })

@@ -48,7 +48,7 @@ describe('EvaluationResultCard 逐词评分渲染', () => {
       props: { recording, referenceText: 'a b c d' },
     })
     const words = wrapper.findAll('.word-score')
-    expect(words.map(w => w.text())).toEqual(['a', 'b', 'c', 'd'])
+    expect(words.map((w) => w.text())).toEqual(['a', 'b', 'c', 'd'])
     expect(words[0]!.classes()).toContain('word--correct')
     expect(words[1]!.classes()).toContain('word--minor')
     expect(words[2]!.classes()).toContain('word--wrong')

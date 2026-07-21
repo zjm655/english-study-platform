@@ -32,19 +32,9 @@ function handleRetry() {
         >
           返回首页
         </button>
-        <button
-          v-else
-          class="error-btn error-btn--primary"
-          @click="handleRetry"
-        >
-          重试
-        </button>
+        <button v-else class="error-btn error-btn--primary" @click="handleRetry">重试</button>
       </div>
-      <div
-        v-if="error.statusCode !== 404"
-        v-show="error.stack"
-        class="error-detail"
-      >
+      <div v-if="error.statusCode !== 404" v-show="error.stack" class="error-detail">
         <details>
           <summary>技术细节</summary>
           <pre>{{ error.stack }}</pre>

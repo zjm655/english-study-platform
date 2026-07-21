@@ -19,9 +19,7 @@ vi.mock('#server/utils/validate', () => ({
 
 type VocabMediaRow = VocabularyRow & { vocab_media_key: string | null }
 
-function makeRow(
-  overrides: Partial<VocabMediaRow> = {}
-): VocabMediaRow {
+function makeRow(overrides: Partial<VocabMediaRow> = {}): VocabMediaRow {
   return {
     id: 1,
     segment_id: 10,
@@ -62,10 +60,7 @@ describe('rowsToReviewVocab', () => {
       makeRow({ id: 1, word: 'shadow' }),
       makeRow({ id: 2, word: 'light', segment_id: 20 }),
     ]
-    const result = rowsToReviewVocab(rows, [
-      'https://signed.url/1.mp3',
-      'https://signed.url/2.mp3',
-    ])
+    const result = rowsToReviewVocab(rows, ['https://signed.url/1.mp3', 'https://signed.url/2.mp3'])
     expect(result[0]!.audioUrl).toBe('https://signed.url/1.mp3')
     expect(result[1]!.audioUrl).toBe('https://signed.url/2.mp3')
   })

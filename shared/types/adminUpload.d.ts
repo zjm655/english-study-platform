@@ -10,5 +10,5 @@ export interface AdminUploadItemResult {
 /** 管理员上传响应 */
 export interface AdminUploadResponse {
   results: AdminUploadItemResult[]
-  summary: { total: number, success: number, failed: number }
+  summary: { total: number; success: number; failed: number }
 }

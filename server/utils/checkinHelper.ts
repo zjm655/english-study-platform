@@ -40,7 +40,7 @@ export function isStreakBroken(lastCheckinTime: string | Date | null, now: Date)
 export async function getStats(conn: PoolConnection, userId: number): Promise<CheckinStats> {
   const [rows] = await conn.execute<RowDataPacket[]>(
     'SELECT * FROM user_checkin_stats WHERE user_id = ?',
-    [userId]
+    [userId],
   )
   const row = rows[0] as CheckinStatsRow | undefined
   if (!row) {
@@ -49,7 +49,7 @@ export async function getStats(conn: PoolConnection, userId: number): Promise<Ch
       lastCheckinTime: null,
       currentStreakDays: 0,
       maxStreakDays: 0,
-      totalStudySeconds: 0
+      totalStudySeconds: 0,
     }
   }
   return {
@@ -57,6 +57,6 @@ export async function getStats(conn: PoolConnection, userId: number): Promise<Ch
     lastCheckinTime: row.last_checkin_time,
     currentStreakDays: row.current_streak_days,
     maxStreakDays: row.max_streak_days,
-    totalStudySeconds: row.total_study_seconds
+    totalStudySeconds: row.total_study_seconds,
   }
 }

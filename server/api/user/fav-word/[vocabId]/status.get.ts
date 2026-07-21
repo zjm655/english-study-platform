@@ -16,7 +16,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
 
   const rows = await query(
     'SELECT id FROM user_fav_word WHERE user_id = ? AND vocabulary_id = ? AND deleted_at IS NULL',
-    [userId, vocabId]
+    [userId, vocabId],
   )
 
   return validateSuccess({ isFav: rows.length > 0 }, '获取成功')

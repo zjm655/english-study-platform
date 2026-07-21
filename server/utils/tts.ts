@@ -58,7 +58,7 @@ function generateSecMsGec(): string {
   const ticks = Date.now() / 1000
   const adjustedTicks = ticks + WIN_EPOCH_OFFSET
   const flooredTicks = adjustedTicks - (adjustedTicks % 300)
-  const nanos100 = Math.floor(flooredTicks * 1e9 / 100)
+  const nanos100 = Math.floor((flooredTicks * 1e9) / 100)
   const payload = `${nanos100}${TRUSTED_CLIENT_TOKEN}`
   return crypto.createHash('sha256').update(payload, 'ascii').digest('hex').toUpperCase()
 }
@@ -165,7 +165,20 @@ function buildSsml(text: string, fullVoice: string): string {
 function toEdgeTimestamp(): string {
   const d = new Date()
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ]
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${days[d.getUTCDay()]} ${months[d.getUTCMonth()]} ${d.getUTCDate()} ${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`
 }
@@ -259,7 +272,10 @@ function extractAudioData(data: Buffer): Buffer | null {
  * @param voice 语音名称（短名，如 en-US-AriaNeural），默认 en-US-AriaNeural
  * @returns 转换结果，成功时包含 audio Buffer
  */
-export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE): Promise<TtsResult> {
+export async function textToSpeech(
+  text: string,
+  voice: string = DEFAULT_VOICE,
+): Promise<TtsResult> {
   // 1. 校验输入
   const trimmed = text.trim()
   if (!trimmed) {
@@ -274,9 +290,9 @@ export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE):
   // 2. 准备连接
   const url = generateWsUrl()
   const wsHeaders: Record<string, string> = {
-    'Pragma': 'no-cache',
+    Pragma: 'no-cache',
     'Cache-Control': 'no-cache',
-    'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
+    Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
     'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROMIUM_VERSION} Safari/537.36 Edg/${CHROMIUM_VERSION}`,
     'Accept-Language': 'en-US,en;q=0.9',
   }
@@ -383,15 +399,30 @@ export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE):
     const audio = Buffer.concat(audioChunks)
     const ms = Date.now() - start
     logger.info(`[tts] 转换成功 (${ms}ms, ${audio.length}B)`)
-    fileLog('tts', 'info', '[tts] 转换成功', { ms, audioBytes: audio.length, textLength: trimmed.length })
-    void logCloudServiceCall({ service: 'tts', operation: 'textToSpeech', success: true, durationMs: ms })
+    fileLog('tts', 'info', '[tts] 转换成功', {
+      ms,
+      audioBytes: audio.length,
+      textLength: trimmed.length,
+    })
+    void logCloudServiceCall({
+      service: 'tts',
+      operation: 'textToSpeech',
+      success: true,
+      durationMs: ms,
+    })
     return { success: true, audio }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     const ms = Date.now() - start
     logger.error('[tts] 转换失败:', errMsg)
     fileLogError('tts', `[tts] 转换失败 (${ms}ms)`, errMsg, { textLength: trimmed.length })
-    void logCloudServiceCall({ service: 'tts', operation: 'textToSpeech', success: false, durationMs: ms, errorMessage: errMsg.substring(0, 500) })
+    void logCloudServiceCall({
+      service: 'tts',
+      operation: 'textToSpeech',
+      success: false,
+      durationMs: ms,
+      errorMessage: errMsg.substring(0, 500),
+    })
 
     if (errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('连接超时')) {
       return { success: false, error: 'TTS 服务连接失败，可能需要代理' }

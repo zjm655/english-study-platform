@@ -49,8 +49,8 @@ export async function getDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
     const resp = await serverFetch(url, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${ds.apiKey}`,
+        Accept: 'application/json',
+        Authorization: `Bearer ${ds.apiKey}`,
       },
       timeout: 10_000,
       tag: '[deepseek]',
@@ -60,11 +60,17 @@ export async function getDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
       const body = await resp.text()
       logger.error(`[deepseek] 余额查询返回 ${resp.status}: ${body}`)
       fileLogError('ai', '[deepseek] 余额查询失败', `HTTP ${resp.status}`)
-      void logCloudServiceCall({ service: 'deepseek', operation: 'checkBalance', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'checkBalance',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: `HTTP ${resp.status}`,
+      })
       return { success: false, error: `DeepSeek API 返回 ${resp.status}` }
     }
 
-    const data = await resp.json() as {
+    const data = (await resp.json()) as {
       is_available?: boolean
       balance_infos?: {
         currency?: string
@@ -76,7 +82,7 @@ export async function getDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
 
     // 4. 解析响应
     const balances: DeepSeekBalanceInfo[] = Array.isArray(data.balance_infos)
-      ? data.balance_infos.map(b => ({
+      ? data.balance_infos.map((b) => ({
           currency: b.currency ?? 'CNY',
           totalBalance: b.total_balance ?? '0',
           grantedBalance: b.granted_balance ?? '0',
@@ -97,11 +103,22 @@ export async function getDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
       isAvailable: result.isAvailable,
       count: balances.length,
     })
-    void logCloudServiceCall({ service: 'deepseek', operation: 'checkBalance', success: true, durationMs: Date.now() - callStart })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'checkBalance',
+      success: true,
+      durationMs: Date.now() - callStart,
+    })
     return result
   } catch (err) {
     const e = err as { message?: string }
-    void logCloudServiceCall({ service: 'deepseek', operation: 'checkBalance', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: String(e?.message ?? err).substring(0, 500) })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'checkBalance',
+      success: false,
+      durationMs: callStart ? Date.now() - callStart : 0,
+      errorMessage: String(e?.message ?? err).substring(0, 500),
+    })
     logger.error('[deepseek] 余额查询异常:', err)
     fileLogError('ai', '[deepseek] 余额查询异常', e?.message ?? String(err))
     return {

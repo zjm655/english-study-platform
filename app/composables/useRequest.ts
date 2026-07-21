@@ -7,11 +7,7 @@ import type { ResPayload } from '#shared/types/request'
  */
 export function isResPayload<T>(val: unknown): val is ResPayload<T> {
   return (
-    typeof val === 'object'
-    && val !== null
-    && 'code' in val
-    && 'message' in val
-    && 'data' in val
+    typeof val === 'object' && val !== null && 'code' in val && 'message' in val && 'data' in val
   )
 }
 
@@ -24,9 +20,7 @@ export function isResPayload<T>(val: unknown): val is ResPayload<T> {
  * )
  * const res = await execute({ account: '12345678', password: 'xxx' })
  */
-export const useHandleRes = <Payload, Res>(
-  resCfg: CommonReqCfg<Payload, Res>,
-) => {
+export const useHandleRes = <Payload, Res>(resCfg: CommonReqCfg<Payload, Res>) => {
   const isLoading = ref(false)
   let timer: ReturnType<typeof setTimeout> | null = null
 

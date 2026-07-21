@@ -1,29 +1,32 @@
 <script setup lang="ts">
 import type { Recording } from '#shared/types/recording'
 
-const props = withDefaults(defineProps<{
-  recordings: Recording[]
-  total: number
-  selectedId: number | null
-  isLoading: boolean
-  isError: boolean
-  errorMsg: string
-  hasMore: boolean
-  isLoadingMore: boolean
-  /** 卡片标题（Phase3「历史录音」/ Phase4「历史跟读」） */
-  title?: string
-  /** 空列表提示文案 */
-  emptyText?: string
-  /** 是否禁用播放按钮（Phase4 跟读进行中传 true） */
-  playDisabled?: boolean
-  /** 是否展示选中后的播放按钮 */
-  showPlay?: boolean
-}>(), {
-  title: '历史录音',
-  emptyText: '还没有录音，点击下方按钮开始录制',
-  playDisabled: false,
-  showPlay: true,
-})
+const props = withDefaults(
+  defineProps<{
+    recordings: Recording[]
+    total: number
+    selectedId: number | null
+    isLoading: boolean
+    isError: boolean
+    errorMsg: string
+    hasMore: boolean
+    isLoadingMore: boolean
+    /** 卡片标题（Phase3「历史录音」/ Phase4「历史跟读」） */
+    title?: string
+    /** 空列表提示文案 */
+    emptyText?: string
+    /** 是否禁用播放按钮（Phase4 跟读进行中传 true） */
+    playDisabled?: boolean
+    /** 是否展示选中后的播放按钮 */
+    showPlay?: boolean
+  }>(),
+  {
+    title: '历史录音',
+    emptyText: '还没有录音，点击下方按钮开始录制',
+    playDisabled: false,
+    showPlay: true,
+  },
+)
 
 const emit = defineEmits<{
   (e: 'select', id: number): void
@@ -45,9 +48,7 @@ const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
   day: '2-digit',
 })
 
-const hasSelected = computed(() =>
-  props.recordings.some(r => r.id === props.selectedId)
-)
+const hasSelected = computed(() => props.recordings.some((r) => r.id === props.selectedId))
 </script>
 
 <template>
@@ -91,17 +92,11 @@ const hasSelected = computed(() =>
 
       <!-- 加载更多 -->
       <div v-if="hasMore" class="load-more-wrap">
-        <button
-          class="load-more-btn"
-          :disabled="isLoadingMore"
-          @click="emit('loadMore')"
-        >
+        <button class="load-more-btn" :disabled="isLoadingMore" @click="emit('loadMore')">
           <template v-if="isLoadingMore">
             <DotPulse />
           </template>
-          <template v-else>
-            查看更多（共 {{ total }} 条）
-          </template>
+          <template v-else> 查看更多（共 {{ total }} 条） </template>
         </button>
       </div>
 
@@ -169,7 +164,9 @@ const hasSelected = computed(() =>
   border: 1px solid var(--border-ll);
   border-radius: var(--r);
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
 }
 
 .recording-item:hover {
@@ -224,7 +221,9 @@ const hasSelected = computed(() =>
   color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    opacity 0.2s;
 }
 
 .selected-action-btn svg {
@@ -257,7 +256,9 @@ const hasSelected = computed(() =>
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: background 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    opacity 0.2s;
 }
 
 .load-more-btn:disabled {

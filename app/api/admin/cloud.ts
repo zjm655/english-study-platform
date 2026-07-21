@@ -1,10 +1,27 @@
-import { adminCloudOssPath, adminCloudNlsPath, adminCloudEduPath, adminCloudBssPath, adminCloudDeepseekPath, adminCloudTrendPath } from '../paths'
-import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult, DeepSeekStatResult, CloudTrendQuery, CloudTrendResult } from '#shared/types/adminCloud'
+import {
+  adminCloudOssPath,
+  adminCloudNlsPath,
+  adminCloudEduPath,
+  adminCloudBssPath,
+  adminCloudDeepseekPath,
+  adminCloudTrendPath,
+} from '../paths'
+import type {
+  CloudEstimateQuery,
+  OssStatResult,
+  NlsStatResult,
+  EduStatResult,
+  BssStatResult,
+  DeepSeekStatResult,
+  CloudTrendQuery,
+  CloudTrendResult,
+} from '#shared/types/adminCloud'
 
 /** OSS 对象存储用量（本地估算 + 官方 GetBucketStat） */
 export const getAdminCloudOss = (options: CloudEstimateQuery = {}) => {
   const params = new URLSearchParams()
-  if (options.days !== undefined && options.days !== null) params.append('days', String(options.days))
+  if (options.days !== undefined && options.days !== null)
+    params.append('days', String(options.days))
   const query = params.toString()
   return request.json<OssStatResult>(`${adminCloudOssPath}${query ? '?' + query : ''}`)
 }
@@ -12,7 +29,8 @@ export const getAdminCloudOss = (options: CloudEstimateQuery = {}) => {
 /** NLS 智能语音交互用量（本地估算） */
 export const getAdminCloudNls = (options: CloudEstimateQuery = {}) => {
   const params = new URLSearchParams()
-  if (options.days !== undefined && options.days !== null) params.append('days', String(options.days))
+  if (options.days !== undefined && options.days !== null)
+    params.append('days', String(options.days))
   const query = params.toString()
   return request.json<NlsStatResult>(`${adminCloudNlsPath}${query ? '?' + query : ''}`)
 }
@@ -20,7 +38,8 @@ export const getAdminCloudNls = (options: CloudEstimateQuery = {}) => {
 /** 智能科教平台用量（本地估算） */
 export const getAdminCloudEdu = (options: CloudEstimateQuery = {}) => {
   const params = new URLSearchParams()
-  if (options.days !== undefined && options.days !== null) params.append('days', String(options.days))
+  if (options.days !== undefined && options.days !== null)
+    params.append('days', String(options.days))
   const query = params.toString()
   return request.json<EduStatResult>(`${adminCloudEduPath}${query ? '?' + query : ''}`)
 }
@@ -42,7 +61,8 @@ export const getAdminCloudDeepseek = () => {
 export const getAdminCloudTrend = (options: CloudTrendQuery) => {
   const params = new URLSearchParams()
   params.append('service', options.service)
-  if (options.days !== undefined && options.days !== null) params.append('days', String(options.days))
+  if (options.days !== undefined && options.days !== null)
+    params.append('days', String(options.days))
   const query = params.toString()
   return request.json<CloudTrendResult>(`${adminCloudTrendPath}?${query}`)
 }

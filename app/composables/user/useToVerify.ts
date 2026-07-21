@@ -13,16 +13,16 @@ export const useToVerify = () => {
 
   const { isLoading, execute } = useHandleRes(verifyCfg)
 
-  async function userToVerify(){
+  async function userToVerify() {
     const res = await execute(null)
-    if(res && res.code===200){
+    if (res && res.code === 200) {
       useUserStore().setUser(res.data)
       useUserStore().isLogin = true
     }
     return {
-      code:res?.code ?? -1,
-      message:res?.message ?? "登录异常",
-      data:res?.data
+      code: res?.code ?? -1,
+      message: res?.message ?? '登录异常',
+      data: res?.data,
     }
   }
 

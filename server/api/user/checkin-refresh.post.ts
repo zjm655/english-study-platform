@@ -18,7 +18,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
     if (current.currentStreakDays > 0 && isStreakBroken(current.lastCheckinTime, now)) {
       await conn.execute<ResultSetHeader>(
         'UPDATE user_checkin_stats SET current_streak_days = 0 WHERE user_id = ?',
-        [userId]
+        [userId],
       )
       return { ...current, currentStreakDays: 0 }
     }

@@ -6,10 +6,10 @@ export interface AdminUserListItem {
   account: string
   nickname: string | null
   email: string | null
-  role: number          // 0 普通用户 1 管理员
-  level: number         // 0 未测试 1 初级 2 中级 3 高级
-  status: number        // 0 封禁 1 正常
-  deletedAt: string | null   // 销号（软删除）时间
+  role: number // 0 普通用户 1 管理员
+  level: number // 0 未测试 1 初级 2 中级 3 高级
+  status: number // 0 封禁 1 正常
+  deletedAt: string | null // 销号（软删除）时间
   createdAt: string
 }
 
@@ -20,7 +20,7 @@ export type AdminUserState = 'all' | 'normal' | 'banned' | 'deleted'
 export interface AdminUserListQuery {
   page?: number
   pageSize?: number
-  keyword?: string      // 按账号/昵称模糊搜索
+  keyword?: string // 按账号/昵称模糊搜索
   state?: AdminUserState
 }
 
@@ -36,10 +36,10 @@ export interface AdminUserListResult {
 export interface AdminUserUpdatePayload {
   nickname?: string | null
   email?: string | null
-  level?: number        // 0-3
+  level?: number // 0-3
 }
 
 /** 封禁/解封载荷 */
 export interface AdminUserStatusPayload {
-  status: number        // 0 封禁 1 正常
+  status: number // 0 封禁 1 正常
 }

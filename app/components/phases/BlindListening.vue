@@ -77,7 +77,7 @@ async function completePhase() {
   const res = await updateProgress({
     segmentId: props.segment.id,
     phase: 1,
-    done: true
+    done: true,
   })
 
   if (res?.code === 200) {
@@ -121,7 +121,7 @@ function restart() {
             :class="{
               'option-btn--selected': userAnswers[currentIndex] === option,
               'option-btn--correct': showResult && option === currentQuestion.answer,
-              'option-btn--wrong': showResult && userAnswers[currentIndex] === option && !isCorrect
+              'option-btn--wrong': showResult && userAnswers[currentIndex] === option && !isCorrect,
             }"
             :disabled="showResult"
             @click="selectAnswer(option)"

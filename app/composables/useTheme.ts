@@ -13,7 +13,8 @@ const theme = ref<Theme>('auto')
 let mediaListener: ((e: MediaQueryListEvent) => void) | null = null
 
 function applyTheme(t: Theme): void {
-  const isDark = t === 'dark' || (t === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark =
+    t === 'dark' || (t === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light')
 }
 

@@ -47,13 +47,13 @@ export default defineEventHandler(async (event) => {
      WHERE ${whereSql}
      ORDER BY s.createdAt DESC, s.id DESC
      LIMIT ? OFFSET ?`,
-    [...params, pageSize, offset]
+    [...params, pageSize, offset],
   )
 
   // 独立 COUNT（与主查询共享 WHERE，计数无需 JOIN unit）
   const countRows = await query<{ total: number }>(
     `SELECT COUNT(*) AS total FROM segment s WHERE ${whereSql}`,
-    params
+    params,
   )
   const total = Number(countRows[0]?.total ?? 0)
 

@@ -11,7 +11,7 @@ const REPORT_INTERVAL = 30000 // 30s 上报间隔
  * - 返回 isTracking 表示是否正在计时
  */
 export function useStudyTimer() {
-  const { execute:reportStudyTime } = useStudyTime()
+  const { execute: reportStudyTime } = useStudyTime()
   const isTracking = ref(false)
 
   let startTime: number | null = null

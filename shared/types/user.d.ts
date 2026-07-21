@@ -1,16 +1,16 @@
 export interface LoginPayload {
-    account: string
-    password: string
+  account: string
+  password: string
 }
 
 export interface LoginResPayload {
-    id: number
-    nickname: string | null
-    role: number
-    account: string
-    email: string | null
-    avatarUrl: string | null
-    level: number
+  id: number
+  nickname: string | null
+  role: number
+  account: string
+  email: string | null
+  avatarUrl: string | null
+  level: number
 }
 
 export interface RegisterPayload {

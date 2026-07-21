@@ -28,10 +28,12 @@ export default defineEventHandler(async (event) => {
   const { nickname, email, level } = parsed.data
 
   // 目标用户须存在且未注销
-  const targetRows = await query<{ id: number; nickname: string | null; email: string | null; level: number }>(
-    'SELECT id, nickname, email, level FROM user WHERE id = ? AND deleted_at IS NULL',
-    [userId]
-  )
+  const targetRows = await query<{
+    id: number
+    nickname: string | null
+    email: string | null
+    level: number
+  }>('SELECT id, nickname, email, level FROM user WHERE id = ? AND deleted_at IS NULL', [userId])
   if (targetRows.length === 0) {
     return validateError('用户不存在或已注销', 404)
   }
@@ -39,10 +41,10 @@ export default defineEventHandler(async (event) => {
 
   // email 若变更为新的非空值，需查重（唯一约束，避免 DB 报错）
   if (email !== undefined && email != null && email !== target.email) {
-    const dup = await query<{ id: number }>(
-      'SELECT id FROM user WHERE email = ? AND id != ?',
-      [email, userId]
-    )
+    const dup = await query<{ id: number }>('SELECT id FROM user WHERE email = ? AND id != ?', [
+      email,
+      userId,
+    ])
     if (dup.length > 0) {
       return validateError('该邮箱已被其他用户使用', 400)
     }
@@ -54,16 +56,22 @@ export default defineEventHandler(async (event) => {
   const before: Record<string, unknown> = {}
   const after: Record<string, unknown> = {}
   if (nickname !== undefined) {
-    sets.push('nickname = ?'); params.push(nickname)
-    before.nickname = target.nickname; after.nickname = nickname
+    sets.push('nickname = ?')
+    params.push(nickname)
+    before.nickname = target.nickname
+    after.nickname = nickname
   }
   if (email !== undefined) {
-    sets.push('email = ?'); params.push(email)
-    before.email = target.email; after.email = email
+    sets.push('email = ?')
+    params.push(email)
+    before.email = target.email
+    after.email = email
   }
   if (level !== undefined) {
-    sets.push('level = ?'); params.push(level)
-    before.level = target.level; after.level = level
+    sets.push('level = ?')
+    params.push(level)
+    before.level = target.level
+    after.level = level
   }
 
   if (sets.length === 0) {

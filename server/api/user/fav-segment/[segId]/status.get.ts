@@ -16,7 +16,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
 
   const rows = await query(
     'SELECT id FROM user_fav_segment WHERE user_id = ? AND segment_id = ? AND deleted_at IS NULL',
-    [userId, segId]
+    [userId, segId],
   )
 
   return validateSuccess({ isFav: rows.length > 0 }, '获取成功')

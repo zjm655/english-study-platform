@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
        SUM(createdAt >= CURDATE()) AS todayCalls
      FROM api_call_log
      WHERE ${rangeCond}`,
-    [days]
+    [days],
   )
   const s = summaryRows[0] ?? {}
   const summary: StatsSummary = {
@@ -68,9 +68,9 @@ export default defineEventHandler(async (event) => {
      WHERE ${rangeCond}
      GROUP BY DATE_FORMAT(createdAt, '%Y-%m-%d')
      ORDER BY date ASC`,
-    [days]
+    [days],
   )
-  const dailyTrend: DailyTrendItem[] = trendRows.map(r => ({
+  const dailyTrend: DailyTrendItem[] = trendRows.map((r) => ({
     date: String(r.date),
     count: Number(r.count),
     errorCount: Number(r.errorCount),
@@ -85,9 +85,9 @@ export default defineEventHandler(async (event) => {
      GROUP BY path, method
      ORDER BY count DESC
      LIMIT 10`,
-    [days]
+    [days],
   )
-  const topPaths: TopPathItem[] = topRows.map(r => ({
+  const topPaths: TopPathItem[] = topRows.map((r) => ({
     path: String(r.path),
     method: String(r.method),
     count: Number(r.count),
@@ -102,9 +102,9 @@ export default defineEventHandler(async (event) => {
      GROUP BY path, method
      ORDER BY count DESC
      LIMIT 10`,
-    [days]
+    [days],
   )
-  const errorPaths: TopPathItem[] = errRows.map(r => ({
+  const errorPaths: TopPathItem[] = errRows.map((r) => ({
     path: String(r.path),
     method: String(r.method),
     count: Number(r.count),

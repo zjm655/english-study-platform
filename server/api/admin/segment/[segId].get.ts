@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
      FROM segment s
      LEFT JOIN unit u ON s.unit_id = u.id
      WHERE s.id = ? AND s.deleted_at IS NULL`,
-    [segId]
+    [segId],
   )
   const segment = segments[0]
   if (!segment) {
@@ -37,9 +37,9 @@ export default defineEventHandler(async (event) => {
   // 2. 查词汇列表（编辑用，不含音频签名）
   const vocabRows = await query<VocabularyRow>(
     'SELECT * FROM vocabulary WHERE segment_id = ? ORDER BY sort_order',
-    [segId]
+    [segId],
   )
-  const vocabulary: AdminVocabEditItem[] = vocabRows.map(v => ({
+  const vocabulary: AdminVocabEditItem[] = vocabRows.map((v) => ({
     id: v.id,
     word: v.word,
     forms: v.forms,

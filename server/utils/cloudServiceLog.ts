@@ -45,10 +45,15 @@ async function flush(): Promise<void> {
   const batch = queue.splice(0, BATCH_SIZE)
   try {
     const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
-    const params = batch.flatMap(e => [
-      e.service, e.operation, e.success ? 1 : 0, e.durationMs,
-      e.promptTokens ?? null, e.completionTokens ?? null,
-      e.totalTokens ?? null, e.errorMessage ?? null,
+    const params = batch.flatMap((e) => [
+      e.service,
+      e.operation,
+      e.success ? 1 : 0,
+      e.durationMs,
+      e.promptTokens ?? null,
+      e.completionTokens ?? null,
+      e.totalTokens ?? null,
+      e.errorMessage ?? null,
     ])
     await query(
       `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, error_message)

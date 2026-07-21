@@ -3,7 +3,9 @@
     <div class="page-header">
       <div>
         <h2 class="page-title">用户管理</h2>
-        <p class="page-desc">查询用户、修改资料、封禁/解封与销号（软删除）。管理员与已注销账号受操作保护。</p>
+        <p class="page-desc">
+          查询用户、修改资料、封禁/解封与销号（软删除）。管理员与已注销账号受操作保护。
+        </p>
       </div>
     </div>
 
@@ -19,7 +21,11 @@
           @keyup.enter="handleSearch"
           @clear="handleSearch"
         />
-        <el-select v-model="filterState" class="filter-item filter-item--narrow" @change="handleSearch">
+        <el-select
+          v-model="filterState"
+          class="filter-item filter-item--narrow"
+          @change="handleSearch"
+        >
           <el-option label="全部" value="all" />
           <el-option label="正常" value="normal" />
           <el-option label="封禁" value="banned" />
@@ -61,7 +67,14 @@
         </el-table-column>
         <el-table-column label="操作" width="200" align="center" fixed="right">
           <template #default="{ row }: any">
-            <el-button type="primary" link size="small" :disabled="row.deletedAt !== null" @click="openEdit(row)">编辑</el-button>
+            <el-button
+              type="primary"
+              link
+              size="small"
+              :disabled="row.deletedAt !== null"
+              @click="openEdit(row)"
+              >编辑</el-button
+            >
             <el-button
               :type="row.status === 1 ? 'warning' : 'success'"
               link
@@ -71,7 +84,14 @@
             >
               {{ row.status === 1 ? '封禁' : '解封' }}
             </el-button>
-            <el-button type="danger" link size="small" :disabled="isLocked(row)" @click="handleDelete(row)">销号</el-button>
+            <el-button
+              type="danger"
+              link
+              size="small"
+              :disabled="isLocked(row)"
+              @click="handleDelete(row)"
+              >销号</el-button
+            >
           </template>
         </el-table-column>
         <template #empty>
@@ -94,13 +114,23 @@
     </el-card>
 
     <!-- 编辑资料对话框 -->
-    <el-dialog v-model="editDialogVisible" title="编辑用户资料" width="480px" :close-on-click-modal="false">
+    <el-dialog
+      v-model="editDialogVisible"
+      title="编辑用户资料"
+      width="480px"
+      :close-on-click-modal="false"
+    >
       <el-form label-width="80px">
         <el-form-item label="账号">
           <el-input :model-value="editForm.account" disabled />
         </el-form-item>
         <el-form-item label="昵称">
-          <el-input v-model="editForm.nickname" maxlength="50" show-word-limit placeholder="留空则清空昵称" />
+          <el-input
+            v-model="editForm.nickname"
+            maxlength="50"
+            show-word-limit
+            placeholder="留空则清空昵称"
+          />
         </el-form-item>
         <el-form-item label="邮箱">
           <el-input v-model="editForm.email" maxlength="255" placeholder="留空则清空邮箱" />
@@ -239,7 +269,7 @@ async function handleToggleBan(row: AdminUserListItem) {
     await toastConfirm(
       `确定${actionText}用户「${row.nickname || row.account}」吗？${newStatus === 0 ? '封禁后该用户将立即无法访问平台。' : ''}`,
       `${actionText}确认`,
-      { confirmButtonText: actionText, cancelButtonText: '取消', type: 'warning' }
+      { confirmButtonText: actionText, cancelButtonText: '取消', type: 'warning' },
     )
   } catch {
     return // 用户取消
@@ -257,7 +287,7 @@ async function handleDelete(row: AdminUserListItem) {
     await toastConfirm(
       `确定销号用户「${row.nickname || row.account}」吗？销号后该用户将无法登录，数据保留但对其不可见。`,
       '销号确认',
-      { confirmButtonText: '销号', cancelButtonText: '取消', type: 'warning' }
+      { confirmButtonText: '销号', cancelButtonText: '取消', type: 'warning' },
     )
   } catch {
     return // 用户取消

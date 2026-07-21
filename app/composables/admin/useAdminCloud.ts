@@ -1,5 +1,18 @@
-import { getAdminCloudOss, getAdminCloudNls, getAdminCloudEdu, getAdminCloudBss, getAdminCloudDeepseek } from '~/api/admin/cloud'
-import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult, DeepSeekStatResult } from '#shared/types/adminCloud'
+import {
+  getAdminCloudOss,
+  getAdminCloudNls,
+  getAdminCloudEdu,
+  getAdminCloudBss,
+  getAdminCloudDeepseek,
+} from '~/api/admin/cloud'
+import type {
+  CloudEstimateQuery,
+  OssStatResult,
+  NlsStatResult,
+  EduStatResult,
+  BssStatResult,
+  DeepSeekStatResult,
+} from '#shared/types/adminCloud'
 
 /** OSS 对象存储用量（本地估算 + 官方 GetBucketStat） */
 export const useAdminCloudOss = () => {

@@ -178,7 +178,14 @@ describe('UnitDetail Page', () => {
       code: 200,
       message: 'ok',
       data: {
-        unit: { id: 1, title: '测试单元', description: null, level: 1, sortOrder: 1, audioUrl: null },
+        unit: {
+          id: 1,
+          title: '测试单元',
+          description: null,
+          level: 1,
+          sortOrder: 1,
+          audioUrl: null,
+        },
         segments: [],
         pagination: { page: 1, pageSize: 10, total: 0, hasMore: false },
       },

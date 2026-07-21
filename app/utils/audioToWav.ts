@@ -20,7 +20,9 @@ export async function toWav16kMono(blob: Blob): Promise<Blob> {
   const arrayBuffer = await blob.arrayBuffer()
 
   // 1. 用浏览器原生解码器解出完整 PCM（兼容 WebM/Opus 等流式容器）
-  const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+  const AudioCtx =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
   const decodeCtx = new AudioCtx()
   let decoded: AudioBuffer
   try {
@@ -64,8 +66,8 @@ function encodeWav(samples: Float32Array, sampleRate: number): Blob {
 
   // fmt sub-chunk
   writeString(view, 12, 'fmt ')
-  view.setUint32(16, 16, true)          // Subchunk1Size (PCM)
-  view.setUint16(20, 1, true)           // AudioFormat = 1 (PCM)
+  view.setUint32(16, 16, true) // Subchunk1Size (PCM)
+  view.setUint16(20, 1, true) // AudioFormat = 1 (PCM)
   view.setUint16(22, numChannels, true)
   view.setUint32(24, sampleRate, true)
   view.setUint32(28, byteRate, true)

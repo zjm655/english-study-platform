@@ -13,7 +13,11 @@ const mocks = vi.hoisted(() => {
   ;(globalThis as any).defineEventHandler = (handler: any) => handler
   ;(globalThis as any).getCookie = (event: any, name: string) => event.__cookies?.[name]
   ;(globalThis as any).deleteCookie = mockDeleteCookie
-  ;(globalThis as any).validateError = (message: string, code: number = 400) => ({ code, message, data: undefined })
+  ;(globalThis as any).validateError = (message: string, code: number = 400) => ({
+    code,
+    message,
+    data: undefined,
+  })
   ;(globalThis as any).verifyToken = mockVerifyToken
   return { mockVerifyToken, mockQuery, mockDeleteCookie }
 })

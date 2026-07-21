@@ -2,7 +2,11 @@
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useRecorder } from '~/composables/media/useRecorder'
-import { useUploadRecording, useAnalyzeRecording, useRecordingHistory } from '~/composables/recording'
+import {
+  useUploadRecording,
+  useAnalyzeRecording,
+  useRecordingHistory,
+} from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import { toastError } from '~/utils/popup'
 import { getEvaluationAuth } from '~/api/evaluation/auth'
@@ -78,8 +82,14 @@ let recordStartMs = 0
 let stopped = false
 
 function clearTimers() {
-  if (stopTimer) { clearTimeout(stopTimer); stopTimer = null }
-  if (maxTimer) { clearTimeout(maxTimer); maxTimer = null }
+  if (stopTimer) {
+    clearTimeout(stopTimer)
+    stopTimer = null
+  }
+  if (maxTimer) {
+    clearTimeout(maxTimer)
+    maxTimer = null
+  }
 }
 
 /** 停止录音（幂等）：手动点击、音频结束+5s 或兜底超时触发 */
@@ -108,7 +118,7 @@ function onMaterialEnded() {
 /** 等待 audioDataCallback 组装完 ogg（isLast 与结果回流时序不定，短轮询） */
 async function waitForRecordedAudio(timeoutMs = 1500): Promise<Blob | null> {
   const start = Date.now()
-   
+
   while (true) {
     const blob = getRecordedAudio()
     if (blob) return blob
@@ -252,7 +262,9 @@ onBeforeUnmount(() => {
     <!-- 戴耳机提示 -->
     <div class="headphone-tip">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 1a9 9 0 00-9 9v7a3 3 0 003 3h1a1 1 0 001-1v-6a1 1 0 00-1-1H5v-2a7 7 0 0114 0v2h-2a1 1 0 00-1 1v6a1 1 0 001 1h1a3 3 0 003-3v-7a9 9 0 00-9-9z" />
+        <path
+          d="M12 1a9 9 0 00-9 9v7a3 3 0 003 3h1a1 1 0 001-1v-6a1 1 0 00-1-1H5v-2a7 7 0 0114 0v2h-2a1 1 0 00-1 1v6a1 1 0 001 1h1a3 3 0 003-3v-7a9 9 0 00-9-9z"
+        />
       </svg>
       <span>请佩戴耳机，点击开始后跟随音频朗读（不展示原文）</span>
     </div>
@@ -285,7 +297,10 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-else class="analysis-result-wrap">
-        <EvaluationResultCard :recording="selectedRecording!" :reference-text="segment.textContent" />
+        <EvaluationResultCard
+          :recording="selectedRecording!"
+          :reference-text="segment.textContent"
+        />
       </div>
     </div>
 
@@ -294,11 +309,7 @@ onBeforeUnmount(() => {
       <div class="card__header">影子跟读</div>
 
       <div class="stage-body">
-        <button
-          v-if="stage === 'idle'"
-          class="start-btn"
-          @click="start"
-        >
+        <button v-if="stage === 'idle'" class="start-btn" @click="start">
           {{ recordings.length > 0 ? '再次跟读' : '开始跟读' }}
         </button>
 
@@ -308,11 +319,7 @@ onBeforeUnmount(() => {
             {{ stage === 'running' ? '正在播放材料，请跟读…' : '正在评测…' }}
           </p>
           <!-- 手动结束；若不点击则由“音频结束+5s / 兜底超时”自动结束 -->
-          <button
-            v-if="stage === 'running' && canStop"
-            class="stop-btn"
-            @click="triggerStop"
-          >
+          <button v-if="stage === 'running' && canStop" class="stop-btn" @click="triggerStop">
             结束跟读
           </button>
         </div>
@@ -331,9 +338,7 @@ onBeforeUnmount(() => {
       <template v-if="isUpdating">
         <DotPulse />
       </template>
-      <template v-else>
-        完成跟读
-      </template>
+      <template v-else> 完成跟读 </template>
     </button>
   </div>
 </template>
@@ -467,7 +472,11 @@ onBeforeUnmount(() => {
   font-size: 15px;
   font-weight: 500;
   cursor: not-allowed;
-  transition: background 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s,
+    color 0.2s,
+    opacity 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;

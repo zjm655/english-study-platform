@@ -5,7 +5,10 @@ import { z } from 'zod'
 
 /** BSS 查询参数校验（billingCycle 可选，默认当月） */
 const bssQuerySchema = z.object({
-  billingCycle: z.string().regex(/^\d{4}-\d{2}$/, '账期格式应为 YYYY-MM').optional(),
+  billingCycle: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, '账期格式应为 YYYY-MM')
+    .optional(),
 })
 
 /**
@@ -27,13 +30,11 @@ export default defineEventHandler(async (event) => {
 
   // 默认当月
   const now = new Date()
-  const billingCycle = parsed.data.billingCycle
-    ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const billingCycle =
+    parsed.data.billingCycle ??
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  const [balance, bill] = await Promise.all([
-    queryAccountBalance(),
-    queryBill(billingCycle),
-  ])
+  const [balance, bill] = await Promise.all([queryAccountBalance(), queryBill(billingCycle)])
 
   return validateSuccess({ balance, bill }, '获取 BSS 费用数据成功')
 })

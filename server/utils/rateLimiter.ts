@@ -23,10 +23,10 @@ const DEFAULT_CONFIG: RateLimitConfig = {
 
 /** 按路由前缀分级配置 */
 const ROUTE_CONFIGS: Record<string, RateLimitConfig> = {
-  '/api/segment/upload': { windowMs: 60_000, maxRequests: 10 },       // 上传接口 10次/分钟
+  '/api/segment/upload': { windowMs: 60_000, maxRequests: 10 }, // 上传接口 10次/分钟
   '/api/admin/segment/upload': { windowMs: 60_000, maxRequests: 10 }, // 管理员上传 10次/分钟
-  '/api/evaluation/auth': { windowMs: 60_000, maxRequests: 10 },     // 评测鉴权 10次/分钟
-  '/api/admin': { windowMs: 60_000, maxRequests: 120 },               // 管理后台 120次/分钟
+  '/api/evaluation/auth': { windowMs: 60_000, maxRequests: 10 }, // 评测鉴权 10次/分钟
+  '/api/admin': { windowMs: 60_000, maxRequests: 120 }, // 管理后台 120次/分钟
 }
 
 /** IP -> 时间戳数组 */

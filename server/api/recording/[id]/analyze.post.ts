@@ -24,7 +24,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
   // 1. 查录音记录，验证归属
   const recordings = await query<RecordingRow>(
     'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
-    [id]
+    [id],
   )
   const recording = recordings[0]
 
@@ -64,12 +64,18 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
         `UPDATE recording
          SET score = ?, feedback = ?, wordScores = ?, rawResult = ?
          WHERE id = ?`,
-        [parsed.score, parsed.feedback, JSON.stringify(parsed.wordScores), evalResult.rawResult ?? null, id]
+        [
+          parsed.score,
+          parsed.feedback,
+          JSON.stringify(parsed.wordScores),
+          evalResult.rawResult ?? null,
+          id,
+        ],
       )
 
       const [rows] = await conn.execute<RowDataPacket[]>(
         'SELECT * FROM recording WHERE id = ? AND deleted_at IS NULL',
-        [id]
+        [id],
       )
       return rowToRecording(rows[0] as RecordingRow)
     })

@@ -4,7 +4,7 @@ import type { Recording, WordScore } from '#shared/types/recording'
 /** 将数据库行转为前端 Recording 类型（支持音频路径覆盖，用于 media 表签名后） */
 export function rowToRecording(
   row: RecordingRow | undefined,
-  audioPathOverride?: string | null
+  audioPathOverride?: string | null,
 ): Recording | null {
   if (!row) return null
   let wordScores: WordScore[] | null = null

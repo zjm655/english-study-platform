@@ -11,9 +11,9 @@ export default defineEventHandler(async (event): Promise<ResPayload<number[]>> =
 
   const rows = await query<{ vocabulary_id: number }>(
     'SELECT vocabulary_id FROM user_fav_word WHERE user_id = ? AND deleted_at IS NULL',
-    [userId]
+    [userId],
   )
 
-  const ids = rows.map(r => r.vocabulary_id)
+  const ids = rows.map((r) => r.vocabulary_id)
   return validateSuccess(ids, '获取成功')
 })

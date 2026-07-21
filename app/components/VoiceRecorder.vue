@@ -12,7 +12,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'recording-ready', data: { blob: Blob; duration: number }): void
-  (e: 'recording-analyze', data: { blob: Blob; duration: number; recording: UploadRecordingResult }): void
+  (
+    e: 'recording-analyze',
+    data: { blob: Blob; duration: number; recording: UploadRecordingResult },
+  ): void
 }>()
 
 // 音频播放
@@ -196,8 +199,14 @@ async function handleFileSelected(event: Event) {
   if (!file) return
 
   const allowedTypes = [
-    'audio/webm', 'audio/ogg', 'audio/wav', 'audio/x-wav',
-    'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a',
+    'audio/webm',
+    'audio/ogg',
+    'audio/wav',
+    'audio/x-wav',
+    'audio/mp3',
+    'audio/mpeg',
+    'audio/mp4',
+    'audio/x-m4a',
   ]
   if (!allowedTypes.includes(file.type)) {
     toastError(`不支持的音频格式: ${file.type}，请选择 webm、ogg、wav、mp3 文件`)
@@ -246,7 +255,9 @@ function getAudioDuration(file: File): Promise<number> {
     <!-- 权限错误提示 -->
     <div v-if="permissionError" class="permission-error">
       <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        <path
+          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+        />
       </svg>
       <span>{{ permissionError }}</span>
     </div>
@@ -262,7 +273,7 @@ function getAudioDuration(file: File): Promise<number> {
       />
       <button class="fallback-btn" @click="triggerFileSelect">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-          <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+          <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
         </svg>
         从本地选择音频文件
       </button>
@@ -305,7 +316,12 @@ function getAudioDuration(file: File): Promise<number> {
         :class="{ 'action-btn--recording': isRecording }"
         @click="toggleRecording"
       >
-        <svg v-if="!isRecording || isPaused" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <svg
+          v-if="!isRecording || isPaused"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
           <path d="M8 5v14l11-7z" />
         </svg>
         <svg v-else viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -313,9 +329,16 @@ function getAudioDuration(file: File): Promise<number> {
         </svg>
       </button>
 
-      <button class="action-btn action-btn--volume" disabled aria-label="音量调节（开发中）" title="音量调节（开发中）">
+      <button
+        class="action-btn action-btn--volume"
+        disabled
+        aria-label="音量调节（开发中）"
+        title="音量调节（开发中）"
+      >
         <svg viewBox="0 0 24 24" fill="currentColor">
-          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+          <path
+            d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+          />
         </svg>
       </button>
     </div>
@@ -331,13 +354,18 @@ function getAudioDuration(file: File): Promise<number> {
       <div class="current-recording-info">
         <div class="current-recording-header">
           <span>本次录音</span>
-          <span class="current-recording-badge" :class="{ 'badge--saved': currentRecording, 'badge--pending': !currentRecording }">
+          <span
+            class="current-recording-badge"
+            :class="{ 'badge--saved': currentRecording, 'badge--pending': !currentRecording }"
+          >
             {{ currentRecording ? '已保存' : '未保存' }}
           </span>
         </div>
         <div class="current-recording-meta">
           <span class="current-recording-time">
-            {{ formatDuration(pendingBlob ? pendingDuration : currentRecording?.duration ?? null) }}
+            {{
+              formatDuration(pendingBlob ? pendingDuration : (currentRecording?.duration ?? null))
+            }}
           </span>
         </div>
       </div>
@@ -518,7 +546,10 @@ function getAudioDuration(file: File): Promise<number> {
   color: var(--primary);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .fallback-btn svg {
@@ -565,8 +596,13 @@ function getAudioDuration(file: File): Promise<number> {
 }
 
 @keyframes wave {
-  0%, 100% { height: 20%; }
-  50% { height: 100%; }
+  0%,
+  100% {
+    height: 20%;
+  }
+  50% {
+    height: 100%;
+  }
 }
 
 .duration-display {
@@ -592,7 +628,10 @@ function getAudioDuration(file: File): Promise<number> {
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  transition: background 0.2s, transform 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    transform 0.2s,
+    opacity 0.2s;
 }
 
 .action-btn:disabled {

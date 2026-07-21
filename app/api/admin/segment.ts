@@ -12,10 +12,14 @@ import type {
  */
 export const getAdminSegmentList = (options: AdminSegmentListQuery = {}) => {
   const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null) params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null) params.append('pageSize', String(options.pageSize))
-  if (options.unitId !== undefined && options.unitId !== null) params.append('unitId', String(options.unitId))
-  if (options.isPublic !== undefined && options.isPublic !== null) params.append('isPublic', String(options.isPublic))
+  if (options.page !== undefined && options.page !== null)
+    params.append('page', String(options.page))
+  if (options.pageSize !== undefined && options.pageSize !== null)
+    params.append('pageSize', String(options.pageSize))
+  if (options.unitId !== undefined && options.unitId !== null)
+    params.append('unitId', String(options.unitId))
+  if (options.isPublic !== undefined && options.isPublic !== null)
+    params.append('isPublic', String(options.isPublic))
   if (options.keyword) params.append('keyword', options.keyword)
   const query = params.toString()
   return request.json<AdminSegmentListResult>(`${adminSegmentPath}${query ? '?' + query : ''}`)

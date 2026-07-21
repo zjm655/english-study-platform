@@ -1,5 +1,12 @@
-import { getMaterialRecords, updateMaterialRecord, deleteMaterialRecord } from '~/api/material/records'
-import type { MaterialUploadRecordListItem, UpdateMaterialRecordPayload } from '#shared/types/material'
+import {
+  getMaterialRecords,
+  updateMaterialRecord,
+  deleteMaterialRecord,
+} from '~/api/material/records'
+import type {
+  MaterialUploadRecordListItem,
+  UpdateMaterialRecordPayload,
+} from '#shared/types/material'
 
 export const useMaterialRecords = () => {
   const cfg = createResCfg<{ limit?: number; offset?: number }, MaterialUploadRecordListItem[]>({

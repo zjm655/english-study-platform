@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   // mysql2 对 UPDATE 语句返回 ResultSetHeader（含 affectedRows），query() 泛型仅做类型标注
   const result = await query<ResultSetHeader>(
     'UPDATE segment SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
-    [segId]
+    [segId],
   )
   const affectedRows = (result as unknown as ResultSetHeader).affectedRows ?? 0
   if (affectedRows === 0) {

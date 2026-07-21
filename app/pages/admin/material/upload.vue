@@ -55,7 +55,9 @@
             >
               <el-button type="primary" plain>选择音频（可选）</el-button>
               <template #tip>
-                <div class="upload-tip">不上传则用 TTS 合成；上传则校验音频与文本一致性。管理员上限 10 分钟 / 5MB。</div>
+                <div class="upload-tip">
+                  不上传则用 TTS 合成；上传则校验音频与文本一致性。管理员上限 10 分钟 / 5MB。
+                </div>
               </template>
             </el-upload>
           </el-form-item>
@@ -75,7 +77,9 @@
         >
           <el-button type="primary" plain>选择 txt 文件（最多 20 个）</el-button>
           <template #tip>
-            <div class="upload-tip">每个 txt 首行为标题，正文为材料原文；批量模式不上传音频，统一 TTS 合成。</div>
+            <div class="upload-tip">
+              每个 txt 首行为标题，正文为材料原文；批量模式不上传音频，统一 TTS 合成。
+            </div>
           </template>
         </el-upload>
       </div>
@@ -94,7 +98,8 @@
           <span>上传结果</span>
           <span>
             共 {{ result.summary.total }} 条，
-            <span class="result-success">成功 {{ result.summary.success }}</span>，
+            <span class="result-success">成功 {{ result.summary.success }}</span
+            >，
             <span class="result-failed">失败 {{ result.summary.failed }}</span>
           </span>
         </div>
@@ -176,7 +181,7 @@ function handleAudioRemove() {
 }
 
 function collectTxtFiles(fileList: UploadFiles) {
-  txtFiles.value = fileList.map(f => f.raw).filter((f) => !!f) as File[]
+  txtFiles.value = fileList.map((f) => f.raw).filter((f) => !!f) as File[]
 }
 function handleTxtChange(_file: UploadFile, fileList: UploadFiles) {
   collectTxtFiles(fileList)

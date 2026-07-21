@@ -7,10 +7,18 @@ let _logger: ReturnType<typeof createLogger> | null = null
 
 function createLogger(enabled: boolean) {
   return {
-    log(...args: unknown[])   { if (enabled) console.log(getPrefix('LOG'), ...args) },
-    info(...args: unknown[])  { if (enabled) console.info(getPrefix('INFO'), ...args) },
-    warn(...args: unknown[])  { if (enabled) console.warn(getPrefix('WARN'), ...args) },
-    debug(...args: unknown[]) { if (enabled) console.debug(getPrefix('DEBUG'), ...args) },
+    log(...args: unknown[]) {
+      if (enabled) console.log(getPrefix('LOG'), ...args)
+    },
+    info(...args: unknown[]) {
+      if (enabled) console.info(getPrefix('INFO'), ...args)
+    },
+    warn(...args: unknown[]) {
+      if (enabled) console.warn(getPrefix('WARN'), ...args)
+    },
+    debug(...args: unknown[]) {
+      if (enabled) console.debug(getPrefix('DEBUG'), ...args)
+    },
     error(...args: unknown[]) {
       console.error(getPrefix('ERROR'), ...args)
       // 生产环境上报
@@ -28,9 +36,19 @@ function getInstance() {
 }
 
 export const logger = {
-  get log()   { return getInstance().log },
-  get info()  { return getInstance().info },
-  get warn()  { return getInstance().warn },
-  get debug() { return getInstance().debug },
-  get error() { return getInstance().error },
+  get log() {
+    return getInstance().log
+  },
+  get info() {
+    return getInstance().info
+  },
+  get warn() {
+    return getInstance().warn
+  },
+  get debug() {
+    return getInstance().debug
+  },
+  get error() {
+    return getInstance().error
+  },
 }

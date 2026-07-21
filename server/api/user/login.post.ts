@@ -1,6 +1,6 @@
-import type { LoginPayload, LoginResPayload as LoginRes } from "#shared/types/user"
+import type { LoginPayload, LoginResPayload as LoginRes } from '#shared/types/user'
 import type { ZodSafeParseResult } from 'zod'
-import type { ResPayload } from "#shared/types/request"
+import type { ResPayload } from '#shared/types/request'
 import type { UserRow } from '#server/types/db'
 
 import { query } from '#server/utils/db'
@@ -28,7 +28,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
   // 3. 查数据库验证用户
   const rows = await query<UserRow>(
     'SELECT id, account, nickname, email, role, status, deleted_at, passwordHash, avatarUrl, level FROM user WHERE account = ?',
-    [account]
+    [account],
   )
   const user = rows[0]
   if (!user) {

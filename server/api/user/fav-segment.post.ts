@@ -26,7 +26,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
       // 检查 segment 是否存在（已软删除的材料不可收藏）
       const [segRows] = await conn.execute<IdRow[]>(
         'SELECT id FROM segment WHERE id = ? AND deleted_at IS NULL LIMIT 1',
-        [segmentId]
+        [segmentId],
       )
       if (segRows.length === 0) {
         throw new Error('NOT_FOUND:片段不存在')
@@ -35,15 +35,15 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
       // 查询现有收藏记录
       const [existing] = await conn.execute<FavRow[]>(
         'SELECT id, deleted_at FROM user_fav_segment WHERE user_id = ? AND segment_id = ? LIMIT 1',
-        [userId, segmentId]
+        [userId, segmentId],
       )
 
       if (existing.length === 0) {
         // 没有记录 → 插入新收藏
-        await conn.execute(
-          'INSERT INTO user_fav_segment (user_id, segment_id) VALUES (?, ?)',
-          [userId, segmentId]
-        )
+        await conn.execute('INSERT INTO user_fav_segment (user_id, segment_id) VALUES (?, ?)', [
+          userId,
+          segmentId,
+        ])
         return true
       }
 
@@ -52,18 +52,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boo
 
       if (record.deleted_at === null) {
         // 已收藏 → 软删除（取消收藏）
-        await conn.execute(
-          'UPDATE user_fav_segment SET deleted_at = NOW() WHERE id = ?',
-          [record.id]
-        )
+        await conn.execute('UPDATE user_fav_segment SET deleted_at = NOW() WHERE id = ?', [
+          record.id,
+        ])
         return false
       }
 
       // 曾经收藏过，已软删除 → 恢复
-      await conn.execute(
-        'UPDATE user_fav_segment SET deleted_at = NULL WHERE id = ?',
-        [record.id]
-      )
+      await conn.execute('UPDATE user_fav_segment SET deleted_at = NULL WHERE id = ?', [record.id])
       return true
     })
 

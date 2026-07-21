@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify} from 'jose'
+import { SignJWT, jwtVerify } from 'jose'
 import type { JwtPayload } from '#server/types/jwtPayload'
 
 // 获取运行时环境里面的jwt密钥，并转换为字符串数组的形式(因为jose生成token要求array string)
@@ -11,13 +11,13 @@ function getSecret() {
  * @param payload - 写入 token 的数据（用户 id、角色等），不要放敏感信息
  * @returns 签名后的 token 字符串
  */
-export async function signToken(payload:JwtPayload, expiresIn = '7d') {
+export async function signToken(payload: JwtPayload, expiresIn = '7d') {
   return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })   // 签名算法：HMAC + SHA-256
+    .setProtectedHeader({ alg: 'HS256' }) // 签名算法：HMAC + SHA-256
     .setSubject(String(payload.id))
-    .setIssuedAt()                          // iat: 签发时间
-    .setExpirationTime(expiresIn)           // exp: 过期时间
-    .setIssuer("Nuxt4Demo")              
+    .setIssuedAt() // iat: 签发时间
+    .setExpirationTime(expiresIn) // exp: 过期时间
+    .setIssuer('Nuxt4Demo')
     .sign(getSecret())
 }
 
@@ -28,7 +28,6 @@ export async function signToken(payload:JwtPayload, expiresIn = '7d') {
  * @throws token 过期、被篡改、格式错误时抛异常
  */
 export async function verifyToken(token: string) {
-  const { payload }:{payload:JwtPayload} = await jwtVerify<JwtPayload>(token, getSecret())
+  const { payload }: { payload: JwtPayload } = await jwtVerify<JwtPayload>(token, getSecret())
   return payload
 }
-

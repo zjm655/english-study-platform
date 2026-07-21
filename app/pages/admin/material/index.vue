@@ -171,11 +171,11 @@ function goEdit(row: AdminSegmentListItem) {
 
 async function handleDelete(row: AdminSegmentListItem) {
   try {
-    await toastConfirm(
-      `确定删除材料「${row.title}」吗？删除后将对学生不可见。`,
-      '删除确认',
-      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
-    )
+    await toastConfirm(`确定删除材料「${row.title}」吗？删除后将对学生不可见。`, '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
   } catch {
     return // 用户取消
   }

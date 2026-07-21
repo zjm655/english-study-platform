@@ -30,7 +30,14 @@ vi.mock('h3', () => ({ readBody: mockReadBody }))
 
 const ADMIN = { id: 1, role: 1 }
 
-function makeEvent(opts: { user?: unknown; query?: Record<string, string>; params?: Record<string, string>; body?: unknown } = {}) {
+function makeEvent(
+  opts: {
+    user?: unknown
+    query?: Record<string, string>
+    params?: Record<string, string>
+    body?: unknown
+  } = {},
+) {
   return {
     context: { user: opts.user },
     __query: opts.query,
@@ -50,8 +57,12 @@ describe('管理员用户接口 - 权限', () => {
   it('非管理员调用列表/编辑/封禁/销号均返回 403', async () => {
     const user = { id: 2, role: 0 }
     expect((await listHandler(makeEvent({ user }))).code).toBe(403)
-    expect((await putHandler(makeEvent({ user, params: { userId: '5' }, body: {} }))).code).toBe(403)
-    expect((await statusHandler(makeEvent({ user, params: { userId: '5' }, body: { status: 0 } }))).code).toBe(403)
+    expect((await putHandler(makeEvent({ user, params: { userId: '5' }, body: {} }))).code).toBe(
+      403,
+    )
+    expect(
+      (await statusHandler(makeEvent({ user, params: { userId: '5' }, body: { status: 0 } }))).code,
+    ).toBe(403)
     expect((await deleteHandler(makeEvent({ user, params: { userId: '5' } }))).code).toBe(403)
   })
 })
@@ -91,14 +102,18 @@ describe('管理员用户列表 - 过滤与搜索', () => {
 
 describe('管理员封禁/解封 - 护栏', () => {
   it('封禁自己返回 400', async () => {
-    const res = await statusHandler(makeEvent({ user: ADMIN, params: { userId: '1' }, body: { status: 0 } }))
+    const res = await statusHandler(
+      makeEvent({ user: ADMIN, params: { userId: '1' }, body: { status: 0 } }),
+    )
     expect(res.code).toBe(400)
     expect(res.message).toContain('不能封禁自己')
   })
 
   it('封禁管理员返回 400', async () => {
     mockQuery.mockResolvedValueOnce([{ id: 5, role: 1, status: 1, account: 'admin2' }])
-    const res = await statusHandler(makeEvent({ user: ADMIN, params: { userId: '5' }, body: { status: 0 } }))
+    const res = await statusHandler(
+      makeEvent({ user: ADMIN, params: { userId: '5' }, body: { status: 0 } }),
+    )
     expect(res.code).toBe(400)
     expect(res.message).toContain('管理员')
   })
@@ -106,7 +121,9 @@ describe('管理员封禁/解封 - 护栏', () => {
   it('封禁成功返回 200 并写操作日志', async () => {
     mockQuery.mockResolvedValueOnce([{ id: 5, role: 0, status: 1, account: 'user5' }])
     mockQuery.mockResolvedValueOnce({ affectedRows: 1 })
-    const res = await statusHandler(makeEvent({ user: ADMIN, params: { userId: '5' }, body: { status: 0 } }))
+    const res = await statusHandler(
+      makeEvent({ user: ADMIN, params: { userId: '5' }, body: { status: 0 } }),
+    )
     expect(res.code).toBe(200)
     expect(mockLogAdminOperation).toHaveBeenCalledWith(1, 'user.ban', 'user', 5, expect.anything())
   })
@@ -134,7 +151,13 @@ describe('管理员销号', () => {
     expect(res.code).toBe(200)
     const sql = mockQuery.mock.calls[1]![0] as string
     expect(sql).toContain('deleted_at = NOW()')
-    expect(mockLogAdminOperation).toHaveBeenCalledWith(1, 'user.delete', 'user', 5, expect.anything())
+    expect(mockLogAdminOperation).toHaveBeenCalledWith(
+      1,
+      'user.delete',
+      'user',
+      5,
+      expect.anything(),
+    )
   })
 })
 
@@ -145,27 +168,37 @@ describe('管理员资料修改', () => {
 
   it('email 改为已被他人使用的值返回 400', async () => {
     mockQuery.mockResolvedValueOnce([target])
-    mockQuery.mockResolvedValueOnce([{ id: 9 }])   // 查重命中
-    const res = await putHandler(makeEvent({ user: ADMIN, params: { userId: '5' }, body: { email: 'dup@example.com' } }))
+    mockQuery.mockResolvedValueOnce([{ id: 9 }]) // 查重命中
+    const res = await putHandler(
+      makeEvent({ user: ADMIN, params: { userId: '5' }, body: { email: 'dup@example.com' } }),
+    )
     expect(res.code).toBe(400)
     expect(res.message).toContain('邮箱')
   })
 
   it('修改成功返回 200，动态 UPDATE 含传入字段', async () => {
     mockQuery.mockResolvedValueOnce([target])
-    mockQuery.mockResolvedValueOnce([])            // 查重未命中
+    mockQuery.mockResolvedValueOnce([]) // 查重未命中
     mockQuery.mockResolvedValueOnce({ affectedRows: 1 })
-    const res = await putHandler(makeEvent({
-      user: ADMIN,
-      params: { userId: '5' },
-      body: { nickname: '新昵称', email: 'new@example.com', level: 2 },
-    }))
+    const res = await putHandler(
+      makeEvent({
+        user: ADMIN,
+        params: { userId: '5' },
+        body: { nickname: '新昵称', email: 'new@example.com', level: 2 },
+      }),
+    )
     expect(res.code).toBe(200)
     const sql = mockQuery.mock.calls[2]![0] as string
     expect(sql).toContain('nickname = ?')
     expect(sql).toContain('email = ?')
     expect(sql).toContain('level = ?')
-    expect(mockLogAdminOperation).toHaveBeenCalledWith(1, 'user.update', 'user', 5, expect.anything())
+    expect(mockLogAdminOperation).toHaveBeenCalledWith(
+      1,
+      'user.update',
+      'user',
+      5,
+      expect.anything(),
+    )
   })
 
   it('无任何修改字段返回 400', async () => {

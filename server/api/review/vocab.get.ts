@@ -7,7 +7,7 @@ import type { VocabularyRow, UserProgressRow } from '#server/types/db'
 /** 将数据库行 + 签名 URL 列表转换为复习词汇项 */
 export function rowsToReviewVocab(
   rows: (VocabularyRow & { vocab_media_key: string | null })[],
-  signedAudioUrls: (string | null)[]
+  signedAudioUrls: (string | null)[],
 ): ReviewVocabItem[] {
   return rows.map((row, i) => ({
     id: row.id,
@@ -46,20 +46,18 @@ export default defineEventHandler(async (event) => {
      JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
      WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
      ORDER BY up.updatedAt DESC`,
-    [userId]
+    [userId],
   )
 
   if (progressRows.length === 0) {
     return validateSuccess({ items: [], total: 0 }, '获取成功')
   }
 
-  const segmentIds = progressRows.map(r => r.segment_id)
+  const segmentIds = progressRows.map((r) => r.segment_id)
   const placeholders = segmentIds.map(() => '?').join(', ')
 
   // 构建关键词过滤条件
-  const keywordClause = keywordPattern
-    ? 'AND (v.word LIKE ? OR v.meaning LIKE ?)'
-    : ''
+  const keywordClause = keywordPattern ? 'AND (v.word LIKE ? OR v.meaning LIKE ?)' : ''
   const keywordParams = keywordPattern ? [keywordPattern, keywordPattern] : []
 
   // 查询总数
@@ -68,7 +66,7 @@ export default defineEventHandler(async (event) => {
      FROM vocabulary v
      WHERE v.segment_id IN (${placeholders})
      ${keywordClause}`,
-    [...segmentIds, ...keywordParams]
+    [...segmentIds, ...keywordParams],
   )
   const total = countResult[0]?.total ?? 0
 
@@ -81,15 +79,18 @@ export default defineEventHandler(async (event) => {
      ${keywordClause}
      ORDER BY v.segment_id, v.sort_order
      LIMIT ? OFFSET ?`,
-    [...segmentIds, ...keywordParams, limit, offset]
+    [...segmentIds, ...keywordParams, limit, offset],
   )
 
   // 签名音频
   const signedAudioUrls = await Promise.all(
-    vocabRows.map(row =>
-      row.vocab_media_key ? signUrl(row.vocab_media_key, WORD_EXPIRE) : null
-    )
+    vocabRows.map((row) =>
+      row.vocab_media_key ? signUrl(row.vocab_media_key, WORD_EXPIRE) : null,
+    ),
   )
 
-  return validateSuccess({ items: rowsToReviewVocab(vocabRows, signedAudioUrls), total }, '获取成功')
+  return validateSuccess(
+    { items: rowsToReviewVocab(vocabRows, signedAudioUrls), total },
+    '获取成功',
+  )
 })

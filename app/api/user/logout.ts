@@ -2,7 +2,7 @@ import { userLogoutPath } from '~/api/paths'
 
 export const postLogout = async () => {
   const res = await request<null>(userLogoutPath, {
-    method: 'POST'
+    method: 'POST',
   })
   return res
 }

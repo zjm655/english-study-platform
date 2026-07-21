@@ -57,7 +57,7 @@ export function toastInfo(message: string, duration = 2000) {
 export function toastConfirm(
   message: string,
   title = '提示',
-  options?: Partial<ElMessageBoxOptions>
+  options?: Partial<ElMessageBoxOptions>,
 ) {
   return ElMessageBox.confirm(message, title, {
     confirmButtonText: '确定',
@@ -76,7 +76,7 @@ export function toastConfirm(
 export function toastAlert(
   message: string,
   title = '提示',
-  options?: Partial<ElMessageBoxOptions>
+  options?: Partial<ElMessageBoxOptions>,
 ) {
   return ElMessageBox.alert(message, title, {
     confirmButtonText: '确定',
@@ -95,7 +95,7 @@ export function toastAlert(
 export function toastPrompt(
   message: string,
   title = '请输入',
-  options?: Partial<ElMessageBoxOptions>
+  options?: Partial<ElMessageBoxOptions>,
 ) {
   return ElMessageBox.prompt(message, title, {
     confirmButtonText: '确定',

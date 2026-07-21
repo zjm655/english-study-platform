@@ -20,7 +20,7 @@ function parseQuestions(raw: Question[] | string | null): Question[] | null {
 /** 将数据库行 + 签名 URL 列表转换为复习材料项（duration 从 DECIMAL 字符串转 number） */
 export function rowsToReviewMaterial(
   rows: (SegmentRow & { seg_media_key: string | null; seg_media_duration: string | null })[],
-  signedAudioUrls: (string | null)[]
+  signedAudioUrls: (string | null)[],
 ): ReviewMaterialItem[] {
   return rows.map((row, i) => ({
     id: row.id,
@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
      JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
      WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
      ${keywordClause}`,
-    [userId, ...keywordParams]
+    [userId, ...keywordParams],
   )
   const total = countResult[0]?.total ?? 0
 
@@ -76,12 +76,12 @@ export default defineEventHandler(async (event) => {
      ${keywordClause}
      ORDER BY up.updatedAt DESC
      LIMIT ? OFFSET ?`,
-    [userId, ...keywordParams, limit, offset]
+    [userId, ...keywordParams, limit, offset],
   )
 
   // 对每行签名音频（seg_media_key 为 null 时返回 null）
   const signedAudioUrls = await Promise.all(
-    rows.map((row) => (row.seg_media_key ? signUrl(row.seg_media_key, MATERIAL_EXPIRE) : null))
+    rows.map((row) => (row.seg_media_key ? signUrl(row.seg_media_key, MATERIAL_EXPIRE) : null)),
   )
 
   const items = rowsToReviewMaterial(rows, signedAudioUrls)

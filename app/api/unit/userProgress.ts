@@ -26,6 +26,6 @@ export interface SegmentProgress {
 export const putUserProgress = async (payload: UpdateProgressPayload) => {
   return request<SegmentProgress>(userProgressPath, {
     method: 'PUT',
-    body: payload
+    body: payload,
   })
 }

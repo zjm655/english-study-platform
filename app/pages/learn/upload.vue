@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { UploadFile, UploadFiles } from 'element-plus'
-import { ArrowLeft, Delete, View, Upload  } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, View, Upload } from '@element-plus/icons-vue'
 import { useUploadMaterial } from '~/composables/material/useUploadMaterial'
-import { useMaterialRecords, useDeleteMaterialRecord } from '~/composables/material/useUploadRecords'
+import {
+  useMaterialRecords,
+  useDeleteMaterialRecord,
+} from '~/composables/material/useUploadRecords'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
 </script>
@@ -28,7 +31,10 @@ import type { MaterialUploadRecordListItem } from '#shared/types/material'
           :maxlength="MAX_TEXT_LENGTH"
           show-word-limit
         />
-        <div v-if="textContent.length > 0 && textContent.length < MIN_TEXT_LENGTH" class="form-hint error">
+        <div
+          v-if="textContent.length > 0 && textContent.length < MIN_TEXT_LENGTH"
+          class="form-hint error"
+        >
           至少输入 {{ MIN_TEXT_LENGTH }} 个字符
         </div>
       </div>
@@ -78,12 +84,7 @@ import type { MaterialUploadRecordListItem } from '#shared/types/material'
 
       <!-- 提交 -->
       <div class="form-actions">
-        <el-button
-          type="primary"
-          :loading="isLoading"
-          :disabled="!canSubmit"
-          @click="handleSubmit"
-        >
+        <el-button type="primary" :loading="isLoading" :disabled="!canSubmit" @click="handleSubmit">
           {{ isLoading ? '处理中（约 15-30 秒）...' : '提交材料' }}
         </el-button>
       </div>
@@ -93,16 +94,12 @@ import type { MaterialUploadRecordListItem } from '#shared/types/material'
     <div class="recent-records">
       <div class="recent-records__header">
         <h3 class="recent-records__title">最近上传</h3>
-        <NuxtLink to="/learn/records" class="recent-records__more">
-          查看更多
-        </NuxtLink>
+        <NuxtLink to="/learn/records" class="recent-records__more"> 查看更多 </NuxtLink>
       </div>
 
       <div v-if="recordsLoading" class="recent-records__loading">加载中...</div>
 
-      <div v-else-if="!recentRecords.length" class="recent-records__empty">
-        暂无上传记录
-      </div>
+      <div v-else-if="!recentRecords.length" class="recent-records__empty">暂无上传记录</div>
 
       <div v-else class="recent-records__list">
         <div
@@ -152,8 +149,6 @@ import type { MaterialUploadRecordListItem } from '#shared/types/material'
 </template>
 
 <script lang="ts">
-
-
 definePageMeta({ title: '上传材料' })
 
 const router = useRouter()
@@ -182,10 +177,11 @@ const MAX_AUDIO_SIZE = 2 * 1024 * 1024
 
 const textTooLong = computed(() => textContent.value.length > MAX_TEXT_LENGTH)
 const canSubmit = computed(
-  () => !isLoading.value
-    && textContent.value.length >= MIN_TEXT_LENGTH
-    && !textTooLong.value
-    && (!audioFile.value || audioFile.value.size <= MAX_AUDIO_SIZE)
+  () =>
+    !isLoading.value &&
+    textContent.value.length >= MIN_TEXT_LENGTH &&
+    !textTooLong.value &&
+    (!audioFile.value || audioFile.value.size <= MAX_AUDIO_SIZE),
 )
 
 const recentRecords = ref<MaterialUploadRecordListItem[]>([])
@@ -218,18 +214,25 @@ function formatTime(iso: string): string {
 
 function getStatusType(status: string) {
   switch (status) {
-    case 'success': return 'success'
-    case 'failed': return 'danger'
-    default: return 'info'
+    case 'success':
+      return 'success'
+    case 'failed':
+      return 'danger'
+    default:
+      return 'info'
   }
 }
 
 function getStatusLabel(status: string) {
   switch (status) {
-    case 'success': return '成功'
-    case 'failed': return '失败'
-    case 'processing': return '处理中'
-    default: return status
+    case 'success':
+      return '成功'
+    case 'failed':
+      return '失败'
+    case 'processing':
+      return '处理中'
+    default:
+      return status
   }
 }
 
@@ -242,7 +245,7 @@ async function handleDeleteRecord(id: number) {
     })
     const res = await doDelete(id)
     if (res?.code === 200) {
-      recentRecords.value = recentRecords.value.filter(r => r.id !== id)
+      recentRecords.value = recentRecords.value.filter((r) => r.id !== id)
       if (recentRecords.value.length < 3) {
         loadRecentRecords()
       }
@@ -503,7 +506,9 @@ export default { components: { Upload } }
   border-radius: var(--r-m);
   color: var(--text-3);
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition:
+    color 0.2s,
+    background 0.2s;
 }
 
 .record-action:hover {

@@ -47,7 +47,10 @@ const tokens = computed<Token[]>(() => {
   for (const v of props.segment.vocabulary || []) {
     vocabMap.set(v.word.toLowerCase(), v)
     if (v.forms) {
-      const formList = v.forms.split(/[,;]/).map(s => s.trim()).filter(Boolean)
+      const formList = v.forms
+        .split(/[,;]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
       for (const form of formList) {
         vocabMap.set(form.toLowerCase(), v)
       }
@@ -115,11 +118,7 @@ async function completePhase() {
     <div class="card text-card">
       <div class="card__header">
         <span>原文</span>
-        <button
-          v-if="segment.audioUrl"
-          class="material-play-btn"
-          @click="playMaterialAudio"
-        >
+        <button v-if="segment.audioUrl" class="material-play-btn" @click="playMaterialAudio">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z" />
           </svg>
@@ -158,15 +157,15 @@ async function completePhase() {
           @click.stop="toggleWord(selectedVocab.id)"
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+            <path
+              d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+            />
           </svg>
         </button>
       </div>
 
       <!-- 未选中状态 -->
-      <div v-if="!selectedVocab" class="vocab-placeholder">
-        点击上方高亮词汇查看详情
-      </div>
+      <div v-if="!selectedVocab" class="vocab-placeholder">点击上方高亮词汇查看详情</div>
 
       <!-- 选中状态 -->
       <div v-else class="vocab-detail">
@@ -178,7 +177,9 @@ async function completePhase() {
             @click="playVocabAudio(selectedVocab.audioUrl)"
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+              <path
+                d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+              />
             </svg>
           </button>
         </div>
@@ -202,7 +203,10 @@ async function completePhase() {
     <div class="card translation-card">
       <button class="translation-header" @click="translationExpanded = !translationExpanded">
         <span>翻译</span>
-        <span class="translation-toggle" :class="{ 'translation-toggle--expanded': translationExpanded }">
+        <span
+          class="translation-toggle"
+          :class="{ 'translation-toggle--expanded': translationExpanded }"
+        >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
           </svg>
@@ -214,11 +218,7 @@ async function completePhase() {
     </div>
 
     <!-- 完成按钮 -->
-    <button
-      class="complete-btn"
-      :disabled="isUpdating"
-      @click="completePhase"
-    >
+    <button class="complete-btn" :disabled="isUpdating" @click="completePhase">
       {{ isUpdating ? '更新中...' : '完成学习' }}
     </button>
   </div>

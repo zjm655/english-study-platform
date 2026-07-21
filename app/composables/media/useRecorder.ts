@@ -2,15 +2,15 @@ import { ref, onBeforeUnmount } from 'vue'
 
 // ============ 错误类型定义 ============
 export type RecorderErrorType =
-  | 'INSECURE_CONTEXT'   // 非安全上下文（非 HTTPS / localhost）
-  | 'API_NOT_SUPPORTED'  // 浏览器不支持 MediaRecorder API
-  | 'NO_DEVICE'          // 未检测到麦克风设备
-  | 'DEVICE_BUSY'        // 麦克风被其他应用占用
-  | 'USER_DENIED'        // 用户点击"拒绝"
-  | 'SYSTEM_DENIED'      // 操作系统/浏览器策略拒绝
-  | 'RECORDING_EMPTY'    // 录音数据为空
-  | 'RECORDING_ERROR'    // 录音过程中发生错误
-  | 'UNKNOWN'            // 未知错误
+  | 'INSECURE_CONTEXT' // 非安全上下文（非 HTTPS / localhost）
+  | 'API_NOT_SUPPORTED' // 浏览器不支持 MediaRecorder API
+  | 'NO_DEVICE' // 未检测到麦克风设备
+  | 'DEVICE_BUSY' // 麦克风被其他应用占用
+  | 'USER_DENIED' // 用户点击"拒绝"
+  | 'SYSTEM_DENIED' // 操作系统/浏览器策略拒绝
+  | 'RECORDING_EMPTY' // 录音数据为空
+  | 'RECORDING_ERROR' // 录音过程中发生错误
+  | 'UNKNOWN' // 未知错误
 
 export class RecorderError extends Error {
   public readonly type: RecorderErrorType
@@ -34,40 +34,32 @@ function classifyGetUserMediaError(err: unknown): RecorderError {
           return new RecorderError(
             'SYSTEM_DENIED',
             '麦克风权限被系统阻止，请检查操作系统隐私设置或浏览器站点权限',
-            err
+            err,
           )
         }
         return new RecorderError(
           'USER_DENIED',
           '麦克风权限被拒绝，请在浏览器地址栏左侧允许麦克风访问',
-          err
+          err,
         )
       }
       case 'NotFoundError':
-        return new RecorderError(
-          'NO_DEVICE',
-          '未检测到麦克风设备，请连接麦克风后重试',
-          err
-        )
+        return new RecorderError('NO_DEVICE', '未检测到麦克风设备，请连接麦克风后重试', err)
       case 'NotReadableError':
       case 'AbortError':
         return new RecorderError(
           'DEVICE_BUSY',
           '麦克风正在被其他应用使用，请关闭其他应用后重试',
-          err
+          err,
         )
       case 'SecurityError':
         return new RecorderError(
           'INSECURE_CONTEXT',
           '当前页面不在安全环境中，请使用 HTTPS 或 localhost 访问',
-          err
+          err,
         )
       default:
-        return new RecorderError(
-          'UNKNOWN',
-          `录音启动失败: ${err.message}`,
-          err
-        )
+        return new RecorderError('UNKNOWN', `录音启动失败: ${err.message}`, err)
     }
   }
 
@@ -111,27 +103,21 @@ export function useRecorder() {
     if (!window.isSecureContext) {
       throw new RecorderError(
         'INSECURE_CONTEXT',
-        '当前页面不在安全环境中（需 HTTPS 或 localhost），无法访问麦克风'
+        '当前页面不在安全环境中（需 HTTPS 或 localhost），无法访问麦克风',
       )
     }
 
     // 2. API 可用性检查
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
-      throw new RecorderError(
-        'API_NOT_SUPPORTED',
-        '当前浏览器不支持录音功能，请更换浏览器后重试'
-      )
+      throw new RecorderError('API_NOT_SUPPORTED', '当前浏览器不支持录音功能，请更换浏览器后重试')
     }
 
     // 3. 设备存在性预检
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
-      const hasAudioInput = devices.some(d => d.kind === 'audioinput')
+      const hasAudioInput = devices.some((d) => d.kind === 'audioinput')
       if (!hasAudioInput) {
-        throw new RecorderError(
-          'NO_DEVICE',
-          '未检测到麦克风设备，请连接麦克风后重试'
-        )
+        throw new RecorderError('NO_DEVICE', '未检测到麦克风设备，请连接麦克风后重试')
       }
     } catch (err) {
       // enumerateDevices 本身也可能失败，继续尝试 getUserMedia
@@ -179,8 +165,8 @@ export function useRecorder() {
             new RecorderError(
               'RECORDING_ERROR',
               originalError?.message || '录音过程中发生错误',
-              originalError
-            )
+              originalError,
+            ),
           )
           stopResolve = null
           stopReject = null
@@ -263,7 +249,7 @@ export function useRecorder() {
     }
 
     if (mediaRecorder) {
-      mediaRecorder.stream.getTracks().forEach(t => t.stop())
+      mediaRecorder.stream.getTracks().forEach((t) => t.stop())
       mediaRecorder = null
     }
 

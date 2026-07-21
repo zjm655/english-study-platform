@@ -10,7 +10,9 @@
         <div>
           <h2 class="page-title">编辑材料</h2>
           <p class="page-desc">
-            <el-tag v-if="unitTitle" size="small" type="info" effect="plain">{{ unitTitle }}</el-tag>
+            <el-tag v-if="unitTitle" size="small" type="info" effect="plain">{{
+              unitTitle
+            }}</el-tag>
             <span class="page-desc__note">仅保存文本字段，不会重新生成音频与 AI 内容。</span>
           </p>
         </div>
@@ -69,26 +71,40 @@
         </template>
         <el-table :data="form.vocabulary" border size="small">
           <el-table-column label="单词" min-width="110">
-            <template #default="{ row }"><el-input v-model="row.word" placeholder="word" /></template>
+            <template #default="{ row }"
+              ><el-input v-model="row.word" placeholder="word"
+            /></template>
           </el-table-column>
           <el-table-column label="音标" min-width="110">
-            <template #default="{ row }"><el-input v-model="row.phonetic" placeholder="/.../" /></template>
+            <template #default="{ row }"
+              ><el-input v-model="row.phonetic" placeholder="/.../"
+            /></template>
           </el-table-column>
           <el-table-column label="释义" min-width="150">
-            <template #default="{ row }"><el-input v-model="row.meaning" placeholder="释义" /></template>
+            <template #default="{ row }"
+              ><el-input v-model="row.meaning" placeholder="释义"
+            /></template>
           </el-table-column>
           <el-table-column label="词形变化" min-width="120">
-            <template #default="{ row }"><el-input v-model="row.forms" placeholder="复数/过去式等" /></template>
+            <template #default="{ row }"
+              ><el-input v-model="row.forms" placeholder="复数/过去式等"
+            /></template>
           </el-table-column>
           <el-table-column label="例句" min-width="180">
-            <template #default="{ row }"><el-input v-model="row.exampleSentence" placeholder="英文例句" /></template>
+            <template #default="{ row }"
+              ><el-input v-model="row.exampleSentence" placeholder="英文例句"
+            /></template>
           </el-table-column>
           <el-table-column label="例句翻译" min-width="180">
-            <template #default="{ row }"><el-input v-model="row.exampleTranslation" placeholder="例句翻译" /></template>
+            <template #default="{ row }"
+              ><el-input v-model="row.exampleTranslation" placeholder="例句翻译"
+            /></template>
           </el-table-column>
           <el-table-column label="操作" width="70" align="center" fixed="right">
             <template #default="{ $index }">
-              <el-button type="danger" link size="small" @click="removeVocab($index)">删除</el-button>
+              <el-button type="danger" link size="small" @click="removeVocab($index)"
+                >删除</el-button
+              >
             </template>
           </el-table-column>
           <template #empty>
@@ -108,17 +124,27 @@
           </div>
         </template>
 
-        <el-empty v-if="form.questions.length === 0" description="暂无题目（该材料将作为无题目材料）" :image-size="60" />
+        <el-empty
+          v-if="form.questions.length === 0"
+          description="暂无题目（该材料将作为无题目材料）"
+          :image-size="60"
+        />
 
         <div v-for="(q, qi) in form.questions" :key="qi" class="question-block">
           <div class="question-block__head">
             <span class="question-block__index">第 {{ qi + 1 }} 题</span>
-            <el-button type="danger" link size="small" @click="removeQuestion(qi)">删除本题</el-button>
+            <el-button type="danger" link size="small" @click="removeQuestion(qi)"
+              >删除本题</el-button
+            >
           </div>
           <el-input v-model="q.question" placeholder="题干" class="question-block__stem" />
           <div class="question-block__options">
             <div v-for="(_opt, oi) in q.options" :key="oi" class="option-row">
-              <el-input v-model="q.options[oi]" :placeholder="`选项 ${oi + 1}`" class="option-row__input" />
+              <el-input
+                v-model="q.options[oi]"
+                :placeholder="`选项 ${oi + 1}`"
+                class="option-row__input"
+              />
               <el-button
                 type="danger"
                 link
@@ -214,7 +240,7 @@ function removeOption(q: Question, index: number) {
   if (q.answer === removed) q.answer = ''
 }
 function validOptions(q: Question) {
-  return q.options.map(o => o.trim()).filter(Boolean)
+  return q.options.map((o) => o.trim()).filter(Boolean)
 }
 
 // ===== 保存 =====
@@ -228,7 +254,7 @@ async function handleSave() {
 
   for (const q of form.questions) {
     if (!q.question.trim()) return toastWarning('题干不能为空')
-    const opts = q.options.map(o => o.trim()).filter(Boolean)
+    const opts = q.options.map((o) => o.trim()).filter(Boolean)
     if (opts.length === 0) return toastWarning('每题至少需要一个非空选项')
     if (!q.answer || !opts.includes(q.answer)) return toastWarning('正确答案必须是某个选项')
   }
@@ -237,12 +263,12 @@ async function handleSave() {
     title: form.title.trim(),
     textContent: form.textContent.trim(),
     translation: form.translation.trim() || null,
-    questions: form.questions.map(q => ({
+    questions: form.questions.map((q) => ({
       question: q.question.trim(),
-      options: q.options.map(o => o.trim()).filter(Boolean),
+      options: q.options.map((o) => o.trim()).filter(Boolean),
       answer: q.answer,
     })),
-    vocabulary: form.vocabulary.map(v => ({
+    vocabulary: form.vocabulary.map((v) => ({
       id: v.id,
       word: v.word.trim(),
       forms: v.forms?.trim() || null,
@@ -278,12 +304,12 @@ async function loadDetail() {
     form.textContent = d.textContent
     form.translation = d.translation ?? ''
     form.isPublic = d.isPublic === 1
-    form.questions = d.questions.map(q => ({
+    form.questions = d.questions.map((q) => ({
       question: q.question,
       options: [...q.options],
       answer: q.answer,
     }))
-    form.vocabulary = d.vocabulary.map(v => ({ ...v }))
+    form.vocabulary = d.vocabulary.map((v) => ({ ...v }))
   } else if (res?.code === 404) {
     loadError.value = res.message || '材料不存在或已删除'
   }
