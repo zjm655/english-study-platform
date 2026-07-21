@@ -56,6 +56,8 @@ export interface ProcessAdminMaterialParams {
   bucket: string
   audioBuffer?: Buffer
   audioFileName?: string
+  /** 传入时跳过 createUploadRecord，复用已有记录 ID */
+  existingRecordId?: number
 }
 
 export async function processAdminMaterial(
@@ -81,17 +83,24 @@ export async function processAdminMaterial(
   const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
   let recordId: number
 
-  try {
-    recordId = await createUploadRecord(
-      userId,
-      title || fallbackTitle,
-      textContent,
-      voice,
-      isPublic,
-    )
-  } catch (err) {
-    logger.error('[admin upload] 创建记录失败:', err)
-    return { index: 0, success: false, error: '创建上传记录失败' }
+  if (params.existingRecordId) {
+    recordId = params.existingRecordId
+    try {
+      await pool.execute(
+        `UPDATE material_upload_record SET status = 'processing', error_message = NULL WHERE id = ?`,
+        [recordId],
+      )
+    } catch (err) {
+      logger.error('[admin upload] 重置记录状态失败:', err)
+      return { index: 0, success: false, error: '重置记录状态失败' }
+    }
+  } else {
+    try {
+      recordId = await createUploadRecord(userId, title || fallbackTitle, textContent, voice, isPublic)
+    } catch (err) {
+      logger.error('[admin upload] 创建记录失败:', err)
+      return { index: 0, success: false, error: '创建上传记录失败' }
+    }
   }
 
   try {

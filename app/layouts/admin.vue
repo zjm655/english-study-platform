@@ -15,6 +15,7 @@
           </template>
           <el-menu-item index="/admin/material">材料列表</el-menu-item>
           <el-menu-item index="/admin/material/upload">材料上传</el-menu-item>
+          <el-menu-item index="/admin/material/records">上传记录</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/admin/users">
           <el-icon><User /></el-icon>

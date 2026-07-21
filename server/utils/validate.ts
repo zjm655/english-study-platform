@@ -234,6 +234,40 @@ export const adminUserStatusSchema = z.object({
   status: z.number().refine((v) => v === 0 || v === 1, 'status 必须为 0 或 1'),
 })
 
+// ============== 管理员材料上传记录管理 ==============
+
+/** 管理员上传记录列表查询参数校验 */
+export const adminMaterialRecordListSchema = z.object({
+  page: z.coerce.number().int().min(1, 'page 不能小于 1').optional().default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1, 'pageSize 不能小于 1')
+    .max(50, 'pageSize 不能大于 50')
+    .optional()
+    .default(10),
+  status: z.enum(['processing', 'success', 'failed'], {
+    message: 'status 必须为 processing/success/failed',
+  }).optional(),
+  source: z
+    .enum(['all', 'user', 'admin'], { message: 'source 必须为 all/user/admin' })
+    .optional()
+    .default('all'),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+})
+
+/** 管理员重处理上传记录参数校验 */
+export const adminMaterialRecordReprocessSchema = z.object({
+  unitId: z.number().int().min(0, 'unitId 不能为负数'),
+})
+
 /** 运营统计查询参数校验（days: 时间范围天数，默认 7，最大 90） */
 export const adminStatsQuerySchema = z.object({
   days: z.coerce
