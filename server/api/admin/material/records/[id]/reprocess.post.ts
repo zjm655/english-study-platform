@@ -1,6 +1,10 @@
 import { readValidatedBody } from 'h3'
 import { query } from '#server/utils/db'
-import { adminMaterialRecordReprocessSchema, validateError, validateSuccess } from '#server/utils/validate'
+import {
+  adminMaterialRecordReprocessSchema,
+  validateError,
+  validateSuccess,
+} from '#server/utils/validate'
 import { processAdminMaterial } from '#server/utils/adminUpload'
 import { ROLE_ADMIN } from '#shared/utils/role'
 
@@ -31,7 +35,10 @@ export default defineEventHandler(async (event) => {
     voice: string
     is_public: number
     status: string
-  }>('SELECT user_id, title, text_content, voice, is_public, status FROM material_upload_record WHERE id = ?', [id])
+  }>(
+    'SELECT user_id, title, text_content, voice, is_public, status FROM material_upload_record WHERE id = ?',
+    [id],
+  )
   if (!rows.length) return validateError('记录不存在', 404)
 
   const record = rows[0]!

@@ -49,10 +49,7 @@ export const useDeleteAdminMaterialRecord = () => {
 
 /** 管理员重处理失败记录 */
 export const useReprocessAdminMaterialRecord = () => {
-  const cfg = createResCfg<
-    { id: number; payload: AdminMaterialRecordReprocessPayload },
-    null
-  >({
+  const cfg = createResCfg<{ id: number; payload: AdminMaterialRecordReprocessPayload }, null>({
     handle: ({ id, payload }) => reprocessAdminMaterialRecord(id, payload),
     success: '重处理已提交',
     clientFail: '重处理失败',

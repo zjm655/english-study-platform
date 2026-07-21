@@ -3,7 +3,9 @@
     <div class="page-header">
       <div>
         <h2 class="page-title">上传记录管理</h2>
-        <p class="page-desc">查看所有用户上传和管理员上传的材料处理记录，支持按状态、来源、时间范围筛选。</p>
+        <p class="page-desc">
+          查看所有用户上传和管理员上传的材料处理记录，支持按状态、来源、时间范围筛选。
+        </p>
       </div>
     </div>
 
@@ -84,7 +86,7 @@
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="220" align="center" fixed="right">
-          <template #default="{ row }">
+          <template #default="{ row }: any">
             <el-button type="primary" link size="small" @click="openDetail(row.id)">详情</el-button>
             <el-button
               v-if="row.status === 'failed'"
@@ -148,8 +150,12 @@
           <el-descriptions-item label="片段ID">
             {{ detail.segment_id ?? '-' }}
           </el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ formatDate(detail.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ formatDate(detail.updatedAt) }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{
+            formatDate(detail.createdAt)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{
+            formatDate(detail.updatedAt)
+          }}</el-descriptions-item>
           <el-descriptions-item
             v-if="detail.status === 'failed' && detail.error_message"
             label="失败原因"
@@ -216,7 +222,10 @@ import {
   useReprocessAdminMaterialRecord,
 } from '~/composables/admin'
 import { toastConfirm } from '~/utils/popup'
-import type { AdminMaterialRecordListItem, AdminMaterialRecordDetail } from '#shared/types/adminMaterialRecord'
+import type {
+  AdminMaterialRecordListItem,
+  AdminMaterialRecordDetail,
+} from '#shared/types/adminMaterialRecord'
 
 definePageMeta({
   layout: 'admin',
@@ -231,9 +240,32 @@ const filterSource = ref<'all' | 'user' | 'admin'>('all')
 const dateRange = ref<[string, string] | null>(null)
 
 const dateShortcuts = [
-  { text: '今天', value: () => { const d = new Date(); const s = fmt(d); return [s, s] as [string, string] } },
-  { text: '最近7天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 7); return [fmt(s), fmt(e)] as [string, string] } },
-  { text: '最近30天', value: () => { const e = new Date(); const s = new Date(); s.setDate(s.getDate() - 30); return [fmt(s), fmt(e)] as [string, string] } },
+  {
+    text: '今天',
+    value: () => {
+      const d = new Date()
+      const s = fmt(d)
+      return [s, s] as [string, string]
+    },
+  },
+  {
+    text: '最近7天',
+    value: () => {
+      const e = new Date()
+      const s = new Date()
+      s.setDate(s.getDate() - 7)
+      return [fmt(s), fmt(e)] as [string, string]
+    },
+  },
+  {
+    text: '最近30天',
+    value: () => {
+      const e = new Date()
+      const s = new Date()
+      s.setDate(s.getDate() - 30)
+      return [fmt(s), fmt(e)] as [string, string]
+    },
+  },
 ]
 
 function fmt(d: Date) {
@@ -301,11 +333,11 @@ async function openDetail(id: number) {
 // ===== 删除 =====
 async function handleDelete(row: AdminMaterialRecordListItem) {
   try {
-    await toastConfirm(
-      `确定删除记录「${row.title}」吗？将同时删除关联的学习材料。`,
-      '删除确认',
-      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' },
-    )
+    await toastConfirm(`确定删除记录「${row.title}」吗？将同时删除关联的学习材料。`, '删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
   } catch {
     return
   }
@@ -340,8 +372,8 @@ async function handleReprocess() {
 }
 
 // ===== 工具函数 =====
-function statusTagType(status: string) {
-  return { processing: 'warning', success: 'success', failed: 'danger' }[status] ?? 'info'
+function statusTagType(status: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
+  return ({ processing: 'warning', success: 'success', failed: 'danger' } as const)[status] ?? 'info'
 }
 function statusTagText(status: string) {
   return { processing: '处理中', success: '成功', failed: '失败' }[status] ?? status

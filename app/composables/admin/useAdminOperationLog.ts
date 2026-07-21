@@ -1,5 +1,8 @@
 import { getAdminOperationLogList } from '~/api/admin/operationLog'
-import type { AdminOperationLogListQuery, AdminOperationLogListResult } from '#shared/types/adminOperationLog'
+import type {
+  AdminOperationLogListQuery,
+  AdminOperationLogListResult,
+} from '#shared/types/adminOperationLog'
 
 /** 全局操作日志列表 */
 export const useAdminOperationLogList = () => {

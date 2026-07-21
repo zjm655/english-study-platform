@@ -1,7 +1,10 @@
 import { query } from '#server/utils/db'
 import { adminOperationLogListSchema, validateSuccess, validateError } from '#server/utils/validate'
 import { ROLE_ADMIN } from '#shared/utils/role'
-import type { AdminOperationLogItem, AdminOperationLogListResult } from '#shared/types/adminOperationLog'
+import type {
+  AdminOperationLogItem,
+  AdminOperationLogListResult,
+} from '#shared/types/adminOperationLog'
 
 /**
  * 全局操作日志列表（管理员查看所有操作记录）

@@ -96,7 +96,13 @@ export async function processAdminMaterial(
     }
   } else {
     try {
-      recordId = await createUploadRecord(userId, title || fallbackTitle, textContent, voice, isPublic)
+      recordId = await createUploadRecord(
+        userId,
+        title || fallbackTitle,
+        textContent,
+        voice,
+        isPublic,
+      )
     } catch (err) {
       logger.error('[admin upload] 创建记录失败:', err)
       return { index: 0, success: false, error: '创建上传记录失败' }

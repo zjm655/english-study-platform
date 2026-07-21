@@ -1,5 +1,8 @@
 import { adminOperationLogPath } from '../paths'
-import type { AdminOperationLogListQuery, AdminOperationLogListResult } from '#shared/types/adminOperationLog'
+import type {
+  AdminOperationLogListQuery,
+  AdminOperationLogListResult,
+} from '#shared/types/adminOperationLog'
 
 /** 全局操作日志列表 */
 export const getAdminOperationLogList = (options: AdminOperationLogListQuery = {}) => {
@@ -11,5 +14,7 @@ export const getAdminOperationLogList = (options: AdminOperationLogListQuery = {
   if (options.action) params.append('action', options.action)
   if (options.keyword) params.append('keyword', options.keyword)
   const query = params.toString()
-  return request.json<AdminOperationLogListResult>(`${adminOperationLogPath}${query ? '?' + query : ''}`)
+  return request.json<AdminOperationLogListResult>(
+    `${adminOperationLogPath}${query ? '?' + query : ''}`,
+  )
 }

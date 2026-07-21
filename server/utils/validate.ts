@@ -277,9 +277,11 @@ export const adminMaterialRecordListSchema = z.object({
     .max(50, 'pageSize 不能大于 50')
     .optional()
     .default(10),
-  status: z.enum(['processing', 'success', 'failed'], {
-    message: 'status 必须为 processing/success/failed',
-  }).optional(),
+  status: z
+    .enum(['processing', 'success', 'failed'], {
+      message: 'status 必须为 processing/success/failed',
+    })
+    .optional(),
   source: z
     .enum(['all', 'user', 'admin'], { message: 'source 必须为 all/user/admin' })
     .optional()

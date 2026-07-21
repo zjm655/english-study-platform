@@ -5,7 +5,10 @@ import {
   validateError,
 } from '#server/utils/validate'
 import { ROLE_ADMIN } from '#shared/utils/role'
-import type { AdminMaterialRecordListItem, AdminMaterialRecordListResult } from '#shared/types/adminMaterialRecord'
+import type {
+  AdminMaterialRecordListItem,
+  AdminMaterialRecordListResult,
+} from '#shared/types/adminMaterialRecord'
 
 /**
  * 管理员上传记录列表（分页 + 筛选 + JOIN user 获取用户名/角色）

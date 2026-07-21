@@ -3,9 +3,7 @@
     <div class="page-header">
       <div>
         <h2 class="page-title">操作日志</h2>
-        <p class="page-desc">
-          查看所有管理员操作记录，支持按操作类型筛选和关键词搜索
-        </p>
+        <p class="page-desc">查看所有管理员操作记录，支持按操作类型筛选和关键词搜索</p>
       </div>
     </div>
 

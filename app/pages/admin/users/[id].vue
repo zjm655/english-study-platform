@@ -45,20 +45,34 @@
             </el-tag>
             <el-tag type="primary" size="small">{{ levelText(detail.user.level) }}</el-tag>
             <el-tag
-              :type="detail.user.deletedAt !== null ? 'info' : detail.user.status === 0 ? 'danger' : 'success'"
+              :type="
+                detail.user.deletedAt !== null
+                  ? 'info'
+                  : detail.user.status === 0
+                    ? 'danger'
+                    : 'success'
+              "
               size="small"
             >
-              {{ detail.user.deletedAt !== null ? '已注销' : detail.user.status === 0 ? '封禁' : '正常' }}
+              {{
+                detail.user.deletedAt !== null
+                  ? '已注销'
+                  : detail.user.status === 0
+                    ? '封禁'
+                    : '正常'
+              }}
             </el-tag>
           </div>
         </div>
         <div class="info-meta">
           <span>邮箱: {{ detail.user.email || '-' }}</span>
           <span>注册时间: {{ formatDate(detail.user.createdAt) }}</span>
-          <span v-if="detail.user.deletedAt">注销时间: {{ formatDate(detail.user.deletedAt) }}</span>
+          <span v-if="detail.user.deletedAt"
+            >注销时间: {{ formatDate(detail.user.deletedAt) }}</span
+          >
         </div>
         <!-- 角色操作 -->
-        <div class="info-actions" v-if="detail.user.deletedAt === null">
+        <div v-if="detail.user.deletedAt === null" class="info-actions">
           <el-button
             v-if="detail.user.role === 0"
             type="warning"
@@ -91,7 +105,9 @@
           <div class="metric-label">录音总数</div>
         </div>
         <div class="metric-item">
-          <div class="metric-value">{{ detail.stats.avgScore != null ? detail.stats.avgScore.toFixed(1) : '-' }}</div>
+          <div class="metric-value">
+            {{ detail.stats.avgScore != null ? detail.stats.avgScore.toFixed(1) : '-' }}
+          </div>
           <div class="metric-label">配音平均分</div>
         </div>
         <div class="metric-item">
@@ -111,7 +127,11 @@
       <!-- Unit 进度 -->
       <div class="section">
         <h3 class="section-title">学习进度</h3>
-        <el-empty v-if="detail.unitProgress.length === 0" description="暂无学习数据" :image-size="60" />
+        <el-empty
+          v-if="detail.unitProgress.length === 0"
+          description="暂无学习数据"
+          :image-size="60"
+        />
         <template v-else>
           <el-card
             v-for="unit in detail.unitProgress"
@@ -126,8 +146,12 @@
               <div v-for="seg in unit.segments" :key="seg.segmentId" class="segment-row">
                 <span class="segment-name">{{ seg.segmentTitle }}</span>
                 <span class="segment-phases">
-                  <el-tag :type="seg.phase1Done ? 'success' : 'info'" size="small" effect="plain">盲听</el-tag>
-                  <el-tag :type="seg.phase2Done ? 'success' : 'info'" size="small" effect="plain">学习</el-tag>
+                  <el-tag :type="seg.phase1Done ? 'success' : 'info'" size="small" effect="plain"
+                    >盲听</el-tag
+                  >
+                  <el-tag :type="seg.phase2Done ? 'success' : 'info'" size="small" effect="plain"
+                    >学习</el-tag
+                  >
                   <el-tag :type="seg.phase3Done ? 'success' : 'info'" size="small" effect="plain">
                     配音 {{ seg.phase3Score != null ? seg.phase3Score : '' }}
                   </el-tag>
@@ -159,7 +183,9 @@
             <template #default="{ row }">{{ row.score != null ? row.score : '-' }}</template>
           </el-table-column>
           <el-table-column label="时长" width="90" align="center">
-            <template #default="{ row }">{{ row.duration != null ? formatDuration(row.duration) : '-' }}</template>
+            <template #default="{ row }">{{
+              row.duration != null ? formatDuration(row.duration) : '-'
+            }}</template>
           </el-table-column>
           <el-table-column label="时间" width="170">
             <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
@@ -206,7 +232,7 @@
               :total="logsTotal"
               layout="prev, pager, next"
               background
-              small
+              size="small"
               @current-change="loadLogs"
             />
           </div>
@@ -222,7 +248,7 @@
 <script setup lang="ts">
 import { useAdminUserDetail, useUpdateAdminUserRole, useAdminUserLogs } from '~/composables/admin'
 import { toastConfirm, toastSuccess } from '~/utils/popup'
-import type { AdminUserDetail, AdminUserRecordingItem } from '#shared/types/adminUser'
+import type { AdminUserDetail } from '#shared/types/adminUser'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
 
 definePageMeta({

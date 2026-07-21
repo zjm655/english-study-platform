@@ -13,7 +13,10 @@ import type {
   AdminUserUpdatePayload,
   AdminUserDetail,
 } from '#shared/types/adminUser'
-import type { AdminOperationLogListQuery, AdminOperationLogListResult } from '#shared/types/adminOperationLog'
+import type {
+  AdminOperationLogListQuery,
+  AdminOperationLogListResult,
+} from '#shared/types/adminOperationLog'
 
 /** 管理员用户列表（服务端分页 + 搜索 + 状态筛选） */
 export const useAdminUserList = () => {
@@ -89,7 +92,10 @@ export const useUpdateAdminUserRole = () => {
 
 /** 管理员查看用户操作日志 */
 export const useAdminUserLogs = () => {
-  const cfg = createResCfg<{ id: number; query: AdminOperationLogListQuery }, AdminOperationLogListResult>({
+  const cfg = createResCfg<
+    { id: number; query: AdminOperationLogListQuery },
+    AdminOperationLogListResult
+  >({
     handle: ({ id, query }) => getAdminUserLogs(id, query),
     success: '',
     clientFail: '获取操作日志失败',
