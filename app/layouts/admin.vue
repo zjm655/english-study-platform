@@ -17,10 +17,14 @@
           <el-menu-item index="/admin/material/upload">材料上传</el-menu-item>
           <el-menu-item index="/admin/material/records">上传记录</el-menu-item>
         </el-sub-menu>
-        <el-menu-item index="/admin/users">
-          <el-icon><User /></el-icon>
-          <span>用户管理</span>
-        </el-menu-item>
+        <el-sub-menu index="/admin/users">
+          <template #title>
+            <el-icon><User /></el-icon>
+            <span>用户管理</span>
+          </template>
+          <el-menu-item index="/admin/users">用户列表</el-menu-item>
+          <el-menu-item index="/admin/operation-logs">操作日志</el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/admin/stats">
           <el-icon><DataAnalysis /></el-icon>
           <span>运营统计</span>
@@ -74,6 +78,10 @@ const activeMenu = computed(() => {
     ['/admin/cloud/oss', '/admin/cloud/nls', '/admin/cloud/edu', '/admin/cloud/bss'].includes(path)
   ) {
     return '/admin/cloud'
+  }
+  // 用户详情页 + 操作日志：映射到用户管理父菜单保持展开
+  if (path.startsWith('/admin/users/') || path === '/admin/operation-logs') {
+    return '/admin/users'
   }
   return path
 })

@@ -43,3 +43,69 @@ export interface AdminUserUpdatePayload {
 export interface AdminUserStatusPayload {
   status: number // 0 封禁 1 正常
 }
+
+// ============== 用户详情 ==============
+
+/** 用户学习统计 */
+export interface AdminUserLearningStats {
+  totalSegmentsCompleted: number
+  totalRecordings: number
+  avgScore: number | null
+  totalStudySeconds: number
+  totalCheckinDays: number
+  currentStreak: number
+}
+
+/** 用户 Unit 进度中的单个 Segment 进度 */
+export interface AdminUserSegmentProgress {
+  segmentId: number
+  segmentTitle: string
+  phase1Done: boolean
+  phase2Done: boolean
+  phase3Done: boolean
+  phase4Done: boolean
+  phase3Score: number | null
+  phase4Score: number | null
+}
+
+/** 用户 Unit 进度 */
+export interface AdminUserUnitProgress {
+  unitId: number
+  unitTitle: string
+  segments: AdminUserSegmentProgress[]
+}
+
+/** 用户录音历史项（仅元数据，不含音频 URL / 识别内容） */
+export interface AdminUserRecordingItem {
+  id: number
+  phase: number // 3 配音 / 4 跟读
+  score: number | null
+  duration: number | null // 秒
+  segmentTitle: string
+  createdAt: string
+}
+
+/** 用户详情 */
+export interface AdminUserDetail {
+  user: {
+    id: number
+    account: string
+    nickname: string | null
+    email: string | null
+    role: number
+    level: number
+    status: number
+    deletedAt: string | null
+    createdAt: string
+  }
+  stats: AdminUserLearningStats
+  unitProgress: AdminUserUnitProgress[]
+  recentRecordings: AdminUserRecordingItem[]
+}
+
+// ============== 角色变更 ==============
+
+/** 角色变更载荷 */
+export interface AdminUserRolePayload {
+  role: number // 0 普通用户 1 管理员
+}

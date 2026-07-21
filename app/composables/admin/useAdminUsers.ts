@@ -3,12 +3,17 @@ import {
   updateAdminUser,
   updateAdminUserStatus,
   deleteAdminUser,
+  getAdminUserDetail,
+  updateAdminUserRole,
+  getAdminUserLogs,
 } from '~/api/admin/user'
 import type {
   AdminUserListQuery,
   AdminUserListResult,
   AdminUserUpdatePayload,
+  AdminUserDetail,
 } from '#shared/types/adminUser'
+import type { AdminOperationLogListQuery, AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
 /** 管理员用户列表（服务端分页 + 搜索 + 状态筛选） */
 export const useAdminUserList = () => {
@@ -53,6 +58,42 @@ export const useDeleteAdminUser = () => {
     success: '销号成功',
     clientFail: '销号失败',
     serverFail: '服务器异常，销号失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员查看用户详情 */
+export const useAdminUserDetail = () => {
+  const cfg = createResCfg<number, AdminUserDetail>({
+    handle: getAdminUserDetail,
+    success: '',
+    clientFail: '获取用户详情失败',
+    serverFail: '服务器异常，获取详情失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员变更用户角色 */
+export const useUpdateAdminUserRole = () => {
+  const cfg = createResCfg<{ id: number; role: number }, null>({
+    handle: ({ id, role }) => updateAdminUserRole(id, role),
+    success: '角色变更成功',
+    clientFail: '角色变更失败',
+    serverFail: '服务器异常，角色变更失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员查看用户操作日志 */
+export const useAdminUserLogs = () => {
+  const cfg = createResCfg<{ id: number; query: AdminOperationLogListQuery }, AdminOperationLogListResult>({
+    handle: ({ id, query }) => getAdminUserLogs(id, query),
+    success: '',
+    clientFail: '获取操作日志失败',
+    serverFail: '服务器异常，获取日志失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

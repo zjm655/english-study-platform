@@ -65,8 +65,15 @@
         <el-table-column label="注册时间" width="170">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" align="center" fixed="right">
+        <el-table-column label="操作" width="260" align="center" fixed="right">
           <template #default="{ row }: any">
+            <el-button
+              type="primary"
+              link
+              size="small"
+              @click="goDetail(row)"
+              >详情</el-button
+            >
             <el-button
               type="primary"
               link
@@ -233,6 +240,10 @@ function stateTag(row: AdminUserListItem) {
 
 function levelText(level: number) {
   return ['未测试', '初级', '中级', '高级'][level] ?? '未测试'
+}
+
+function goDetail(row: AdminUserListItem) {
+  navigateTo(`/admin/users/${row.id}`)
 }
 
 // ===== 编辑资料 =====
