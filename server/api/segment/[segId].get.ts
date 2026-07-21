@@ -81,9 +81,17 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
   )
   const progressRow = progressRows[0]
 
-  const progress: SegmentPhaseProgress = progressRow
-    ? mapProgressRow(progressRow)
-    : { ...DEFAULT_PROGRESS }
+  const progress = progressRow ? mapProgressRow(progressRow) : { ...DEFAULT_PROGRESS }
+
+  // mapProgressRow 的 updatedAt 可能是 Date（MySQL 驱动返回），
+  // SegmentPhaseProgress 要求 string | null | undefined
+  const progressConverted: SegmentPhaseProgress = {
+    ...progress,
+    updatedAt:
+      progress.updatedAt instanceof Date
+        ? progress.updatedAt.toISOString()
+        : (progress.updatedAt ?? undefined),
+  }
 
   // 5. 组合返回
   const result: SegmentDetail = {
@@ -97,7 +105,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
     unitId: unit.id,
     unitTitle: unit.title,
     vocabulary,
-    progress,
+    progress: progressConverted,
   }
 
   return validateSuccess(result, '获取成功')

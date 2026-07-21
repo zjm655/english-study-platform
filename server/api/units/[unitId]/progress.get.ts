@@ -91,7 +91,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
       isMine: s.isMine === 1,
       progress: (() => {
         const p = progressMap.get(s.id)
-        return p ? mapProgressRow(p) : { ...DEFAULT_PROGRESS }
+        const raw = p ? mapProgressRow(p) : { ...DEFAULT_PROGRESS }
+        return {
+          ...raw,
+          updatedAt:
+            raw.updatedAt instanceof Date
+              ? raw.updatedAt.toISOString()
+              : (raw.updatedAt ?? undefined),
+        }
       })(),
     })),
   )

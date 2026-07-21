@@ -105,7 +105,7 @@ let trendChart: EChartsType | null = null
 const trendDays = ref(7)
 
 async function fetchData() {
-  const res = await execute()
+  const res = await execute(undefined)
   if (res.code === 200 && res.data) {
     data.value = res.data
   }

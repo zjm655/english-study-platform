@@ -31,7 +31,7 @@ export default defineNitroPlugin((nitroApp) => {
         }),
       )
       // 标记已处理，阻止后续 handler 执行
-      ;(event as any)._handled = true
+      ;(event as { _handled?: boolean })._handled = true
       return
     }
 

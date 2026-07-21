@@ -34,6 +34,10 @@ function makeRecording(overrides: Partial<Recording> = {}): Recording {
     duration: 10,
     score: null,
     audioPath: 'https://example.com/audio.mp3',
+    feedback: null,
+    recognizedText: null,
+    wordScores: null,
+    rawResult: null,
     createdAt: '2025-01-01T00:00:00.000Z',
     ...overrides,
   }

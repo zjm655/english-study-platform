@@ -175,7 +175,7 @@ async function fetchStats() {
 
 /** 云账户余额独立拉取（失败不影响主看板，静默降级） */
 async function fetchCloudBalance() {
-  const res = await executeCloud()
+  const res = await executeCloud(undefined)
   if (res.code === 200 && res.data) {
     cloudBalance.value = res.data
   }
@@ -269,10 +269,10 @@ function updateTrendChart() {
       backgroundColor: '#fff',
       borderColor: '#ebeef5',
       textStyle: { color: '#303133', fontSize: 12 },
-      formatter(params: any) {
-        const full = trend[params[0].dataIndex]!
+      formatter(params: { dataIndex: number; color: string; seriesName: string; value: number }[]) {
+        const full = trend[params[0]!.dataIndex]!
         const lines = params.map(
-          (p: any) =>
+          (p) =>
             `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}：<b>${p.value.toLocaleString()}</b>`,
         )
         return `<div style="font-weight:600;margin-bottom:4px;">${full.date}</div>${lines.join('<br/>')}<br/><span style="color:#909399;">平均耗时 ${full.avgDuration} ms</span>`
@@ -345,8 +345,8 @@ function updateTopChart() {
       backgroundColor: '#fff',
       borderColor: '#ebeef5',
       textStyle: { color: '#303133', fontSize: 12 },
-      formatter(params: any) {
-        const item = items[params[0].dataIndex]!
+      formatter(params: { dataIndex: number }[]) {
+        const item = items[params[0]!.dataIndex]!
         return `<div style="font-weight:600;margin-bottom:4px;">${item.method} ${item.path}</div>调用 <b>${item.count.toLocaleString()}</b> 次 · 平均 ${item.avgDuration} ms`
       },
     },
@@ -387,7 +387,7 @@ function updateTopChart() {
           position: 'right',
           color: '#909399',
           fontSize: 11,
-          formatter: (p: any) => p.value.toLocaleString(),
+          formatter: (p: { value: number }) => p.value.toLocaleString(),
         },
       },
     ],
