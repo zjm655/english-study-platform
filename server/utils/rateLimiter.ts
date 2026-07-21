@@ -23,7 +23,7 @@ const DEFAULT_CONFIG: RateLimitConfig = {
 
 /** 按路由前缀分级配置 */
 const ROUTE_CONFIGS: Record<string, RateLimitConfig> = {
-  '/api/segment/upload': { windowMs: 60_000, maxRequests: 5 },       // 上传接口 5次/分钟
+  '/api/segment/upload': { windowMs: 60_000, maxRequests: 10 },       // 上传接口 10次/分钟
   '/api/admin/segment/upload': { windowMs: 60_000, maxRequests: 10 }, // 管理员上传 10次/分钟
   '/api/evaluation/auth': { windowMs: 60_000, maxRequests: 10 },     // 评测鉴权 10次/分钟
   '/api/admin': { windowMs: 60_000, maxRequests: 120 },               // 管理后台 120次/分钟
@@ -50,27 +50,31 @@ function getConfig(path: string): RateLimitConfig {
  * 检查请求是否被限流
  * @param ip 客户端 IP
  * @param path 请求路径
+ * @param userId 可选用户 ID，有值时使用 userId@ip 组合键（用户级限流），否则仅 IP 级限流
  * @returns 是否允许 + 重试等待秒数
  */
-export function checkRateLimit(ip: string, path: string): RateLimitResult {
+export function checkRateLimit(ip: string, path: string, userId?: number): RateLimitResult {
   const config = getConfig(path)
   const now = Date.now()
   const windowStart = now - config.windowMs
 
-  // 获取或创建该 IP 的时间戳数组
-  let timestamps = windowMap.get(ip)
+  // 有 userId 时使用用户级限流键，避免同 IP 多用户互相影响
+  const key = userId ? `${userId}@${ip}` : ip
+
+  // 获取或创建该键的时间戳数组
+  let timestamps = windowMap.get(key)
   if (!timestamps) {
     timestamps = []
-    windowMap.set(ip, timestamps)
+    windowMap.set(key, timestamps)
   }
 
   // 清除过期时间戳
   const valid = timestamps.filter((t) => t > windowStart)
-  windowMap.set(ip, valid)
+  windowMap.set(key, valid)
 
   // 检查是否超限
   if (valid.length >= config.maxRequests) {
-    const oldest = valid[0]
+    const oldest = valid[0]!
     const retryAfterMs = oldest + config.windowMs - now
     return {
       allowed: false,

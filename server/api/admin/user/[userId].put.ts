@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = adminUserUpdateSchema.safeParse(body)
   if (!parsed.success) {
-    return validateError(parsed.error.issues[0].message, 400)
+    return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
   const { nickname, email, level } = parsed.data
 
@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
   if (targetRows.length === 0) {
     return validateError('用户不存在或已注销', 404)
   }
-  const target = targetRows[0]
+  const target = targetRows[0]!
 
   // email 若变更为新的非空值，需查重（唯一约束，避免 DB 报错）
   if (email !== undefined && email != null && email !== target.email) {

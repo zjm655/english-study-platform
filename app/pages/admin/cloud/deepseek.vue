@@ -84,13 +84,13 @@
 import { Refresh, InfoFilled, WarningFilled } from '@element-plus/icons-vue'
 import { use, graphic, init } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { DeepSeekStatResult } from '#shared/types/adminCloud'
 import { useAdminCloudDeepseek, useCloudTrend } from '~/composables/admin'
 
-use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
+use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 definePageMeta({ layout: 'admin' })
 
@@ -125,12 +125,12 @@ function renderTrendChart(dates: string[], callCounts: number[], totalTokens: nu
   }
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['调用次数', 'Token 用量'], bottom: 0 },
-    grid: { left: 50, right: 60, top: 20, bottom: 30 },
+    legend: { data: ['调用次数', 'Token 用量'], bottom: 0, textStyle: { fontSize: 11 } },
+    grid: { left: 50, right: 60, top: 20, bottom: 40 },
     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
     yAxis: [
-      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 } },
-      { type: 'value', name: 'Token', axisLabel: { fontSize: 11 } },
+      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
+      { type: 'value', name: 'Token', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
     ],
     series: [
       {

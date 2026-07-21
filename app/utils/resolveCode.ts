@@ -1,4 +1,5 @@
 import type { LogCfg } from '~/types/requestType'
+import { useUserStore } from '~/store/useUserStore'
 
 /**
  * 状态码处理工具：根据后端返回的 code 进行日志记录、鉴权失效处理

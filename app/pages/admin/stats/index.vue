@@ -96,7 +96,7 @@
           </header>
           <div class="security-body">
             <div class="security-hero">
-              <span class="security-number">{{ animUnauth.display }}</span>
+              <span class="security-number">{{ (statsData?.summary?.unauthCalls ?? 0).toLocaleString() }}</span>
               <span class="security-caption">未认证调用（user_id 为空）</span>
             </div>
             <ul class="security-notes">
@@ -168,7 +168,6 @@ async function fetchStats() {
   const res = await execute({ days: days.value })
   if (res.code === 200 && res.data) {
     statsData.value = res.data
-    syncAnimatedMetrics()
     updateCharts()
   }
 }
@@ -181,76 +180,42 @@ async function fetchCloudBalance() {
   }
 }
 
-// ============ 数字滚动动画 ============
-
-interface AnimNum { value: number }
-const animToday = ref<AnimNum>({ value: 0 })
-const animTotal = ref<AnimNum>({ value: 0 })
-const animRate = ref<AnimNum>({ value: 0 })      // 实际值 ×100 存储，展示时 /100
-const animDuration = ref<AnimNum>({ value: 0 })
-const animUsers = ref<AnimNum>({ value: 0 })
-const animUnauth = ref<AnimNum>({ value: 0 })
-
-/** requestAnimationFrame 数字滚动（easeOutCubic） */
-function animateTo(target: { value: number }, to: number, duration = 700) {
-  const from = target.value
-  if (from === to) return
-  const start = performance.now()
-  const step = (now: number) => {
-    const progress = Math.min((now - start) / duration, 1)
-    const eased = 1 - Math.pow(1 - progress, 3)
-    target.value = from + (to - from) * eased
-    if (progress < 1) requestAnimationFrame(step)
-  }
-  requestAnimationFrame(step)
-}
-
-function syncAnimatedMetrics() {
-  const s = statsData.value?.summary
-  if (!s) return
-  animateTo(animToday.value, s.todayCalls)
-  animateTo(animTotal.value, s.totalCalls)
-  animateTo(animRate.value, Math.round(s.errorRate * 100))
-  animateTo(animDuration.value, s.avgDuration)
-  animateTo(animUsers.value, s.activeUsers)
-  animateTo(animUnauth.value, s.unauthCalls)
-}
-
-/** 指标带配置（响应式派生） */
+/** 指标带配置（直接使用 statsData 原始值） */
 const metricCells = computed(() => {
-  const rate = animRate.value.value / 100
+  const s = statsData.value?.summary
+  if (!s) return []
   return [
     {
       label: '今日调用',
-      display: Math.round(animToday.value.value).toLocaleString(),
+      display: s.todayCalls.toLocaleString(),
       unit: '次',
       sub: '当日 0 时至今',
       tone: 'blue',
     },
     {
       label: '总调用量',
-      display: Math.round(animTotal.value.value).toLocaleString(),
+      display: s.totalCalls.toLocaleString(),
       unit: '次',
       sub: `近 ${days.value} 天`,
       tone: 'blue',
     },
     {
       label: '错误率',
-      display: rate.toFixed(2),
+      display: s.errorRate.toFixed(2),
       unit: '%',
-      sub: rate > 5 ? '高于 5%，需关注' : '运行平稳',
-      tone: rate > 5 ? 'red' : 'green',
+      sub: s.errorRate > 5 ? '高于 5%，需关注' : '运行平稳',
+      tone: s.errorRate > 5 ? 'red' : 'green',
     },
     {
       label: '平均耗时',
-      display: Math.round(animDuration.value.value).toLocaleString(),
+      display: s.avgDuration.toLocaleString(),
       unit: 'ms',
       sub: '全接口均值',
       tone: 'orange',
     },
     {
       label: '活跃用户',
-      display: Math.round(animUsers.value.value).toLocaleString(),
+      display: s.activeUsers.toLocaleString(),
       unit: '人',
       sub: '去重调用者',
       tone: 'green',
@@ -304,7 +269,7 @@ function updateTrendChart() {
       borderColor: '#ebeef5',
       textStyle: { color: '#303133', fontSize: 12 },
       formatter(params: any) {
-        const full = trend[params[0].dataIndex]
+        const full = trend[params[0].dataIndex]!
         const lines = params.map((p: any) =>
           `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px;"></span>${p.seriesName}：<b>${p.value.toLocaleString()}</b>`
         )
@@ -379,7 +344,7 @@ function updateTopChart() {
       borderColor: '#ebeef5',
       textStyle: { color: '#303133', fontSize: 12 },
       formatter(params: any) {
-        const item = items[params[0].dataIndex]
+        const item = items[params[0].dataIndex]!
         return `<div style="font-weight:600;margin-bottom:4px;">${item.method} ${item.path}</div>调用 <b>${item.count.toLocaleString()}</b> 次 · 平均 ${item.avgDuration} ms`
       },
     },

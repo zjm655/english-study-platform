@@ -5,7 +5,7 @@
  * - 加载并等待 window.EngineEvaluat SDK 就绪
  * - 初始化引擎（warrantId 由后端鉴权接口提供）
  * - Phase 3: analyzeRecording() — wholeFileUpload 方式
- * - Phase 4: startRealtime() / stopRealtime() — 占位，后续实现
+ * - Phase 4: startRealtime() / stopRealtime() — 实时 WebSocket 评测，已完整实现
  *
  * 使用示例 (Phase 3):
  *   const { isReady, isLoading, error, initEngine, analyzeRecording, destroy } = useSpeechEvaluation()

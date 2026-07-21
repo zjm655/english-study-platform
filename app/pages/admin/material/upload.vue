@@ -176,7 +176,7 @@ function handleAudioRemove() {
 }
 
 function collectTxtFiles(fileList: UploadFiles) {
-  txtFiles.value = fileList.map(f => f.raw).filter((f): f is File => !!f)
+  txtFiles.value = fileList.map(f => f.raw).filter((f) => !!f) as File[]
 }
 function handleTxtChange(_file: UploadFile, fileList: UploadFiles) {
   collectTxtFiles(fileList)

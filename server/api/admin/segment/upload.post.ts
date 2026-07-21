@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
 
   const parsed = adminUploadSchema.safeParse({ mode, unitId, voice, isPublic })
   if (!parsed.success) {
-    return validateError(parsed.error.issues[0].message, 400)
+    return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
 
   const { mode: validMode, unitId: validUnitId, voice: validVoice, isPublic: validIsPublic } = parsed.data

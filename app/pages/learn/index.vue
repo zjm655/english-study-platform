@@ -150,8 +150,42 @@ onMounted(() => {
 
 <template>
   <div class="page-learn">
-    <div v-if="isLoading || !dataReady" class="loading-container">
-      <DotPulse />
+    <div v-if="isLoading || !dataReady" class="page-learn">
+      <!-- 进度卡片骨架 -->
+      <div class="skeleton-card">
+        <div class="skeleton-card__header">
+          <el-skeleton-item variant="text" style="width: 30%; height: 14px;" />
+          <el-skeleton-item variant="text" style="width: 60%; height: 20px; margin-top: 8px;" />
+        </div>
+        <div class="skeleton-steps">
+          <div v-for="i in 4" :key="i" class="skeleton-step">
+            <el-skeleton-item variant="circle" style="width: 28px; height: 28px;" />
+            <el-skeleton-item variant="text" style="width: 28px; height: 11px; margin-top: 6px;" />
+          </div>
+        </div>
+        <el-skeleton-item variant="p" style="width: 100%; height: 4px; margin-top: 16px;" />
+        <el-skeleton-item variant="rect" style="width: 100%; height: 44px; border-radius: 8px; margin-top: 16px;" />
+      </div>
+
+      <!-- 统计概览骨架 -->
+      <div class="skeleton-stats">
+        <div v-for="i in 3" :key="i" class="skeleton-stat-item">
+          <el-skeleton-item variant="text" style="width: 50px; height: 20px;" />
+          <el-skeleton-item variant="text" style="width: 60px; height: 12px; margin-top: 4px;" />
+        </div>
+      </div>
+
+      <!-- 单元列表骨架 -->
+      <div class="skeleton-units">
+        <el-skeleton-item variant="text" style="width: 80px; height: 16px; margin-bottom: 12px;" />
+        <div v-for="i in 3" :key="i" class="skeleton-unit-card">
+          <div style="flex: 1;">
+            <el-skeleton-item variant="text" style="width: 60%; height: 15px;" />
+            <el-skeleton-item variant="text" style="width: 40%; height: 12px; margin-top: 6px;" />
+          </div>
+          <el-skeleton-item variant="text" style="width: 40px; height: 12px;" />
+        </div>
+      </div>
     </div>
 
     <template v-else>
@@ -468,19 +502,64 @@ onMounted(() => {
   transition: width 0.3s;
 }
 
-/* ========== 空状态 & Loading ========== */
+/* ========== 骨架屏 ========== */
+.skeleton-card {
+  background: var(--card);
+  border-radius: var(--r-xl);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.skeleton-card__header {
+  margin-bottom: 16px;
+}
+
+.skeleton-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.skeleton-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.skeleton-stats {
+  display: flex;
+  justify-content: space-around;
+  background: var(--card);
+  border-radius: 12px;
+  padding: 16px 12px;
+  margin-bottom: 24px;
+}
+
+.skeleton-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.skeleton-units {
+  margin-top: 24px;
+}
+
+.skeleton-unit-card {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: var(--card);
+  border-radius: var(--r-l);
+  margin-bottom: 8px;
+}
+
+/* ========== 空状态 ========== */
 .empty-state {
   text-align: center;
   padding: 24px;
   font-size: 14px;
   color: var(--text-3);
-}
-
-.loading-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 60vh;
 }
 
 .upload-entry {

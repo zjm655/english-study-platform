@@ -52,7 +52,7 @@
           <template #default="{ row }">{{ levelText(row.level) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="90" align="center">
-          <template #default="{ row }">
+          <template #default="{ row }: any">
             <el-tag :type="stateTag(row).type" size="small">{{ stateTag(row).text }}</el-tag>
           </template>
         </el-table-column>
@@ -60,7 +60,7 @@
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="200" align="center" fixed="right">
-          <template #default="{ row }">
+          <template #default="{ row }: any">
             <el-button type="primary" link size="small" :disabled="row.deletedAt !== null" @click="openEdit(row)">编辑</el-button>
             <el-button
               :type="row.status === 1 ? 'warning' : 'success'"

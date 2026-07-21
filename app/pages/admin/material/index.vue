@@ -66,7 +66,7 @@
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="150" align="center" fixed="right">
-          <template #default="{ row }">
+          <template #default="{ row }: any">
             <el-button type="primary" link size="small" @click="goEdit(row)">编辑</el-button>
             <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>

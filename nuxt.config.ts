@@ -7,6 +7,11 @@ export default defineNuxtConfig({
     head: {
       script: [
         { src: '/sdk/engine.js', defer: true },
+        // 防闪烁脚本：页面渲染前设置 data-theme，避免深色模式下白屏闪烁
+        {
+          innerHTML: `(function(){var t=localStorage.getItem('theme')||'auto';var d=t==='dark'||(t==='auto'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light')})()`,
+          type: 'text/javascript',
+        },
       ],
     },
   },

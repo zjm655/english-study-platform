@@ -57,15 +57,26 @@
 <script setup lang="ts">
 import { User, Cloudy, MagicStick, Back, Document, DataAnalysis } from '@element-plus/icons-vue'
 
+const { init: initTheme } = useTheme()
+
 const route = useRoute()
 
 // 侧边栏高亮：编辑页（/admin/material/:id）与列表页同属「材料列表」，
-// 避免动态路由无匹配项导致子菜单收起
+// 云服务子项（oss/nls/edu/bss）映射到父菜单 /admin/cloud 保持展开
 const activeMenu = computed(() => {
-  if (route.path.startsWith('/admin/material') && route.path !== '/admin/material/upload') {
+  const path = route.path
+  if (path.startsWith('/admin/material') && path !== '/admin/material/upload') {
     return '/admin/material'
   }
-  return route.path
+  // 云服务子项：映射到父菜单保持展开，deepseek 独立菜单不受影响
+  if (['/admin/cloud/oss', '/admin/cloud/nls', '/admin/cloud/edu', '/admin/cloud/bss'].includes(path)) {
+    return '/admin/cloud'
+  }
+  return path
+})
+
+onMounted(() => {
+  initTheme()
 })
 </script>
 

@@ -63,7 +63,7 @@ describe('管理员用户列表 - 过滤与搜索', () => {
     mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }])
     const res = await listHandler(makeEvent({ user: ADMIN, query: { state: 'banned' } }))
     expect(res.code).toBe(200)
-    const sql = mockQuery.mock.calls[0][0] as string
+    const sql = mockQuery.mock.calls[0]![0] as string
     expect(sql).toContain('deleted_at IS NULL')
     expect(sql).toContain('status = 0')
   })
@@ -71,7 +71,7 @@ describe('管理员用户列表 - 过滤与搜索', () => {
   it('state=deleted 时 WHERE 为 deleted_at IS NOT NULL', async () => {
     mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }])
     await listHandler(makeEvent({ user: ADMIN, query: { state: 'deleted' } }))
-    const sql = mockQuery.mock.calls[0][0] as string
+    const sql = mockQuery.mock.calls[0]![0] as string
     expect(sql).toContain('deleted_at IS NOT NULL')
     expect(sql).not.toContain('deleted_at IS NULL')
   })
@@ -79,10 +79,10 @@ describe('管理员用户列表 - 过滤与搜索', () => {
   it('keyword 以 LIKE 参数化搜索账号/昵称', async () => {
     mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }])
     await listHandler(makeEvent({ user: ADMIN, query: { keyword: '张' } }))
-    const sql = mockQuery.mock.calls[0][0] as string
+    const sql = mockQuery.mock.calls[0]![0] as string
     expect(sql).toContain('account LIKE ?')
     expect(sql).toContain('nickname LIKE ?')
-    const params = mockQuery.mock.calls[0][1]
+    const params = mockQuery.mock.calls[0]![1]
     expect(params).toContain('%张%')
   })
 })
@@ -132,7 +132,7 @@ describe('管理员销号', () => {
     mockQuery.mockResolvedValueOnce({ affectedRows: 1 })
     const res = await deleteHandler(makeEvent({ user: ADMIN, params: { userId: '5' } }))
     expect(res.code).toBe(200)
-    const sql = mockQuery.mock.calls[1][0] as string
+    const sql = mockQuery.mock.calls[1]![0] as string
     expect(sql).toContain('deleted_at = NOW()')
     expect(mockLogAdminOperation).toHaveBeenCalledWith(1, 'user.delete', 'user', 5, expect.anything())
   })
@@ -161,7 +161,7 @@ describe('管理员资料修改', () => {
       body: { nickname: '新昵称', email: 'new@example.com', level: 2 },
     }))
     expect(res.code).toBe(200)
-    const sql = mockQuery.mock.calls[2][0] as string
+    const sql = mockQuery.mock.calls[2]![0] as string
     expect(sql).toContain('nickname = ?')
     expect(sql).toContain('email = ?')
     expect(sql).toContain('level = ?')

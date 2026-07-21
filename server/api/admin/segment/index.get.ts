@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
 
   const parsed = adminSegmentListSchema.safeParse(getQuery(event))
   if (!parsed.success) {
-    return validateError(parsed.error.issues[0].message, 400)
+    return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
   const { page, pageSize, unitId, isPublic, keyword } = parsed.data
   const offset = (page - 1) * pageSize

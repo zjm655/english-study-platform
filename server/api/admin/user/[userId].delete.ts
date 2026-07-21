@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   if (targetRows.length === 0) {
     return validateError('用户不存在或已注销', 404)
   }
-  const target = targetRows[0]
+  const target = targetRows[0]!
 
   // 护栏：不能销号管理员（需先降权，降权能力本次未做）
   if (target.role === ROLE_ADMIN) {

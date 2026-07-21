@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = adminUserStatusSchema.safeParse(body)
   if (!parsed.success) {
-    return validateError(parsed.error.issues[0].message, 400)
+    return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
   const { status } = parsed.data
 
@@ -43,7 +43,7 @@ export default defineEventHandler(async (event) => {
   if (targetRows.length === 0) {
     return validateError('用户不存在或已注销', 404)
   }
-  const target = targetRows[0]
+  const target = targetRows[0]!
 
   // 护栏：不能封禁/解封管理员（需先降权，降权能力本次未做）
   if (target.role === ROLE_ADMIN) {

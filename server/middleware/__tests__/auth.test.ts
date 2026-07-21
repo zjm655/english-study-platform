@@ -39,15 +39,15 @@ beforeEach(() => {
 describe('auth 中间件 - 封禁/销号即时拦截', () => {
   it('未登录（无 token）→ 401', async () => {
     const res = await authMiddleware(makeEvent())
-    expect(res.code).toBe(401)
+    expect(res!.code).toBe(401)
   })
 
   it('已注销用户（deleted_at 非空）→ 401 并清除 Cookie', async () => {
     mocks.mockVerifyToken.mockResolvedValue({ id: 5, nickname: 'n', email: 'e' })
     mocks.mockQuery.mockResolvedValueOnce([{ id: 5, role: 0, status: 1, deleted_at: '2026-01-01' }])
     const res = await authMiddleware(makeEvent('tk'))
-    expect(res.code).toBe(401)
-    expect(res.message).toContain('注销')
+    expect(res!.code).toBe(401)
+    expect(res!.message).toContain('注销')
     expect(mocks.mockDeleteCookie).toHaveBeenCalled()
   })
 
@@ -55,8 +55,8 @@ describe('auth 中间件 - 封禁/销号即时拦截', () => {
     mocks.mockVerifyToken.mockResolvedValue({ id: 5, nickname: 'n', email: 'e' })
     mocks.mockQuery.mockResolvedValueOnce([{ id: 5, role: 0, status: 0, deleted_at: null }])
     const res = await authMiddleware(makeEvent('tk'))
-    expect(res.code).toBe(403)
-    expect(res.message).toContain('封禁')
+    expect(res!.code).toBe(403)
+    expect(res!.message).toContain('封禁')
     expect(mocks.mockDeleteCookie).toHaveBeenCalled()
   })
 
@@ -76,6 +76,6 @@ describe('auth 中间件 - 封禁/销号即时拦截', () => {
     const event = makeEvent('tk')
     event.path = '/api/admin/user'
     const res = await authMiddleware(event)
-    expect(res.code).toBe(403)
+    expect(res!.code).toBe(403)
   })
 })

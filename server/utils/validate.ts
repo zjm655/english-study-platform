@@ -139,6 +139,8 @@ export const updateMaterialRecordSchema = z.object({
 /** 复习列表查询参数校验（limit 在 API 层自行设置默认值） */
 export const reviewQuerySchema = z.object({
   limit: z.coerce.number().min(1, 'limit 不能小于 1').max(50, 'limit 不能大于 50').optional(),
+  offset: z.coerce.number().int().min(0, 'offset 不能小于 0').optional().default(0),
+  keyword: z.string().max(100, '关键词不能超过 100 字').optional(),
 })
 
 // ============== 管理员材料管理 ==============

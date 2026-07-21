@@ -56,6 +56,8 @@ import {
   Back
 } from '@element-plus/icons-vue'
 
+const { init: initTheme } = useTheme()
+
 const route = useRoute()
 const pageTitle = computed(() => (route.meta?.title as string) || '')
 const hideHeader = computed(() => !!route.meta?.hideHeader)
@@ -77,6 +79,10 @@ const router = useRouter()
 function goBack() {
   router.back()
 }
+
+onMounted(() => {
+  initTheme()
+})
 </script>
 
 <style>

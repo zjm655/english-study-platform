@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const parsed = adminSegmentUpdateSchema.safeParse(body)
   if (!parsed.success) {
-    return validateError(parsed.error.issues[0].message, 400)
+    return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
   const { title, textContent, translation, questions, vocabulary, isPublic } = parsed.data
 
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
     return validateError('材料不存在或已删除', 404)
   }
 
-  const finalIsPublic = isPublic ?? existing[0].is_public
+  const finalIsPublic = isPublic ?? existing[0]!.is_public
   // 空翻译归一为 null（与无翻译材料的存储约定一致）
   const finalTranslation = translation == null || translation === '' ? null : translation
   // 空题目数组归一为 null（与无题目材料的存储约定一致）
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
 
         // 2b. 更新已有 / 插入新增（sort_order 取数组下标）
         for (let i = 0; i < vocabulary.length; i++) {
-          const v = vocabulary[i]
+          const v = vocabulary[i]!
           const forms = v.forms ?? null
           const phonetic = v.phonetic ?? null
           const exampleSentence = v.exampleSentence ?? null

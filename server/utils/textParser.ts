@@ -11,17 +11,17 @@ export function parseTxtFile(content: string): { title: string | null, textConte
   const lines = content.split('\n')
 
   // 文字首行为空 → 无标题
-  if (!lines[0].trim()) {
+  if (!lines[0]!.trim()) {
     return { title: null, textContent: content.trim() }
   }
 
   // 仅一行 → 无标题
   if (lines.length <= 1) {
-    return { title: null, textContent: lines[0].trim() }
+    return { title: null, textContent: lines[0]!.trim() }
   }
 
   // 首行非空且有后续内容 → 首行为标题
-  const title = lines[0].trim()
+  const title = lines[0]!.trim()
   const textContent = lines.slice(1).join('\n').trim()
 
   return { title, textContent }

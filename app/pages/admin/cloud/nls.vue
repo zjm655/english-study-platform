@@ -83,13 +83,13 @@
 import { Refresh } from '@element-plus/icons-vue'
 import { use, graphic, init } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { NlsStatResult } from '#shared/types/adminCloud'
 import { useAdminCloudNls, useCloudTrend } from '~/composables/admin'
 
-use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
+use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 definePageMeta({ layout: 'admin' })
 
@@ -127,12 +127,12 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
   }
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0 },
-    grid: { left: 50, right: 60, top: 20, bottom: 30 },
+    legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0, textStyle: { fontSize: 11 } },
+    grid: { left: 50, right: 60, top: 20, bottom: 40 },
     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
     yAxis: [
-      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 } },
-      { type: 'value', name: '耗时(ms)', axisLabel: { fontSize: 11 } },
+      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
+      { type: 'value', name: '耗时(ms)', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
     ],
     series: [
       {

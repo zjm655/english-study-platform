@@ -200,8 +200,8 @@ export async function uploadWithKey(
   ossKey: string
 ): Promise<UploadResult> {
   const client = getClient();
+  const start = Date.now()
   try {
-    const start = Date.now()
     const result = await client.put(ossKey, fileBuffer);
     logger.info(`[OSS] 上传成功: ${ossKey} (${fileBuffer.length}B)`);
     fileLog('oss', 'info', `[OSS] 上传成功: ${ossKey}`, { size: fileBuffer.length });

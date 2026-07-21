@@ -72,7 +72,7 @@ describe('管理员上传接口 - 入参强转（C1/C3 回归）', () => {
 
     expect(res.code).toBe(200)
     expect(mockProcessAdminMaterial).toHaveBeenCalledTimes(1)
-    const arg = mockProcessAdminMaterial.mock.calls[0][0]
+    const arg = mockProcessAdminMaterial.mock.calls[0]![0]
     expect(arg.unitId).toBe(0)
     expect(arg.isPublic).toBe(1)
   })
@@ -87,7 +87,7 @@ describe('管理员上传接口 - 入参强转（C1/C3 回归）', () => {
     const res = await handler(makeEvent(ADMIN))
 
     expect(res.code).toBe(200)
-    expect(mockProcessAdminMaterial.mock.calls[0][0].isPublic).toBe(1)
+    expect(mockProcessAdminMaterial.mock.calls[0]![0].isPublic).toBe(1)
   })
 })
 

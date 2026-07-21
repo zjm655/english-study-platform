@@ -1,10 +1,9 @@
 // server/utils/cloudServiceLog.ts
 // 云服务调用埋点写入：记录所有第三方云服务调用（DeepSeek / TTS / OSS / NLS / BSS）。
 //
-// 设计要点：
-// - 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程
-// - 调用方以 fire-and-forget 方式调用（不 await），对请求延迟零影响
-// - 匹配 apiCallLog.ts 的写入模式（query + try/catch + logger.error）
+// 批量写入模式：内存队列 + 定时 flush + 达到阈值立即 flush。
+// 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程。
+// 调用方以 fire-and-forget 方式调用，对请求延迟零影响。
 import { query } from '#server/utils/db'
 
 /** 云服务标识 */
@@ -25,19 +24,56 @@ export interface CloudServiceCallEntry {
   totalTokens?: number | null
 }
 
-/**
- * 写入一条云服务调用埋点。
- * 调用方以 fire-and-forget 方式调用：void logCloudServiceCall(...)
- */
-export async function logCloudServiceCall(entry: CloudServiceCallEntry): Promise<void> {
+// ─── 内存队列 ────────────────────────────────────────
+
+const BATCH_SIZE = 50
+const FLUSH_INTERVAL_MS = 5000
+
+let queue: CloudServiceCallEntry[] = []
+let timer: ReturnType<typeof setInterval> | null = null
+
+function ensureTimer(): void {
+  if (timer !== null) return
+  timer = setInterval(flush, FLUSH_INTERVAL_MS)
+  if (timer && typeof timer === 'object' && 'unref' in timer) {
+    timer.unref() // 不阻止进程退出
+  }
+}
+
+async function flush(): Promise<void> {
+  if (queue.length === 0) return
+  const batch = queue.splice(0, BATCH_SIZE)
   try {
+    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
+    const params = batch.flatMap(e => [
+      e.service, e.operation, e.success ? 1 : 0, e.durationMs,
+      e.promptTokens ?? null, e.completionTokens ?? null,
+      e.totalTokens ?? null, e.errorMessage ?? null,
+    ])
     await query(
       `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, error_message)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [entry.service, entry.operation, entry.success ? 1 : 0, entry.durationMs, entry.promptTokens ?? null, entry.completionTokens ?? null, entry.totalTokens ?? null, entry.errorMessage ?? null],
+       VALUES ${values}`,
+      params,
     )
   } catch (err) {
-    // 埋点写入失败不影响业务
-    logger.error('[cloud service log] 埋点写入失败:', err)
+    logger.error('[cloud service log] 批量写入失败:', err)
+    // 静默丢弃本批数据，不重试
   }
+}
+
+/**
+ * 写入一条云服务调用埋点（入队，不阻塞）。
+ * 调用方以 fire-and-forget 方式调用：void logCloudServiceCall(...)
+ */
+export function logCloudServiceCall(entry: CloudServiceCallEntry): void {
+  queue.push(entry)
+  ensureTimer()
+  if (queue.length >= BATCH_SIZE) {
+    void flush()
+  }
+}
+
+/** 进程退出前最后 flush（供 Nitro close 钩子调用） */
+export async function flushCloudServiceLog(): Promise<void> {
+  await flush()
 }

@@ -224,7 +224,7 @@ export async function processAdminBatch(params: {
   const results: AdminUploadItemResult[] = []
 
   for (let i = 0; i < files.length; i++) {
-    const file = files[i]
+    const file = files[i]!
     const parsed = { title: null as string | null, textContent: '' }
 
     // 解析 txt

@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
     deleteCookie(event, 'token')
     return validateError("登录状态已失效，请重新登录", 401)
   }
-  const dbUser = rows[0]
+  const dbUser = rows[0]!
   if (dbUser.deleted_at) {
     deleteCookie(event, 'token')
     return validateError("账号已注销", 401)

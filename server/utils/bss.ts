@@ -57,8 +57,8 @@ export async function queryAccountBalance(): Promise<AccountBalanceResult> {
   if (!client) {
     return { success: false, error: 'BSS AccessKey 未配置' }
   }
+  let callStart = 0
   try {
-    let callStart = 0
     callStart = Date.now()
     const res = await client.request('QueryAccountBalance', {}) as {
       Data?: {
@@ -120,8 +120,8 @@ export async function queryBill(billingCycle: string): Promise<BillResult> {
   if (!client) {
     return { success: false, error: 'BSS AccessKey 未配置' }
   }
+  let callStart = 0
   try {
-    let callStart = 0
     callStart = Date.now()
     const res = await client.request('QueryBill', {
       BillingCycle: billingCycle,

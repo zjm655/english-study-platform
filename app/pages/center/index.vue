@@ -74,7 +74,7 @@
             <span>提醒设置</span>
             <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
-          <div class="menu-item" @click="handleDarkMode">
+          <div class="menu-item">
             <el-icon><Moon /></el-icon>
             <span>深色模式</span>
             <el-switch v-model="isDarkMode" class="switch" />
@@ -127,7 +127,11 @@ const { isLoading: userStatsLoading, execute: fetchUserStats } = useUserStats()
 const checkinStats = ref<CheckinStats | null>(null)
 const userStats = ref<UserStats | null>(null)
 
-const isDarkMode = ref(false)
+const { theme, setTheme } = useTheme()
+const isDarkMode = computed({
+  get: () => theme.value === 'dark',
+  set: (v: boolean) => setTheme(v ? 'dark' : 'light'),
+})
 
 // 等级映射
 const levelText = computed(() => {
@@ -177,9 +181,7 @@ const handleNotification = () => {
   logger.log('提醒设置')
 }
 
-const handleDarkMode = () => {
-  logger.log('深色模式:', isDarkMode.value)
-}
+// 深色模式切换由 el-switch v-model 驱动，无需额外 handler
 
 const handleAbout = () => {
   logger.log('关于我们')

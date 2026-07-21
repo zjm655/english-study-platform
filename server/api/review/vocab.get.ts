@@ -36,23 +36,41 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     return validateError(result.error.issues[0]?.message || '参数校验失败', 400)
   }
-  const { limit = 10 } = result.data
+  const { limit = 10, offset = 0, keyword } = result.data
+
+  const keywordPattern = keyword ? `%${keyword}%` : null
 
   // 查询用户最近学过的 segment_id（JOIN segment 过滤已软删除的材料，避免其单词进入复习）
   const progressRows = await query<Pick<UserProgressRow, 'segment_id'>>(
     `SELECT up.segment_id FROM user_progress up
      JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
      WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
-     ORDER BY up.updatedAt DESC LIMIT ?`,
-    [userId, limit]
+     ORDER BY up.updatedAt DESC`,
+    [userId]
   )
 
   if (progressRows.length === 0) {
-    return validateSuccess([], '获取成功')
+    return validateSuccess({ items: [], total: 0 }, '获取成功')
   }
 
   const segmentIds = progressRows.map(r => r.segment_id)
   const placeholders = segmentIds.map(() => '?').join(', ')
+
+  // 构建关键词过滤条件
+  const keywordClause = keywordPattern
+    ? 'AND (v.word LIKE ? OR v.meaning LIKE ?)'
+    : ''
+  const keywordParams = keywordPattern ? [keywordPattern, keywordPattern] : []
+
+  // 查询总数
+  const countResult = await query<{ total: number }>(
+    `SELECT COUNT(*) AS total
+     FROM vocabulary v
+     WHERE v.segment_id IN (${placeholders})
+     ${keywordClause}`,
+    [...segmentIds, ...keywordParams]
+  )
+  const total = countResult[0]?.total ?? 0
 
   // 联查 vocabulary + media
   const vocabRows = await query<VocabularyRow & { vocab_media_key: string | null }>(
@@ -60,8 +78,10 @@ export default defineEventHandler(async (event) => {
      FROM vocabulary v
      LEFT JOIN media m ON v.media_id = m.id
      WHERE v.segment_id IN (${placeholders})
-     ORDER BY v.segment_id, v.sort_order`,
-    segmentIds
+     ${keywordClause}
+     ORDER BY v.segment_id, v.sort_order
+     LIMIT ? OFFSET ?`,
+    [...segmentIds, ...keywordParams, limit, offset]
   )
 
   // 签名音频
@@ -71,5 +91,5 @@ export default defineEventHandler(async (event) => {
     )
   )
 
-  return validateSuccess(rowsToReviewVocab(vocabRows, signedAudioUrls), '获取成功')
+  return validateSuccess({ items: rowsToReviewVocab(vocabRows, signedAudioUrls), total }, '获取成功')
 })

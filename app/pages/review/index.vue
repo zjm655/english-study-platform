@@ -32,6 +32,10 @@ const vocabList = ref<ReviewVocabItem[]>([])
 const vocabLoading = ref(false)
 const vocabError = ref<string | null>(null)
 const vocabLoaded = ref(false)
+const vocabTotal = ref(0)
+const vocabKeyword = ref('')
+const vocabOffset = ref(0)
+const VOCAB_PAGE = 10
 
 // 单词卡片状态机：currentIndex/isFlipped/isCompleted + toggleFlip/markKnown/markUnknown/next/reset
 const {
@@ -47,13 +51,18 @@ const {
   reset: restartVocab,
 } = useVocabCardState(() => vocabList.value)
 
-async function loadVocab() {
+async function loadVocab(append = false) {
   vocabLoading.value = true
   vocabError.value = null
   try {
-    const res = await getReviewVocab(10)
+    const res = await getReviewVocab(VOCAB_PAGE, append ? vocabOffset.value : 0, vocabKeyword.value || undefined)
     if (res?.code === 200 && res.data) {
-      vocabList.value = res.data
+      if (append) {
+        vocabList.value = [...vocabList.value, ...res.data.items]
+      } else {
+        vocabList.value = res.data.items
+      }
+      vocabTotal.value = res.data.total
     } else {
       vocabError.value = res?.message || '加载失败'
     }
@@ -64,6 +73,19 @@ async function loadVocab() {
     vocabLoaded.value = true
   }
 }
+
+function searchVocab() {
+  vocabOffset.value = 0
+  vocabList.value = []
+  loadVocab()
+}
+
+function loadMoreVocab() {
+  vocabOffset.value += VOCAB_PAGE
+  loadVocab(true)
+}
+
+const hasMoreVocab = computed(() => vocabList.value.length < vocabTotal.value)
 
 async function playVocabAudio(url: string | null) {
   if (!url) return
@@ -76,20 +98,28 @@ const materialList = ref<ReviewMaterialItem[]>([])
 const materialLoading = ref(false)
 const materialError = ref<string | null>(null)
 const materialLoaded = ref(false)
+const materialTotal = ref(0)
+const materialKeyword = ref('')
+const materialOffset = ref(0)
+const MATERIAL_PAGE = 5
 
 const questionIndex = ref(0)
 const userAnswers = ref<string[]>([])
 const showMaterialResult = ref(false)
 const isCorrect = ref(false)
 
-async function loadMaterial() {
-  if (materialLoaded.value) return
+async function loadMaterial(append = false) {
   materialLoading.value = true
   materialError.value = null
   try {
-    const res = await getReviewMaterial(5)
+    const res = await getReviewMaterial(MATERIAL_PAGE, append ? materialOffset.value : 0, materialKeyword.value || undefined)
     if (res?.code === 200 && res.data) {
-      materialList.value = res.data
+      if (append) {
+        materialList.value = [...materialList.value, ...res.data.items]
+      } else {
+        materialList.value = res.data.items
+      }
+      materialTotal.value = res.data.total
       // 仅加载成功才置位，失败时保持 false 使「重试」按钮可用
       materialLoaded.value = true
     } else {
@@ -101,6 +131,19 @@ async function loadMaterial() {
     materialLoading.value = false
   }
 }
+
+function searchMaterial() {
+  materialOffset.value = 0
+  materialList.value = []
+  loadMaterial()
+}
+
+function loadMoreMaterial() {
+  materialOffset.value += MATERIAL_PAGE
+  loadMaterial(true)
+}
+
+const hasMoreMaterial = computed(() => materialList.value.length < materialTotal.value)
 
 function switchToMaterial() {
   activeTab.value = 'material'
@@ -241,7 +284,7 @@ onMounted(() => {
       <!-- Error -->
       <div v-else-if="vocabError" class="error-container">
         <div class="error-text">{{ vocabError }}</div>
-        <button class="retry-btn" @click="loadVocab">重试</button>
+        <button class="retry-btn" @click="() => loadVocab()">重试</button>
       </div>
 
       <!-- Empty -->
@@ -256,8 +299,19 @@ onMounted(() => {
         <button class="restart-btn" @click="restartVocab">再来一轮</button>
       </div>
 
+      <!-- 搜索框 -->
+      <div v-else-if="vocabLoaded && vocabList.length && vocabKeyword" class="search-bar">
+        <el-input
+          v-model="vocabKeyword"
+          placeholder="搜索单词或释义..."
+          clearable
+          @input="searchVocab"
+          @clear="searchVocab"
+        />
+      </div>
+
       <!-- 卡片内容 -->
-      <div v-else-if="currentWord" class="vocab-content">
+      <div v-else-if="vocabLoaded && vocabList.length && currentWord" class="vocab-content">
         <div class="progress">{{ vocabCurrentIndex + 1 }} / {{ vocabList.length }}</div>
 
         <div class="flip-card" @click="toggleFlip">
@@ -308,6 +362,13 @@ onMounted(() => {
           <button class="action-btn action-btn--warning" @click="markUnknown">不认识</button>
           <button class="action-btn action-btn--primary" @click="nextVocab">→</button>
         </div>
+
+        <!-- 加载更多 -->
+        <div v-if="hasMoreVocab && !vocabLoading" class="load-more">
+          <button class="load-more-btn" @click="loadMoreVocab">
+            加载更多 ({{ vocabTotal - vocabList.length }} 个)
+          </button>
+        </div>
       </div>
     </div>
 
@@ -321,7 +382,7 @@ onMounted(() => {
       <!-- Error -->
       <div v-else-if="materialError" class="error-container">
         <div class="error-text">{{ materialError }}</div>
-        <button class="retry-btn" @click="loadMaterial">重试</button>
+        <button class="retry-btn" @click="() => loadMaterial()">重试</button>
       </div>
 
       <!-- Empty -->
@@ -336,8 +397,19 @@ onMounted(() => {
         <button class="restart-btn" @click="restartMaterial">再来一轮</button>
       </div>
 
+      <!-- 搜索框 -->
+      <div v-else-if="materialLoaded && materialList.length && materialKeyword" class="search-bar">
+        <el-input
+          v-model="materialKeyword"
+          placeholder="搜索材料标题..."
+          clearable
+          @input="searchMaterial"
+          @clear="searchMaterial"
+        />
+      </div>
+
       <!-- 材料内容 -->
-      <div v-else-if="currentMaterial" class="material-content">
+      <div v-else-if="materialLoaded && materialList.length && currentMaterial" class="material-content">
         <!-- 播放器 -->
         <div v-if="currentMaterial.audioUrl" class="audio-player">
           <button class="play-btn" @click="playMaterialAudio(currentMaterial.audioUrl)">
@@ -449,6 +521,13 @@ onMounted(() => {
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 加载更多 -->
+      <div v-if="hasMoreMaterial && !materialLoading" class="load-more">
+        <button class="load-more-btn" @click="loadMoreMaterial">
+          加载更多 ({{ materialTotal - materialList.length }} 个)
+        </button>
       </div>
     </div>
   </div>
@@ -956,5 +1035,33 @@ onMounted(() => {
 
 .next-btn--primary:not(:disabled):active {
   opacity: 0.9;
+}
+
+/* ===== 搜索框 ===== */
+.search-bar {
+  margin-bottom: 16px;
+}
+
+/* ===== 加载更多 ===== */
+.load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.load-more-btn {
+  padding: 8px 24px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.load-more-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
 }
 </style>

@@ -79,13 +79,13 @@ describe('管理员材料列表 - 参数强转与筛选', () => {
 
     expect(res.code).toBe(200)
     // 第一次查询的参数：[unitId, isPublic, pageSize, offset]，均应为数字
-    const params = mockQuery.mock.calls[0][1]
+    const params = mockQuery.mock.calls[0]![1]
     expect(params[0]).toBe(0)          // unitId 字符串 '0' → 数字 0
     expect(params[1]).toBe(1)          // isPublic 字符串 '1' → 数字 1
     expect(params[2]).toBe(20)         // pageSize
     expect(params[3]).toBe(20)         // offset = (2-1)*20
     // WHERE 含软删除过滤与筛选条件
-    const sql = mockQuery.mock.calls[0][0] as string
+    const sql = mockQuery.mock.calls[0]![0] as string
     expect(sql).toContain('s.deleted_at IS NULL')
     expect(sql).toContain('s.unit_id = ?')
     expect(sql).toContain('s.is_public = ?')
@@ -94,7 +94,7 @@ describe('管理员材料列表 - 参数强转与筛选', () => {
   it('keyword 以 LIKE 参数化传递（含通配符）', async () => {
     mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }])
     await listHandler(makeEvent({ user: ADMIN, query: { keyword: '英语' } }))
-    const params = mockQuery.mock.calls[0][1]
+    const params = mockQuery.mock.calls[0]![1]
     expect(params).toContain('%英语%')
   })
 })
@@ -126,7 +126,7 @@ describe('管理员材料详情', () => {
 
     expect(res.code).toBe(200)
     expect(res.data.questions).toHaveLength(1)
-    expect(res.data.vocabulary[0].word).toBe('w')
+    expect(res.data!.vocabulary![0]!.word).toBe('w')
     expect(res.data.unitTitle).toBe('U1')
   })
 })
@@ -174,7 +174,7 @@ describe('管理员材料编辑', () => {
     expect(mockConnExecute).toHaveBeenCalledTimes(4)
 
     // 第 1 次：UPDATE segment，questions 参数必须是 JSON 字符串
-    const [segSql, segParams] = mockConnExecute.mock.calls[0]
+    const [segSql, segParams] = mockConnExecute.mock.calls[0]!
     expect(segSql).toContain('UPDATE segment')
     const questionsParam = segParams[3]
     expect(typeof questionsParam).toBe('string')
@@ -183,19 +183,19 @@ describe('管理员材料编辑', () => {
     expect(segParams[4]).toBe(0)
 
     // 第 2 次：DELETE 未保留的词汇（保留 id=10）
-    const [delSql, delParams] = mockConnExecute.mock.calls[1]
+    const [delSql, delParams] = mockConnExecute.mock.calls[1]!
     expect(delSql).toContain('DELETE FROM vocabulary')
     expect(delSql).toContain('NOT IN')
     expect(delParams).toEqual([5, 10])
 
     // 第 3 次：UPDATE 词汇（id=10），SQL 不得包含 media_id
-    const [updSql, updParams] = mockConnExecute.mock.calls[2]
+    const [updSql, updParams] = mockConnExecute.mock.calls[2]!
     expect(updSql).toContain('UPDATE vocabulary')
     expect(updSql).not.toContain('media_id')
     expect(updParams).toContain(10)
 
     // 第 4 次：INSERT 新词
-    const [insSql] = mockConnExecute.mock.calls[3]
+    const [insSql] = mockConnExecute.mock.calls[3]!
     expect(insSql).toContain('INSERT INTO vocabulary')
   })
 })
@@ -213,7 +213,7 @@ describe('管理员材料软删除', () => {
     mockQuery.mockResolvedValueOnce({ affectedRows: 1 })
     const res = await deleteHandler(makeEvent({ user: ADMIN, params: { segId: '5' } }))
     expect(res.code).toBe(200)
-    const sql = mockQuery.mock.calls[0][0] as string
+    const sql = mockQuery.mock.calls[0]![0] as string
     expect(sql).toContain('deleted_at = NOW()')
     expect(sql).toContain('deleted_at IS NULL')
   })

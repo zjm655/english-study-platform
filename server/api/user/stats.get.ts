@@ -14,23 +14,23 @@ export default defineEventHandler(async (event) => {
     return validateError('未登录')
   }
 
-  const [completedRows] = await query<{ cnt: number | string }[]>(
+  const completedRows = await query<{ cnt: number | string }>(
     `SELECT COUNT(*) as cnt FROM user_progress WHERE user_id = ? AND phase4_done = 1`,
     [userId]
   )
-  const completedSegments = Number(completedRows?.cnt ?? 0)
+  const completedSegments = Number(completedRows[0]?.cnt ?? 0)
 
-  const [scoreRows] = await query<{ avg_score: number | string | null }[]>(
+  const scoreRows = await query<{ avg_score: number | string | null }>(
     `SELECT AVG(score) as avg_score FROM recording WHERE user_id = ? AND phase = 3 AND score IS NOT NULL`,
     [userId]
   )
-  const avgDubbingScore = scoreRows?.avg_score != null ? Math.round(Number(scoreRows.avg_score) * 10) / 10 : null
+  const avgDubbingScore = scoreRows[0]?.avg_score != null ? Math.round(Number(scoreRows[0].avg_score) * 10) / 10 : null
 
-  const [timeRows] = await query<{ last_time: string | null }[]>(
-    `SELECT MAX(updated_at) as last_time FROM user_progress WHERE user_id = ?`,
+  const timeRows = await query<{ last_time: string | null }>(
+    `SELECT MAX(updatedAt) as last_time FROM user_progress WHERE user_id = ?`,
     [userId]
   )
-  const lastStudyTime = timeRows?.last_time ?? null
+  const lastStudyTime = timeRows[0]?.last_time ?? null
 
   return validateSuccess({
     completedSegments,

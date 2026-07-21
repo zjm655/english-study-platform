@@ -46,7 +46,22 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     return validateError(result.error.issues[0]?.message || '参数校验失败', 400)
   }
-  const { limit = 5 } = result.data
+  const { limit = 5, offset = 0, keyword } = result.data
+
+  const keywordPattern = keyword ? `%${keyword}%` : null
+  const keywordClause = keywordPattern ? 'AND s.title LIKE ?' : ''
+  const keywordParams = keywordPattern ? [keywordPattern] : []
+
+  // 查询总数
+  const countResult = await query<{ total: number }>(
+    `SELECT COUNT(*) AS total
+     FROM user_progress up
+     JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
+     WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
+     ${keywordClause}`,
+    [userId, ...keywordParams]
+  )
+  const total = countResult[0]?.total ?? 0
 
   // 联查 user_progress + segment + media（duration 取自 media 表）
   const rows = await query<
@@ -58,9 +73,10 @@ export default defineEventHandler(async (event) => {
      JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
      LEFT JOIN media m ON s.media_id = m.id
      WHERE up.user_id = ? AND up.phase2_done = 1 AND up.deleted_at IS NULL
+     ${keywordClause}
      ORDER BY up.updatedAt DESC
-     LIMIT ?`,
-    [userId, limit]
+     LIMIT ? OFFSET ?`,
+    [userId, ...keywordParams, limit, offset]
   )
 
   // 对每行签名音频（seg_media_key 为 null 时返回 null）
@@ -70,5 +86,5 @@ export default defineEventHandler(async (event) => {
 
   const items = rowsToReviewMaterial(rows, signedAudioUrls)
 
-  return validateSuccess(items, '获取材料复习列表成功')
+  return validateSuccess({ items, total }, '获取材料复习列表成功')
 })

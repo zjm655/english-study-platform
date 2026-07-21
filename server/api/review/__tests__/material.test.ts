@@ -32,6 +32,7 @@ function makeRow(overrides: Partial<ReviewRow> = {}): ReviewRow {
     createdAt: '2026-01-01T00:00:00.000Z',
     seg_media_key: 'segments/1.mp3',
     seg_media_duration: '12.50',
+    deleted_at: null,
     ...overrides,
   }
 }
