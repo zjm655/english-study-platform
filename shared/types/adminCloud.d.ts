@@ -107,3 +107,21 @@ export interface DeepSeekBalanceResult {
 export interface DeepSeekStatResult {
   balance: DeepSeekBalanceResult
 }
+
+// ==================== 云服务趋势 ====================
+
+/** 趋势查询参数 */
+export interface CloudTrendQuery {
+  service: 'oss' | 'nls' | 'deepseek'
+  days?: number
+}
+
+/** 趋势数据 */
+export interface CloudTrendResult {
+  service: string
+  days: number
+  dates: string[]
+  callCounts: number[]
+  totalDurations: number[]
+  totalTokens: number[]
+}

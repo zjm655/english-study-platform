@@ -5,6 +5,7 @@ import { query } from '#server/utils/db'
 /** 单条埋点记录 */
 export interface ApiCallEntry {
   path: string
+  routePattern: string | null
   method: string
   statusCode: number
   businessCode: number | null
@@ -25,9 +26,9 @@ export interface ApiCallEntry {
 export async function logApiCall(entry: ApiCallEntry): Promise<void> {
   try {
     await query(
-      `INSERT INTO api_call_log (path, method, status_code, business_code, duration_ms, user_id, ip)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [entry.path, entry.method, entry.statusCode, entry.businessCode, entry.durationMs, entry.userId, entry.ip]
+      `INSERT INTO api_call_log (path, route_pattern, method, status_code, business_code, duration_ms, user_id, ip)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [entry.path, entry.routePattern, entry.method, entry.statusCode, entry.businessCode, entry.durationMs, entry.userId, entry.ip]
     )
   } catch (err) {
     // 埋点写入失败不影响业务

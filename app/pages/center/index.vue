@@ -37,6 +37,16 @@
             <div class="stat-value">{{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}</div>
             <div class="stat-label">累计学习</div>
           </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">{{ userStats?.completedSegments ?? 0 }}</div>
+            <div class="stat-label">已完成片段</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">{{ userStats?.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--' }}</div>
+            <div class="stat-label">配音平均分</div>
+          </div>
         </div>
       </div>
 
@@ -90,9 +100,11 @@
 import { UserFilled, Edit, TrophyBase, Bell, Moon, ArrowRight, InfoFilled, Platform } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
 import { useCheckinStats, useLogout } from '~/composables/user'
+import { useUserStats } from '~/composables/user/useUserStats'
 import { toastConfirm } from '~/utils/popup'
 import { ROLE_ADMIN } from '#shared/utils/role'
 import type { CheckinStats } from '~~/shared/types/user'
+import type { UserStats } from '#shared/types/user'
 
 definePageMeta({
   title: '个人中心'
@@ -111,7 +123,9 @@ const isAdmin = computed(() => user.value?.role === ROLE_ADMIN)
 // 打卡统计
 const { isLoading: statsLoading, execute: fetchCheckinStats } = useCheckinStats()
 const { execute: doLogout } = useLogout()
+const { isLoading: userStatsLoading, execute: fetchUserStats } = useUserStats()
 const checkinStats = ref<CheckinStats | null>(null)
+const userStats = ref<UserStats | null>(null)
 
 const isDarkMode = ref(false)
 
@@ -141,6 +155,10 @@ async function initStats() {
   const res = await fetchCheckinStats()
   if (res?.code === 200) {
     checkinStats.value = res.data
+  }
+  const statsRes = await fetchUserStats(undefined)
+  if (statsRes?.code === 200) {
+    userStats.value = statsRes.data
   }
 }
 

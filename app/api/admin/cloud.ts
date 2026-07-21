@@ -1,5 +1,5 @@
-import { adminCloudOssPath, adminCloudNlsPath, adminCloudEduPath, adminCloudBssPath, adminCloudDeepseekPath } from '../paths'
-import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult, DeepSeekStatResult } from '#shared/types/adminCloud'
+import { adminCloudOssPath, adminCloudNlsPath, adminCloudEduPath, adminCloudBssPath, adminCloudDeepseekPath, adminCloudTrendPath } from '../paths'
+import type { CloudEstimateQuery, OssStatResult, NlsStatResult, EduStatResult, BssStatResult, DeepSeekStatResult, CloudTrendQuery, CloudTrendResult } from '#shared/types/adminCloud'
 
 /** OSS 对象存储用量（本地估算 + 官方 GetBucketStat） */
 export const getAdminCloudOss = (options: CloudEstimateQuery = {}) => {
@@ -36,4 +36,13 @@ export const getAdminCloudBss = (options: { billingCycle?: string } = {}) => {
 /** DeepSeek 账户余额 */
 export const getAdminCloudDeepseek = () => {
   return request.json<DeepSeekStatResult>(adminCloudDeepseekPath)
+}
+
+/** 云服务调用趋势（按天聚合） */
+export const getAdminCloudTrend = (options: CloudTrendQuery) => {
+  const params = new URLSearchParams()
+  params.append('service', options.service)
+  if (options.days !== undefined && options.days !== null) params.append('days', String(options.days))
+  const query = params.toString()
+  return request.json<CloudTrendResult>(`${adminCloudTrendPath}?${query}`)
 }

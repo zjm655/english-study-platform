@@ -38,6 +38,15 @@
       </div>
     </div>
 
+    <!-- 调用趋势图 -->
+    <section class="panel trend-panel">
+      <header class="panel-head">
+        <h3 class="panel-title">调用趋势</h3>
+        <span class="panel-note">基于 cloud_service_call_log 按天聚合</span>
+      </header>
+      <div ref="trendChartRef" class="trend-chart"></div>
+    </section>
+
     <!-- 估算面板 -->
     <section class="panel">
       <header class="panel-head">
@@ -72,14 +81,26 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
+import { use, graphic, init } from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+import type { EChartsType } from 'echarts/core'
 import type { NlsStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudNls } from '~/composables/admin'
+import { useAdminCloudNls, useCloudTrend } from '~/composables/admin'
+
+use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 definePageMeta({ layout: 'admin' })
 
 const days = ref(7)
 const { isLoading, execute } = useAdminCloudNls()
+const { isLoading: trendLoading, execute: executeTrend } = useCloudTrend()
 const data = ref<NlsStatResult | null>(null)
+
+// 趋势图
+const trendChartRef = ref<HTMLElement | null>(null)
+let trendChart: EChartsType | null = null
 
 /** 估算识别时长（小时）：每次调用约 2 分钟 */
 const estimatedHours = computed(() => {
@@ -92,9 +113,57 @@ async function fetchData() {
   if (res.code === 200 && res.data) {
     data.value = res.data
   }
+  // 并行加载趋势数据
+  const trendRes = await executeTrend({ service: 'nls', days: days.value })
+  if (trendRes.code === 200 && trendRes.data) {
+    renderTrendChart(trendRes.data.dates, trendRes.data.callCounts, trendRes.data.totalDurations)
+  }
+}
+
+function renderTrendChart(dates: string[], callCounts: number[], totalDurations: number[]) {
+  if (!trendChartRef.value) return
+  if (!trendChart) {
+    trendChart = init(trendChartRef.value)
+  }
+  trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0 },
+    grid: { left: 50, right: 60, top: 20, bottom: 30 },
+    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
+    yAxis: [
+      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 } },
+      { type: 'value', name: '耗时(ms)', axisLabel: { fontSize: 11 } },
+    ],
+    series: [
+      {
+        name: '调用次数',
+        type: 'line',
+        data: callCounts,
+        smooth: true,
+        itemStyle: { color: '#409EFF' },
+        areaStyle: { color: new graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(64,158,255,0.25)' },
+          { offset: 1, color: 'rgba(64,158,255,0.02)' },
+        ])},
+      },
+      {
+        name: '总耗时(ms)',
+        type: 'line',
+        yAxisIndex: 1,
+        data: totalDurations,
+        smooth: true,
+        itemStyle: { color: '#E6A23C' },
+        areaStyle: { color: new graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(230,162,60,0.25)' },
+          { offset: 1, color: 'rgba(230,162,60,0.02)' },
+        ])},
+      },
+    ],
+  })
 }
 
 onMounted(() => fetchData())
+onUnmounted(() => { trendChart?.dispose() })
 </script>
 
 <style scoped>
@@ -126,6 +195,9 @@ onMounted(() => fetchData())
 .panel-note { font-size: 12px; color: var(--text-4); }
 .path-code { font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 12px; background: var(--bg); padding: 2px 6px; border-radius: 4px; }
 .estimate-note { margin-top: 12px; font-size: 12px; color: var(--text-3); line-height: 1.6; }
+
+.trend-panel { margin-bottom: 0; }
+.trend-chart { width: 100%; height: 280px; }
 
 @media (max-width: 1100px) {
   .metric-band { grid-template-columns: 1fr; }

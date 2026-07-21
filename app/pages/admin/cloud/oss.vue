@@ -43,6 +43,15 @@
       </div>
     </div>
 
+    <!-- 调用趋势图 -->
+    <section class="panel trend-panel">
+      <header class="panel-head">
+        <h3 class="panel-title">调用趋势</h3>
+        <span class="panel-note">基于 cloud_service_call_log 按天聚合</span>
+      </header>
+      <div ref="trendChartRef" class="trend-chart"></div>
+    </section>
+
     <div class="content-grid">
       <!-- 本地估算面板 -->
       <section class="panel">
@@ -123,20 +132,79 @@
 
 <script setup lang="ts">
 import { Refresh, WarningFilled } from '@element-plus/icons-vue'
+import { use, graphic, init } from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+import type { EChartsType } from 'echarts/core'
 import type { OssStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudOss } from '~/composables/admin'
+import { useAdminCloudOss, useCloudTrend } from '~/composables/admin'
+
+use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 definePageMeta({ layout: 'admin' })
 
 const days = ref(7)
 const { isLoading, execute } = useAdminCloudOss()
+const { isLoading: trendLoading, execute: executeTrend } = useCloudTrend()
 const data = ref<OssStatResult | null>(null)
+
+// 趋势图
+const trendChartRef = ref<HTMLElement | null>(null)
+let trendChart: EChartsType | null = null
 
 async function fetchData() {
   const res = await execute({ days: days.value })
   if (res.code === 200 && res.data) {
     data.value = res.data
   }
+  // 并行加载趋势数据
+  const trendRes = await executeTrend({ service: 'oss', days: days.value })
+  if (trendRes.code === 200 && trendRes.data) {
+    renderTrendChart(trendRes.data.dates, trendRes.data.callCounts, trendRes.data.totalDurations)
+  }
+}
+
+function renderTrendChart(dates: string[], callCounts: number[], totalDurations: number[]) {
+  if (!trendChartRef.value) return
+  if (!trendChart) {
+    trendChart = init(trendChartRef.value)
+  }
+  trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0 },
+    grid: { left: 50, right: 60, top: 20, bottom: 30 },
+    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
+    yAxis: [
+      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 } },
+      { type: 'value', name: '耗时(ms)', axisLabel: { fontSize: 11 } },
+    ],
+    series: [
+      {
+        name: '调用次数',
+        type: 'line',
+        data: callCounts,
+        smooth: true,
+        itemStyle: { color: '#409EFF' },
+        areaStyle: { color: new graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(64,158,255,0.25)' },
+          { offset: 1, color: 'rgba(64,158,255,0.02)' },
+        ])},
+      },
+      {
+        name: '总耗时(ms)',
+        type: 'line',
+        yAxisIndex: 1,
+        data: totalDurations,
+        smooth: true,
+        itemStyle: { color: '#E6A23C' },
+        areaStyle: { color: new graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(230,162,60,0.25)' },
+          { offset: 1, color: 'rgba(230,162,60,0.02)' },
+        ])},
+      },
+    ],
+  })
 }
 
 function formatBytes(bytes?: number): string {
@@ -153,6 +221,7 @@ function formatTime(timestamp?: number): string {
 }
 
 onMounted(() => fetchData())
+onUnmounted(() => { trendChart?.dispose() })
 </script>
 
 <style scoped>
@@ -196,6 +265,9 @@ onMounted(() => fetchData())
 .unavailable { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 16px; color: var(--text-4); text-align: center; }
 .unavailable p { font-size: 13px; font-weight: 600; color: var(--text-3); }
 .unavailable span { font-size: 12px; word-break: break-all; }
+
+.trend-panel { margin-bottom: 0; }
+.trend-chart { width: 100%; height: 280px; }
 
 @media (max-width: 1100px) {
   .metric-band { grid-template-columns: repeat(2, 1fr); }

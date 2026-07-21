@@ -11,12 +11,10 @@ import type { CloudEstimateSummary, CloudPathEstimate } from '#shared/types/admi
 
 /** 路径配置 */
 interface PathConfig {
-  /** 匹配路径（exact=false 时作为 LIKE 模式） */
-  path: string
+  /** 路由模式（如 /api/recording/:id/analyze），用于匹配 api_call_log.route_pattern */
+  pattern: string
   /** HTTP 方法 */
   method: string
-  /** 是否精确匹配（false 则用 LIKE，适用于含动态 ID 的路径） */
-  exact: boolean
 }
 
 /** 产品估算配置 */
@@ -34,8 +32,8 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
     unit: '次',
     unitPrice: 0.0001, // Put 请求费 0.01 元/万次
     paths: [
-      { path: '/api/recording', method: 'POST', exact: true },
-      { path: '/api/admin/segment/upload', method: 'POST', exact: true },
+      { pattern: '/api/recording', method: 'POST' },
+      { pattern: '/api/admin/segment/upload', method: 'POST' },
     ],
   },
   nls: {
@@ -43,9 +41,9 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
     unit: '次',
     unitPrice: 0.083, // 每次约 2 分钟音频 × 2.5 元/小时 ≈ 0.083 元
     paths: [
-      { path: '/api/segment/upload', method: 'POST', exact: true },
-      { path: '/api/recording', method: 'POST', exact: true }, // 录音上传也触发 ASR 校对
-      { path: '/api/admin/segment/upload', method: 'POST', exact: true },
+      { pattern: '/api/segment/upload', method: 'POST' },
+      { pattern: '/api/recording', method: 'POST' }, // 录音上传也触发 ASR 校对
+      { pattern: '/api/admin/segment/upload', method: 'POST' },
     ],
   },
   edu: {
@@ -53,7 +51,7 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
     unit: '次',
     unitPrice: 0.004, // 0.004 元/次
     paths: [
-      { path: '/api/evaluation/auth', method: 'POST', exact: true },
+      { pattern: '/api/evaluation/auth', method: 'POST' },
       // /api/recording/%/analyze 仅将前端评测结果入库，后端未调用智能科教平台，已移除
     ],
   },
@@ -78,19 +76,16 @@ export async function estimateServiceUsage(
   let totalCalls = 0
 
   for (const p of config.paths) {
-    // 时间条件强制走 idx_path_created 索引
+    // 时间条件强制走索引，route_pattern 精确匹配
     const timeCond = 'createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)'
-    const pathCond = p.exact
-      ? 'path = ? AND method = ?'
-      : 'path LIKE ? AND method = ?'
+    const sql = `SELECT COUNT(*) AS cnt FROM api_call_log WHERE ${timeCond} AND route_pattern = ? AND method = ?`
 
-    const sql = `SELECT COUNT(*) AS cnt FROM api_call_log WHERE ${timeCond} AND ${pathCond}`
-    const rows = await query<{ cnt: number | string }>(sql, [days, p.path, p.method])
+    const rows = await query<{ cnt: number | string }>(sql, [days, p.pattern, p.method])
     const count = Number(rows[0]?.cnt ?? 0)
 
     totalCalls += count
     byPath.push({
-      path: p.path,
+      path: p.pattern,
       method: p.method,
       count,
       unitPrice: config.unitPrice,

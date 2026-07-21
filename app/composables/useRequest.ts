@@ -70,7 +70,7 @@ export const useHandleRes = <Payload, Res>(
           clearTimeout(timer)
           timer = null
         }
-        resolveCode(logCfg)
+        void resolveCode(logCfg)
       }
     },
   }

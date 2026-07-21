@@ -1,5 +1,5 @@
 // server/plugins/apiCallLogger.ts
-// Nitro 服务端插件：API 调用埋点（运营统计数据源）。
+// Nitro 服务端插件：API 调用埋点（运营统计数据源）+ 限流保护。
 //
 // 为什么用 plugin 而非 middleware：
 // - server middleware 按文件名字母序执行，埋点中间件排在 auth 之前拿不到 event.context.user
@@ -8,9 +8,27 @@
 //
 // 性能保证：afterResponse 中仅做纯内存取值 + fire-and-forget 调用，对请求延迟零影响。
 export default defineNitroPlugin((nitroApp) => {
-  // 请求进入（中间件链之前）：仅对 /api 路径打时间戳
+  // 请求进入（中间件链之前）：限流检查 + 打时间戳
   nitroApp.hooks.hook('request', (event) => {
     if (!event.path.startsWith('/api')) return
+
+    // 限流检查
+    const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+    const { allowed, retryAfter } = checkRateLimit(ip, event.path)
+    if (!allowed) {
+      event.node.res.statusCode = 429
+      event.node.res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      event.node.res.setHeader('Retry-After', String(retryAfter))
+      event.node.res.end(JSON.stringify({
+        code: 429,
+        message: `请求过于频繁，请 ${retryAfter} 秒后重试`,
+        data: null,
+      }))
+      // 标记已处理，阻止后续 handler 执行
+      ;(event as any)._handled = true
+      return
+    }
+
     event.context._apiLogStart = Date.now()
   })
 
@@ -32,6 +50,7 @@ export default defineNitroPlugin((nitroApp) => {
     if (!start) return
     logApiCall({
       path: event.path.slice(0, 200),
+      routePattern: event.context.matchedRoute?.path ?? null,
       method: event.method,
       statusCode: event.node.res.statusCode,
       businessCode: (event.context._apiLogBusinessCode as number) ?? null,

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { VideoPlay, Check, Upload } from '@element-plus/icons-vue'
 import { useUnits, useUserProgress } from '~/composables/unit'
+import { useUserStats } from '~/composables/user/useUserStats'
 import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
+import type { UserStats } from '#shared/types/user'
 
 definePageMeta({
   title: '学习'
@@ -13,9 +15,12 @@ const units = ref<UnitWithProgress[]>([])
 const { isLoading: progressLoading, execute: fetchUserProgress } = useUserProgress()
 const userProgress = ref<UserProgress | null>(null)
 
+const { isLoading: statsLoading, execute: fetchUserStats } = useUserStats()
+const userStats = ref<UserStats | null>(null)
+
 const dataReady = ref(false)
 
-const isLoading = computed(() => unitsLoading.value || progressLoading.value)
+const isLoading = computed(() => unitsLoading.value || progressLoading.value || statsLoading.value)
 
 const currentProgress = computed(() => {
   if (!userProgress.value?.details?.length) {
@@ -99,6 +104,18 @@ function getContinueLink() {
   return lastDetail ? `/learn/unit/${lastDetail.unitId}` : '/learn'
 }
 
+function formatLastStudy(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  if (diffHours < 1) return '刚刚'
+  if (diffHours < 24) return `${diffHours}小时前`
+  const diffDays = Math.floor(diffHours / 24)
+  if (diffDays < 7) return `${diffDays}天前`
+  return `${date.getMonth() + 1}月${date.getDate()}日`
+}
+
 async function initProgress() {
   const progressRes = await fetchUserProgress(null)
   if (progressRes?.code === 200) {
@@ -117,6 +134,10 @@ async function initUnits() {
 
 async function initUser() {
   await initProgress()
+  const statsRes = await fetchUserStats(undefined)
+  if (statsRes?.code === 200) {
+    userStats.value = statsRes.data
+  }
   if (!isLoading.value)
     dataReady.value = true
 }
@@ -166,6 +187,22 @@ onMounted(() => {
           <el-icon><VideoPlay /></el-icon>
           <span>{{ continueText }}</span>
         </NuxtLink>
+      </div>
+
+      <!-- 学习统计概览 -->
+      <div class="stats-overview" v-if="userStats">
+        <div class="stats-item">
+          <span class="stats-value">{{ userStats.completedSegments }}</span>
+          <span class="stats-label">已完成片段</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-value">{{ userStats.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--' }}</span>
+          <span class="stats-label">配音平均分</span>
+        </div>
+        <div class="stats-item">
+          <span class="stats-value">{{ userStats.lastStudyTime ? formatLastStudy(userStats.lastStudyTime) : '--' }}</span>
+          <span class="stats-label">最近学习</span>
+        </div>
       </div>
 
       <div class="units-section">
@@ -321,6 +358,35 @@ onMounted(() => {
 
 .continue-btn:active {
   opacity: 0.85;
+}
+
+/* ========== 学习统计概览 ========== */
+.stats-overview {
+  display: flex;
+  justify-content: space-around;
+  background: var(--bg-1);
+  border-radius: 12px;
+  padding: 16px 12px;
+  margin-top: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.stats-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stats-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.stats-label {
+  font-size: 12px;
+  color: var(--text-3);
 }
 
 /* ========== 单元列表 ========== */

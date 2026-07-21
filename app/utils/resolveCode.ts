@@ -1,10 +1,10 @@
 import type { LogCfg } from '~/types/requestType'
 
 /**
- * 状态码处理工具：根据后端返回的 code 进行日志记录
- * TODO: 后续可扩展弹窗提示、路由跳转等逻辑
+ * 状态码处理工具：根据后端返回的 code 进行日志记录、鉴权失效处理
+ * 注意：401/403 会异步清除 Cookie 并跳转，调用方不应依赖其返回值
  */
-export function resolveCode(logCfg: LogCfg) {
+export async function resolveCode(logCfg: LogCfg) {
   switch (logCfg.code) {
     case 200:
       logger.log(logCfg.tips.success || logCfg.message || '请求成功')
@@ -15,16 +15,24 @@ export function resolveCode(logCfg: LogCfg) {
     case 500:
       logger.error(logCfg.tips.serverFail || logCfg.message || '服务器内部错误')
       break
-    case 401:
+    case 401: {
       logger.warn(logCfg.message || '登录已过期，请重新登录')
-      // TODO: 清除 Cookie 并跳转登录页
-      // const cookie = useCookie('token')
-      // cookie.value = null
-      // await navigateTo('/login')
+      const tokenCookie = useCookie('token')
+      tokenCookie.value = null
+      const userStore = useUserStore()
+      userStore.clearUser()
+      await navigateTo('/login')
       break
-    case 403:
+    }
+    case 403: {
       logger.warn(logCfg.message || '权限不足')
+      const tokenCookie = useCookie('token')
+      tokenCookie.value = null
+      const userStore = useUserStore()
+      userStore.clearUser()
+      await navigateTo('/')
       break
+    }
     case 404:
       logger.info(logCfg.message || '资源不存在')
       break

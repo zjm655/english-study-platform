@@ -11,5 +11,12 @@ export const useUserStore = defineStore('user', () => {
     user.value = data
   }
 
-  return { user, isLogin, isVerify, checkinStats, setUser }
+  function clearUser() {
+    user.value = null
+    isLogin.value = false
+    isVerify.value = false
+    checkinStats.value = null
+  }
+
+  return { user, isLogin, isVerify, checkinStats, setUser, clearUser }
 })

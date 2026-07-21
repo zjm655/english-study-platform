@@ -17,6 +17,12 @@ export interface CloudServiceCallEntry {
   success: boolean
   durationMs: number
   errorMessage?: string | null
+  /** DeepSeek 输入 token 数（仅 deepseek 服务） */
+  promptTokens?: number | null
+  /** DeepSeek 输出 token 数（仅 deepseek 服务） */
+  completionTokens?: number | null
+  /** DeepSeek 总 token 数（仅 deepseek 服务） */
+  totalTokens?: number | null
 }
 
 /**
@@ -26,9 +32,9 @@ export interface CloudServiceCallEntry {
 export async function logCloudServiceCall(entry: CloudServiceCallEntry): Promise<void> {
   try {
     await query(
-      `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, error_message)
-       VALUES (?, ?, ?, ?, ?)`,
-      [entry.service, entry.operation, entry.success ? 1 : 0, entry.durationMs, entry.errorMessage ?? null],
+      `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [entry.service, entry.operation, entry.success ? 1 : 0, entry.durationMs, entry.promptTokens ?? null, entry.completionTokens ?? null, entry.totalTokens ?? null, entry.errorMessage ?? null],
     )
   } catch (err) {
     // 埋点写入失败不影响业务

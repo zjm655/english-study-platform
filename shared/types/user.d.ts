@@ -28,3 +28,10 @@ export interface CheckinStats {
   maxStreakDays: number
   totalStudySeconds: number
 }
+
+/** 用户学习统计 */
+export interface UserStats {
+  completedSegments: number
+  avgDubbingScore: number | null
+  lastStudyTime: string | null
+}

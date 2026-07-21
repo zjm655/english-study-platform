@@ -284,7 +284,15 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
         totalTokens: data.usage.total_tokens,
       })
     }
-    void logCloudServiceCall({ service: 'deepseek', operation: 'generateContent', success: true, durationMs: Date.now() - callStart })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'generateContent',
+      success: true,
+      durationMs: Date.now() - callStart,
+      promptTokens: data?.usage?.prompt_tokens ?? null,
+      completionTokens: data?.usage?.completion_tokens ?? null,
+      totalTokens: data?.usage?.total_tokens ?? null,
+    })
 
     const content: string = data?.choices?.[0]?.message?.content ?? ''
 
@@ -421,7 +429,15 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
         totalTokens: data.usage.total_tokens,
       })
     }
-    void logCloudServiceCall({ service: 'deepseek', operation: 'generateTitle', success: true, durationMs: Date.now() - callStart })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'generateTitle',
+      success: true,
+      durationMs: Date.now() - callStart,
+      promptTokens: data?.usage?.prompt_tokens ?? null,
+      completionTokens: data?.usage?.completion_tokens ?? null,
+      totalTokens: data?.usage?.total_tokens ?? null,
+    })
 
     let title: string = data?.choices?.[0]?.message?.content ?? ''
 
