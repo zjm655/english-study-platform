@@ -12,6 +12,7 @@
 import crypto from 'node:crypto'
 import WebSocket from 'ws'
 import { fileLog, fileLogError } from './fileLogger'
+import { logCloudServiceCall } from './cloudServiceLog'
 
 // ==================== 常量 ====================
 
@@ -383,12 +384,14 @@ export async function textToSpeech(text: string, voice: string = DEFAULT_VOICE):
     const ms = Date.now() - start
     logger.info(`[tts] 转换成功 (${ms}ms, ${audio.length}B)`)
     fileLog('tts', 'info', '[tts] 转换成功', { ms, audioBytes: audio.length, textLength: trimmed.length })
+    void logCloudServiceCall({ service: 'tts', operation: 'textToSpeech', success: true, durationMs: ms })
     return { success: true, audio }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     const ms = Date.now() - start
     logger.error('[tts] 转换失败:', errMsg)
     fileLogError('tts', `[tts] 转换失败 (${ms}ms)`, errMsg, { textLength: trimmed.length })
+    void logCloudServiceCall({ service: 'tts', operation: 'textToSpeech', success: false, durationMs: ms, errorMessage: errMsg.substring(0, 500) })
 
     if (errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('连接超时')) {
       return { success: false, error: 'TTS 服务连接失败，可能需要代理' }

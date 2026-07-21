@@ -11,6 +11,7 @@
  */
 
 import { fileLog, fileLogError } from './fileLogger'
+import { logCloudServiceCall } from './cloudServiceLog'
 
 // ==================== 导出类型 ====================
 
@@ -244,7 +245,9 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
   // 3. 调用 DeepSeek API
   const url = `${ds.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
+  let callStart = 0
   try {
+    callStart = Date.now()
     const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
@@ -267,6 +270,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     if (!resp.ok) {
       const body = await resp.text()
       logger.error(`[aiContent] API 返回 ${resp.status}: ${body}`)
+      void logCloudServiceCall({ service: 'deepseek', operation: 'generateContent', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
       return { success: false, error: 'AI 服务暂时不可用' }
     }
 
@@ -280,6 +284,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
         totalTokens: data.usage.total_tokens,
       })
     }
+    void logCloudServiceCall({ service: 'deepseek', operation: 'generateContent', success: true, durationMs: Date.now() - callStart })
 
     const content: string = data?.choices?.[0]?.message?.content ?? ''
 
@@ -331,6 +336,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
+    void logCloudServiceCall({ service: 'deepseek', operation: 'generateContent', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: errMsg.substring(0, 500) })
 
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       logger.error('[aiContent] 生成超时')
@@ -376,7 +382,9 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
 
   const url = `${ds.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
+  let callStart = 0
   try {
+    callStart = Date.now()
     const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
@@ -399,6 +407,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
     if (!resp.ok) {
       const body = await resp.text()
       logger.error(`[aiContent] 标题生成 API 返回 ${resp.status}: ${body}`)
+      void logCloudServiceCall({ service: 'deepseek', operation: 'generateTitle', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
       return { success: false, error: 'AI 服务暂时不可用' }
     }
 
@@ -412,6 +421,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
         totalTokens: data.usage.total_tokens,
       })
     }
+    void logCloudServiceCall({ service: 'deepseek', operation: 'generateTitle', success: true, durationMs: Date.now() - callStart })
 
     let title: string = data?.choices?.[0]?.message?.content ?? ''
 
@@ -431,6 +441,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
     return { success: true, title }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
+    void logCloudServiceCall({ service: 'deepseek', operation: 'generateTitle', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: errMsg.substring(0, 500) })
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       logger.error('[aiContent] 标题生成超时')
       fileLogError('ai', '[aiContent] 标题生成超时', errMsg)

@@ -1,5 +1,6 @@
 import OSS from 'ali-oss'
 import { fileLog, fileLogError } from './fileLogger'
+import { logCloudServiceCall } from './cloudServiceLog'
 interface Options {
         /** access secret you create */
         accessKeyId: string;
@@ -200,9 +201,11 @@ export async function uploadWithKey(
 ): Promise<UploadResult> {
   const client = getClient();
   try {
+    const start = Date.now()
     const result = await client.put(ossKey, fileBuffer);
     logger.info(`[OSS] 上传成功: ${ossKey} (${fileBuffer.length}B)`);
     fileLog('oss', 'info', `[OSS] 上传成功: ${ossKey}`, { size: fileBuffer.length });
+    void logCloudServiceCall({ service: 'oss', operation: 'uploadWithKey', success: true, durationMs: Date.now() - start })
     return {
       url: result.url,
       name: result.name,
@@ -212,6 +215,7 @@ export async function uploadWithKey(
     const errMsg = error instanceof Error ? error.message : String(error);
     logger.error(`[OSS] 上传失败: ${ossKey}, 错误: ${errMsg}`);
     fileLogError('oss', `[OSS] 上传失败: ${ossKey}`, errMsg);
+    void logCloudServiceCall({ service: 'oss', operation: 'uploadWithKey', success: false, durationMs: Date.now() - start, errorMessage: errMsg.substring(0, 500) })
     throw error;
   }
 }

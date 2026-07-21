@@ -9,6 +9,7 @@
 
 import RPCClient from '@alicloud/pop-core'
 import { fileLog, fileLogError } from './fileLogger'
+import { logCloudServiceCall } from './cloudServiceLog'
 import { serverFetch } from './request'
 import { logger } from '../../shared/utils/logger'
 
@@ -96,12 +97,21 @@ async function getToken(config: NlsConfig): Promise<string> {
     accessKeySecret: config.accessKeySecret,
   })
 
-  const result = await client.request('CreateToken', {}) as TokenResponse
-  const token = result.Token.Id
-  const expireTime = result.Token.ExpireTime
+  let callStart = 0
+  try {
+    callStart = Date.now()
+    const result = await client.request('CreateToken', {}) as TokenResponse
+    const token = result.Token.Id
+    const expireTime = result.Token.ExpireTime
 
-  cachedToken = { token, expireTime }
-  return token
+    cachedToken = { token, expireTime }
+    void logCloudServiceCall({ service: 'nls', operation: 'createToken', success: true, durationMs: Date.now() - callStart })
+    return token
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err)
+    void logCloudServiceCall({ service: 'nls', operation: 'createToken', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: errMsg.substring(0, 500) })
+    throw err
+  }
 }
 
 // ==================== 核心导出函数 ====================
@@ -152,7 +162,9 @@ export async function speechToText(
   // 4. 调用 FlashRecognizer
   const url = `https://${fullConfig.gateway}/stream/v1/FlashRecognizer?appkey=${fullConfig.appKey}&token=${token}&format=${format}&sample_rate=16000`
 
+  let callStart2 = 0
   try {
+    callStart2 = Date.now()
     const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
@@ -169,6 +181,7 @@ export async function speechToText(
       const msg = data.message || `识别失败（status: ${data.status}）`
       logger.error('[speechToText] 识别失败:', msg)
       fileLogError('nls', '[speechToText] 识别失败', msg, { status: data.status })
+      void logCloudServiceCall({ service: 'nls', operation: 'speechToText', success: false, durationMs: Date.now() - callStart2, errorMessage: msg.substring(0, 500) })
       return { success: false, error: msg }
     }
 
@@ -178,6 +191,7 @@ export async function speechToText(
 
     logger.info(`[speechToText] 识别成功 (${text.length}字${duration !== undefined ? `, ${duration}ms` : ''})`)
     fileLog('nls', 'info', '[speechToText] 识别成功', { format, textLength: text.length, duration })
+    void logCloudServiceCall({ service: 'nls', operation: 'speechToText', success: true, durationMs: Date.now() - callStart2 })
     return {
       success: true,
       text,
@@ -187,6 +201,7 @@ export async function speechToText(
     const errMsg = err instanceof Error ? err.message : String(err)
     logger.error('[speechToText] 识别请求失败:', errMsg)
     fileLogError('nls', '[speechToText] 识别请求失败', errMsg)
+    void logCloudServiceCall({ service: 'nls', operation: 'speechToText', success: false, durationMs: callStart2 ? Date.now() - callStart2 : 0, errorMessage: errMsg.substring(0, 500) })
 
     if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
       return { success: false, error: '语音识别超时' }

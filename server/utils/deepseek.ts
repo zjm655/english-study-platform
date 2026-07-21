@@ -7,6 +7,7 @@
 
 import { serverFetch } from './request'
 import { fileLog, fileLogError } from './fileLogger'
+import { logCloudServiceCall } from './cloudServiceLog'
 import type { DeepSeekBalanceResult, DeepSeekBalanceInfo } from '#shared/types/adminCloud'
 
 /** DeepSeek 配置结构 */
@@ -42,7 +43,9 @@ export async function getDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
   // 3. 调用余额接口
   const url = `${ds.baseUrl.replace(/\/+$/, '')}/user/balance`
 
+  let callStart = 0
   try {
+    callStart = Date.now()
     const resp = await serverFetch(url, {
       method: 'GET',
       headers: {
@@ -57,6 +60,7 @@ export async function getDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
       const body = await resp.text()
       logger.error(`[deepseek] 余额查询返回 ${resp.status}: ${body}`)
       fileLogError('ai', '[deepseek] 余额查询失败', `HTTP ${resp.status}`)
+      void logCloudServiceCall({ service: 'deepseek', operation: 'checkBalance', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
       return { success: false, error: `DeepSeek API 返回 ${resp.status}` }
     }
 
@@ -93,9 +97,11 @@ export async function getDeepSeekBalance(): Promise<DeepSeekBalanceResult> {
       isAvailable: result.isAvailable,
       count: balances.length,
     })
+    void logCloudServiceCall({ service: 'deepseek', operation: 'checkBalance', success: true, durationMs: Date.now() - callStart })
     return result
   } catch (err) {
     const e = err as { message?: string }
+    void logCloudServiceCall({ service: 'deepseek', operation: 'checkBalance', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: String(e?.message ?? err).substring(0, 500) })
     logger.error('[deepseek] 余额查询异常:', err)
     fileLogError('ai', '[deepseek] 余额查询异常', e?.message ?? String(err))
     return {

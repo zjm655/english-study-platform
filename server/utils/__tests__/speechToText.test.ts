@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// ===== mock logger =====
+vi.mock('../../../shared/utils/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn() },
+}))
+// logger 也是 Nuxt 全局自动导入，cloudServiceLog.ts 以全局方式使用
+;(globalThis as Record<string, unknown>).logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn() }
+
 // ===== mock @alicloud/pop-core =====
 const mockRequest = vi.fn()
 vi.mock('@alicloud/pop-core', () => ({
@@ -14,14 +21,23 @@ const mockFetch = vi.fn()
 globalThis.fetch = mockFetch as unknown as typeof fetch
 
 // ===== mock useRuntimeConfig =====
-const mockRuntimeConfig = vi.fn((): { nls: Record<string, string> } => ({
+const defaultConfig = {
   nls: {
     accessKeyId: 'test-ak',
     accessKeySecret: 'test-sk',
     gateway: 'nls-gateway.aliyuncs.com',
     appKey: 'test-appkey',
   },
-}))
+  db: {
+    host: 'localhost',
+    port: '3306',
+    user: 'test',
+    password: 'test',
+    database: 'test',
+  },
+}
+
+const mockRuntimeConfig = vi.fn((): { nls: Record<string, string>; db: Record<string, string> } => defaultConfig)
 ;(globalThis as Record<string, unknown>).useRuntimeConfig = mockRuntimeConfig
 
 // 动态 import 避免 mock 提升问题
@@ -35,6 +51,7 @@ describe('speechToText', () => {
     vi.clearAllMocks()
     mockRequest.mockReset()
     mockFetch.mockReset()
+    mockRuntimeConfig.mockImplementation(() => defaultConfig)
   })
 
   it('当 audioBuffer 为空时返回错误', async () => {
@@ -45,7 +62,7 @@ describe('speechToText', () => {
   })
 
   it('当 NLS 配置缺失时返回错误', async () => {
-    mockRuntimeConfig.mockReturnValueOnce({ nls: {} })
+    mockRuntimeConfig.mockReturnValue({ nls: {}, db: { host: 'localhost', port: '3306', user: 'test', password: 'test', database: 'test' } })
     const { speechToText } = await loadModule()
     const result = await speechToText(Buffer.from('fake-audio'))
     expect(result.success).toBe(false)

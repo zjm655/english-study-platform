@@ -6,6 +6,7 @@
  */
 
 import { serverFetch } from './request'
+import { logCloudServiceCall } from './cloudServiceLog'
 
 export interface ModerationResult {
   /** 是否合规 */
@@ -55,7 +56,9 @@ export async function moderateText(text: string): Promise<ModerationResult> {
   // 2. 调用 DeepSeek API
   const url = `${ds.baseUrl.replace(/\/+$/, '')}/chat/completions`
 
+  let callStart = 0
   try {
+    callStart = Date.now()
     const resp = await serverFetch(url, {
       method: 'POST',
       headers: {
@@ -78,6 +81,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
     if (!resp.ok) {
       const body = await resp.text()
       logger.error(`[contentModeration] API 返回 ${resp.status}: ${body}`)
+      void logCloudServiceCall({ service: 'deepseek', operation: 'moderateText', success: false, durationMs: Date.now() - callStart, errorMessage: `HTTP ${resp.status}` })
       return { safe: false, reason: '内容审核服务暂时不可用' }
     }
 
@@ -91,6 +95,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
         totalTokens: data.usage.total_tokens,
       })
     }
+    void logCloudServiceCall({ service: 'deepseek', operation: 'moderateText', success: true, durationMs: Date.now() - callStart })
 
     const content: string = data?.choices?.[0]?.message?.content ?? ''
 
@@ -103,6 +108,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
       reason: result.safe ? null : (result.reason || '内容不合规'),
     }
   } catch (err) {
+    void logCloudServiceCall({ service: 'deepseek', operation: 'moderateText', success: false, durationMs: callStart ? Date.now() - callStart : 0, errorMessage: String(err).substring(0, 500) })
     logger.error('[contentModeration] 审核调用失败:', err)
     return { safe: false, reason: '内容审核服务暂时不可用' }
   }
