@@ -5,6 +5,7 @@ export interface StatsSummary {
   totalCalls: number      // 选定范围总调用量
   todayCalls: number      // 今日调用量
   errorRate: number       // HTTP≥400 占比（0-100，保留两位小数）
+  businessErrorRate: number // 业务错误码占比（business_code != 200 且非 NULL，0-100）
   avgDuration: number     // 平均耗时 ms（取整）
   activeUsers: number     // 去重调用用户数
   unauthCalls: number     // 未认证调用数（user_id IS NULL，安全视角指标）

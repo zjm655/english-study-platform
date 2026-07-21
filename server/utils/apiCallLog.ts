@@ -7,6 +7,7 @@ export interface ApiCallEntry {
   path: string
   method: string
   statusCode: number
+  businessCode: number | null
   durationMs: number
   userId: number | null
   ip: string | null
@@ -24,9 +25,9 @@ export interface ApiCallEntry {
 export async function logApiCall(entry: ApiCallEntry): Promise<void> {
   try {
     await query(
-      `INSERT INTO api_call_log (path, method, status_code, duration_ms, user_id, ip)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [entry.path, entry.method, entry.statusCode, entry.durationMs, entry.userId, entry.ip]
+      `INSERT INTO api_call_log (path, method, status_code, business_code, duration_ms, user_id, ip)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [entry.path, entry.method, entry.statusCode, entry.businessCode, entry.durationMs, entry.userId, entry.ip]
     )
   } catch (err) {
     // 埋点写入失败不影响业务

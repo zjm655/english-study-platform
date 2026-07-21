@@ -14,6 +14,18 @@ export default defineNitroPlugin((nitroApp) => {
     event.context._apiLogStart = Date.now()
   })
 
+  // 响应发送前：捕获业务错误码（body 为 handler 返回值，尚未序列化）
+  // 本项目所有 API 均返回 ResPayload<T>，即 { code, message, data }，body.code 必定存在。
+  nitroApp.hooks.hook('beforeResponse', (event, { body }) => {
+    if (!event.path.startsWith('/api')) return
+    if (body && typeof body === 'object' && 'code' in body) {
+      const code = (body as Record<string, unknown>).code
+      if (typeof code === 'number') {
+        event.context._apiLogBusinessCode = code
+      }
+    }
+  })
+
   // 响应发送后：异步写入埋点（不 await，写入失败静默吞错）
   nitroApp.hooks.hook('afterResponse', (event) => {
     const start = event.context._apiLogStart as number | undefined
@@ -22,6 +34,7 @@ export default defineNitroPlugin((nitroApp) => {
       path: event.path.slice(0, 200),
       method: event.method,
       statusCode: event.node.res.statusCode,
+      businessCode: (event.context._apiLogBusinessCode as number) ?? null,
       durationMs: Date.now() - start,
       userId: event.context.user?.id ?? null,
       ip: getRequestIP(event, { xForwardedFor: true }) ?? null,

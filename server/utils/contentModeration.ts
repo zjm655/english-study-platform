@@ -82,6 +82,16 @@ export async function moderateText(text: string): Promise<ModerationResult> {
     }
 
     const data = await resp.json()
+
+    // 采集 DeepSeek Token 用量
+    if (data?.usage) {
+      fileLog('ai', 'info', '[contentModeration] Token 用量', {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+      })
+    }
+
     const content: string = data?.choices?.[0]?.message?.content ?? ''
 
     // 3. 解析 JSON 响应

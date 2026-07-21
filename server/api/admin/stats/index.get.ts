@@ -12,8 +12,9 @@ import type {
  * 运营统计聚合看板（单一端点，一次返回全部 widget 数据）
  * GET /api/admin/stats?days=7
  *
- * 错误率口径：HTTP 状态码 ≥ 400（本项目业务错误码在 body 中，HTTP 恒 200，
- * 故此口径仅覆盖 HTTP 级错误；未认证调用数以 user_id IS NULL 补充安全视角）。
+ * 错误率口径：HTTP 状态码 >= 400。
+ * 业务错误率口径：business_code != 200 且非 NULL（从 beforeResponse 钩子捕获的 body.code）。
+ * 未认证调用数以 user_id IS NULL 补充安全视角。
  */
 export default defineEventHandler(async (event) => {
   // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
@@ -37,6 +38,8 @@ export default defineEventHandler(async (event) => {
        COUNT(*) AS totalCalls,
        ROUND(AVG(duration_ms)) AS avgDuration,
        ROUND(SUM(status_code >= 400) / COUNT(*) * 100, 2) AS errorRate,
+       ROUND(SUM(business_code IS NOT NULL AND business_code != 200)
+             / NULLIF(SUM(business_code IS NOT NULL), 0) * 100, 2) AS businessErrorRate,
        COUNT(DISTINCT user_id) AS activeUsers,
        SUM(user_id IS NULL) AS unauthCalls,
        SUM(createdAt >= CURDATE()) AS todayCalls
@@ -49,6 +52,7 @@ export default defineEventHandler(async (event) => {
     totalCalls: Number(s.totalCalls ?? 0),
     todayCalls: Number(s.todayCalls ?? 0),
     errorRate: Number(s.errorRate ?? 0),
+    businessErrorRate: Number(s.businessErrorRate ?? 0),
     avgDuration: Number(s.avgDuration ?? 0),
     activeUsers: Number(s.activeUsers ?? 0),
     unauthCalls: Number(s.unauthCalls ?? 0),

@@ -271,6 +271,16 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     }
 
     const data = await resp.json()
+
+    // 采集 DeepSeek Token 用量
+    if (data?.usage) {
+      fileLog('ai', 'info', '[aiContent] Token 用量', {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+      })
+    }
+
     const content: string = data?.choices?.[0]?.message?.content ?? ''
 
     if (!content) {
@@ -393,6 +403,16 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
     }
 
     const data = await resp.json()
+
+    // 采集 DeepSeek Token 用量
+    if (data?.usage) {
+      fileLog('ai', 'info', '[aiContent:title] Token 用量', {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens,
+      })
+    }
+
     let title: string = data?.choices?.[0]?.message?.content ?? ''
 
     if (!title) {

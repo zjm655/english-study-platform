@@ -35,6 +35,7 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
     unitPrice: 0.0001, // Put 请求费 0.01 元/万次
     paths: [
       { path: '/api/recording', method: 'POST', exact: true },
+      { path: '/api/admin/segment/upload', method: 'POST', exact: true },
     ],
   },
   nls: {
@@ -44,6 +45,7 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
     paths: [
       { path: '/api/segment/upload', method: 'POST', exact: true },
       { path: '/api/recording', method: 'POST', exact: true }, // 录音上传也触发 ASR 校对
+      { path: '/api/admin/segment/upload', method: 'POST', exact: true },
     ],
   },
   edu: {
@@ -52,7 +54,7 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
     unitPrice: 0.004, // 0.004 元/次
     paths: [
       { path: '/api/evaluation/auth', method: 'POST', exact: true },
-      { path: '/api/recording/%/analyze', method: 'POST', exact: false }, // 含动态 ID
+      // /api/recording/%/analyze 仅将前端评测结果入库，后端未调用智能科教平台，已移除
     ],
   },
 }
