@@ -9,7 +9,10 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "test": "vitest",
-    "migrate": "tsx server/db/migrate.ts"
+    "migrate": "tsx server/db/migrate.ts",
+    "typecheck": "nuxt typecheck",
+    "lint": "eslint .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@alicloud/pop-core": "^1.8.0",

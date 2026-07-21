@@ -106,7 +106,7 @@
         </div>
         <div class="metric-item">
           <div class="metric-value">
-            {{ detail.stats.avgScore != null ? detail.stats.avgScore.toFixed(1) : '-' }}
+            {{ detail.stats.avgScore != null ? Number(detail.stats.avgScore).toFixed(1) : '-' }}
           </div>
           <div class="metric-label">配音平均分</div>
         </div>

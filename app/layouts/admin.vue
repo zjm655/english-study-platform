@@ -43,6 +43,14 @@
           <el-icon><MagicStick /></el-icon>
           <span>DeepSeek</span>
         </el-menu-item>
+        <el-menu-item index="/admin/logs">
+          <el-icon><Notebook /></el-icon>
+          <span>日志管理</span>
+        </el-menu-item>
+        <el-menu-item index="/admin/config">
+          <el-icon><Setting /></el-icon>
+          <span>系统配置</span>
+        </el-menu-item>
       </el-menu>
 
       <div class="admin-sidebar__footer">
@@ -60,29 +68,25 @@
 </template>
 
 <script setup lang="ts">
-import { User, Cloudy, MagicStick, Back, Document, DataAnalysis } from '@element-plus/icons-vue'
+import { User, Cloudy, MagicStick, Back, Document, DataAnalysis, Notebook, Setting } from '@element-plus/icons-vue'
 
 const { init: initTheme } = useTheme()
 
 const route = useRoute()
 
-// 侧边栏高亮：编辑页（/admin/material/:id）与列表页同属「材料列表」，
-// 云服务子项（oss/nls/edu/bss）映射到父菜单 /admin/cloud 保持展开
+// 侧边栏高亮：default-active 必须精确匹配 el-menu-item 的 index（叶子节点）。
+// el-sub-menu 的展开由 Element Plus 根据 active item 的父链自动处理，无需手动映射。
 const activeMenu = computed(() => {
   const path = route.path
-  if (path.startsWith('/admin/material') && path !== '/admin/material/upload') {
+  // 材料编辑页（/admin/material/:id）归到「材料列表」
+  if (path.startsWith('/admin/material/') && path !== '/admin/material/upload' && path !== '/admin/material/records') {
     return '/admin/material'
   }
-  // 云服务子项：映射到父菜单保持展开，deepseek 独立菜单不受影响
-  if (
-    ['/admin/cloud/oss', '/admin/cloud/nls', '/admin/cloud/edu', '/admin/cloud/bss'].includes(path)
-  ) {
-    return '/admin/cloud'
-  }
-  // 用户详情页 + 操作日志：映射到用户管理父菜单保持展开
-  if (path.startsWith('/admin/users/') || path === '/admin/operation-logs') {
+  // 用户详情页（/admin/users/:id）归到「用户列表」
+  if (path.startsWith('/admin/users/') && path !== '/admin/users') {
     return '/admin/users'
   }
+  // 其余路径直接返回（云服务子项 /admin/cloud/oss 等精确匹配 el-menu-item index）
   return path
 })
 

@@ -2,10 +2,10 @@
  * 服务端文件日志工具（server-only）
  *
  * 设计要点：
- * - 按「来源 + 按天」分文件：logs/{source}-{YYYY-MM-DD}.log（日期按 Asia/Shanghai）
- * - 追加写入，首次写入时自动创建 logs 目录
+ * - 按「来源子文件夹 + 按天」分文件：logs/{source}/{YYYY-MM-DD}.log（日期按 Asia/Shanghai）
+ * - 追加写入，首次写入时自动创建对应 source 子目录
  * - 统一格式：[2026-07-19 14:30:05][LEVEL][source] message
- * - error 级别额外双写 error-{date}.log，便于集中查错
+ * - error 级别额外双写 logs/error/{date}.log，便于集中查错
  * - 写失败静默吞错，绝不影响业务主流程
  *
  * 使用约定：在控制台 logger 打印之后调用——控制台输出简要，文件日志详细。
@@ -19,7 +19,8 @@ export type LogSource =
 
 const LOG_DIR = join(process.cwd(), 'logs')
 
-let dirReady = false
+/** 已创建目录缓存（每个 source 只 mkdir 一次） */
+const readyDirs = new Set<string>()
 
 /** 当前日期（Asia/Shanghai）→ 2026-07-19 */
 function dateStr(): string {
@@ -54,16 +55,22 @@ function serialize(args: unknown[]): string {
  */
 export async function fileLog(source: LogSource, level: string, ...args: unknown[]): Promise<void> {
   try {
-    if (!dirReady) {
-      await mkdir(LOG_DIR, { recursive: true })
-      dirReady = true
+    const sourceDir = join(LOG_DIR, source)
+    if (!readyDirs.has(source)) {
+      await mkdir(sourceDir, { recursive: true })
+      readyDirs.add(source)
     }
     const line = `[${timestamp()}][${level.toUpperCase()}][${source}] ${serialize(args)}\n`
     const date = dateStr()
-    await appendFile(join(LOG_DIR, `${source}-${date}.log`), line, 'utf-8')
+    await appendFile(join(sourceDir, `${date}.log`), line, 'utf-8')
     // error 级别双写集中错误日志（来源已是 error 时不重复写）
     if (level.toLowerCase() === 'error' && source !== 'error') {
-      await appendFile(join(LOG_DIR, `error-${date}.log`), line, 'utf-8')
+      const errorDir = join(LOG_DIR, 'error')
+      if (!readyDirs.has('error')) {
+        await mkdir(errorDir, { recursive: true })
+        readyDirs.add('error')
+      }
+      await appendFile(join(errorDir, `${date}.log`), line, 'utf-8')
     }
   } catch {
     // 文件日志失败绝不影响业务

@@ -43,7 +43,15 @@ export default defineEventHandler(
     }>
   > => {
     const userId = event.context.user?.id
+    const userRole = event.context.user?.role ?? 0
     if (!userId) return validateError('未登录', 401)
+
+    // 每日评测额度检查（在阿里云调用之前拦截，避免无效外部请求）
+    const { checkDailyQuota } = await import('#server/utils/quotaChecker')
+    const quota = await checkDailyQuota(userId, userRole)
+    if (!quota.allowed) {
+      return validateError(`今日评测次数已达上限（${quota.used}/${quota.limit}），明天再试吧`, 403)
+    }
 
     const { aiContent } = useRuntimeConfig()
     const { appId, appSecret, authUrl } = aiContent
