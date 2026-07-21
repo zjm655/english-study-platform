@@ -32,6 +32,9 @@ const ROUTE_CONFIGS: Record<string, RateLimitConfig> = {
 /** IP -> 时间戳数组 */
 const windowMap = new Map<string, number[]>()
 
+/** 最大跟踪 IP 数（防止内存无限增长） */
+const MAX_ENTRIES = 10_000
+
 /** 定时清理间隔（每 5 分钟清理一次过期 IP） */
 const CLEANUP_INTERVAL_MS = 5 * 60_000
 
@@ -64,6 +67,10 @@ export function checkRateLimit(ip: string, path: string, userId?: number): RateL
   // 获取或创建该键的时间戳数组
   let timestamps = windowMap.get(key)
   if (!timestamps) {
+    // 超过上限时拒绝新键（防止内存无限增长），已有键不受影响
+    if (windowMap.size >= MAX_ENTRIES) {
+      return { allowed: false, retryAfter: 60 }
+    }
     timestamps = []
     windowMap.set(key, timestamps)
   }
