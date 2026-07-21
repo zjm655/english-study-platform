@@ -29,7 +29,7 @@ export interface CloudServiceCallEntry {
 const BATCH_SIZE = 50
 const FLUSH_INTERVAL_MS = 5000
 
-let queue: CloudServiceCallEntry[] = []
+const queue: CloudServiceCallEntry[] = []
 let timer: ReturnType<typeof setInterval> | null = null
 
 function ensureTimer(): void {

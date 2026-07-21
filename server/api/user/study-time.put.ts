@@ -34,7 +34,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats
       'SELECT * FROM user_checkin_log WHERE user_id = ? AND checkin_date = ?',
       [userId, todayStr]
     )
-    let todayLog = (logRows as CheckinLogRow[])[0]
+    const todayLog = (logRows as CheckinLogRow[])[0]
 
     // 2. 没有 log → 创建（未签到），首次调用以当前时间为基准
     if (!todayLog) {

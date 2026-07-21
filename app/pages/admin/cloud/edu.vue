@@ -1,6 +1,6 @@
 <!-- app/pages/admin/cloud/edu.vue：智能科教平台用量（本地埋点估算） -->
 <template>
-  <div class="cloud-page" v-loading="isLoading">
+  <div v-loading="isLoading" class="cloud-page">
     <!-- 页头 -->
     <div class="page-header">
       <div>

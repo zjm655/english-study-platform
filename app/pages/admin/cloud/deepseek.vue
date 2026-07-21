@@ -1,6 +1,6 @@
 <!-- app/pages/admin/cloud/deepseek.vue：DeepSeek AI 服务余额查询 -->
 <template>
-  <div class="cloud-page" v-loading="isLoading">
+  <div v-loading="isLoading" class="cloud-page">
     <!-- 页头 -->
     <div class="page-header">
       <div>

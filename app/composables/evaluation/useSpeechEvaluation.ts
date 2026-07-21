@@ -132,7 +132,7 @@ export function useSpeechEvaluation() {
         return null
       }
     }
-    if (process.dev) logger.warn('[SpeechEval] 未知的 audioDataCallback 分片类型:', typeof data)
+    if (import.meta.dev) logger.warn('[SpeechEval] 未知的 audioDataCallback 分片类型:', typeof data)
     return null
   }
 
@@ -180,7 +180,7 @@ export function useSpeechEvaluation() {
             serverTimeout: 30_000,
 
             engineFirstInitDone: () => {
-              if (process.dev) logger.log('[SpeechEval] 引擎初始化成功')
+              if (import.meta.dev) logger.log('[SpeechEval] 引擎初始化成功')
               isReady.value = true
               resolve()
             },
@@ -261,7 +261,7 @@ export function useSpeechEvaluation() {
 
     const file = new File([wavBlob], 'recording.wav', { type: 'audio/wav' })
     const mockEvent = { target: { files: [file] } } as unknown as Event
-    const eng = engine // eslint-disable-line prefer-const -- 回调内类型收窄
+    const eng = engine  
 
     return new Promise<EvaluationResult>((resolve, reject) => {
       pendingResolve = resolve
@@ -323,7 +323,7 @@ export function useSpeechEvaluation() {
       try {
         engine.stopRecord()
       } catch (e) {
-        if (process.dev) logger.warn('[SpeechEval] stopRecord 异常:', e)
+        if (import.meta.dev) logger.warn('[SpeechEval] stopRecord 异常:', e)
       }
     }
   }

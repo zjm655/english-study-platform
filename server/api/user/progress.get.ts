@@ -1,5 +1,6 @@
 import { query } from '#server/utils/db'
 import type { ProgressDetailRow, CountRow } from '#server/types/db'
+import { mapProgressRow } from '#shared/utils/progress'
 
 /**
  * 获取用户整体学习进度
@@ -56,13 +57,7 @@ export default defineEventHandler(async (event) => {
       segmentTitle: row.segmentTitle,
       unitId: row.unit_id,
       unitTitle: row.unitTitle,
-      phase1_done: !!row.phase1_done,
-      phase2_done: !!row.phase2_done,
-      phase3_done: !!row.phase3_done,
-      phase3_score: row.phase3_score ? Number(row.phase3_score) : null,
-      phase4_done: !!row.phase4_done,
-      phase4_score: row.phase4_score ? Number(row.phase4_score) : null,
-      updatedAt: row.updatedAt
+      ...mapProgressRow(row),
     }))
   }, '获取用户进度成功', 200)
 })

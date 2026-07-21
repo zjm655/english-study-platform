@@ -2,6 +2,7 @@ import { query } from '#server/utils/db'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
 import type { UnitRow, UserProgressRow } from '#server/types/db'
 import type { UnitProgressDetail } from '#shared/types/unit'
+import { mapProgressRow, DEFAULT_PROGRESS } from '#shared/utils/progress'
 
 /** 生成签名 URL：使用 media 表的 object_key */
 async function signFromMedia(
@@ -88,25 +89,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
       isMine: s.isMine === 1,
       progress: (() => {
         const p = progressMap.get(s.id)
-        return p
-          ? {
-              phase1_done: p.phase1_done === 1,
-              phase2_done: p.phase2_done === 1,
-              phase3_done: p.phase3_done === 1,
-              phase3_score: p.phase3_score ? Number(p.phase3_score) : null,
-              phase4_done: p.phase4_done === 1,
-              phase4_score: p.phase4_score ? Number(p.phase4_score) : null,
-              updatedAt: p.updatedAt,
-            }
-          : {
-              phase1_done: false,
-              phase2_done: false,
-              phase3_done: false,
-              phase3_score: null,
-              phase4_done: false,
-              phase4_score: null,
-              updatedAt: null,
-            }
+        return p ? mapProgressRow(p) : { ...DEFAULT_PROGRESS }
       })(),
     }))
   )

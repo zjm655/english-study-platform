@@ -2,6 +2,7 @@ import { query } from '#server/utils/db'
 import { signUrl, MATERIAL_EXPIRE, WORD_EXPIRE } from '#server/utils/oss'
 import type { SegmentRow, UnitRow, VocabularyRow, UserProgressRow } from '#server/types/db'
 import type { SegmentDetail, SegmentPhaseProgress, VocabularyItem } from '#shared/types/unit'
+import { mapProgressRow, DEFAULT_PROGRESS } from '#shared/utils/progress'
 
 /**
  * 生成签名 URL：使用 media 表的 object_key
@@ -79,24 +80,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
   const progressRow = progressRows[0]
 
   const progress: SegmentPhaseProgress = progressRow
-    ? {
-        phase1_done: progressRow.phase1_done === 1,
-        phase2_done: progressRow.phase2_done === 1,
-        phase3_done: progressRow.phase3_done === 1,
-        phase3_score: progressRow.phase3_score ? Number(progressRow.phase3_score) : null,
-        phase4_done: progressRow.phase4_done === 1,
-        phase4_score: progressRow.phase4_score ? Number(progressRow.phase4_score) : null,
-        updatedAt: progressRow.updatedAt,
-      }
-    : {
-        phase1_done: false,
-        phase2_done: false,
-        phase3_done: false,
-        phase3_score: null,
-        phase4_done: false,
-        phase4_score: null,
-        updatedAt: null,
-      }
+    ? mapProgressRow(progressRow)
+    : { ...DEFAULT_PROGRESS }
 
   // 5. 组合返回
   const result: SegmentDetail = {

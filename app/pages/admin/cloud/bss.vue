@@ -1,6 +1,6 @@
 <!-- app/pages/admin/cloud/bss.vue：BSS 费用中心（账户余额 + 账单明细） -->
 <template>
-  <div class="cloud-page" v-loading="isLoading">
+  <div v-loading="isLoading" class="cloud-page">
     <!-- 页头 -->
     <div class="page-header">
       <div>
@@ -83,7 +83,7 @@
             </el-table-column>
           </el-table>
           <el-empty v-else description="该账期无账单记录" :image-size="64" />
-          <p class="bill-total" v-if="data.bill.items?.length">
+          <p v-if="data.bill.items?.length" class="bill-total">
             共 {{ data.bill.totalCount ?? data.bill.items.length }} 条 ·
             实付合计 ￥{{ totalPayment }}
           </p>

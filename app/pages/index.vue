@@ -89,7 +89,7 @@ onMounted(() => {
             {{ greeting }}，{{ user?.nickname || '学习者' }}
           </ClientOnly>
         </div>
-        <div class="streak-badge" v-if="checkinStats?.currentStreakDays">
+        <div v-if="checkinStats?.currentStreakDays" class="streak-badge">
           <el-icon><Sunny /></el-icon>
           <span>连续 {{ checkinStats.currentStreakDays }} 天</span>
         </div>
@@ -111,10 +111,10 @@ onMounted(() => {
 
       <!-- 开始学习按钮 -->
       <div class="learn-section">
-        <NuxtLink to="/learn" class="learn-btn" v-if="isCheckedIn">
+        <NuxtLink v-if="isCheckedIn" to="/learn" class="learn-btn">
           开始学习
         </NuxtLink>
-        <div class="learn-btn" v-else="isCheckedIn" @click="handleCheckin" style="cursor: pointer;">
+        <div v-else="isCheckedIn" class="learn-btn" style="cursor: pointer;" @click="handleCheckin">
           点击签到
         </div>
 

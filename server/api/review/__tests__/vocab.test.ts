@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest'
 import type { VocabularyRow } from '#server/types/db'
 import type { ReviewVocabItem } from '#shared/types/review'
 
+import { rowsToReviewVocab } from '../vocab.get'
+
 // 在所有 import 之前设置 Nuxt 自动注入的全局函数
 vi.hoisted(() => {
   ;(globalThis as any).defineEventHandler = (handler: any) => handler
@@ -14,8 +16,6 @@ vi.mock('#server/utils/validate', () => ({
   validateError: vi.fn(),
   validateSuccess: vi.fn(),
 }))
-
-import { rowsToReviewVocab } from '../vocab.get'
 
 type VocabMediaRow = VocabularyRow & { vocab_media_key: string | null }
 

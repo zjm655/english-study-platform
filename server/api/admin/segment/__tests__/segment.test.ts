@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+import listHandler from '../index.get'
+import detailHandler from '../[segId].get'
+import putHandler from '../[segId].put'
+import deleteHandler from '../[segId].delete'
+
 // handler 级集成测试：覆盖管理员材料 CRUD 的权限门禁（403）、列表查询参数强转、
 // 编辑 schema 校验与词汇 diff、软删除 affectedRows=0 → 404。走真实 validate schema。
 
@@ -23,11 +28,6 @@ vi.mock('#server/utils/db', () => ({
   withTransaction: mockWithTransaction,
 }))
 vi.mock('h3', () => ({ readBody: mockReadBody }))
-
-import listHandler from '../index.get'
-import detailHandler from '../[segId].get'
-import putHandler from '../[segId].put'
-import deleteHandler from '../[segId].delete'
 
 // ============ 辅助 ============
 

@@ -1,6 +1,6 @@
 <!-- app/pages/admin/cloud/oss.vue：OSS 对象存储用量（本地埋点估算 + 官方 GetBucketStat） -->
 <template>
-  <div class="cloud-page" v-loading="isLoading">
+  <div v-loading="isLoading" class="cloud-page">
     <!-- 页头 -->
     <div class="page-header">
       <div>
@@ -103,19 +103,19 @@
           </div>
           <!-- 存储类型细分 -->
           <div class="stat-divider"></div>
-          <div class="stat-row" v-if="(data.bucketStat.standardStorage ?? 0) > 0">
+          <div v-if="(data.bucketStat.standardStorage ?? 0) > 0" class="stat-row">
             <span>标准存储</span><b>{{ formatBytes(data.bucketStat.standardStorage) }} / {{ data.bucketStat.standardObjectCount?.toLocaleString() ?? 0 }} 个</b>
           </div>
-          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.infrequentAccessStorage ?? 0) > 0">
+          <div v-if="(data.bucketStat.infrequentAccessStorage ?? 0) > 0" class="stat-row stat-row--dim">
             <span>低频存储</span><b>{{ formatBytes(data.bucketStat.infrequentAccessStorage) }} / {{ data.bucketStat.infrequentAccessObjectCount?.toLocaleString() ?? 0 }} 个</b>
           </div>
-          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.archiveStorage ?? 0) > 0">
+          <div v-if="(data.bucketStat.archiveStorage ?? 0) > 0" class="stat-row stat-row--dim">
             <span>归档存储</span><b>{{ formatBytes(data.bucketStat.archiveStorage) }} / {{ data.bucketStat.archiveObjectCount?.toLocaleString() ?? 0 }} 个</b>
           </div>
-          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.coldArchiveStorage ?? 0) > 0">
+          <div v-if="(data.bucketStat.coldArchiveStorage ?? 0) > 0" class="stat-row stat-row--dim">
             <span>冷归档</span><b>{{ formatBytes(data.bucketStat.coldArchiveStorage) }} / {{ data.bucketStat.coldArchiveObjectCount?.toLocaleString() ?? 0 }} 个</b>
           </div>
-          <div class="stat-row stat-row--dim" v-if="(data.bucketStat.deepColdArchiveStorage ?? 0) > 0">
+          <div v-if="(data.bucketStat.deepColdArchiveStorage ?? 0) > 0" class="stat-row stat-row--dim">
             <span>深度冷归档</span><b>{{ formatBytes(data.bucketStat.deepColdArchiveStorage) }} / {{ data.bucketStat.deepColdArchiveObjectCount?.toLocaleString() ?? 0 }} 个</b>
           </div>
           <p class="traffic-note">⚠️ 流量数据（内/外网收发）不在 GetBucketStat 中，需通过阿里云 BSS 账单或 CloudMonitor 控制台查看</p>

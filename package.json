@@ -32,13 +32,17 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@nuxt/eslint-config": "^1.16.0",
     "@nuxt/test-utils": "^4.0.3",
     "@types/ali-oss": "^6.23.3",
     "@types/bcrypt": "^6.0.0",
     "@types/howler": "^2.2.13",
     "@types/ws": "^8.18.1",
     "@vue/test-utils": "^2.4.11",
+    "eslint": "^10.7.0",
+    "eslint-config-prettier": "^10.1.8",
     "happy-dom": "^20.10.6",
+    "prettier": "^3.9.6",
     "typescript": "5.8.2",
     "unplugin-auto-import": "^21.0.0",
     "vitest": "^4.1.10",

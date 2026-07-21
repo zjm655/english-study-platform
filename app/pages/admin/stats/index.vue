@@ -1,6 +1,6 @@
 <!-- app/pages/admin/stats/index.vue：运营统计看板（API 调用埋点聚合展示） -->
 <template>
-  <div class="stats-page" v-loading="isLoading">
+  <div v-loading="isLoading" class="stats-page">
     <!-- 页头：标题 + 实时采集指示 + 时间范围切换 -->
     <div class="page-header">
       <div>
@@ -68,7 +68,7 @@
           <h3 class="panel-title">错误路径分布</h3>
           <span class="panel-note">HTTP ≥ 400</span>
         </header>
-        <div class="error-list" v-if="statsData?.errorPaths.length">
+        <div v-if="statsData?.errorPaths.length" class="error-list">
           <div
             v-for="(item, idx) in statsData.errorPaths"
             :key="item.path + item.method"

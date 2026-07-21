@@ -108,7 +108,7 @@ function onMaterialEnded() {
 /** 等待 audioDataCallback 组装完 ogg（isLast 与结果回流时序不定，短轮询） */
 async function waitForRecordedAudio(timeoutMs = 1500): Promise<Blob | null> {
   const start = Date.now()
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     const blob = getRecordedAudio()
     if (blob) return blob

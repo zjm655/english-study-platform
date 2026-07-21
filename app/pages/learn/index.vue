@@ -189,7 +189,7 @@ onMounted(() => {
     </div>
 
     <template v-else>
-      <div class="progress-card" v-if="currentProgress">
+      <div v-if="currentProgress" class="progress-card">
         <div class="progress-header">
           <div class="progress-header__unit">{{ currentProgress.unitTitle }}</div>
           <div class="progress-header__segment">{{ currentProgress.segmentTitle }}</div>
@@ -224,7 +224,7 @@ onMounted(() => {
       </div>
 
       <!-- 学习统计概览 -->
-      <div class="stats-overview" v-if="userStats">
+      <div v-if="userStats" class="stats-overview">
         <div class="stats-item">
           <span class="stats-value">{{ userStats.completedSegments }}</span>
           <span class="stats-label">已完成片段</span>
@@ -241,7 +241,7 @@ onMounted(() => {
 
       <div class="units-section">
         <div class="units-section__title">全部单元</div>
-        <div class="unit-list" v-if="!unitsLoading && units.length">
+        <div v-if="!unitsLoading && units.length" class="unit-list">
           <NuxtLink
             v-for="unit in units"
             :key="unit.id"

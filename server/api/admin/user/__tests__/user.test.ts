@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+import listHandler from '../index.get'
+import putHandler from '../[userId].put'
+import statusHandler from '../[userId]/status.put'
+import deleteHandler from '../[userId].delete'
+
 // handler 级集成测试：覆盖管理员用户管理的权限门禁（403）、列表 state/keyword 过滤、
 // 封禁护栏（自己/管理员）、销号 affectedRows、资料修改 email 查重。走真实 validate schema。
 
@@ -20,11 +25,6 @@ const { mockQuery, mockReadBody, mockLogAdminOperation } = vi.hoisted(() => ({
 vi.mock('#server/utils/db', () => ({ query: mockQuery }))
 vi.mock('#server/utils/adminLog', () => ({ logAdminOperation: mockLogAdminOperation }))
 vi.mock('h3', () => ({ readBody: mockReadBody }))
-
-import listHandler from '../index.get'
-import putHandler from '../[userId].put'
-import statusHandler from '../[userId]/status.put'
-import deleteHandler from '../[userId].delete'
 
 // ============ 辅助 ============
 

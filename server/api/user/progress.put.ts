@@ -3,6 +3,7 @@ import { validateError, validateSuccess, progressSchema } from '#server/utils/va
 import type { UserProgressRow } from '#server/types/db'
 import type { ResultSetHeader } from 'mysql2'
 import type { ZodSafeParseResult } from 'zod'
+import { mapProgressRow } from '#shared/utils/progress'
 
 /**
  * 更新用户学习进度
@@ -81,12 +82,6 @@ export default defineEventHandler(async (event) => {
 
   return validateSuccess({
     segmentId: result.segment_id,
-    phase1_done: !!result.phase1_done,
-    phase2_done: !!result.phase2_done,
-    phase3_done: !!result.phase3_done,
-    phase3_score: result.phase3_score ? Number(result.phase3_score) : null,
-    phase4_done: !!result.phase4_done,
-    phase4_score: result.phase4_score ? Number(result.phase4_score) : null,
-    updatedAt: result.updatedAt
+    ...mapProgressRow(result),
   }, '更新进度成功', 200)
 })

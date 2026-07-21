@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+import authMiddleware from '../auth'
+
 // 中间件级测试：覆盖封禁/销号即时拦截（deleted_at→401、status=0→403）、正常放行、admin 门禁。
 // verifyToken/getCookie/deleteCookie/validateError/defineEventHandler 均为 Nuxt 自动导入，
 // 在 vitest node 环境手动挂全局。
@@ -17,8 +19,6 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('#server/utils/db', () => ({ query: mocks.mockQuery }))
-
-import authMiddleware from '../auth'
 
 // ============ 辅助 ============
 

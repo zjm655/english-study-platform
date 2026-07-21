@@ -42,8 +42,8 @@ function handleRetry() {
       </div>
       <div
         v-if="error.statusCode !== 404"
-        class="error-detail"
         v-show="error.stack"
+        class="error-detail"
       >
         <details>
           <summary>技术细节</summary>

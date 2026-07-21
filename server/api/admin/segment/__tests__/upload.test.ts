@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+import handler from '../upload.post'
+
 // handler 级集成测试：覆盖 C1（multipart 字符串 unitId 强转）、C3（isPublic 默认）、
 // S5（输入上限）与越权 403。走真实 adminUploadSchema（不 mock validate），堵住旧测试
 // 直调 processAdminMaterial（传数字）绕过 handler 的盲区。
@@ -21,8 +23,6 @@ vi.mock('#server/utils/adminUpload', () => ({
 }))
 vi.mock('#server/utils/textParser', () => ({ parseTxtFile: vi.fn() }))
 vi.mock('#imports', () => ({ useRuntimeConfig: () => ({ oss: { bucket: 'test-bucket' } }) }))
-
-import handler from '../upload.post'
 
 // ============ 辅助 ============
 

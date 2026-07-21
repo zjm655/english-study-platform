@@ -55,7 +55,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
     ? requestIp
     : getMachineIp()
 
-  if (process.dev) {
+  if (import.meta.dev) {
     logger.log(`[evaluation auth] requestIp: "${requestIp}", 使用 IP: "${userClientIp}", userId: ${userId}`)
   }
 
@@ -74,7 +74,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<{
     .join('&')
   const requestSign = crypto.createHash('md5').update(signStr, 'utf8').digest('hex')
 
-  if (process.dev) {
+  if (import.meta.dev) {
     logger.log('[evaluation auth] signStr:', signStr)
     logger.log('[evaluation auth] requestSign:', requestSign)
   }

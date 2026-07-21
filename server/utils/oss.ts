@@ -1,6 +1,10 @@
 import OSS from 'ali-oss'
 import { fileLog, fileLogError } from './fileLogger'
 import { logCloudServiceCall } from './cloudServiceLog'
+
+// ==================== Bucket 统计（管理后台云服务模块） ====================
+
+import type { OssBucketStat } from '#shared/types/adminCloud'
 interface Options {
         /** access secret you create */
         accessKeyId: string;
@@ -323,10 +327,6 @@ export async function uploadFilePublic(fileBuffer: Buffer, fileName: string): Pr
     size: fileBuffer.length,
   };
 }
-
-// ==================== Bucket 统计（管理后台云服务模块） ====================
-
-import type { OssBucketStat } from '#shared/types/adminCloud'
 
 /**
  * 获取 Bucket 存储统计（官方 GetBucketStat API）。

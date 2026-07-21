@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+import { processAdminMaterial, processAdminBatch } from '../adminUpload'
+
 // ===== adminUpload 测试 =====
 // TDD: 先于 adminUpload.ts 编写，预期全部失败
 
@@ -43,8 +45,6 @@ vi.mock('node:crypto', () => ({ randomUUID: vi.fn().mockReturnValue('mock-uuid')
 vi.mock('../../../shared/utils/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
-
-import { processAdminMaterial, processAdminBatch } from '../adminUpload'
 
 // ============ 辅助 ============
 

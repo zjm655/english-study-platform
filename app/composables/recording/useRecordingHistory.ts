@@ -1,6 +1,7 @@
 import { useRecordingList } from './useRecordingList'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import type { Recording } from '#shared/types/recording'
+import { formatDuration } from '#shared/utils/format'
 
 /**
  * 录音历史列表共享逻辑（Phase3 配音 / Phase4 跟读复用）。
@@ -43,14 +44,6 @@ export function useRecordingHistory(segmentId: number, phase: 3 | 4) {
 
   // 完成按钮是否可用
   const canComplete = computed(() => bestScore.value !== null)
-
-  // 格式化时长
-  function formatDuration(seconds: number | null): string {
-    if (seconds === null || seconds === undefined) return '00:00'
-    const m = Math.floor(seconds / 60)
-    const s = Math.floor(seconds % 60)
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  }
 
   // 选中一条录音
   function selectRecording(id: number) {

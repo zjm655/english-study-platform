@@ -23,7 +23,7 @@ export interface ApiCallEntry {
 const BATCH_SIZE = 100
 const FLUSH_INTERVAL_MS = 5000
 
-let queue: ApiCallEntry[] = []
+const queue: ApiCallEntry[] = []
 let timer: ReturnType<typeof setInterval> | null = null
 
 function ensureTimer(): void {

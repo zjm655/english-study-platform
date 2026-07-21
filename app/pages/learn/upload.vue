@@ -1,140 +1,10 @@
 <script setup lang="ts">
 import type { UploadFile, UploadFiles } from 'element-plus'
-import { ArrowLeft, Delete, View } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, View, Upload  } from '@element-plus/icons-vue'
 import { useUploadMaterial } from '~/composables/material/useUploadMaterial'
 import { useMaterialRecords, useDeleteMaterialRecord } from '~/composables/material/useUploadRecords'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
-
-definePageMeta({ title: '上传材料' })
-
-const router = useRouter()
-const { isLoading, execute } = useUploadMaterial()
-const { isLoading: recordsLoading, execute: fetchRecords } = useMaterialRecords()
-const { execute: doDelete } = useDeleteMaterialRecord()
-
-const textContent = ref('')
-const audioFile = ref<File | null>(null)
-const isPublic = ref<1>(1)
-
-/** 可选朗读音色列表 */
-const VOICE_OPTIONS = [
-  { value: 'en-US-AriaNeural', label: 'Aria — 美式女声（默认）' },
-  { value: 'en-US-GuyNeural', label: 'Guy — 美式男声' },
-  { value: 'en-US-JennyNeural', label: 'Jenny — 美式女声' },
-  { value: 'en-GB-SoniaNeural', label: 'Sonia — 英式女声' },
-  { value: 'en-GB-RyanNeural', label: 'Ryan — 英式男声' },
-] as const
-
-const selectedVoice = ref<string>('en-US-AriaNeural')
-
-const MAX_TEXT_LENGTH = 5000
-const MIN_TEXT_LENGTH = 10
-const MAX_AUDIO_SIZE = 2 * 1024 * 1024
-
-const textTooLong = computed(() => textContent.value.length > MAX_TEXT_LENGTH)
-const canSubmit = computed(
-  () => !isLoading.value
-    && textContent.value.length >= MIN_TEXT_LENGTH
-    && !textTooLong.value
-    && (!audioFile.value || audioFile.value.size <= MAX_AUDIO_SIZE)
-)
-
-const recentRecords = ref<MaterialUploadRecordListItem[]>([])
-
-async function loadRecentRecords() {
-  const res = await fetchRecords({ limit: 3 })
-  if (res?.code === 200 && res.data) {
-    recentRecords.value = res.data
-  }
-}
-
-onMounted(() => {
-  loadRecentRecords()
-})
-
-function formatTime(iso: string): string {
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
-  const minutes = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-
-  if (minutes < 1) return '刚刚'
-  if (minutes < 60) return `${minutes}分钟前`
-  if (hours < 24) return `${hours}小时前`
-  if (days < 7) return `${days}天前`
-  return `${d.getMonth() + 1}月${d.getDate()}日`
-}
-
-function getStatusType(status: string) {
-  switch (status) {
-    case 'success': return 'success'
-    case 'failed': return 'danger'
-    default: return 'info'
-  }
-}
-
-function getStatusLabel(status: string) {
-  switch (status) {
-    case 'success': return '成功'
-    case 'failed': return '失败'
-    case 'processing': return '处理中'
-    default: return status
-  }
-}
-
-async function handleDeleteRecord(id: number) {
-  try {
-    await ElMessageBox.confirm('确定删除这条记录吗？关联的学习数据也会被清理。', '确认删除', {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-    const res = await doDelete(id)
-    if (res?.code === 200) {
-      recentRecords.value = recentRecords.value.filter(r => r.id !== id)
-      if (recentRecords.value.length < 3) {
-        loadRecentRecords()
-      }
-    }
-  } catch {
-    // 用户取消
-  }
-}
-
-function handleAudioChange(_uploadFile: UploadFile, uploadFiles: UploadFiles) {
-  const file = uploadFiles[0]
-  if (!file?.raw) return
-  if (file.raw.size > MAX_AUDIO_SIZE) {
-    ElMessage.warning('音频文件不能超过 2MB')
-    return
-  }
-  audioFile.value = file.raw
-}
-
-function handleAudioRemove() {
-  audioFile.value = null
-}
-
-async function handleSubmit() {
-  if (!canSubmit.value) return
-
-  const formData = new FormData()
-  formData.append('textContent', textContent.value)
-  formData.append('isPublic', String(isPublic.value))
-  formData.append('voice', selectedVoice.value)
-  if (audioFile.value) {
-    formData.append('audio', audioFile.value)
-  }
-
-  const res = await execute(formData)
-  if (res.code === 200 && res.data) {
-    ElMessage.success('材料上传成功，正在处理中...')
-    router.push('/learn')
-  }
-}
 </script>
 
 <template>
@@ -282,7 +152,137 @@ async function handleSubmit() {
 </template>
 
 <script lang="ts">
-import { Upload } from '@element-plus/icons-vue'
+
+
+definePageMeta({ title: '上传材料' })
+
+const router = useRouter()
+const { isLoading, execute } = useUploadMaterial()
+const { isLoading: recordsLoading, execute: fetchRecords } = useMaterialRecords()
+const { execute: doDelete } = useDeleteMaterialRecord()
+
+const textContent = ref('')
+const audioFile = ref<File | null>(null)
+const isPublic = ref<1>(1)
+
+/** 可选朗读音色列表 */
+const VOICE_OPTIONS = [
+  { value: 'en-US-AriaNeural', label: 'Aria — 美式女声（默认）' },
+  { value: 'en-US-GuyNeural', label: 'Guy — 美式男声' },
+  { value: 'en-US-JennyNeural', label: 'Jenny — 美式女声' },
+  { value: 'en-GB-SoniaNeural', label: 'Sonia — 英式女声' },
+  { value: 'en-GB-RyanNeural', label: 'Ryan — 英式男声' },
+] as const
+
+const selectedVoice = ref<string>('en-US-AriaNeural')
+
+const MAX_TEXT_LENGTH = 5000
+const MIN_TEXT_LENGTH = 10
+const MAX_AUDIO_SIZE = 2 * 1024 * 1024
+
+const textTooLong = computed(() => textContent.value.length > MAX_TEXT_LENGTH)
+const canSubmit = computed(
+  () => !isLoading.value
+    && textContent.value.length >= MIN_TEXT_LENGTH
+    && !textTooLong.value
+    && (!audioFile.value || audioFile.value.size <= MAX_AUDIO_SIZE)
+)
+
+const recentRecords = ref<MaterialUploadRecordListItem[]>([])
+
+async function loadRecentRecords() {
+  const res = await fetchRecords({ limit: 3 })
+  if (res?.code === 200 && res.data) {
+    recentRecords.value = res.data
+  }
+}
+
+onMounted(() => {
+  loadRecentRecords()
+})
+
+function formatTime(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  const minutes = Math.floor(diff / 60000)
+  const hours = Math.floor(diff / 3600000)
+  const days = Math.floor(diff / 86400000)
+
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes}分钟前`
+  if (hours < 24) return `${hours}小时前`
+  if (days < 7) return `${days}天前`
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
+
+function getStatusType(status: string) {
+  switch (status) {
+    case 'success': return 'success'
+    case 'failed': return 'danger'
+    default: return 'info'
+  }
+}
+
+function getStatusLabel(status: string) {
+  switch (status) {
+    case 'success': return '成功'
+    case 'failed': return '失败'
+    case 'processing': return '处理中'
+    default: return status
+  }
+}
+
+async function handleDeleteRecord(id: number) {
+  try {
+    await ElMessageBox.confirm('确定删除这条记录吗？关联的学习数据也会被清理。', '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    const res = await doDelete(id)
+    if (res?.code === 200) {
+      recentRecords.value = recentRecords.value.filter(r => r.id !== id)
+      if (recentRecords.value.length < 3) {
+        loadRecentRecords()
+      }
+    }
+  } catch {
+    // 用户取消
+  }
+}
+
+function handleAudioChange(_uploadFile: UploadFile, uploadFiles: UploadFiles) {
+  const file = uploadFiles[0]
+  if (!file?.raw) return
+  if (file.raw.size > MAX_AUDIO_SIZE) {
+    ElMessage.warning('音频文件不能超过 2MB')
+    return
+  }
+  audioFile.value = file.raw
+}
+
+function handleAudioRemove() {
+  audioFile.value = null
+}
+
+async function handleSubmit() {
+  if (!canSubmit.value) return
+
+  const formData = new FormData()
+  formData.append('textContent', textContent.value)
+  formData.append('isPublic', String(isPublic.value))
+  formData.append('voice', selectedVoice.value)
+  if (audioFile.value) {
+    formData.append('audio', audioFile.value)
+  }
+
+  const res = await execute(formData)
+  if (res.code === 200 && res.data) {
+    ElMessage.success('材料上传成功，正在处理中...')
+    router.push('/learn')
+  }
+}
 export default { components: { Upload } }
 </script>
 
