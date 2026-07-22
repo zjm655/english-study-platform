@@ -363,9 +363,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-else class="analysis-result-wrap">
-        <EvaluationResultCard
-          :recording="selectedRecording!"
-        />
+        <EvaluationResultCard :recording="selectedRecording!" />
       </div>
     </div>
 

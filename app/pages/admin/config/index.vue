@@ -19,7 +19,8 @@ const rateLimitUserLevel = ref(true)
 async function fetchConfigs() {
   loading.value = true
   try {
-    const res = await request<Record<string, { value: string; description: string | null }>>(adminConfigPath)
+    const res =
+      await request<Record<string, { value: string; description: string | null }>>(adminConfigPath)
     if (res.code === 200 && res.data) {
       configs.value = res.data
       dailyLimit.value = parseInt(res.data['daily_eval_limit']?.value ?? '20', 10) || 20
@@ -108,15 +109,24 @@ onMounted(fetchConfigs)
 
       <el-form label-width="180px" style="max-width: 500px">
         <el-form-item label="启用限流（总开关）">
-          <el-switch v-model="rateLimitEnabled" @change="(v) => saveRateLimitConfig('rate_limit_enabled', Boolean(v))" />
+          <el-switch
+            v-model="rateLimitEnabled"
+            @change="(v) => saveRateLimitConfig('rate_limit_enabled', Boolean(v))"
+          />
           <div class="form-tip">关闭后所有限流检查均不生效（不推荐）。</div>
         </el-form-item>
         <el-form-item label="IP 级限流">
-          <el-switch v-model="rateLimitIpLevel" @change="(v) => saveRateLimitConfig('rate_limit_ip_level', Boolean(v))" />
+          <el-switch
+            v-model="rateLimitIpLevel"
+            @change="(v) => saveRateLimitConfig('rate_limit_ip_level', Boolean(v))"
+          />
           <div class="form-tip">同一 IP 的所有用户共享请求配额，防止单 IP 滥用。</div>
         </el-form-item>
         <el-form-item label="用户级限流">
-          <el-switch v-model="rateLimitUserLevel" @change="(v) => saveRateLimitConfig('rate_limit_user_level', Boolean(v))" />
+          <el-switch
+            v-model="rateLimitUserLevel"
+            @change="(v) => saveRateLimitConfig('rate_limit_user_level', Boolean(v))"
+          />
           <div class="form-tip">每个登录用户独立配额，避免同 IP 多用户互相影响。</div>
         </el-form-item>
       </el-form>

@@ -373,7 +373,9 @@ async function handleReprocess() {
 
 // ===== 工具函数 =====
 function statusTagType(status: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
-  return ({ processing: 'warning', success: 'success', failed: 'danger' } as const)[status] ?? 'info'
+  return (
+    ({ processing: 'warning', success: 'success', failed: 'danger' } as const)[status] ?? 'info'
+  )
 }
 function statusTagText(status: string) {
   return { processing: '处理中', success: '成功', failed: '失败' }[status] ?? status

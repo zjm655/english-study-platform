@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
-import { useRecordingHistory, useAnalyzeRecording, useMarkAnalyzeFail, useRetryAnalyze } from '~/composables/recording'
+import {
+  useRecordingHistory,
+  useAnalyzeRecording,
+  useMarkAnalyzeFail,
+  useRetryAnalyze,
+} from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording, UploadRecordingResult } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
@@ -281,9 +286,7 @@ onMounted(() => {
       </div>
 
       <div v-else class="analysis-result-wrap">
-        <EvaluationResultCard
-          :recording="selectedRecording!"
-        />
+        <EvaluationResultCard :recording="selectedRecording!" />
       </div>
     </div>
 

@@ -12,9 +12,11 @@ export default defineEventHandler(async (event) => {
     return validateError('无管理员权限', 403)
   }
 
-  const rows = await query<{ config_key: string; config_value: string; description: string | null }>(
-    `SELECT config_key, config_value, description FROM sys_config ORDER BY config_key`,
-  )
+  const rows = await query<{
+    config_key: string
+    config_value: string
+    description: string | null
+  }>(`SELECT config_key, config_value, description FROM sys_config ORDER BY config_key`)
 
   const configs: Record<string, { value: string; description: string | null }> = {}
   for (const row of rows) {

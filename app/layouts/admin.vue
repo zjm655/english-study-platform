@@ -72,7 +72,16 @@
 </template>
 
 <script setup lang="ts">
-import { User, Cloudy, MagicStick, Back, Document, DataAnalysis, Notebook, Setting } from '@element-plus/icons-vue'
+import {
+  User,
+  Cloudy,
+  MagicStick,
+  Back,
+  Document,
+  DataAnalysis,
+  Notebook,
+  Setting,
+} from '@element-plus/icons-vue'
 
 const { init: initTheme } = useTheme()
 
@@ -83,7 +92,11 @@ const route = useRoute()
 const activeMenu = computed(() => {
   const path = route.path
   // 材料编辑页（/admin/material/:id）归到「材料列表」
-  if (path.startsWith('/admin/material/') && path !== '/admin/material/upload' && path !== '/admin/material/records') {
+  if (
+    path.startsWith('/admin/material/') &&
+    path !== '/admin/material/upload' &&
+    path !== '/admin/material/records'
+  ) {
     return '/admin/material'
   }
   // 用户详情页（/admin/users/:id）归到「用户列表」

@@ -30,7 +30,10 @@ export default defineEventHandler(async (event) => {
   try {
     await withTransaction(async (conn) => {
       if (segmentId) {
-        await conn.execute('UPDATE segment SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL', [segmentId])
+        await conn.execute(
+          'UPDATE segment SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL',
+          [segmentId],
+        )
       }
       await conn.execute('DELETE FROM material_upload_record WHERE id = ?', [id])
     })
