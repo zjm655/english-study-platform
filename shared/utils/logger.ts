@@ -29,7 +29,8 @@ function createLogger(enabled: boolean) {
 function getInstance() {
   if (!_logger) {
     const cfg = useRuntimeConfig()
-    const isOpen = import.meta.client ? cfg.public.isOpenLog && import.meta.dev : cfg.isOpenLog
+    const isOpen =
+      (import.meta.client ? cfg.public.isOpenLog && import.meta.dev : cfg.isOpenLog) ?? false
     _logger = createLogger(isOpen)
   }
   return _logger
