@@ -20,10 +20,19 @@ const mocks = vi.hoisted(() => {
     data: undefined,
   })
   ;(globalThis as any).verifyToken = mockVerifyToken
+  ;(globalThis as any).getRequestIP = () => '127.0.0.1'
   return { mockVerifyToken, mockQuery, mockDeleteCookie }
 })
 
 vi.mock('#server/utils/db', () => ({ query: mocks.mockQuery }))
+
+// 完全 mock 掉 rateLimiter：限流默认关闭（enabled: false），不干扰 auth 中间件核心逻辑测试
+vi.mock('#server/utils/rateLimiter', () => ({
+  getRateLimitConfig: vi
+    .fn()
+    .mockResolvedValue({ enabled: false, ipLevel: false, userLevel: false }),
+  checkUserRateLimit: vi.fn().mockReturnValue({ allowed: true }),
+}))
 
 // ============ 辅助 ============
 

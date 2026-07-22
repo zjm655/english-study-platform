@@ -44,6 +44,7 @@ vi.mock('~/composables/recording', () => ({
     canComplete: ref(false),
     selectRecording: vi.fn(),
     addRecording: vi.fn(),
+    updateRecording: vi.fn(),
     playRecording: vi.fn(),
     loadRecordings: vi.fn(),
     loadMoreRecordings: vi.fn(),
@@ -53,6 +54,13 @@ vi.mock('~/composables/recording', () => ({
   }),
   useAnalyzeRecording: () => ({
     execute: vi.fn(),
+  }),
+  useMarkAnalyzeFail: () => ({
+    execute: vi.fn(),
+  }),
+  useRetryAnalyze: () => ({
+    execute: vi.fn(),
+    isLoading: ref(false),
   }),
 }))
 

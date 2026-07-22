@@ -1,4 +1,6 @@
 export { useUploadRecording } from './useUploadRecording'
 export { useRecordingList } from './useRecordingList'
 export { useAnalyzeRecording } from './useAnalyzeRecording'
+export { useMarkAnalyzeFail } from './useMarkAnalyzeFail'
 export { useRecordingHistory } from './useRecordingHistory'
+export { useRetryAnalyze } from './useRetryAnalyze'

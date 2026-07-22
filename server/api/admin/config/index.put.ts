@@ -44,6 +44,12 @@ export default defineEventHandler(async (event) => {
     invalidateQuotaCache()
   }
 
+  // 使限流缓存失效
+  if (key.startsWith('rate_limit_')) {
+    const { invalidateRateLimitCache } = await import('#server/utils/rateLimiter')
+    invalidateRateLimitCache()
+  }
+
   // 审计留痕
   await logAdminOperation(user.id, 'config.update', 'sys_config', 0, { key, value })
 

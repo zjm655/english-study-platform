@@ -17,6 +17,7 @@ function makeRow(overrides: Partial<RecordingRow> = {}): RecordingRow {
     duration: '5.00',
     createdAt: '2026-01-01T00:00:00.000Z',
     deleted_at: null,
+    analyze_status: 'success',
     ...overrides,
   }
 }

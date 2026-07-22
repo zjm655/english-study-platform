@@ -1,6 +1,7 @@
 import type { JwtPayload } from '#server/types/jwtPayload'
 import { query } from '#server/utils/db'
 import { ROLE_ADMIN } from '#shared/utils/role'
+import { getRateLimitConfig, checkUserRateLimit } from '#server/utils/rateLimiter'
 
 // 全局服务端中间件：每次请求自动解析 Cookie 中的 JWT
 export default defineEventHandler(async (event) => {
@@ -52,7 +53,19 @@ export default defineEventHandler(async (event) => {
     email: payload.email,
   }
 
-  // 6. 管理员路由前缀门禁：/api/admin/* 仅管理员可访问（handler 内校验作纵深防御）。
+  // 6. 用户级限流检查（如启用）
+  const rateLimitConfig = await getRateLimitConfig()
+  if (rateLimitConfig.enabled && rateLimitConfig.userLevel) {
+    const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+    const { allowed, retryAfter } = checkUserRateLimit(ip, event.path, dbUser.id)
+    if (!allowed) {
+      event.node.res.statusCode = 429
+      event.node.res.setHeader('Retry-After', String(retryAfter))
+      return validateError(`请求过于频繁，请 ${retryAfter} 秒后重试`, 429)
+    }
+  }
+
+  // 7. 管理员路由前缀门禁：/api/admin/* 仅管理员可访问（handler 内校验作纵深防御）。
   //    前缀带尾斜杠，避免误伤假想的 /api/adminXxx。
   if (event.path.startsWith('/api/admin/') && event.context.user.role !== ROLE_ADMIN) {
     return validateError('无管理员权限', 403)

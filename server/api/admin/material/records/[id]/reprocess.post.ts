@@ -1,4 +1,5 @@
 import { readBody } from 'h3'
+import type { ResultSetHeader } from 'mysql2'
 import { query } from '#server/utils/db'
 import {
   adminMaterialRecordReprocessSchema,
@@ -31,11 +32,11 @@ export default defineEventHandler(async (event) => {
   const { unitId } = parsed.data
 
   // 原子状态转换：failed → processing（防重入，affectedRows=0 说明已被抢占或状态不对）
-  const lockResult = await query<{ affectedRows: number }>(
+  const lockResult = await query<ResultSetHeader>(
     'UPDATE material_upload_record SET status = ? WHERE id = ? AND status = ?',
     ['processing', id, 'failed'],
   )
-  const affected = Number((lockResult as any)?.affectedRows ?? (lockResult as any)?.info ?? 0)
+  const affected = (lockResult as unknown as ResultSetHeader).affectedRows ?? 0
   if (affected === 0) {
     // 可能记录不存在，也可能已不是 failed 状态
     const rows = await query<{ status: string }>(

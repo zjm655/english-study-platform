@@ -53,6 +53,14 @@ export function useRecordingHistory(segmentId: number, phase: 3 | 4) {
     selectedRecordingId.value = rec.id
   }
 
+  // 更新列表中指定 ID 的录音（用于重试分析成功后替换失败录音）
+  function updateRecording(id: number, newRec: Recording) {
+    const idx = recordings.value.findIndex((r) => r.id === id)
+    if (idx !== -1) {
+      recordings.value[idx] = newRec
+    }
+  }
+
   // 从已签名 URL 推断 Howler 格式提示：录音统一为 opus 编码，
   // ogg 容器显式按 opus 门控，避免 Howler 默认按 vorbis 误判而报“加载失败”
   function recordingFormat(url: string): string | undefined {
@@ -140,6 +148,7 @@ export function useRecordingHistory(segmentId: number, phase: 3 | 4) {
     formatDuration,
     selectRecording,
     addRecording,
+    updateRecording,
     playRecording,
     loadRecordings,
     loadMoreRecordings,

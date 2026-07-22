@@ -14,6 +14,7 @@ export interface Recording {
   phase: number // 3=配音, 4=跟读
   audioPath: string | null
   score: number | null // 综合评分 0-100
+  analyzeStatus: 'pending' | 'failed' | 'success' // 新增
   feedback: string | null // AI整体评价
   recognizedText: string | null
   wordScores: WordScore[] | null

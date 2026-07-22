@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
-import { useRecordingHistory, useAnalyzeRecording } from '~/composables/recording'
+import { useRecordingHistory, useAnalyzeRecording, useMarkAnalyzeFail, useRetryAnalyze } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
-import type { UploadRecordingResult } from '#shared/types/recording'
+import type { Recording, UploadRecordingResult } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
 import { getEvaluationAuth } from '~/api/evaluation/auth'
 import { useUserStore } from '~/store/useUserStore'
@@ -37,6 +37,7 @@ const {
   canComplete,
   selectRecording,
   addRecording,
+  updateRecording,
   playRecording,
   loadRecordings,
   loadMoreRecordings,
@@ -44,6 +45,8 @@ const {
 
 // API
 const { execute: analyzeRecording, isLoading: isAnalyzing } = useAnalyzeRecording()
+const { execute: markAnalyzeFail } = useMarkAnalyzeFail()
+const { execute: retryAnalyze, isLoading: isRetrying } = useRetryAnalyze()
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 
 // 评测 SDK
@@ -119,9 +122,42 @@ async function handleRecordingAnalyze(data: {
       recorderKey.value++
     }
   } catch (err) {
-    // 失败分支不清空卡片，保留录音供重试
     const msg = err instanceof Error ? err.message : '评测请求失败'
-    toastError(msg)
+
+    // 回退构造的失败录音：标记接口异常或返回非 200 时使用
+    const fallbackRecording: Recording = {
+      id: savedRecording.id,
+      userId: userStore.user!.id,
+      segmentId: props.segment.id,
+      phase: 3,
+      audioPath: savedRecording.audioPath,
+      score: null,
+      analyzeStatus: 'failed',
+      feedback: null,
+      recognizedText: null,
+      wordScores: null,
+      rawResult: null,
+      duration: savedRecording.duration,
+      createdAt: savedRecording.createdAt,
+    }
+
+    // 标记录音为分析失败并加入历史列表，便于用户点击重试
+    try {
+      const failRes = await markAnalyzeFail({ id: savedRecording.id })
+      if (failRes?.code === 200 && failRes.data) {
+        addRecording(failRes.data)
+      } else {
+        addRecording(fallbackRecording)
+      }
+    } catch {
+      addRecording(fallbackRecording)
+    }
+
+    // 清空本次录音卡片，重置 VoiceRecorder 允许重新录制
+    pendingRecording.value = null
+    recorderKey.value++
+
+    toastError(`${msg}，已加入历史列表，可点击重试`)
     logger.error('[Dubbing] 评测失败:', err)
   }
 }
@@ -132,6 +168,25 @@ const translationExpanded = ref(false)
 const recorderCollapsed = ref(false)
 // VoiceRecorder remount key：分析成功后自增以清空本次录音卡片
 const recorderKey = ref(0)
+// 当前正在重试分析的录音 ID（用于禁用重试按钮 + 显示 loading）
+const retryingId = ref<number | null>(null)
+
+// 重试分析失败的历史录音
+async function handleRetryAnalyze(recording: Recording) {
+  if (isRetrying.value) return
+  retryingId.value = recording.id
+  try {
+    const updated = await retryAnalyze({
+      recording,
+      refText: props.segment.textContent,
+    })
+    if (updated) {
+      updateRecording(recording.id, updated)
+    }
+  } finally {
+    retryingId.value = null
+  }
+}
 
 // 播放材料音频
 async function playMaterialAudio() {
@@ -210,10 +265,12 @@ onMounted(() => {
       :is-loading-more="isListLoadingMore"
       title="历史录音"
       empty-text="还没有录音，点击下方按钮开始录制"
+      :retrying-id="retryingId"
       @select="selectRecording"
       @load-more="loadMoreRecordings"
       @retry="loadRecordings"
       @play="playRecording"
+      @retry-analyze="handleRetryAnalyze"
     />
 
     <!-- 卡片 4：AI 分析结果 -->

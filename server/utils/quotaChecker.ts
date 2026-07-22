@@ -57,9 +57,9 @@ export async function checkDailyQuota(userId: number, role: number): Promise<Quo
 
   const limit = await getDailyLimit()
 
-  // 查询今日已用次数（recording 表每次评测必新增）
+  // 查询今日已用次数（recording 表每次评测必新增；仅统计分析成功计入额度）
   const rows = await query<{ cnt: number | string }>(
-    `SELECT COUNT(*) as cnt FROM recording WHERE user_id = ? AND DATE(createdAt) = CURDATE() AND deleted_at IS NULL`,
+    `SELECT COUNT(*) as cnt FROM recording WHERE user_id = ? AND DATE(createdAt) = CURDATE() AND deleted_at IS NULL AND analyze_status = 'success'`,
     [userId],
   )
   const used = Number(rows[0]?.cnt ?? 0)

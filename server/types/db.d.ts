@@ -100,6 +100,7 @@ export interface RecordingRow {
   wordScores: WordScore[] | string | null // json 列：mysql2 自动解析为数组，兼容字符串
   rawResult: string | null // 原始评测响应JSON
   duration: string | null // DECIMAL → string
+  analyze_status: string // pending | success | failed
   createdAt: string
   deleted_at: string | null
 }

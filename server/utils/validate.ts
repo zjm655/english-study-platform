@@ -113,9 +113,9 @@ export const uploadMaterialSchema = z.object({
   voice: z.enum(ALLOWED_VOICES).optional().default('en-US-AriaNeural'),
 })
 
-// 材料上传校验（管理员，额外要求 unitId）
+// 材料上传校验（管理员，额外要求 unitId；允许 0=自定义单元）
 export const uploadMaterialAdminSchema = uploadMaterialSchema.extend({
-  unitId: z.number().int().positive('unitId 必须为正整数'),
+  unitId: z.number().int().min(0, 'unitId 不能为负数'),
 })
 
 // 管理员批量上传通用参数校验

@@ -62,7 +62,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     updatedRecording = await withTransaction(async (conn) => {
       await conn.execute(
         `UPDATE recording
-         SET score = ?, feedback = ?, wordScores = ?, rawResult = ?
+         SET score = ?, feedback = ?, wordScores = ?, rawResult = ?, analyze_status = 'success'
          WHERE id = ?`,
         [
           parsed.score,

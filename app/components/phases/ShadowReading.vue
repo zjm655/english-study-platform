@@ -5,9 +5,12 @@ import { useRecorder } from '~/composables/media/useRecorder'
 import {
   useUploadRecording,
   useAnalyzeRecording,
+  useMarkAnalyzeFail,
+  useRetryAnalyze,
   useRecordingHistory,
 } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
+import type { Recording, UploadRecordingResult } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
 import { getEvaluationAuth } from '~/api/evaluation/auth'
 import { useUserStore } from '~/store/useUserStore'
@@ -41,6 +44,7 @@ const {
   canComplete,
   selectRecording,
   addRecording,
+  updateRecording,
   playRecording,
   loadRecordings,
   loadMoreRecordings,
@@ -49,6 +53,8 @@ const {
 // API
 const { execute: uploadRecording } = useUploadRecording()
 const { execute: analyzeRecording } = useAnalyzeRecording()
+const { execute: markAnalyzeFail } = useMarkAnalyzeFail()
+const { execute: retryAnalyze, isLoading: isRetrying } = useRetryAnalyze()
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 
 // 评测 SDK
@@ -70,6 +76,9 @@ const userStore = useUserStore()
 // ── 跟读控制状态机：idle → running（播放+跟读）→ evaluating（评测/入库）→ idle ──
 type Stage = 'idle' | 'running' | 'evaluating'
 const stage = ref<Stage>('idle')
+
+// 当前正在重试分析的录音 ID（用于禁用重试按钮 + 显示 loading）
+const retryingId = ref<number | null>(null)
 
 const errorMsg = ref('')
 // 是否允许手动结束（仅录音真正开始后才允许，避免引擎初始化期间误点）
@@ -151,6 +160,9 @@ async function start() {
   // 每次开始前销毁旧引擎，避免缓存
   destroyEngine()
 
+  // 录音已上传但分析失败时，catch 块需访问上传结果以标记 + 入历史列表
+  let uploadedRecording: UploadRecordingResult | null = null
+
   try {
     const authRes = await getEvaluationAuth()
     if (authRes?.code !== 200 || !authRes.data) {
@@ -204,9 +216,10 @@ async function start() {
     if (uploadRes?.code !== 200 || !uploadRes.data) {
       throw new Error(uploadRes?.message || '录音上传失败')
     }
+    uploadedRecording = uploadRes.data
 
     const saveRes = await analyzeRecording({
-      id: uploadRes.data.id,
+      id: uploadedRecording.id,
       result: {
         score: result.score,
         wordScores: result.wordScores,
@@ -218,7 +231,7 @@ async function start() {
       // analyze 接口返回的 audioPath 为 recording 表原始列（空），
       // 用上传接口返回的已签名 OSS 地址回填，保证列表内可即时播放；
       // 前插入历史列表并选中，评分卡片随即展示
-      addRecording({ ...saveRes.data, audioPath: uploadRes.data.audioPath })
+      addRecording({ ...saveRes.data, audioPath: uploadedRecording.audioPath })
     }
 
     // 回到 idle，可再次跟读或完成
@@ -227,9 +240,61 @@ async function start() {
     triggerStop()
     const msg = err instanceof Error ? err.message : '跟读评测失败'
     errorMsg.value = msg
-    toastError(msg)
     logger.error('[ShadowReading] 评测失败:', err)
+
+    // 录音已上传但分析失败：标记 + 入历史列表，避免"幽灵录音"
+    if (uploadedRecording) {
+      try {
+        const failRes = await markAnalyzeFail({ id: uploadedRecording.id })
+        if (failRes?.code === 200 && failRes.data) {
+          addRecording(failRes.data)
+        } else {
+          // 标记失败，回退构造 Recording 入列表
+          addRecording({
+            id: uploadedRecording.id,
+            userId: userStore.user!.id,
+            segmentId: props.segment.id,
+            phase: 4,
+            audioPath: uploadedRecording.audioPath,
+            score: null,
+            analyzeStatus: 'failed',
+            feedback: null,
+            recognizedText: null,
+            wordScores: null,
+            rawResult: null,
+            duration: uploadedRecording.duration,
+            createdAt: uploadedRecording.createdAt,
+          })
+        }
+        toastError(`${msg}，已加入历史列表，可点击重试`)
+      } catch (markErr) {
+        logger.error('[ShadowReading] 标记分析失败出错:', markErr)
+        toastError(msg)
+      }
+    } else {
+      // 录音未上传成功，保持原行为
+      toastError(msg)
+    }
     stage.value = 'idle'
+  }
+}
+
+// 重试分析失败的历史跟读录音
+async function handleRetryAnalyze(recording: Recording) {
+  if (isRetrying.value) return
+  // 跟读进行中不允许重试（避免与实时评测冲突）
+  if (stage.value !== 'idle') return
+  retryingId.value = recording.id
+  try {
+    const updated = await retryAnalyze({
+      recording,
+      refText: props.segment.textContent,
+    })
+    if (updated) {
+      updateRecording(recording.id, updated)
+    }
+  } finally {
+    retryingId.value = null
   }
 }
 
@@ -282,10 +347,12 @@ onBeforeUnmount(() => {
       title="历史跟读"
       empty-text="还没有跟读记录，点击下方按钮开始跟读"
       :play-disabled="stage !== 'idle'"
+      :retrying-id="retryingId"
       @select="selectRecording"
       @load-more="loadMoreRecordings"
       @retry="loadRecordings"
       @play="playRecording"
+      @retry-analyze="handleRetryAnalyze"
     />
 
     <!-- 卡片：AI 评分 -->

@@ -19,6 +19,7 @@ const mockRecording: Recording = {
   rawResult: null,
   duration: 5,
   createdAt: '2026-01-01T00:00:00.000Z',
+  analyzeStatus: 'success',
 }
 
 describe('EvaluationResultCard 逐词评分渲染', () => {

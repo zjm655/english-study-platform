@@ -9,30 +9,32 @@
 // 性能保证：afterResponse 中仅做纯内存取值 + fire-and-forget 调用，对请求延迟零影响。
 import { logApiCall, flushApiCallLog } from '#server/utils/apiCallLog'
 import { flushCloudServiceLog } from '#server/utils/cloudServiceLog'
-import { checkRateLimit } from '#server/utils/rateLimiter'
+import { checkRateLimit, getRateLimitConfig } from '#server/utils/rateLimiter'
 export default defineNitroPlugin((nitroApp) => {
   // 请求进入（中间件链之前）：限流检查 + 打时间戳
-  nitroApp.hooks.hook('request', (event) => {
+  nitroApp.hooks.hook('request', async (event) => {
     if (!event.path.startsWith('/api')) return
 
-    // 限流检查（登录用户按 userId@ip 限流，未登录按 IP 限流）
-    const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
-    const userId = event.context.user?.id
-    const { allowed, retryAfter } = checkRateLimit(ip, event.path, userId)
-    if (!allowed) {
-      event.node.res.statusCode = 429
-      event.node.res.setHeader('Content-Type', 'application/json; charset=utf-8')
-      event.node.res.setHeader('Retry-After', String(retryAfter))
-      event.node.res.end(
-        JSON.stringify({
-          code: 429,
-          message: `请求过于频繁，请 ${retryAfter} 秒后重试`,
-          data: null,
-        }),
-      )
-      // 标记已处理，阻止后续 handler 执行
-      ;(event as { _handled?: boolean })._handled = true
-      return
+    // 限流检查（IP 级，用户级限流在 auth 中间件中处理）
+    const rateLimitConfig = await getRateLimitConfig()
+    if (rateLimitConfig.enabled && rateLimitConfig.ipLevel) {
+      const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+      const { allowed, retryAfter } = checkRateLimit(ip, event.path)
+      if (!allowed) {
+        event.node.res.statusCode = 429
+        event.node.res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        event.node.res.setHeader('Retry-After', String(retryAfter))
+        event.node.res.end(
+          JSON.stringify({
+            code: 429,
+            message: `请求过于频繁，请 ${retryAfter} 秒后重试`,
+            data: null,
+          }),
+        )
+        // 标记已处理，阻止后续 handler 执行
+        ;(event as { _handled?: boolean })._handled = true
+        return
+      }
     }
 
     event.context._apiLogStart = Date.now()
