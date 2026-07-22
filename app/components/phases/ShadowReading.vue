@@ -223,7 +223,6 @@ async function start() {
       result: {
         score: result.score,
         wordScores: result.wordScores,
-        recognizedText: result.recognizedText,
         rawResult: result.rawResult,
       },
     })
@@ -366,7 +365,6 @@ onBeforeUnmount(() => {
       <div v-else class="analysis-result-wrap">
         <EvaluationResultCard
           :recording="selectedRecording!"
-          :reference-text="segment.textContent"
         />
       </div>
     </div>

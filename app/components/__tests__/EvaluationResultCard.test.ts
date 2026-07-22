@@ -25,7 +25,7 @@ const mockRecording: Recording = {
 describe('EvaluationResultCard 逐词评分渲染', () => {
   it('wordScores 有数据时逐词渲染并带状态颜色类', () => {
     const wrapper = mount(EvaluationResultCard, {
-      props: { recording: mockRecording, referenceText: 'hello world' },
+      props: { recording: mockRecording },
     })
     const words = wrapper.findAll('.word-score')
     expect(words.length).toBe(2)
@@ -46,7 +46,7 @@ describe('EvaluationResultCard 逐词评分渲染', () => {
       ],
     }
     const wrapper = mount(EvaluationResultCard, {
-      props: { recording, referenceText: 'a b c d' },
+      props: { recording },
     })
     const words = wrapper.findAll('.word-score')
     expect(words.map((w) => w.text())).toEqual(['a', 'b', 'c', 'd'])
@@ -58,21 +58,21 @@ describe('EvaluationResultCard 逐词评分渲染', () => {
 
   it('wordScores 为空数组时不渲染逐词项', () => {
     const wrapper = mount(EvaluationResultCard, {
-      props: { recording: { ...mockRecording, wordScores: [] }, referenceText: 'hello' },
+      props: { recording: { ...mockRecording, wordScores: [] } },
     })
     expect(wrapper.findAll('.word-score').length).toBe(0)
   })
 
   it('wordScores 为 null 时不渲染逐词项（不报错）', () => {
     const wrapper = mount(EvaluationResultCard, {
-      props: { recording: { ...mockRecording, wordScores: null }, referenceText: 'hello' },
+      props: { recording: { ...mockRecording, wordScores: null } },
     })
     expect(wrapper.findAll('.word-score').length).toBe(0)
   })
 
   it('渲染综合评分与 AI 评价', () => {
     const wrapper = mount(EvaluationResultCard, {
-      props: { recording: mockRecording, referenceText: 'hello world' },
+      props: { recording: mockRecording },
     })
     expect(wrapper.find('.score-number').text()).toBe('75')
     expect(wrapper.find('.feedback-text').text()).toContain('整体表现良好')

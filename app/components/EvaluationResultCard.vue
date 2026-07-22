@@ -1,16 +1,12 @@
 <script setup lang="ts">
 import type { Recording, WordScore } from '#shared/types/recording'
-import { diffRecognized } from '~/utils/wordDiff'
 
-const props = defineProps<{
+defineProps<{
   /** 录音记录（含评测结果） */
   recording: Recording
-  /** 参考原文，用于识别文本对齐标红 */
-  referenceText: string
 }>()
 
 // 折叠状态
-const recognizedExpanded = ref(true)
 const wordScoresExpanded = ref(true)
 
 // 逐词评分颜色类
@@ -28,17 +24,6 @@ function getWordStatusClass(word: WordScore): string {
       return ''
   }
 }
-
-// 识别文本 vs 原文的词级对齐（降级：为空时不渲染标红区）
-const recognizedDiff = computed(() => {
-  const text = props.recording.recognizedText
-  if (!text) return []
-  try {
-    return diffRecognized(text, props.referenceText)
-  } catch {
-    return []
-  }
-})
 </script>
 
 <template>
@@ -54,36 +39,6 @@ const recognizedDiff = computed(() => {
     <div class="feedback-section">
       <div class="feedback-title">AI 评价</div>
       <p class="feedback-text">{{ recording.feedback || '暂无评价' }}</p>
-    </div>
-
-    <!-- 识别文本（ASR 真实转写，与原文不一致处标红） -->
-    <div class="recognized-section">
-      <button class="section-header" @click="recognizedExpanded = !recognizedExpanded">
-        <span class="section-header__title">识别文本</span>
-        <svg
-          class="section-header__arrow"
-          :class="{ 'section-header__arrow--expanded': recognizedExpanded }"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-        >
-          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
-        </svg>
-      </button>
-      <div v-show="recognizedExpanded" class="section-body">
-        <p v-if="recording.recognizedText === null" class="recognized-placeholder">识别中…</p>
-        <p v-else-if="!recording.recognizedText" class="recognized-placeholder">未识别到文本</p>
-        <p v-else-if="recognizedDiff.length === 0" class="recognized-text">
-          {{ recording.recognizedText }}
-        </p>
-        <p v-else class="recognized-text">
-          <template v-for="(tok, idx) in recognizedDiff" :key="idx"
-            ><span class="rec-word" :class="{ 'rec-word--mismatch': !tok.match }">{{
-              tok.word
-            }}</span
-            >{{ ' ' }}</template
-          >
-        </p>
-      </div>
     </div>
 
     <div class="word-scores-section">
@@ -172,42 +127,6 @@ const recognizedDiff = computed(() => {
   color: var(--text-2);
   line-height: 1.6;
   margin: 0;
-}
-
-/* ===== 识别文本 ===== */
-.recognized-section {
-  padding-top: 12px;
-  border-top: 1px solid var(--border-ll);
-}
-
-.recognized-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-1);
-  margin-bottom: 8px;
-}
-
-.recognized-text {
-  font-size: 13px;
-  color: var(--text-2);
-  line-height: 1.7;
-  margin: 0;
-  overflow-wrap: break-word;
-  word-break: break-word;
-}
-
-.recognized-placeholder {
-  font-size: 13px;
-  color: var(--text-3);
-  font-style: italic;
-  margin: 0;
-}
-
-.rec-word--mismatch {
-  color: var(--danger);
-  background: rgba(245, 108, 108, 0.1);
-  border-radius: 4px;
-  padding: 0 3px;
 }
 
 /* ===== 逐词评分 ===== */

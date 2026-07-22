@@ -109,7 +109,6 @@ async function handleRecordingAnalyze(data: {
       result: {
         score: result.score,
         wordScores: result.wordScores,
-        recognizedText: result.recognizedText,
         rawResult: result.rawResult,
       },
     })
@@ -284,7 +283,6 @@ onMounted(() => {
       <div v-else class="analysis-result-wrap">
         <EvaluationResultCard
           :recording="selectedRecording!"
-          :reference-text="segment.textContent"
         />
       </div>
     </div>

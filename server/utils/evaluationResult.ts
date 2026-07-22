@@ -6,7 +6,6 @@
 export interface ParsedEvalResult {
   score: number
   feedback: string
-  recognizedText: string
   wordScores: { word: string; score: number; status: 'correct' | 'minor' | 'wrong' | 'missing' }[]
 }
 
@@ -20,12 +19,11 @@ function scoreToStatus(score: number): ParsedEvalResult['wordScores'][number]['s
 
 /**
  * 处理评测结果：补全 status 和 feedback
- * @param input 前端传来的已解析评测结果（{ score, wordScores, recognizedText }）
+ * @param input 前端传来的已解析评测结果（{ score, wordScores }）
  */
 export function processEvaluationResult(input: {
   score: number
   wordScores: { word: string; score: number }[]
-  recognizedText: string
 }): ParsedEvalResult {
   const wordScores: ParsedEvalResult['wordScores'] = input.wordScores.map((w) => ({
     word: w.word,
@@ -38,7 +36,6 @@ export function processEvaluationResult(input: {
   return {
     score: input.score,
     feedback,
-    recognizedText: input.recognizedText,
     wordScores,
   }
 }

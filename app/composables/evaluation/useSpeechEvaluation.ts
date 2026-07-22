@@ -24,8 +24,6 @@ import { toWav16kMono } from '~/utils/audioToWav'
 export interface EvaluationResult {
   score: number
   wordScores: WordScore[]
-  /** SDK 逐词 char 拼接出的识别文本 */
-  recognizedText: string
   /** SDK 原始响应 JSON 字符串 */
   rawResult: string
 }
@@ -70,12 +68,10 @@ function parseResult(msg: string): EvaluationResult {
     score: w.score,
     status: scoreToStatus(w.score),
   }))
-  const recognizedText = allWords.map((w) => w.char).join(' ')
 
   return {
     score: result?.overall ?? 0,
     wordScores,
-    recognizedText,
     rawResult: msg,
   }
 }

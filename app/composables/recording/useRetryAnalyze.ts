@@ -81,7 +81,6 @@ export const useRetryAnalyze = () => {
         result: {
           score: result.score,
           wordScores: result.wordScores,
-          recognizedText: result.recognizedText,
           rawResult: result.rawResult,
         },
       })

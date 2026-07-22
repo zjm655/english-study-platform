@@ -9,7 +9,7 @@ import type { Recording } from '#shared/types/recording'
 /**
  * 保存录音 AI 分析结果
  * 请求：POST /api/recording/[id]/analyze
- * Body: { result: { score, wordScores, recognizedText, rawResult? } }
+ * Body: { result: { score, wordScores, rawResult? } }
  */
 export default defineEventHandler(async (event): Promise<ResPayload<Recording | null>> => {
   const userId = event.context.user?.id
@@ -41,7 +41,6 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     result?: {
       score: number
       wordScores: { word: string; score: number }[]
-      recognizedText: string
       rawResult?: string
     }
   }>(event)
