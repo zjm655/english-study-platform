@@ -5,7 +5,7 @@ export default createConfigForNuxt({
   // Nuxt 项目自动识别 auto-imports、别名等
 })
   .prepend({
-    ignores: ['node_modules/', '.nuxt/', '.output/', 'dist/', 'public/sdk/', 'content/', 'logs/'],
+    ignores: ['node_modules/', '.nuxt/', '.output/', 'dist/', 'public/sdk/', 'content/', 'logs/**'],
   })
   .append({
     rules: {

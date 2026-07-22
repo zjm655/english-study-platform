@@ -23,7 +23,6 @@
             <span>用户管理</span>
           </template>
           <el-menu-item index="/admin/users">用户列表</el-menu-item>
-          <el-menu-item index="/admin/operation-logs">操作日志</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/admin/stats">
           <el-icon><DataAnalysis /></el-icon>
@@ -43,10 +42,15 @@
           <el-icon><MagicStick /></el-icon>
           <span>DeepSeek</span>
         </el-menu-item>
-        <el-menu-item index="/admin/logs">
-          <el-icon><Notebook /></el-icon>
-          <span>日志管理</span>
-        </el-menu-item>
+        <el-sub-menu index="/admin/logs">
+          <template #title>
+            <el-icon><Notebook /></el-icon>
+            <span>日志管理</span>
+          </template>
+          <el-menu-item index="/admin/logs/api-call">API 调用日志</el-menu-item>
+          <el-menu-item index="/admin/logs/cloud-service">云服务日志</el-menu-item>
+          <el-menu-item index="/admin/logs/operation">操作日志</el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/admin/config">
           <el-icon><Setting /></el-icon>
           <span>系统配置</span>
