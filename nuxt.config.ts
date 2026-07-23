@@ -33,6 +33,7 @@ export default defineNuxtConfig({
       bucket: 'nick-img-bucket-xxxxxx-from-xxx',
       accessKeyId: '',
       accessKeySecret: '',
+      useInternal: false,
     },
     deepseek: {
       model: 'deepseek-v4-flash',

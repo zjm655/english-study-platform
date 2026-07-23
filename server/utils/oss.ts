@@ -54,6 +54,7 @@ interface OssConfig {
   bucket: string
   accessKeyId: string
   accessKeySecret: string
+  useInternal: boolean
 }
 
 let client: OSS | null = null
@@ -100,6 +101,14 @@ function getInternalClient(): OSS {
     )
   }
   return internalClient
+}
+
+/**
+ * 获取上传用客户端（按 config.useInternal 开关选择公网/内网）
+ * 公网部署到阿里云 ECS 同 region 时，置 useInternal=true 走内网免流量费且更稳定
+ */
+function getUploadClient(): OSS {
+  return config.useInternal ? getInternalClient() : getClient()
 }
 
 // ---------- 工具函数 ----------
@@ -352,7 +361,7 @@ export async function uploadFilePublic(
  */
 export async function getOssBucketStat(): Promise<OssBucketStat> {
   try {
-    const c = getClient()
+    const c = getUploadClient()
     const bucket = config.bucket
     // @ts-expect-error ali-oss SDK 运行时支持 getBucketStat，但类型定义缺失
     const res = await c.getBucketStat(bucket)

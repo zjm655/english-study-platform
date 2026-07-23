@@ -53,16 +53,14 @@ export default defineEventHandler(async (event) => {
     email: payload.email,
   }
 
-  // 6. 用户级限流检查（如启用）
+  // 6. 用户级限流检查（上传路径独立于全局 enabled）
   const rateLimitConfig = await getRateLimitConfig()
-  if (rateLimitConfig.enabled && rateLimitConfig.userLevel) {
-    const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
-    const { allowed, retryAfter } = checkUserRateLimit(ip, event.path, dbUser.id)
-    if (!allowed) {
-      event.node.res.statusCode = 429
-      event.node.res.setHeader('Retry-After', String(retryAfter))
-      return validateError(`请求过于频繁，请 ${retryAfter} 秒后重试`, 429)
-    }
+  const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+  const { allowed, retryAfter } = checkUserRateLimit(ip, event.path, dbUser.id, rateLimitConfig)
+  if (!allowed) {
+    event.node.res.statusCode = 429
+    event.node.res.setHeader('Retry-After', String(retryAfter))
+    return validateError(`请求过于频繁，请 ${retryAfter} 秒后重试`, 429)
   }
 
   // 7. 管理员路由前缀门禁：/api/admin/* 仅管理员可访问（handler 内校验作纵深防御）。

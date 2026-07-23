@@ -15,26 +15,24 @@ export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('request', async (event) => {
     if (!event.path.startsWith('/api')) return
 
-    // 限流检查（IP 级，用户级限流在 auth 中间件中处理）
+    // 限流检查（IP 级，用户级限流在 auth 中间件中处理；上传路径独立于全局 enabled）
     const rateLimitConfig = await getRateLimitConfig()
-    if (rateLimitConfig.enabled && rateLimitConfig.ipLevel) {
-      const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
-      const { allowed, retryAfter } = checkRateLimit(ip, event.path)
-      if (!allowed) {
-        event.node.res.statusCode = 429
-        event.node.res.setHeader('Content-Type', 'application/json; charset=utf-8')
-        event.node.res.setHeader('Retry-After', String(retryAfter))
-        event.node.res.end(
-          JSON.stringify({
-            code: 429,
-            message: `请求过于频繁，请 ${retryAfter} 秒后重试`,
-            data: null,
-          }),
-        )
-        // 标记已处理，阻止后续 handler 执行
-        ;(event as { _handled?: boolean })._handled = true
-        return
-      }
+    const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+    const { allowed, retryAfter } = checkRateLimit(ip, event.path, rateLimitConfig)
+    if (!allowed) {
+      event.node.res.statusCode = 429
+      event.node.res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      event.node.res.setHeader('Retry-After', String(retryAfter))
+      event.node.res.end(
+        JSON.stringify({
+          code: 429,
+          message: `请求过于频繁，请 ${retryAfter} 秒后重试`,
+          data: null,
+        }),
+      )
+      // 标记已处理，阻止后续 handler 执行
+      ;(event as { _handled?: boolean })._handled = true
+      return
     }
 
     event.context._apiLogStart = Date.now()

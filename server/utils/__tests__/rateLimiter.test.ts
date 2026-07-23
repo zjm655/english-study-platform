@@ -19,36 +19,88 @@ async function loadLimiter() {
   return await import('../rateLimiter')
 }
 
+// 默认全开的限流配置（含上传独立配置）
+const FULL_CFG = {
+  enabled: true,
+  ipLevel: true,
+  userLevel: true,
+  uploadEnabled: true,
+  uploadMax: 10,
+  uploadWindow: 60,
+}
+
 // ============ getRateLimitConfig 开关读取 ============
 
 describe('getRateLimitConfig - 开关读取', () => {
-  it('enabled=1, ipLevel=1, userLevel=1 → 返回全 true', async () => {
+  it('全开 → 返回全 true + 上传默认 10/60', async () => {
     mockQuery.mockResolvedValueOnce([
       { config_key: 'rate_limit_enabled', config_value: '1' },
       { config_key: 'rate_limit_ip_level', config_value: '1' },
       { config_key: 'rate_limit_user_level', config_value: '1' },
+      { config_key: 'rate_limit_upload_enabled', config_value: '1' },
+      { config_key: 'rate_limit_upload_max', config_value: '10' },
+      { config_key: 'rate_limit_upload_window', config_value: '60' },
     ])
     const { getRateLimitConfig } = await loadLimiter()
     const cfg = await getRateLimitConfig()
-    expect(cfg).toEqual({ enabled: true, ipLevel: true, userLevel: true })
+    expect(cfg).toEqual({
+      enabled: true,
+      ipLevel: true,
+      userLevel: true,
+      uploadEnabled: true,
+      uploadMax: 10,
+      uploadWindow: 60,
+    })
   })
 
-  it('enabled=0 → 返回 { enabled: false, ipLevel: true, userLevel: true }', async () => {
+  it('enabled=0 → 全局关，但 uploadEnabled 仍可独立为 true', async () => {
     mockQuery.mockResolvedValueOnce([
       { config_key: 'rate_limit_enabled', config_value: '0' },
       { config_key: 'rate_limit_ip_level', config_value: '1' },
       { config_key: 'rate_limit_user_level', config_value: '1' },
+      { config_key: 'rate_limit_upload_enabled', config_value: '1' },
+      { config_key: 'rate_limit_upload_max', config_value: '5' },
+      { config_key: 'rate_limit_upload_window', config_value: '120' },
     ])
     const { getRateLimitConfig } = await loadLimiter()
     const cfg = await getRateLimitConfig()
-    expect(cfg).toEqual({ enabled: false, ipLevel: true, userLevel: true })
+    expect(cfg).toEqual({
+      enabled: false,
+      ipLevel: true,
+      userLevel: true,
+      uploadEnabled: true,
+      uploadMax: 5,
+      uploadWindow: 120,
+    })
   })
 
-  it('query 抛错 → 回退默认全 true { enabled: true, ipLevel: true, userLevel: true }', async () => {
+  it('uploadEnabled=0 → 上传限流关，全局仍开', async () => {
+    mockQuery.mockResolvedValueOnce([
+      { config_key: 'rate_limit_enabled', config_value: '1' },
+      { config_key: 'rate_limit_ip_level', config_value: '1' },
+      { config_key: 'rate_limit_user_level', config_value: '1' },
+      { config_key: 'rate_limit_upload_enabled', config_value: '0' },
+      { config_key: 'rate_limit_upload_max', config_value: '10' },
+      { config_key: 'rate_limit_upload_window', config_value: '60' },
+    ])
+    const { getRateLimitConfig } = await loadLimiter()
+    const cfg = await getRateLimitConfig()
+    expect(cfg.uploadEnabled).toBe(false)
+    expect(cfg.enabled).toBe(true)
+  })
+
+  it('query 抛错 → 回退默认全开（含上传默认 10/60）', async () => {
     mockQuery.mockRejectedValueOnce(new Error('db down'))
     const { getRateLimitConfig } = await loadLimiter()
     const cfg = await getRateLimitConfig()
-    expect(cfg).toEqual({ enabled: true, ipLevel: true, userLevel: true })
+    expect(cfg).toEqual({
+      enabled: true,
+      ipLevel: true,
+      userLevel: true,
+      uploadEnabled: true,
+      uploadMax: 10,
+      uploadWindow: 60,
+    })
   })
 
   it('缓存：连续两次调用只查一次 db；invalidateRateLimitCache 后再调用会再查一次', async () => {
@@ -56,6 +108,9 @@ describe('getRateLimitConfig - 开关读取', () => {
       { config_key: 'rate_limit_enabled', config_value: '1' },
       { config_key: 'rate_limit_ip_level', config_value: '1' },
       { config_key: 'rate_limit_user_level', config_value: '1' },
+      { config_key: 'rate_limit_upload_enabled', config_value: '1' },
+      { config_key: 'rate_limit_upload_max', config_value: '10' },
+      { config_key: 'rate_limit_upload_window', config_value: '60' },
     ])
     const { getRateLimitConfig, invalidateRateLimitCache } = await loadLimiter()
     await getRateLimitConfig()
@@ -72,7 +127,7 @@ describe('getRateLimitConfig - 开关读取', () => {
 describe('checkRateLimit - IP 级限流', () => {
   it('未超限返回 { allowed: true }', async () => {
     const { checkRateLimit } = await loadLimiter()
-    const res = checkRateLimit('1.2.3.4', '/api/units')
+    const res = checkRateLimit('1.2.3.4', '/api/units', FULL_CFG)
     expect(res).toEqual({ allowed: true })
   })
 
@@ -80,9 +135,9 @@ describe('checkRateLimit - IP 级限流', () => {
     const { checkRateLimit } = await loadLimiter()
     const ip = '10.0.0.1'
     for (let i = 0; i < 10; i++) {
-      expect(checkRateLimit(ip, '/api/evaluation/auth')).toEqual({ allowed: true })
+      expect(checkRateLimit(ip, '/api/evaluation/auth', FULL_CFG)).toEqual({ allowed: true })
     }
-    const res = checkRateLimit(ip, '/api/evaluation/auth')
+    const res = checkRateLimit(ip, '/api/evaluation/auth', FULL_CFG)
     expect(res.allowed).toBe(false)
     expect(res.retryAfter).toBeGreaterThan(0)
   })
@@ -91,12 +146,58 @@ describe('checkRateLimit - IP 级限流', () => {
     const { checkRateLimit } = await loadLimiter()
     const ip = '10.0.0.2'
     for (let i = 0; i < 10; i++) {
-      checkRateLimit(ip, '/api/evaluation/auth')
+      checkRateLimit(ip, '/api/evaluation/auth', FULL_CFG)
     }
-    const res = checkRateLimit(ip, '/api/evaluation/auth')
+    const res = checkRateLimit(ip, '/api/evaluation/auth', FULL_CFG)
     // 窗口 60s，连续调用耗时极短，retryAfter 应在 [59, 60]
     expect(res.retryAfter).toBeGreaterThanOrEqual(59)
     expect(res.retryAfter).toBeLessThanOrEqual(60)
+  })
+
+  it('cross-path 不污染：先打 10 个 /api/units，再打 /api/segment/upload 应通过', async () => {
+    const { checkRateLimit } = await loadLimiter()
+    const ip = '10.0.0.3'
+    // /api/units 走默认 60/min，打 10 次远未到上限
+    for (let i = 0; i < 10; i++) {
+      checkRateLimit(ip, '/api/units', FULL_CFG)
+    }
+    // /api/segment/upload 独立 counter（key 含 path），应通过
+    const res = checkRateLimit(ip, '/api/segment/upload', FULL_CFG)
+    expect(res).toEqual({ allowed: true })
+  })
+
+  it('上传限流开关关闭时直接放行（独立于全局 enabled）', async () => {
+    const { checkRateLimit } = await loadLimiter()
+    const cfg = { ...FULL_CFG, uploadEnabled: false }
+    const ip = '10.0.0.4'
+    // 即便调很多次，开关关 → 全部放行
+    for (let i = 0; i < 20; i++) {
+      expect(checkRateLimit(ip, '/api/segment/upload', cfg)).toEqual({ allowed: true })
+    }
+  })
+
+  it('上传路径独立计数：/api/segment/upload 调满 10 次后第 11 次被拒', async () => {
+    const { checkRateLimit } = await loadLimiter()
+    const ip = '10.0.0.5'
+    for (let i = 0; i < 10; i++) {
+      expect(checkRateLimit(ip, '/api/segment/upload', FULL_CFG)).toEqual({ allowed: true })
+    }
+    const res = checkRateLimit(ip, '/api/segment/upload', FULL_CFG)
+    expect(res.allowed).toBe(false)
+  })
+
+  it('全局 enabled=0 时非上传路径放行，上传路径仍受限（uploadEnabled=true）', async () => {
+    const { checkRateLimit } = await loadLimiter()
+    const cfg = { ...FULL_CFG, enabled: false }
+    const ip = '10.0.0.6'
+    // 非上传路径：全局关 → 放行
+    expect(checkRateLimit(ip, '/api/units', cfg)).toEqual({ allowed: true })
+    // 上传路径：uploadEnabled=true → 仍受限，调 10 次后第 11 次被拒
+    for (let i = 0; i < 10; i++) {
+      expect(checkRateLimit(ip, '/api/segment/upload', cfg)).toEqual({ allowed: true })
+    }
+    const res = checkRateLimit(ip, '/api/segment/upload', cfg)
+    expect(res.allowed).toBe(false)
   })
 })
 
@@ -107,20 +208,44 @@ describe('checkUserRateLimit - 用户级独立计数', () => {
     const { checkUserRateLimit } = await loadLimiter()
     const ip = '192.168.1.1'
     for (let i = 0; i < 10; i++) {
-      expect(checkUserRateLimit(ip, '/api/evaluation/auth', 1)).toEqual({ allowed: true })
+      expect(checkUserRateLimit(ip, '/api/evaluation/auth', 1, FULL_CFG)).toEqual({
+        allowed: true,
+      })
     }
-    const res1 = checkUserRateLimit(ip, '/api/evaluation/auth', 1)
+    const res1 = checkUserRateLimit(ip, '/api/evaluation/auth', 1, FULL_CFG)
     expect(res1.allowed).toBe(false)
-    const res2 = checkUserRateLimit(ip, '/api/evaluation/auth', 2)
+    const res2 = checkUserRateLimit(ip, '/api/evaluation/auth', 2, FULL_CFG)
     expect(res2).toEqual({ allowed: true })
   })
 
-  it('同 userId 不同 IP 也独立（key 为 userId@ip）：user1@ip1 调满 10 次后，user1@ip2 仍 allowed', async () => {
+  it('同 userId 不同 IP 也独立（key 为 userId@ip:path）', async () => {
     const { checkUserRateLimit } = await loadLimiter()
     for (let i = 0; i < 10; i++) {
-      checkUserRateLimit('1.1.1.1', '/api/evaluation/auth', 1)
+      checkUserRateLimit('1.1.1.1', '/api/evaluation/auth', 1, FULL_CFG)
     }
-    expect(checkUserRateLimit('1.1.1.1', '/api/evaluation/auth', 1).allowed).toBe(false)
-    expect(checkUserRateLimit('2.2.2.2', '/api/evaluation/auth', 1)).toEqual({ allowed: true })
+    expect(checkUserRateLimit('1.1.1.1', '/api/evaluation/auth', 1, FULL_CFG).allowed).toBe(false)
+    expect(checkUserRateLimit('2.2.2.2', '/api/evaluation/auth', 1, FULL_CFG)).toEqual({
+      allowed: true,
+    })
+  })
+
+  it('cross-path 不污染：user1 调满 10 次 /api/units 后，user1 打 /api/segment/upload 仍通过', async () => {
+    const { checkUserRateLimit } = await loadLimiter()
+    const ip = '192.168.1.2'
+    // /api/units 默认 60/min，打 10 次未到上限
+    for (let i = 0; i < 10; i++) {
+      checkUserRateLimit(ip, '/api/units', 1, FULL_CFG)
+    }
+    // 上传路径独立 counter（key 含 path），应通过
+    expect(checkUserRateLimit(ip, '/api/segment/upload', 1, FULL_CFG)).toEqual({ allowed: true })
+  })
+
+  it('上传限流开关关闭时直接放行', async () => {
+    const { checkUserRateLimit } = await loadLimiter()
+    const cfg = { ...FULL_CFG, uploadEnabled: false }
+    const ip = '192.168.1.3'
+    for (let i = 0; i < 20; i++) {
+      expect(checkUserRateLimit(ip, '/api/segment/upload', 1, cfg)).toEqual({ allowed: true })
+    }
   })
 })

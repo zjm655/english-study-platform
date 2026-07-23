@@ -16,6 +16,11 @@ const rateLimitEnabled = ref(true)
 const rateLimitIpLevel = ref(true)
 const rateLimitUserLevel = ref(true)
 
+// 上传材料限流（独立于全局限流开关）
+const uploadLimitEnabled = ref(true)
+const uploadLimitMax = ref(10)
+const uploadLimitWindow = ref(60)
+
 async function fetchConfigs() {
   loading.value = true
   try {
@@ -27,6 +32,10 @@ async function fetchConfigs() {
       rateLimitEnabled.value = res.data['rate_limit_enabled']?.value === '1'
       rateLimitIpLevel.value = res.data['rate_limit_ip_level']?.value === '1'
       rateLimitUserLevel.value = res.data['rate_limit_user_level']?.value === '1'
+      uploadLimitEnabled.value = res.data['rate_limit_upload_enabled']?.value === '1'
+      uploadLimitMax.value = parseInt(res.data['rate_limit_upload_max']?.value ?? '10', 10) || 10
+      uploadLimitWindow.value =
+        parseInt(res.data['rate_limit_upload_window']?.value ?? '60', 10) || 60
     }
   } finally {
     loading.value = false
@@ -70,6 +79,37 @@ async function saveRateLimitConfig(key: string, enabled: boolean) {
   } catch {
     ElMessage.error('网络异常，保存失败')
     await fetchConfigs()
+  }
+}
+
+async function saveUploadLimit() {
+  if (uploadLimitMax.value < 1 || uploadLimitWindow.value < 1) {
+    ElMessage.warning('请输入有效的正整数')
+    return
+  }
+  saving.value = true
+  try {
+    const [resMax, resWindow] = await Promise.all([
+      request(adminConfigPath, {
+        method: 'PUT',
+        body: { key: 'rate_limit_upload_max', value: String(uploadLimitMax.value) },
+      }),
+      request(adminConfigPath, {
+        method: 'PUT',
+        body: { key: 'rate_limit_upload_window', value: String(uploadLimitWindow.value) },
+      }),
+    ])
+    if (resMax.code === 200 && resWindow.code === 200) {
+      ElMessage.success('保存成功')
+    } else {
+      ElMessage.error(resMax.message ?? resWindow.message ?? '保存失败')
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
+  } finally {
+    saving.value = false
   }
 }
 
@@ -128,6 +168,45 @@ onMounted(fetchConfigs)
             @change="(v) => saveRateLimitConfig('rate_limit_user_level', Boolean(v))"
           />
           <div class="form-tip">每个登录用户独立配额，避免同 IP 多用户互相影响。</div>
+        </el-form-item>
+      </el-form>
+    </el-card>
+
+    <el-card shadow="never" style="margin-top: 16px">
+      <template #header>
+        <span class="card-title">上传材料限流配置</span>
+      </template>
+
+      <el-form label-width="180px" style="max-width: 500px">
+        <el-form-item label="启用上传限流">
+          <el-switch
+            v-model="uploadLimitEnabled"
+            @change="(v) => saveRateLimitConfig('rate_limit_upload_enabled', Boolean(v))"
+          />
+          <div class="form-tip">独立于全局限流开关。关闭后上传材料请求不受限流检查。</div>
+        </el-form-item>
+        <el-form-item label="窗口内最大请求数">
+          <el-input-number
+            v-model="uploadLimitMax"
+            :min="1"
+            :max="999"
+            :step="1"
+            controls-position="right"
+          />
+          <div class="form-tip">每个用户在时间窗口内可发起的上传材料请求数上限。</div>
+        </el-form-item>
+        <el-form-item label="时间窗口（秒）">
+          <el-input-number
+            v-model="uploadLimitWindow"
+            :min="1"
+            :max="3600"
+            :step="10"
+            controls-position="right"
+          />
+          <div class="form-tip">限流统计的时间窗口大小（秒），常用 60 秒。</div>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="saveUploadLimit">保存</el-button>
         </el-form-item>
       </el-form>
     </el-card>
