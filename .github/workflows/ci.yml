@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Nuxt types
+        run: npx nuxt prepare
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Frontend tests
+        run: npx vitest run --config vitest.config.ts
+
+      - name: Server tests
+        run: npx vitest run --config vitest.server.config.ts
+
+      - name: Prettier check
+        run: npm run format:check
