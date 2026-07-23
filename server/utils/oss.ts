@@ -172,7 +172,7 @@ export async function uploadImagePublic(
   const ext = safeName.includes('.') ? '' : '.png'
   const key = `records/${Date.now()}_${safeName}${ext}`
 
-  const client = getClient() // 使用公网客户端
+  const client = getUploadClient() // 使用公网客户端
   const result = await client.put(key, fileBuffer)
 
   // 公网客户端返回的 url 本身就是公网地址，无需替换
@@ -210,11 +210,11 @@ export async function signAudioUrl(
 // ---------- 自定义 key 上传 ----------
 
 /**
- * 使用自定义 key 上传文件到 OSS（使用公网客户端）
+ * 使用自定义 key 上传文件到 OSS（按 useInternal 配置选择公网/内网客户端）
  * 适用于迁移等需要精确控制存储路径的场景
  */
 export async function uploadWithKey(fileBuffer: Buffer, ossKey: string): Promise<UploadResult> {
-  const client = getClient()
+  const client = getUploadClient()
   const start = Date.now()
   try {
     const result = await client.put(ossKey, fileBuffer)
