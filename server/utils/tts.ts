@@ -22,7 +22,9 @@ const WSS_BASE = 'wss://speech.platform.bing.com/consumer/speech/synthesize/read
 /** Edge TTS 固定可信令牌 */
 const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4'
 
-/** Chromium 版本（用于 User-Agent 和 Sec-MS-GEC-Version） */
+/** Chromium 版本（用于 User-Agent 和 Sec-MS-GEC-Version）
+ *  排障提示：当 Edge TTS 返回 403 时，优先检查此版本号是否过期，
+ *  更新为当前 stable 通道的 Chromium 版本即可恢复。 */
 const CHROMIUM_VERSION = '143.0.3650.75'
 
 /** 默认语音 */
@@ -395,6 +397,13 @@ export async function textToSpeech(
     if (audioChunks.length === 0) {
       logger.error('[tts] 转换失败: 未返回音频数据')
       fileLogError('tts', '[tts] 转换失败: 未返回音频数据', { textLength: trimmed.length })
+      void logCloudServiceCall({
+        service: 'tts',
+        operation: 'textToSpeech',
+        success: false,
+        durationMs: Date.now() - start,
+        errorMessage: 'TTS 转换未返回音频数据',
+      })
       return { success: false, error: 'TTS 转换未返回音频数据' }
     }
 
