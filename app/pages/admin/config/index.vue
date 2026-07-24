@@ -147,137 +147,193 @@ onMounted(fetchConfigs)
 </script>
 
 <template>
-  <div v-loading="loading" class="page-container">
-    <el-card shadow="never">
-      <template #header>
-        <span class="card-title">系统配置</span>
-      </template>
+  <div v-loading="loading" class="config-page">
+    <div class="config-header">
+      <h2 class="config-page-title">系统配置</h2>
+      <p class="config-desc">调整评测额度、API 限流与上传限流等全局策略，保存后即时生效。</p>
+    </div>
 
+    <div class="config-grid">
       <!-- ═══ 评测额度 ═══ -->
-      <el-divider content-position="left">评测额度</el-divider>
-      <el-form label-width="140px" style="max-width: 560px">
-        <el-form-item label="额度限制">
-          <div class="window-row">
-            <span class="window-label">每</span>
-            <el-input-number
-              v-model="evalWindowVal"
-              :min="1"
-              :max="999"
-              :step="1"
-              controls-position="right"
-              style="width: 100px"
-            />
-            <el-select v-model="evalWindowUnit" style="width: 80px">
-              <el-option
-                v-for="u in UNIT_OPTIONS"
-                :key="u.value"
-                :label="u.label"
-                :value="u.value"
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">评测额度</span>
+            <span class="card-sub">普通用户评测频率上限</span>
+          </div>
+        </template>
+        <el-form label-width="110px">
+          <el-form-item label="额度限制">
+            <div class="window-row">
+              <span class="window-label">每</span>
+              <el-input-number
+                v-model="evalWindowVal"
+                :min="1"
+                :max="999"
+                :step="1"
+                controls-position="right"
+                style="width: 100px"
               />
-            </el-select>
-            <span class="window-label">最多</span>
-            <el-input-number
-              v-model="evalMax"
-              :min="0"
-              :max="999"
-              :step="5"
-              controls-position="right"
-              style="width: 100px"
-            />
-            <span class="window-label">次</span>
-          </div>
-          <div class="form-tip">
-            普通用户在时间窗口内可进行的评测次数（配音 + 跟读），管理员不受限制。设为 0 表示不限制。
-          </div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="saving" @click="saveEvalLimit">保存</el-button>
-        </el-form-item>
-      </el-form>
+              <el-select v-model="evalWindowUnit" style="width: 80px">
+                <el-option
+                  v-for="u in UNIT_OPTIONS"
+                  :key="u.value"
+                  :label="u.label"
+                  :value="u.value"
+                />
+              </el-select>
+              <span class="window-label">最多</span>
+              <el-input-number
+                v-model="evalMax"
+                :min="0"
+                :max="999"
+                :step="5"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <span class="window-label">次</span>
+            </div>
+            <div class="form-tip">
+              普通用户在时间窗口内可进行的评测次数（配音 + 跟读），管理员不受限制。设为 0
+              表示不限制。
+            </div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveEvalLimit">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
 
       <!-- ═══ API 限流 ═══ -->
-      <el-divider content-position="left">API 限流</el-divider>
-      <el-form label-width="140px" style="max-width: 560px">
-        <el-form-item label="启用限流（总开关）">
-          <el-switch
-            v-model="rateLimitEnabled"
-            @change="(v) => saveRateLimitConfig('rate_limit_enabled', Boolean(v))"
-          />
-          <div class="form-tip">关闭后所有限流检查均不生效（不推荐）。</div>
-        </el-form-item>
-        <el-form-item label="IP 级限流">
-          <el-switch
-            v-model="rateLimitIpLevel"
-            @change="(v) => saveRateLimitConfig('rate_limit_ip_level', Boolean(v))"
-          />
-          <div class="form-tip">同一 IP 的所有用户共享请求配额，防止单 IP 滥用。</div>
-        </el-form-item>
-        <el-form-item label="用户级限流">
-          <el-switch
-            v-model="rateLimitUserLevel"
-            @change="(v) => saveRateLimitConfig('rate_limit_user_level', Boolean(v))"
-          />
-          <div class="form-tip">每个登录用户独立配额，避免同 IP 多用户互相影响。</div>
-        </el-form-item>
-      </el-form>
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">API 限流</span>
+            <span class="card-sub">全局请求频率保护</span>
+          </div>
+        </template>
+        <el-form label-width="110px">
+          <el-form-item label="总开关">
+            <el-switch
+              v-model="rateLimitEnabled"
+              @change="(v) => saveRateLimitConfig('rate_limit_enabled', Boolean(v))"
+            />
+            <div class="form-tip">关闭后所有限流检查均不生效（不推荐）。</div>
+          </el-form-item>
+          <el-form-item label="IP 级限流">
+            <el-switch
+              v-model="rateLimitIpLevel"
+              @change="(v) => saveRateLimitConfig('rate_limit_ip_level', Boolean(v))"
+            />
+            <div class="form-tip">同一 IP 的所有用户共享请求配额，防止单 IP 滥用。</div>
+          </el-form-item>
+          <el-form-item label="用户级限流">
+            <el-switch
+              v-model="rateLimitUserLevel"
+              @change="(v) => saveRateLimitConfig('rate_limit_user_level', Boolean(v))"
+            />
+            <div class="form-tip">每个登录用户独立配额，避免同 IP 多用户互相影响。</div>
+          </el-form-item>
+        </el-form>
+      </el-card>
 
       <!-- ═══ 上传限流 ═══ -->
-      <el-divider content-position="left">上传限流</el-divider>
-      <el-form label-width="140px" style="max-width: 560px">
-        <el-form-item label="启用上传限流">
-          <el-switch
-            v-model="uploadLimitEnabled"
-            @change="(v) => saveRateLimitConfig('rate_limit_upload_enabled', Boolean(v))"
-          />
-          <div class="form-tip">独立于全局限流开关。关闭后上传材料请求不受限流检查。</div>
-        </el-form-item>
-        <el-form-item label="频率限制">
-          <div class="window-row">
-            <span class="window-label">每</span>
-            <el-input-number
-              v-model="uploadWindowVal"
-              :min="1"
-              :max="999"
-              :step="1"
-              controls-position="right"
-              style="width: 100px"
-            />
-            <el-select v-model="uploadWindowUnit" style="width: 80px">
-              <el-option
-                v-for="u in UNIT_OPTIONS"
-                :key="u.value"
-                :label="u.label"
-                :value="u.value"
-              />
-            </el-select>
-            <span class="window-label">最多</span>
-            <el-input-number
-              v-model="uploadMax"
-              :min="1"
-              :max="999"
-              :step="1"
-              controls-position="right"
-              style="width: 100px"
-            />
-            <span class="window-label">次</span>
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">上传限流</span>
+            <span class="card-sub">上传材料请求频率</span>
           </div>
-          <div class="form-tip">每个用户在时间窗口内可发起的上传材料请求数上限。</div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="saving" @click="saveUploadLimit">保存</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        </template>
+        <el-form label-width="110px">
+          <el-form-item label="启用上传限流">
+            <el-switch
+              v-model="uploadLimitEnabled"
+              @change="(v) => saveRateLimitConfig('rate_limit_upload_enabled', Boolean(v))"
+            />
+            <div class="form-tip">独立于全局限流开关。关闭后上传材料请求不受限流检查。</div>
+          </el-form-item>
+          <el-form-item label="频率限制">
+            <div class="window-row">
+              <span class="window-label">每</span>
+              <el-input-number
+                v-model="uploadWindowVal"
+                :min="1"
+                :max="999"
+                :step="1"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <el-select v-model="uploadWindowUnit" style="width: 80px">
+                <el-option
+                  v-for="u in UNIT_OPTIONS"
+                  :key="u.value"
+                  :label="u.label"
+                  :value="u.value"
+                />
+              </el-select>
+              <span class="window-label">最多</span>
+              <el-input-number
+                v-model="uploadMax"
+                :min="1"
+                :max="999"
+                :step="1"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <span class="window-label">次</span>
+            </div>
+            <div class="form-tip">每个用户在时间窗口内可发起的上传材料请求数上限。</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveUploadLimit">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.page-container {
+.config-page {
   padding: 20px;
 }
+.config-header {
+  margin-bottom: 16px;
+}
+.config-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.config-desc {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.config-card {
+  border-radius: var(--r-lg);
+  height: 100%;
+}
+.card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .card-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--text-1);
+}
+.card-sub {
+  font-size: 12px;
+  color: var(--text-4);
 }
 .window-row {
   display: flex;

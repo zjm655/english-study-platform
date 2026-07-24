@@ -20,6 +20,9 @@ export const loginSchema = z.object({
       if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(val)) categories++ // 包含特殊符号
       return categories >= 2
     }, '密码必须包含数字、字母、特殊符号中的至少两类'),
+  // 登录连错达阈值后必填（handler 内条件强制），常态可选，不影响正常登录
+  captchaToken: z.string().optional(),
+  captchaCode: z.string().optional(),
 })
 
 // 注册校验
@@ -44,6 +47,8 @@ export const registerSchema = z
         return categories >= 2
       }, '密码必须包含数字、字母、特殊符号中的至少两类'),
     password2: z.string().min(8, '密码长度不能少于8位').max(25, '密码长度不能超过25位'),
+    captchaToken: z.string().min(1, '请输入图形验证码'),
+    captchaCode: z.string().min(1, '请输入图形验证码'),
   })
   .refine((data) => data.password1 === data.password2, {
     message: '两次密码输入不一致',

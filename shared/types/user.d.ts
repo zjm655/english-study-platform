@@ -1,6 +1,16 @@
 export interface LoginPayload {
   account: string
   password: string
+  /** 图形验证码 token（登录连错达阈值后必填） */
+  captchaToken?: string
+  /** 图形验证码用户输入（登录连错达阈值后必填） */
+  captchaCode?: string
+}
+
+/** 图形验证码获取结果 */
+export interface CaptchaResult {
+  svg: string
+  token: string
 }
 
 export interface LoginResPayload {
@@ -19,6 +29,10 @@ export interface RegisterPayload {
   email?: string
   password1: string
   password2: string
+  /** 图形验证码 token（注册必填） */
+  captchaToken: string
+  /** 图形验证码用户输入（注册必填） */
+  captchaCode: string
 }
 
 export interface CheckinStats {

@@ -1,5 +1,6 @@
 export const userLoginPath = '/api/user/login'
 export const userRegisterPath = '/api/user/register'
+export const userCaptchaPath = '/api/user/captcha'
 export const userVerifyPath = '/api/user/verify'
 export const unitsPath = '/api/units'
 export const userProgressPath = '/api/user/progress'

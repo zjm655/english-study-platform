@@ -1,5 +1,6 @@
 export { useToLogin } from './useToLogin'
 export { useToRegister } from './useToRegister'
+export { useCaptcha } from './useCaptcha'
 export { useToVerify } from './useToVerify'
 export { useCheckinStats } from './useCheckinStats'
 export { useCheckin } from './useCheckin'

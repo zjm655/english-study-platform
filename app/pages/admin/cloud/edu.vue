@@ -43,6 +43,15 @@
       </div>
     </div>
 
+    <!-- 调用趋势 -->
+    <section class="panel trend-panel">
+      <header class="panel-head">
+        <h3 class="panel-title">调用趋势</h3>
+        <span class="panel-note">按天聚合评测鉴权成功调用次数</span>
+      </header>
+      <div ref="trendChartRef" class="trend-chart"></div>
+    </section>
+
     <!-- 估算面板 -->
     <section class="panel">
       <header class="panel-head">
@@ -82,14 +91,26 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
+import { use, graphic, init } from 'echarts/core'
+import { LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+import type { EChartsType } from 'echarts/core'
 import type { EduStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudEdu } from '~/composables/admin'
+import { useAdminCloudEdu, useCloudTrend } from '~/composables/admin'
+
+use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 definePageMeta({ layout: 'admin' })
 
 const days = ref(7)
 const { isLoading, execute } = useAdminCloudEdu()
+const { execute: executeTrend } = useCloudTrend()
 const data = ref<EduStatResult | null>(null)
+
+// 趋势图
+const trendChartRef = ref<HTMLElement | null>(null)
+let trendChart: EChartsType | null = null
 
 /** 日均调用次数 */
 const dailyAvg = computed(() => {
@@ -102,9 +123,53 @@ async function fetchData() {
   if (res.code === 200 && res.data) {
     data.value = res.data
   }
+  await fetchTrend()
+}
+
+async function fetchTrend() {
+  const res = await executeTrend({ service: 'edu', days: days.value })
+  if (res.code === 200 && res.data) {
+    renderTrendChart(res.data.dates, res.data.callCounts)
+  }
+}
+
+function renderTrendChart(dates: string[], callCounts: number[]) {
+  if (!trendChartRef.value) return
+  if (!trendChart) {
+    trendChart = init(trendChartRef.value)
+  }
+  trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 45, right: 20, top: 20, bottom: 40 },
+    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
+    yAxis: {
+      type: 'value',
+      name: '调用次数',
+      axisLabel: { fontSize: 11 },
+      splitLine: { show: false },
+    },
+    series: [
+      {
+        name: '评测调用',
+        type: 'line',
+        data: callCounts,
+        smooth: true,
+        itemStyle: { color: '#409EFF' },
+        areaStyle: {
+          color: new graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(64,158,255,0.25)' },
+            { offset: 1, color: 'rgba(64,158,255,0.02)' },
+          ]),
+        },
+      },
+    ],
+  })
 }
 
 onMounted(() => fetchData())
+onUnmounted(() => {
+  trendChart?.dispose()
+})
 </script>
 
 <style scoped>
@@ -234,6 +299,11 @@ onMounted(() => fetchData())
   font-size: 12px;
   color: var(--text-3);
   line-height: 1.6;
+}
+
+.trend-chart {
+  width: 100%;
+  height: 280px;
 }
 
 @media (max-width: 1100px) {

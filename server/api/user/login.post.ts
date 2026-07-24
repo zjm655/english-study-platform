@@ -23,7 +23,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
     return validateError(errorMessage, 401)
   }
 
-  const { account, password } = result.data
+  const { account, password, captchaToken, captchaCode } = result.data
 
   // 3. 查数据库验证用户
   const rows = await query<UserRow>(
@@ -43,16 +43,28 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
     return validateError('账号已被封禁，请联系管理员', 403)
   }
 
-  // 4. 验证密码
+  // 4. 连错达阈值：强制图形验证码（用 428 与鉴权失效 401/403 区分，前端据此显示验证码）
+  if (getFailCount(account) >= CAPTCHA_THRESHOLD) {
+    const captchaOk = await verifyCaptcha(captchaToken ?? '', captchaCode ?? '')
+    if (!captchaOk) {
+      return validateError('请输入图形验证码', 428)
+    }
+  }
+
+  // 5. 验证密码
   const isMatch = await bcrypt.compare(password, user.passwordHash)
   if (!isMatch) {
+    recordFail(account)
     return validateError('密码错误', 401)
   }
 
-  // 5. 生成 JWT token
+  // 6. 登录成功：清零连续失败计数
+  resetFail(account)
+
+  // 7. 生成 JWT token
   const token = await signToken({ id: user.id, role: user.role })
 
-  // 6. 写入 httpOnly Cookie
+  // 8. 写入 httpOnly Cookie
   setCookie(event, 'token', token, {
     httpOnly: true,
     secure: !import.meta.dev,
@@ -61,7 +73,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
     path: '/',
   })
 
-  // 7. 返回用户信息（排除密码）
+  // 9. 返回用户信息（排除密码）
   const { passwordHash, ...safeInfo } = user
   return validateSuccess(safeInfo, '登录成功！', 200)
 })

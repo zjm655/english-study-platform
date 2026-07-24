@@ -1,11 +1,11 @@
-<!-- app/pages/admin/cloud/bss.vue：BSS 费用中心（账户余额 + 账单明细） -->
+<!-- app/pages/admin/cloud/bss.vue：BSS 费用中心（余额 + 账单 + 总览 + 代金券/预付卡 + 月度趋势） -->
 <template>
   <div v-loading="isLoading" class="cloud-page">
     <!-- 页头 -->
     <div class="page-header">
       <div>
         <h2 class="page-title">BSS 费用中心</h2>
-        <p class="page-desc">阿里云账户余额 + 账单明细查询</p>
+        <p class="page-desc">阿里云账户余额 · 账单明细 · 账单总览 · 代金券/预付卡 · 月度趋势</p>
       </div>
       <div class="header-actions">
         <el-date-picker
@@ -102,13 +102,133 @@
         </div>
       </section>
     </div>
+
+    <!-- 账单总览（按产品） -->
+    <section class="panel">
+      <header class="panel-head">
+        <h3 class="panel-title">账单总览</h3>
+        <span class="panel-note">{{ billingMonth }} · 按产品汇总实付</span>
+      </header>
+      <template v-if="data?.billOverview.success">
+        <div v-show="hasOverview" ref="overviewChartRef" class="overview-chart"></div>
+        <el-empty v-if="!hasOverview" description="该账期无消费记录" :image-size="64" />
+      </template>
+      <div v-else class="unavailable">
+        <el-icon :size="22"><WarningFilled /></el-icon>
+        <p>账单总览暂不可用</p>
+        <span>{{ data?.billOverview.error || '加载失败或未配置' }}</span>
+      </div>
+    </section>
+
+    <!-- 月度消费趋势 -->
+    <section class="panel">
+      <header class="panel-head">
+        <h3 class="panel-title">月度消费趋势</h3>
+        <span class="panel-note">近 6 个月实付金额</span>
+      </header>
+      <template v-if="data?.monthlyTrend.success">
+        <div v-show="hasTrend" ref="trendChartRef" class="trend-chart"></div>
+        <el-empty v-if="!hasTrend" description="暂无趋势数据" :image-size="64" />
+      </template>
+      <div v-else class="unavailable">
+        <el-icon :size="22"><WarningFilled /></el-icon>
+        <p>趋势数据暂不可用</p>
+        <span>{{ data?.monthlyTrend.error || '加载失败或未配置' }}</span>
+      </div>
+    </section>
+
+    <!-- 代金券 / 预付卡 -->
+    <div class="content-grid content-grid--even">
+      <section class="panel">
+        <header class="panel-head">
+          <h3 class="panel-title">代金券余额</h3>
+          <span class="panel-note">QueryCashCoupons</span>
+        </header>
+        <template v-if="data?.coupons.success">
+          <el-table
+            v-if="data.coupons.items?.length"
+            :data="data.coupons.items"
+            stripe
+            size="small"
+            max-height="280"
+          >
+            <el-table-column prop="nominalValue" label="面额" width="80" align="right">
+              <template #default="{ row }">￥{{ row.nominalValue }}</template>
+            </el-table-column>
+            <el-table-column prop="balance" label="余额" width="80" align="right">
+              <template #default="{ row }">
+                <b>￥{{ row.balance }}</b>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="applicableProducts"
+              label="适用产品"
+              min-width="110"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="expiryTime" label="到期" width="110" />
+          </el-table>
+          <el-empty v-else description="无可用代金券" :image-size="64" />
+        </template>
+        <div v-else class="unavailable">
+          <el-icon :size="22"><WarningFilled /></el-icon>
+          <p>代金券暂不可用</p>
+          <span>{{ data?.coupons.error || '加载失败或未配置' }}</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <header class="panel-head">
+          <h3 class="panel-title">预付卡余额</h3>
+          <span class="panel-note">QueryPrepaidCards</span>
+        </header>
+        <template v-if="data?.prepaidCards.success">
+          <el-table
+            v-if="data.prepaidCards.items?.length"
+            :data="data.prepaidCards.items"
+            stripe
+            size="small"
+            max-height="280"
+          >
+            <el-table-column prop="nominalValue" label="面额" width="80" align="right">
+              <template #default="{ row }">￥{{ row.nominalValue }}</template>
+            </el-table-column>
+            <el-table-column prop="balance" label="余额" width="80" align="right">
+              <template #default="{ row }">
+                <b>￥{{ row.balance }}</b>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="applicableProducts"
+              label="适用产品"
+              min-width="110"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="expiryTime" label="到期" width="110" />
+          </el-table>
+          <el-empty v-else description="无可用预付卡" :image-size="64" />
+        </template>
+        <div v-else class="unavailable">
+          <el-icon :size="22"><WarningFilled /></el-icon>
+          <p>预付卡暂不可用</p>
+          <span>{{ data?.prepaidCards.error || '加载失败或未配置' }}</span>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Refresh, WarningFilled } from '@element-plus/icons-vue'
+import { use, graphic, init } from 'echarts/core'
+import { PieChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+import type { EChartsType } from 'echarts/core'
 import type { BssStatResult } from '#shared/types/adminCloud'
 import { useAdminCloudBss } from '~/composables/admin'
+
+use([PieChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 definePageMeta({ layout: 'admin' })
 
@@ -118,6 +238,15 @@ const billingMonth = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padS
 
 const { isLoading, execute } = useAdminCloudBss()
 const data = ref<BssStatResult | null>(null)
+
+// 图表
+const overviewChartRef = ref<HTMLElement | null>(null)
+let overviewChart: EChartsType | null = null
+const trendChartRef = ref<HTMLElement | null>(null)
+let trendChart: EChartsType | null = null
+
+const hasOverview = computed(() => (data.value?.billOverview.items?.length ?? 0) > 0)
+const hasTrend = computed(() => (data.value?.monthlyTrend.items?.length ?? 0) > 0)
 
 /** 实付合计 */
 const totalPayment = computed(() => {
@@ -129,10 +258,74 @@ async function fetchData() {
   const res = await execute({ billingCycle: billingMonth.value })
   if (res.code === 200 && res.data) {
     data.value = res.data
+    await nextTick()
+    renderOverviewChart()
+    renderTrendChart()
   }
 }
 
+function renderOverviewChart() {
+  if (!overviewChartRef.value || !hasOverview.value) return
+  if (!overviewChart) overviewChart = init(overviewChartRef.value)
+  const items = data.value!.billOverview.items!
+  overviewChart.setOption({
+    tooltip: { trigger: 'item', formatter: '{b}: ￥{c} ({d}%)' },
+    legend: { type: 'scroll', bottom: 0, textStyle: { fontSize: 11 } },
+    series: [
+      {
+        name: '实付金额',
+        type: 'pie',
+        radius: ['42%', '68%'],
+        center: ['50%', '44%'],
+        avoidLabelOverlap: true,
+        label: { fontSize: 11 },
+        data: items.map((i) => ({ name: i.productName, value: i.paymentAmount })),
+      },
+    ],
+  })
+}
+
+function renderTrendChart() {
+  if (!trendChartRef.value || !hasTrend.value) return
+  if (!trendChart) trendChart = init(trendChartRef.value)
+  const items = data.value!.monthlyTrend.items!
+  trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 55, right: 20, top: 20, bottom: 30 },
+    xAxis: {
+      type: 'category',
+      data: items.map((i) => i.billingCycle),
+      axisLabel: { fontSize: 11 },
+    },
+    yAxis: {
+      type: 'value',
+      name: '实付(元)',
+      axisLabel: { fontSize: 11 },
+      splitLine: { show: false },
+    },
+    series: [
+      {
+        name: '实付金额',
+        type: 'line',
+        data: items.map((i) => i.paymentAmount),
+        smooth: true,
+        itemStyle: { color: '#67C23A' },
+        areaStyle: {
+          color: new graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(103,194,58,0.25)' },
+            { offset: 1, color: 'rgba(103,194,58,0.02)' },
+          ]),
+        },
+      },
+    ],
+  })
+}
+
 onMounted(() => fetchData())
+onUnmounted(() => {
+  overviewChart?.dispose()
+  trendChart?.dispose()
+})
 </script>
 
 <style scoped>
@@ -169,6 +362,9 @@ onMounted(() => fetchData())
   grid-template-columns: 2fr 3fr;
   gap: 16px;
 }
+.content-grid--even {
+  grid-template-columns: 1fr 1fr;
+}
 .panel {
   background: var(--card);
   border-radius: var(--r-lg);
@@ -196,6 +392,16 @@ onMounted(() => fetchData())
   background: var(--bg);
   padding: 2px 6px;
   border-radius: 4px;
+}
+
+/* 图表 */
+.overview-chart {
+  width: 100%;
+  height: 300px;
+}
+.trend-chart {
+  width: 100%;
+  height: 280px;
 }
 
 /* 余额卡片 */

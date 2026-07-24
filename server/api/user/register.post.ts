@@ -24,7 +24,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     return validateError(errorMessage)
   }
 
-  const { account, password1, nickname, email } = result.data
+  const { account, password1, nickname, email, captchaToken, captchaCode } = result.data
+
+  // 2b. 图形验证码校验（防止脚本批量注册）
+  const captchaOk = await verifyCaptcha(captchaToken, captchaCode)
+  if (!captchaOk) {
+    return validateError('图形验证码错误')
+  }
 
   // 3. 检查账号是否已存在
   const accountRows = await query<UserRow>('SELECT id FROM user WHERE account = ?', [account])

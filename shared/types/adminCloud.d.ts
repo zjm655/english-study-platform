@@ -8,6 +8,8 @@ export interface CloudEstimateQuery {
 /** 单路径估算明细 */
 export interface CloudPathEstimate {
   path: string
+  /** 展示名（如「录音上传 (PUT)」），未设则回退 path */
+  label?: string
   method: string
   count: number
   unitPrice: number
@@ -79,10 +81,78 @@ export interface BssBillResult {
   error?: string
 }
 
+/** BSS 账单总览项（按产品汇总） */
+export interface BssBillOverviewItem {
+  productCode: string
+  productName: string
+  pretaxAmount: number
+  deductedByCoupons: number
+  paymentAmount: number
+}
+
+/** BSS 账单总览结果 */
+export interface BssBillOverviewResult {
+  success: boolean
+  billingCycle?: string
+  items?: BssBillOverviewItem[]
+  error?: string
+}
+
+/** BSS 代金券 */
+export interface BssCashCoupon {
+  cashCouponId: string
+  nominalValue: string
+  balance: string
+  expiryTime: string
+  status: string
+  applicableProducts: string
+}
+
+/** BSS 代金券查询结果 */
+export interface BssCashCouponsResult {
+  success: boolean
+  items?: BssCashCoupon[]
+  error?: string
+}
+
+/** BSS 预付卡 */
+export interface BssPrepaidCard {
+  prepaidCardId: string
+  nominalValue: string
+  balance: string
+  expiryTime: string
+  applicableProducts: string
+}
+
+/** BSS 预付卡查询结果 */
+export interface BssPrepaidCardsResult {
+  success: boolean
+  items?: BssPrepaidCard[]
+  error?: string
+}
+
+/** BSS 月度消费趋势点 */
+export interface BssMonthlyTrendPoint {
+  billingCycle: string
+  pretaxAmount: number
+  paymentAmount: number
+}
+
+/** BSS 月度消费趋势结果 */
+export interface BssMonthlyTrendResult {
+  success: boolean
+  items?: BssMonthlyTrendPoint[]
+  error?: string
+}
+
 /** BSS 页面完整响应 */
 export interface BssStatResult {
   balance: import('./adminStats').CloudBalanceResult
   bill: BssBillResult
+  billOverview: BssBillOverviewResult
+  coupons: BssCashCouponsResult
+  prepaidCards: BssPrepaidCardsResult
+  monthlyTrend: BssMonthlyTrendResult
 }
 
 // ==================== DeepSeek 余额 ====================
@@ -112,7 +182,7 @@ export interface DeepSeekStatResult {
 
 /** 趋势查询参数 */
 export interface CloudTrendQuery {
-  service: 'oss' | 'nls' | 'deepseek'
+  service: 'oss' | 'nls' | 'deepseek' | 'edu'
   days?: number
 }
 

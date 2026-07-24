@@ -6,7 +6,7 @@ import { getRateLimitConfig, checkUserRateLimit } from '#server/utils/rateLimite
 // 全局服务端中间件：每次请求自动解析 Cookie 中的 JWT
 export default defineEventHandler(async (event) => {
   // 1. 公开路由白名单，这些接口不需要登录
-  const publicPaths = ['/api/user/login', '/api/user/register']
+  const publicPaths = ['/api/user/login', '/api/user/register', '/api/user/captcha']
 
   if (publicPaths.some((p) => event.path === p)) return
   else if (!event.path.startsWith('/api')) return
