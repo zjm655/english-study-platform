@@ -18,7 +18,7 @@ export function useToLogin() {
 
   const handleLogin = async (payload: LoginPayload) => {
     const res = await execute(payload)
-    if (res && res.code === 200) {
+    if (res && res.code === 200 && res.data) {
       useUserStore().setUser(res.data)
       useUserStore().isLogin = true
     }

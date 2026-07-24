@@ -7,17 +7,13 @@ import type {
 
 /**
  * 运营统计聚合看板数据（概览 + 按天趋势 + Top10 + 错误分布）。
- * query 参数手动拼接 URLSearchParams；仅在有值时附加。
+ * 服务端需对全范围 COUNT / GROUP BY，属耗时聚合读接口，故用 request.slow（默认 5s 易误中断）。
  */
 export const getAdminStats = (options: AdminStatsQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.days !== undefined && options.days !== null)
-    params.append('days', String(options.days))
-  const query = params.toString()
-  return request.json<AdminStatsResult>(`${adminStatsPath}${query ? '?' + query : ''}`)
+  return request.slow<AdminStatsResult>(`${adminStatsPath}${buildQuery({ days: options.days })}`)
 }
 
-/** 云账户余额（阿里云 BSS，探索性；失败时 data.success=false） */
+/** 云账户余额（阿里云 BSS，探索性；失败时 data.success=false）。外部云 API 调用，用 request.slow */
 export const getAdminStatsCloud = () => {
-  return request.json<CloudBalanceResult>(`${adminStatsPath}/cloud`)
+  return request.slow<CloudBalanceResult>(`${adminStatsPath}/cloud`)
 }

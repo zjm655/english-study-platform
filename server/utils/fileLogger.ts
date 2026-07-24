@@ -13,9 +13,12 @@
 import { appendFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** 日志来源约定（可扩展）：oss | tts | ai | nls | api | auth | db | error */
-export type LogSource =
-  'oss' | 'tts' | 'ai' | 'nls' | 'api' | 'auth' | 'db' | 'error' | (string & {})
+/** 日志来源白名单：作为路径子目录名的唯一合法取值，杜绝 join(LOG_DIR, source) 的路径穿越隐患 */
+export const LOG_SOURCES = ['oss', 'tts', 'ai', 'nls', 'api', 'auth', 'db', 'error'] as const
+/** 日志来源约定：oss | tts | ai | nls | api | auth | db | error */
+export type LogSource = (typeof LOG_SOURCES)[number]
+
+const LOG_SOURCE_SET = new Set<string>(LOG_SOURCES)
 
 const LOG_DIR = join(process.cwd(), 'logs')
 
@@ -55,16 +58,18 @@ function serialize(args: unknown[]): string {
  */
 export async function fileLog(source: LogSource, level: string, ...args: unknown[]): Promise<void> {
   try {
-    const sourceDir = join(LOG_DIR, source)
-    if (!readyDirs.has(source)) {
+    // 运行时兜底：非白名单来源回退到 'error'，杜绝 join 路径穿越（纵深防御）
+    const safeSource: LogSource = LOG_SOURCE_SET.has(source) ? source : 'error'
+    const sourceDir = join(LOG_DIR, safeSource)
+    if (!readyDirs.has(safeSource)) {
       await mkdir(sourceDir, { recursive: true })
-      readyDirs.add(source)
+      readyDirs.add(safeSource)
     }
-    const line = `[${timestamp()}][${level.toUpperCase()}][${source}] ${serialize(args)}\n`
+    const line = `[${timestamp()}][${level.toUpperCase()}][${safeSource}] ${serialize(args)}\n`
     const date = dateStr()
     await appendFile(join(sourceDir, `${date}.log`), line, 'utf-8')
     // error 级别双写集中错误日志（来源已是 error 时不重复写）
-    if (level.toLowerCase() === 'error' && source !== 'error') {
+    if (level.toLowerCase() === 'error' && safeSource !== 'error') {
       const errorDir = join(LOG_DIR, 'error')
       if (!readyDirs.has('error')) {
         await mkdir(errorDir, { recursive: true })

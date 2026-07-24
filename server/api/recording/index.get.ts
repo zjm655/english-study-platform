@@ -6,7 +6,8 @@ import type { Recording, PaginatedRecordings } from '#shared/types/recording'
 
 /**
  * 查询录音列表
- * 请求：GET /api/recording?segmentId=1&phase=3&page=1&size=3
+ * 请求：GET /api/recording?segmentId=1&phase=3&page=1&pageSize=3
+ * 兼容：过渡期仍接受旧参数名 size（前后端统一为 pageSize 后可移除该回退）。
  */
 export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRecordings>> => {
   const userId: number = event.context.user.id
@@ -14,8 +15,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
   const segmentId = Number(queryParams.segmentId)
   const phase = Number(queryParams.phase)
   const page = Math.max(1, Number(queryParams.page) || 1)
-  const size = Math.max(1, Math.min(50, Number(queryParams.size) || 3))
-  const offset = (page - 1) * size
+  const pageSize = Math.max(1, Math.min(50, Number(queryParams.pageSize ?? queryParams.size) || 3))
+  const offset = (page - 1) * pageSize
 
   // 查总数
   const countRows = await query<CountRow>(
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
      WHERE r.user_id = ? AND r.segment_id = ? AND r.phase = ? AND r.deleted_at IS NULL
      ORDER BY r.createdAt DESC
      LIMIT ? OFFSET ?`,
-    [userId, segmentId, phase, size, offset],
+    [userId, segmentId, phase, pageSize, offset],
   )
 
   // 签名音频路径
@@ -47,5 +48,5 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
   )
   const items = results.filter((r): r is Recording => r !== null)
 
-  return validateSuccess<PaginatedRecordings>({ items, total, page, size }, '获取成功')
+  return validateSuccess<PaginatedRecordings>({ items, total, page, pageSize }, '获取成功')
 })

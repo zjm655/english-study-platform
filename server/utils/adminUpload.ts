@@ -5,6 +5,7 @@ import { textToSpeech } from './tts'
 import { uploadWithKey } from './oss'
 import { extractAudioMeta } from './audioMeta'
 import { pool, withTransaction } from './db'
+import { mapWithConcurrency } from './concurrency'
 import { logger } from '../../shared/utils/logger'
 import type { AdminUploadItemResult } from '../../shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
@@ -171,8 +172,11 @@ export async function processAdminMaterial(
       segmentMediaId,
     ])
 
-    // 6. AI 内容生成（翻译+词汇+题目）
-    const aiResult = await generateLearningContent(textContent)
+    // 6. AI 内容生成 + 标题生成（并行；标题仅在无用户指定标题时生成）
+    const [aiResult, titleResult] = await Promise.all([
+      generateLearningContent(textContent),
+      title ? Promise.resolve(null) : generateTitle(textContent),
+    ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
       await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
       await updateRecordFailed(recordId, 'AI 内容生成失败')
@@ -186,17 +190,30 @@ export async function processAdminMaterial(
     let finalTitle: string
     if (title) {
       finalTitle = title
+    } else if (titleResult && titleResult.success && titleResult.title) {
+      finalTitle = titleResult.title
     } else {
-      const titleResult = await generateTitle(textContent)
-      if (titleResult.success && titleResult.title) {
-        finalTitle = titleResult.title
-      } else {
-        logger.warn('[admin upload] 标题生成失败，降级为文本截取:', titleResult.error)
-        finalTitle = fallbackTitle
-      }
+      logger.warn('[admin upload] 标题生成失败，降级为文本截取:', titleResult?.error)
+      finalTitle = fallbackTitle
     }
 
-    // 8. 入库（事务）
+    // 8. 词汇音频（TTS + OSS）——事务外受限并发预生成
+    // 绝不放在事务内：TTS(WebSocket) 与 OSS 上传是耗时网络 I/O，会长时间占用连接池连接。
+    // 词汇音频失败（TTS 或 OSS 任一失败）则 media=null，不影响整体入库。
+    const vocabAudios = await mapWithConcurrency(vocabulary, 4, async (vocab) => {
+      const vocabTts = await textToSpeech(vocab.word)
+      if (!vocabTts.success || !vocabTts.audio) return { vocab, media: null }
+      const vocabKey = `audio/vocab/${randomUUID()}.mp3`
+      try {
+        await uploadWithKey(vocabTts.audio, vocabKey)
+      } catch {
+        // 词汇音频上传失败不影响整体
+        return { vocab, media: null }
+      }
+      return { vocab, media: { key: vocabKey, size: vocabTts.audio.length } }
+    })
+
+    // 9. 全部入库（短事务，仅纯 DB 写，不含任何网络 I/O）
     const segmentId = await withTransaction(async (conn) => {
       const [segRes] = await conn.execute<ResultSetHeader>(
         `INSERT INTO segment (unit_id, title, textContent, translation, questions, is_public, media_id, sort_order)
@@ -214,22 +231,13 @@ export async function processAdminMaterial(
       const newSegmentId = segRes.insertId
 
       let vocabIndex = 0
-      for (const vocab of vocabulary) {
+      for (const { vocab, media } of vocabAudios) {
         let vocabMediaId: number | null = null
-        const vocabTts = await textToSpeech(vocab.word)
-
-        if (vocabTts.success && vocabTts.audio) {
-          const vocabKey = `audio/vocab/${randomUUID()}.mp3`
-          try {
-            await uploadWithKey(vocabTts.audio, vocabKey)
-          } catch {
-            // 词汇音频上传失败不影响整体
-          }
-
+        if (media) {
           const [vmRes] = await conn.execute<ResultSetHeader>(
             `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, mime_type, size_bytes, duration, status)
              VALUES (NULL, 'vocab_audio', 'oss', ?, ?, 'audio/mpeg', ?, 0, 1)`,
-            [bucket, vocabKey, vocabTts.audio.length],
+            [bucket, media.key, media.size],
           )
           vocabMediaId = vmRes.insertId
         }

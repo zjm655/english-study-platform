@@ -1,4 +1,9 @@
-import { getApiCallLogList, getCloudServiceLogList, getOperationLogListV2 } from '~/api/admin/logs'
+import {
+  getApiCallLogList,
+  getCloudServiceLogList,
+  getOperationLogListV2,
+  cleanLogs,
+} from '~/api/admin/logs'
 import type {
   ApiCallLogListQuery,
   ApiCallLogListResult,
@@ -39,6 +44,18 @@ export const useOperationLogListV2 = () => {
     success: '',
     clientFail: '获取操作日志失败',
     serverFail: '服务器异常，获取日志失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 清理日志表（页面自行提示删除行数，故 success 留空不重复日志） */
+export const useCleanLogs = () => {
+  const cfg = createResCfg<{ table: string; days: number }, { deletedRows: number }>({
+    handle: (payload) => cleanLogs(payload),
+    success: '',
+    clientFail: '清理失败',
+    serverFail: '服务器异常，清理失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

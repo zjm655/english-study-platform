@@ -13,18 +13,16 @@ import type {
 
 /**
  * 管理员用户列表（服务端分页 + 搜索 + 状态筛选）。
- * query 参数手动拼接 URLSearchParams；仅在有值时附加。
  */
 export const getAdminUserList = (options: AdminUserListQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null)
-    params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null)
-    params.append('pageSize', String(options.pageSize))
-  if (options.keyword) params.append('keyword', options.keyword)
-  if (options.state) params.append('state', options.state)
-  const query = params.toString()
-  return request.json<AdminUserListResult>(`${adminUserPath}${query ? '?' + query : ''}`)
+  return request.json<AdminUserListResult>(
+    `${adminUserPath}${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      keyword: options.keyword,
+      state: options.state,
+    })}`,
+  )
 }
 
 /** 管理员修改用户资料（nickname / email / level） */
@@ -65,13 +63,10 @@ export const updateAdminUserRole = (id: number, role: number) => {
 
 /** 管理员查看用户操作日志 */
 export const getAdminUserLogs = (id: number, options: AdminOperationLogListQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null)
-    params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null)
-    params.append('pageSize', String(options.pageSize))
-  const query = params.toString()
   return request.json<AdminOperationLogListResult>(
-    `${adminUserPath}/${id}/logs${query ? '?' + query : ''}`,
+    `${adminUserPath}/${id}/logs${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+    })}`,
   )
 }

@@ -69,7 +69,10 @@ export default defineEventHandler(async (event) => {
       .map((h) => {
         const val = row[h]
         if (val === null || val === undefined) return ''
-        const str = typeof val === 'object' ? JSON.stringify(val) : String(val)
+        const raw = typeof val === 'object' ? JSON.stringify(val) : String(val)
+        // 防 CSV 公式注入：以 = + - @ 或制表符/回车开头的单元格前置单引号，
+        // 避免 Excel/WPS 把用户可控字段（account、api 路径等）当作公式执行（如 =HYPERLINK(...)）
+        const str = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
         // 含逗号/引号/换行的字段用双引号包裹
         return str.includes(',') || str.includes('"') || str.includes('\n')
           ? `"${str.replace(/"/g, '""')}"`

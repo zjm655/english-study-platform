@@ -10,12 +10,8 @@ interface ListOptions {
 }
 
 export const getMaterialRecords = async (options: ListOptions = {}) => {
-  const params = new URLSearchParams()
-  if (options.limit) params.append('limit', String(options.limit))
-  if (options.offset) params.append('offset', String(options.offset))
-  const query = params.toString()
   return request.json<MaterialUploadRecordListItem[]>(
-    `${materialRecordsPath}${query ? '?' + query : ''}`,
+    `${materialRecordsPath}${buildQuery({ limit: options.limit, offset: options.offset })}`,
   )
 }
 

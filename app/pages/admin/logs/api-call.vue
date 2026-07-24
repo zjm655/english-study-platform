@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { useApiCallLogList } from '~/composables/admin'
-import { adminLogsExportPath, adminLogsCleanPath } from '~/api/paths'
-import { request } from '~/utils/request'
+import { useApiCallLogList, useCleanLogs } from '~/composables/admin'
+import { adminLogsExportPath } from '~/api/paths'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { ApiCallLogItem } from '#shared/types/adminLogs'
 
@@ -9,6 +8,7 @@ definePageMeta({ layout: 'admin', title: 'API 调用日志' })
 useSeoMeta({ title: 'API 调用日志 - 管理后台' })
 
 const { isLoading, execute } = useApiCallLogList()
+const { execute: cleanLogsExec } = useCleanLogs()
 
 // 筛选
 const filterMethod = ref('')
@@ -95,10 +95,7 @@ async function handleClean() {
   }
   cleaning.value = true
   try {
-    const res = await request<{ deletedRows: number }>(adminLogsCleanPath, {
-      method: 'POST',
-      body: { table: 'api_call_log', days: cleanDays.value },
-    })
+    const res = await cleanLogsExec({ table: 'api_call_log', days: cleanDays.value })
     if (res.code === 200) {
       ElMessage.success(res.message ?? `已清理 ${res.data?.deletedRows ?? 0} 条记录`)
       loadList()

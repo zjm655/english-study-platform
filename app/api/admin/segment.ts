@@ -8,21 +8,18 @@ import type {
 
 /**
  * 管理员材料列表（服务端分页 + 筛选 + 搜索）。
- * query 参数手动拼接 URLSearchParams；unitId/isPublic 可能为 0，须用 !== undefined/null 判断。
+ * unitId/isPublic 可能为 0，buildQuery 会保留数字 0（仅跳过 undefined/null/空串）。
  */
 export const getAdminSegmentList = (options: AdminSegmentListQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null)
-    params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null)
-    params.append('pageSize', String(options.pageSize))
-  if (options.unitId !== undefined && options.unitId !== null)
-    params.append('unitId', String(options.unitId))
-  if (options.isPublic !== undefined && options.isPublic !== null)
-    params.append('isPublic', String(options.isPublic))
-  if (options.keyword) params.append('keyword', options.keyword)
-  const query = params.toString()
-  return request.json<AdminSegmentListResult>(`${adminSegmentPath}${query ? '?' + query : ''}`)
+  return request.json<AdminSegmentListResult>(
+    `${adminSegmentPath}${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      unitId: options.unitId,
+      isPublic: options.isPublic,
+      keyword: options.keyword,
+    })}`,
+  )
 }
 
 /** 管理员材料详情（编辑页加载用） */

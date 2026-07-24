@@ -246,6 +246,40 @@ export async function uploadWithKey(fileBuffer: Buffer, ossKey: string): Promise
   }
 }
 
+// ---------- 核心功能：删除（孤儿清理） ----------
+/**
+ * 删除 OSS 对象（best-effort，用于「先传 OSS 后写库」事务失败后清理孤儿文件）。
+ * 失败仅记录日志、不抛错——清理是补偿动作，绝不影响主流程的错误返回。
+ * @param ossKey 对象 key
+ */
+export async function deleteObject(ossKey: string): Promise<void> {
+  const client = getUploadClient()
+  const start = Date.now()
+  try {
+    await client.delete(ossKey)
+    logger.info(`[OSS] 删除成功: ${ossKey}`)
+    fileLog('oss', 'info', `[OSS] 删除成功: ${ossKey}`)
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'deleteObject',
+      success: true,
+      durationMs: Date.now() - start,
+    })
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    logger.error(`[OSS] 删除失败: ${ossKey}, 错误: ${errMsg}`)
+    fileLogError('oss', `[OSS] 删除失败: ${ossKey}`, errMsg)
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'deleteObject',
+      success: false,
+      durationMs: Date.now() - start,
+      errorMessage: errMsg.substring(0, 500),
+    })
+    // best-effort：不抛错
+  }
+}
+
 // ---------- 核心功能：签名链接 ----------
 /**
  * 生成临时签名 URL（V4 签名），用于私有文件的临时授权访问。

@@ -5,11 +5,8 @@ export const getUnitProgress = async (
   unitId: number,
   params?: { page?: number; pageSize?: number },
 ) => {
-  const search = new URLSearchParams()
-  if (params?.page) search.set('page', String(params.page))
-  if (params?.pageSize) search.set('pageSize', String(params.pageSize))
-  const qs = search.toString()
-  return request<UnitProgressDetail>(`${unitsPath}/${unitId}/progress${qs ? `?${qs}` : ''}`, {
-    method: 'GET',
-  })
+  return request<UnitProgressDetail>(
+    `${unitsPath}/${unitId}/progress${buildQuery({ page: params?.page, pageSize: params?.pageSize })}`,
+    { method: 'GET' },
+  )
 }

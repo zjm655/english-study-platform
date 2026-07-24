@@ -155,9 +155,9 @@ describe('管理员材料详情', () => {
     const res = await detailHandler(makeEvent({ user: ADMIN, params: { segId: '5' } }))
 
     expect(res.code).toBe(200)
-    expect(res.data.questions).toHaveLength(1)
+    expect(res.data!.questions).toHaveLength(1)
     expect(res.data!.vocabulary![0]!.word).toBe('w')
-    expect(res.data.unitTitle).toBe('U1')
+    expect(res.data!.unitTitle).toBe('U1')
   })
 })
 

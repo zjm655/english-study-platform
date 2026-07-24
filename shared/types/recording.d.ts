@@ -44,7 +44,7 @@ export interface RecordingListQuery {
   segmentId: number
   phase?: 3 | 4
   page?: number // 页码，默认 1
-  size?: number // 每页条数，默认 3
+  pageSize?: number // 每页条数，默认 3
 }
 
 /** 分页包装 */
@@ -52,5 +52,5 @@ export interface PaginatedRecordings {
   items: Recording[]
   total: number
   page: number
-  size: number
+  pageSize: number
 }

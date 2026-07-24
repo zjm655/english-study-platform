@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
   await query(`UPDATE sys_config SET config_value = ? WHERE config_key = ?`, [value, key])
 
   // 使额度缓存失效
-  if (key === 'daily_eval_limit') {
+  if (key === 'daily_eval_limit' || key === 'eval_limit_window') {
     invalidateQuotaCache()
   }
 

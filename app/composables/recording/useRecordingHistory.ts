@@ -10,6 +10,8 @@ import { formatDuration } from '#shared/utils/format'
  */
 export function useRecordingHistory(segmentId: number, phase: 3 | 4) {
   const { execute: fetchRecordingList, isLoading: isListLoading } = useRecordingList()
+  // 加载更多用独立实例：独立防重锁（与首屏加载互不阻塞），silent 跳过每页成功日志刷屏
+  const { execute: fetchMoreRecordings } = useRecordingList()
   const { load: loadAudio, play: playAudio } = useAudioPlayer()
 
   const recordings = ref<Recording[]>([])
@@ -93,7 +95,7 @@ export function useRecordingHistory(segmentId: number, phase: 3 | 4) {
         segmentId,
         phase,
         page: 1,
-        size: 3,
+        pageSize: 3,
       })
       if (res?.code === 200 && res.data) {
         recordings.value = res.data.items
@@ -115,12 +117,15 @@ export function useRecordingHistory(segmentId: number, phase: 3 | 4) {
     isListLoadingMore.value = true
     try {
       const nextPage = Math.floor(recordings.value.length / 3) + 1
-      const res = await fetchRecordingList({
-        segmentId,
-        phase,
-        page: nextPage,
-        size: 3,
-      })
+      const res = await fetchMoreRecordings(
+        {
+          segmentId,
+          phase,
+          page: nextPage,
+          pageSize: 3,
+        },
+        { silent: true },
+      )
       if (res?.code === 200 && res.data) {
         recordings.value = [...recordings.value, ...res.data.items]
         totalRecordings.value = res.data.total

@@ -1,18 +1,12 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
-import {
-  useRecordingHistory,
-  useAnalyzeRecording,
-  useMarkAnalyzeFail,
-  useRetryAnalyze,
-} from '~/composables/recording'
+import { useRecordingHistory, useRetryAnalyze } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording, UploadRecordingResult } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
-import { getEvaluationAuth } from '~/api/evaluation/auth'
 import { useUserStore } from '~/store/useUserStore'
-import { useSpeechEvaluation } from '~/composables/evaluation/useSpeechEvaluation'
+import { useEvaluationPipeline } from '~/composables/evaluation/useEvaluationPipeline'
 
 interface Props {
   segment: SegmentDetail
@@ -49,18 +43,11 @@ const {
 } = useRecordingHistory(props.segment.id, 3)
 
 // API
-const { execute: analyzeRecording, isLoading: isAnalyzing } = useAnalyzeRecording()
-const { execute: markAnalyzeFail } = useMarkAnalyzeFail()
 const { execute: retryAnalyze, isLoading: isRetrying } = useRetryAnalyze()
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 
-// 评测 SDK
-const {
-  isLoading: isEvalLoading,
-  initEngine,
-  analyzeRecording: evalAnalyzeRecording,
-  destroy: destroyEngine,
-} = useSpeechEvaluation()
+// 评测流程（鉴权 + initEngine + 评测 + 保存/失败回退统一封装，离线全流程）
+const pipeline = useEvaluationPipeline()
 
 // 用户信息
 const userStore = useUserStore()
@@ -73,13 +60,13 @@ function handleRecordingReady(data: { blob: Blob; duration: number }) {
   pendingRecording.value = data
 }
 
-// 点击"分析"按钮 — 使用 SDK 评测当前录音
+// 点击"分析"按钮 — 使用 SDK 评测当前录音（离线全流程委托 pipeline）
 async function handleRecordingAnalyze(data: {
   blob: Blob
   duration: number
   recording: UploadRecordingResult
 }) {
-  if (isEvalLoading.value || isAnalyzing.value) return
+  if (pipeline.isLoading.value) return
 
   const userId = userStore.user?.id
   if (!userId) {
@@ -88,81 +75,28 @@ async function handleRecordingAnalyze(data: {
   }
 
   const { blob, recording: savedRecording } = data
-  const refText = props.segment.textContent
 
-  // 先销毁已有引擎（initEngine 有缓存，多次分析需重新初始化）
-  destroyEngine()
+  const outcome = await pipeline.runOffline({
+    getBlob: () => Promise.resolve(blob),
+    refText: props.segment.textContent,
+    userId,
+    recordingId: savedRecording.id,
+    audioPath: savedRecording.audioPath,
+    duration: savedRecording.duration,
+    createdAt: savedRecording.createdAt,
+    segmentId: props.segment.id,
+    phase: 3,
+  })
 
-  try {
-    const authRes = await getEvaluationAuth()
-    if (authRes?.code !== 200 || !authRes.data) {
-      toastError(authRes?.message || '获取评测授权失败')
-      return
-    }
+  // 成功入库或标记失败后的录音都并入历史列表（失败项支持点击重试）；
+  // audioPath 已由 pipeline 用上传接口的已签名地址回填，保证列表内可即时播放
+  if (outcome.recording) addRecording(outcome.recording)
+  // 清空本次录音卡片：置空 pending 并触发 VoiceRecorder remount
+  pendingRecording.value = null
+  recorderKey.value++
 
-    const { warrantId, applicationId } = authRes.data
-
-    await initEngine(applicationId, String(userId), warrantId)
-
-    const result = await evalAnalyzeRecording(blob, refText)
-
-    logger.info('[Dubbing] 评测结果:', result)
-
-    // 保存评测结果到后端
-    const saveRes = await analyzeRecording({
-      id: savedRecording.id,
-      result: {
-        score: result.score,
-        wordScores: result.wordScores,
-        rawResult: result.rawResult,
-      },
-    })
-    if (saveRes?.code === 200 && saveRes.data) {
-      // analyze 接口返回的 audioPath 为 recording 表原始列（空），
-      // 用上传接口返回的已签名 OSS 地址回填，保证列表内可即时播放
-      addRecording({ ...saveRes.data, audioPath: savedRecording.audioPath })
-      // 清空本次录音卡片：置空 pending 并触发 VoiceRecorder remount
-      pendingRecording.value = null
-      recorderKey.value++
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : '评测请求失败'
-
-    // 回退构造的失败录音：标记接口异常或返回非 200 时使用
-    const fallbackRecording: Recording = {
-      id: savedRecording.id,
-      userId: userStore.user!.id,
-      segmentId: props.segment.id,
-      phase: 3,
-      audioPath: savedRecording.audioPath,
-      score: null,
-      analyzeStatus: 'failed',
-      feedback: null,
-      recognizedText: null,
-      wordScores: null,
-      rawResult: null,
-      duration: savedRecording.duration,
-      createdAt: savedRecording.createdAt,
-    }
-
-    // 标记录音为分析失败并加入历史列表，便于用户点击重试
-    try {
-      const failRes = await markAnalyzeFail({ id: savedRecording.id })
-      if (failRes?.code === 200 && failRes.data) {
-        addRecording(failRes.data)
-      } else {
-        addRecording(fallbackRecording)
-      }
-    } catch {
-      addRecording(fallbackRecording)
-    }
-
-    // 清空本次录音卡片，重置 VoiceRecorder 允许重新录制
-    pendingRecording.value = null
-    recorderKey.value++
-
-    toastError(`${msg}，已加入历史列表，可点击重试`)
-    logger.error('[Dubbing] 评测失败:', err)
+  if (!outcome.success) {
+    toastError(`${outcome.errorMessage}，已加入历史列表，可点击重试`)
   }
 }
 

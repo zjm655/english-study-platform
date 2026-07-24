@@ -40,8 +40,8 @@
             <span class="info-account">账号: {{ detail.user.account }}</span>
           </div>
           <div class="info-tags">
-            <el-tag :type="detail.user.role === 1 ? 'warning' : 'info'" size="small">
-              {{ detail.user.role === 1 ? '管理员' : '普通用户' }}
+            <el-tag :type="detail.user.role === ROLE_ADMIN ? 'warning' : 'info'" size="small">
+              {{ detail.user.role === ROLE_ADMIN ? '管理员' : '普通用户' }}
             </el-tag>
             <el-tag type="primary" size="small">{{ levelText(detail.user.level) }}</el-tag>
             <el-tag
@@ -74,7 +74,7 @@
         <!-- 角色操作 -->
         <div v-if="detail.user.deletedAt === null" class="info-actions">
           <el-button
-            v-if="detail.user.role === 0"
+            v-if="detail.user.role === ROLE_USER"
             type="warning"
             size="small"
             :loading="isRoleChanging"
@@ -248,6 +248,7 @@
 <script setup lang="ts">
 import { useAdminUserDetail, useUpdateAdminUserRole, useAdminUserLogs } from '~/composables/admin'
 import { toastConfirm, toastSuccess } from '~/utils/popup'
+import { ROLE_ADMIN, ROLE_USER } from '#shared/utils/role'
 import type { AdminUserDetail } from '#shared/types/adminUser'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
 
@@ -299,7 +300,7 @@ async function handlePromote() {
   } catch {
     return
   }
-  const res = await roleExecute({ id: userId, role: 1 })
+  const res = await roleExecute({ id: userId, role: ROLE_ADMIN })
   if (res?.code === 200) {
     toastSuccess('已提升为管理员')
     loadDetail()
@@ -320,7 +321,7 @@ async function handleDemote() {
   } catch {
     return
   }
-  const res = await roleExecute({ id: userId, role: 0 })
+  const res = await roleExecute({ id: userId, role: ROLE_USER })
   if (res?.code === 200) {
     toastSuccess('已降级为普通用户')
     loadDetail()

@@ -49,8 +49,8 @@
         </el-table-column>
         <el-table-column label="角色" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.role === 1 ? 'warning' : 'info'" size="small">
-              {{ row.role === 1 ? '管理员' : '用户' }}
+            <el-tag :type="row.role === ROLE_ADMIN ? 'warning' : 'info'" size="small">
+              {{ row.role === ROLE_ADMIN ? '管理员' : '用户' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -162,6 +162,7 @@ import {
   useDeleteAdminUser,
 } from '~/composables/admin'
 import { toastSuccess, toastConfirm } from '~/utils/popup'
+import { ROLE_ADMIN } from '#shared/utils/role'
 import type { AdminUserListItem, AdminUserState } from '#shared/types/adminUser'
 
 definePageMeta({
@@ -222,7 +223,7 @@ function handleSizeChange() {
 
 // 管理员或已注销账号不可封禁/销号
 function isLocked(row: AdminUserListItem) {
-  return row.role === 1 || row.deletedAt !== null
+  return row.role === ROLE_ADMIN || row.deletedAt !== null
 }
 
 function stateTag(row: AdminUserListItem) {
