@@ -57,6 +57,14 @@ export default defineNuxtConfig({
       accessKeyId: '',
       accessKeySecret: '',
     },
+    // 启动期自举全局唯一超级管理员（env 注入；account/password 皆空则不启用）
+    superAdmin: {
+      account: '',
+      password: '',
+      nickname: '',
+      email: '',
+      forceReplace:false,
+    },
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],
   elementPlus: {
