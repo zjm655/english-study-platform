@@ -115,7 +115,7 @@ import { useUserStore } from '~/store/useUserStore'
 import { useCheckinStats, useLogout } from '~/composables/user'
 import { useUserStats } from '~/composables/user/useUserStats'
 import { toastConfirm } from '~/utils/popup'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { isAdminOrAbove } from '#shared/utils/role'
 import type { CheckinStats } from '~~/shared/types/user'
 import type { UserStats } from '#shared/types/user'
 
@@ -130,8 +130,8 @@ useSeoMeta({
 const userStore = useUserStore()
 const user = computed(() => userStore.user)
 const isLogin = computed(() => userStore.isLogin)
-// 仅管理员可见后台入口（UX 层隐藏，真正防线在后端 /api/admin/* 门禁）
-const isAdmin = computed(() => user.value?.role === ROLE_ADMIN)
+// 仅管理员/超管可见后台入口（UX 层隐藏，真正防线在后端 /api/admin/* 门禁）
+const isAdmin = computed(() => isAdminOrAbove(user.value?.role))
 
 // 打卡统计
 const { isLoading: _statsLoading, execute: fetchCheckinStats } = useCheckinStats()

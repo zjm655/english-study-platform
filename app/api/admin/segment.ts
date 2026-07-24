@@ -4,7 +4,9 @@ import type {
   AdminSegmentListResult,
   AdminSegmentDetail,
   AdminSegmentUpdatePayload,
+  AdminSegmentVisibilityPayload,
 } from '#shared/types/adminSegment'
+import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
 
 /**
  * 管理员材料列表（服务端分页 + 筛选 + 搜索）。
@@ -39,5 +41,21 @@ export const updateAdminSegment = (id: number, payload: AdminSegmentUpdatePayloa
 export const deleteAdminSegment = (id: number) => {
   return request.json<null>(`${adminSegmentPath}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+/** 审核门禁：材料试听解锁（填理由 + 留痕成功后返回签名 URL） */
+export const auditionAdminSegment = (id: number, payload: AuditionPayload) => {
+  return request.json<AuditionResult>(`${adminSegmentPath}/${id}/audition`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/** 审核门禁：调整受限材料的公开状态（填理由 + 留痕成功后才变更） */
+export const updateSegmentVisibility = (id: number, payload: AdminSegmentVisibilityPayload) => {
+  return request.json<{ isPublic: number }>(`${adminSegmentPath}/${id}/visibility`, {
+    method: 'PUT',
+    body: payload,
   })
 }

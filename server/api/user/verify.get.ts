@@ -1,5 +1,8 @@
 import { query } from '#server/utils/db'
 import type { UserRow } from '#server/types/db'
+import { getUserPermissions } from '#server/utils/permission'
+import { isSuperAdmin, isAdminOrAbove } from '#shared/utils/role'
+import { ALL_PERMISSIONS } from '#shared/utils/permission'
 
 export default defineEventHandler(async (event) => {
   const userId = event.context.user.id
@@ -23,5 +26,9 @@ export default defineEventHandler(async (event) => {
   })
 
   const { passwordHash, ...safeInfo } = user
-  return validateSuccess(safeInfo, '登录状态校验通过！', 200)
+  // 下发权限键供前端展示控制（体验层，安全以后端为准）：普通用户零查询，超管为全权哨兵。
+  let permissions: string[] = []
+  if (isSuperAdmin(user.role)) permissions = ALL_PERMISSIONS
+  else if (isAdminOrAbove(user.role)) permissions = [...(await getUserPermissions(user.id))]
+  return validateSuccess({ ...safeInfo, permissions }, '登录状态校验通过！', 200)
 })

@@ -1,17 +1,17 @@
 import { query, withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * 管理员删除上传记录及关联 segment（软删除 + 事务 + 审计）
  * DELETE /api/admin/material/records/:id
  */
 export default defineEventHandler(async (event) => {
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_MATERIALS)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const id = Number(getRouterParam(event, 'id'))
   if (isNaN(id) || id <= 0) return validateError('无效的记录ID')

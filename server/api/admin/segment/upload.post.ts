@@ -3,14 +3,14 @@ import { adminUploadSchema, validateSuccess, validateError } from '#server/utils
 import { processAdminMaterial, processAdminBatch } from '#server/utils/adminUpload'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 export default defineEventHandler(async (event) => {
   // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_MATERIALS)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const formData = await readFormData(event)
   const mode = formData.get('mode') as string | null

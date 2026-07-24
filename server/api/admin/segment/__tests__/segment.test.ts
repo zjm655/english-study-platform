@@ -5,6 +5,7 @@ import listHandler from '../index.get'
 import detailHandler from '../[segId].get'
 import putHandler from '../[segId].put'
 import deleteHandler from '../[segId].delete'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 // handler 级集成测试：覆盖管理员材料 CRUD 的权限门禁（403）、列表查询参数强转、
 // 编辑 schema 校验与词汇 diff、软删除 affectedRows=0 → 404。走真实 validate schema。
@@ -29,10 +30,13 @@ vi.mock('#server/utils/db', () => ({
   withTransaction: mockWithTransaction,
 }))
 vi.mock('h3', () => ({ readBody: mockReadBody }))
+// permission.ts 透传引入 oss.ts（其模块顶层读 useRuntimeConfig），node 测试环境需 mock 避免崩溃
+vi.mock('#server/utils/oss', () => ({ signUrl: vi.fn(), MATERIAL_EXPIRE: 2100 }))
 
 // ============ 辅助 ============
 
-const ADMIN = { id: 1, role: 1 }
+// 细粒度守卫下，管理员的权限由 auth 中间件注入；handler 级测试直接在 fixture 里模拟注入结果
+const ADMIN = { id: 1, role: 1, permissions: [PERMISSIONS.MANAGE_MATERIALS] }
 
 function makeEvent(
   opts: {

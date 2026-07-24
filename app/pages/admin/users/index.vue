@@ -49,8 +49,8 @@
         </el-table-column>
         <el-table-column label="角色" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="row.role === ROLE_ADMIN ? 'warning' : 'info'" size="small">
-              {{ row.role === ROLE_ADMIN ? '管理员' : '用户' }}
+            <el-tag :type="roleTag(row.role).type" size="small">
+              {{ roleTag(row.role).text }}
             </el-tag>
           </template>
         </el-table-column>
@@ -162,7 +162,7 @@ import {
   useDeleteAdminUser,
 } from '~/composables/admin'
 import { toastSuccess, toastConfirm } from '~/utils/popup'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ROLE_ADMIN, ROLE_SUPER_ADMIN, isAdminOrAbove } from '#shared/utils/role'
 import type { AdminUserListItem, AdminUserState } from '#shared/types/adminUser'
 
 definePageMeta({
@@ -221,9 +221,9 @@ function handleSizeChange() {
   loadList()
 }
 
-// 管理员或已注销账号不可封禁/销号
+// 管理员/超管或已注销账号不可封禁/销号（超管须被更强保护）
 function isLocked(row: AdminUserListItem) {
-  return row.role === ROLE_ADMIN || row.deletedAt !== null
+  return isAdminOrAbove(row.role) || row.deletedAt !== null
 }
 
 function stateTag(row: AdminUserListItem) {
@@ -231,6 +231,12 @@ function stateTag(row: AdminUserListItem) {
   return row.status === 1
     ? { type: 'success' as const, text: '正常' }
     : { type: 'danger' as const, text: '封禁' }
+}
+
+function roleTag(role: number) {
+  if (role >= ROLE_SUPER_ADMIN) return { type: 'danger' as const, text: '超管' }
+  if (role === ROLE_ADMIN) return { type: 'warning' as const, text: '管理员' }
+  return { type: 'info' as const, text: '用户' }
 }
 
 function levelText(level: number) {

@@ -1,6 +1,7 @@
 import { query } from '#server/utils/db'
 import { adminUserLogsSchema, validateSuccess, validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
 
 /**
@@ -8,10 +9,8 @@ import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
  * GET /api/admin/user/:userId/logs
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_USERS)
+  if (err) return err
 
   const userId = Number(getRouterParam(event, 'userId'))
   if (!userId || isNaN(userId)) {

@@ -3,6 +3,7 @@ import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
 import type { UnitRow, UserProgressRow } from '#server/types/db'
 import type { UnitProgressDetail } from '#shared/types/unit'
 import { mapProgressRow, DEFAULT_PROGRESS } from '#shared/utils/progress'
+import { isAdminOrAbove } from '#shared/utils/role'
 
 /** 生成签名 URL：使用 media 表的 object_key */
 async function signFromMedia(
@@ -30,7 +31,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
   const page = Math.max(1, Number(q.page) || 1)
   const pageSize = Math.min(50, Math.max(1, Number(q.pageSize) || 10))
   const offset = (page - 1) * pageSize
-  const adminFlag = event.context.user.role === 1 ? 1 : 0
+  const adminFlag = isAdminOrAbove(event.context.user.role) ? 1 : 0
 
   // 1. 查单元信息（联查 media 表获取封面音频）
   const units = await query<UnitRow & { unit_media_key: string | null }>(

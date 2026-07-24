@@ -1,16 +1,15 @@
 import { query } from '#server/utils/db'
-import { validateError, validateSuccess } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { validateSuccess } from '#server/utils/validate'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * 获取系统配置
  * GET /api/admin/config
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.CONFIG)
+  if (err) return err
 
   const rows = await query<{
     config_key: string

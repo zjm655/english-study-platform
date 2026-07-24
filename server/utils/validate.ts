@@ -239,7 +239,7 @@ export const adminUserStatusSchema = z.object({
   status: z.number().refine((v) => v === 0 || v === 1, 'status 必须为 0 或 1'),
 })
 
-/** 管理员角色变更校验 */
+/** 管理员角色变更校验（仅普通用户↔管理员；超管唯一且不可经 API 分配） */
 export const adminUserRoleSchema = z.object({
   role: z.coerce.number().refine((v) => v === 0 || v === 1, 'role 必须为 0 或 1'),
 })

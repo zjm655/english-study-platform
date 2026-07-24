@@ -3,12 +3,12 @@
  *
  * 设计要点：
  * - 查询 eval_auth_log 表窗口内的评测鉴权发放次数，对比 sys_config 中的 daily_eval_limit / eval_limit_window
- * - 管理员（role=1）不受限制
+ * - 管理员 / 超管不受限制
  * - 内存缓存 config 值（TTL 5min），避免每次请求查 sys_config
  * - 在评测鉴权（evaluation/auth）之前调用，拦截超限请求避免无效阿里云调用
  */
 import { query } from '#server/utils/db'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { isAdminOrAbove } from '#shared/utils/role'
 
 export interface QuotaResult {
   allowed: boolean
@@ -55,8 +55,8 @@ export function invalidateQuotaCache(): void {
  * @param role   用户角色（管理员不受限）
  */
 export async function checkDailyQuota(userId: number, role: number): Promise<QuotaResult> {
-  // 管理员不受限
-  if (role === ROLE_ADMIN) {
+  // 管理员 / 超管不受限
+  if (isAdminOrAbove(role)) {
     return { allowed: true, used: 0, limit: Infinity, windowSec: 0 }
   }
 

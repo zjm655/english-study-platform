@@ -1,6 +1,7 @@
 import { query } from '#server/utils/db'
 import { validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import { z } from 'zod'
 
 /** 表名白名单（防注入） */
@@ -21,10 +22,8 @@ const exportSchema = z.object({
  * GET /api/admin/logs/export?table=api_call_log&startDate=2026-07-01&endDate=2026-07-21
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.VIEW_LOGS)
+  if (err) return err
 
   const parsed = exportSchema.safeParse(getQuery(event))
   if (!parsed.success) {

@@ -5,6 +5,7 @@ import type {
   AdminMaterialRecordDetail,
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
+import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
 
 /** 管理员上传记录列表 */
 export const getAdminMaterialRecordList = (options: AdminMaterialRecordListQuery = {}) => {
@@ -36,6 +37,14 @@ export const reprocessAdminMaterialRecord = (
   payload: AdminMaterialRecordReprocessPayload,
 ) => {
   return request.json<null>(`${adminMaterialRecordPath}/${id}/reprocess`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/** 审核门禁：上传记录试听解锁（填理由 + 留痕成功后返回签名 URL） */
+export const auditionAdminMaterialRecord = (id: number, payload: AuditionPayload) => {
+  return request.json<AuditionResult>(`${adminMaterialRecordPath}/${id}/audition`, {
     method: 'POST',
     body: payload,
   })

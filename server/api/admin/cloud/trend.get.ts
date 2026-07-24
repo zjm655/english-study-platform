@@ -7,6 +7,8 @@
 import { z } from 'zod'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { query } from '#server/utils/db'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 const querySchema = z.object({
   service: z.enum(['oss', 'nls', 'deepseek', 'edu']),
@@ -14,6 +16,9 @@ const querySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
+  const err = ensurePermission(event, PERMISSIONS.VIEW_STATS)
+  if (err) return err
+
   const parsed = querySchema.safeParse(getQuery(event))
   if (!parsed.success) {
     return validateError('参数错误：service 需为 oss/nls/deepseek/edu，days 需为 1-90')

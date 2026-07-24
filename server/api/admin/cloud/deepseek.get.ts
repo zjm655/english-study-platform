@@ -1,6 +1,7 @@
 import { getDeepSeekBalance } from '#server/utils/deepseek'
-import { validateSuccess, validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { validateSuccess } from '#server/utils/validate'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * DeepSeek 账户余额查询
@@ -9,10 +10,8 @@ import { ROLE_ADMIN } from '#shared/utils/role'
  * 复用 runtimeConfig.deepseek.apiKey（Bearer Token），带 5min 内存缓存。
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.VIEW_STATS)
+  if (err) return err
 
   const balance = await getDeepSeekBalance()
 

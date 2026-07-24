@@ -3,7 +3,8 @@ import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
 import { invalidateQuotaCache } from '#server/utils/quotaChecker'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import { z } from 'zod'
 
 const updateSchema = z.object({
@@ -16,10 +17,9 @@ const updateSchema = z.object({
  * PUT /api/admin/config  { key: 'daily_eval_limit', value: '30' }
  */
 export default defineEventHandler(async (event) => {
+  const err = ensurePermission(event, PERMISSIONS.CONFIG)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const body = await readBody(event)
   const parsed = updateSchema.safeParse(body)

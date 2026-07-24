@@ -2,7 +2,9 @@ import { readBody } from 'h3'
 import { query, withTransaction } from '#server/utils/db'
 import { adminSegmentUpdateSchema, validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
+import { isAdminOrAbove } from '#shared/utils/role'
 
 /**
  * 管理员编辑材料（仅保存文本字段，不触发 TTS/AI 再生成）
@@ -13,10 +15,9 @@ import { ROLE_ADMIN } from '#shared/utils/role'
  */
 export default defineEventHandler(async (event) => {
   // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_MATERIALS)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const segId = Number(getRouterParam(event, 'segId'))
   if (!segId || isNaN(segId)) {
@@ -30,16 +31,30 @@ export default defineEventHandler(async (event) => {
   }
   const { title, textContent, translation, questions, vocabulary, isPublic } = parsed.data
 
-  // 校验材料存在且未删除，并取当前 is_public（payload 未传时保持不变）
-  const existing = await query<{ id: number; is_public: number }>(
-    'SELECT id, is_public FROM segment WHERE id = ? AND deleted_at IS NULL',
+  // 校验材料存在且未删除；联表取上传者归属，用于判定「受限材料」（非公开的用户材料）。
+  const existing = await query<{
+    id: number
+    is_public: number
+    uploader_user_id: number | null
+    uploader_role: number | null
+  }>(
+    `SELECT s.id, s.is_public, r.user_id AS uploader_user_id, uu.role AS uploader_role
+     FROM segment s
+     LEFT JOIN material_upload_record r ON r.segment_id = s.id
+     LEFT JOIN user uu ON r.user_id = uu.id
+     WHERE s.id = ? AND s.deleted_at IS NULL`,
     [segId],
   )
   if (existing.length === 0) {
     return validateError('材料不存在或已删除', 404)
   }
+  const row = existing[0]!
 
-  const finalIsPublic = isPublic ?? existing[0]!.is_public
+  // 防绕过：受限材料（非公开的用户材料）的公开状态只能走 visibility 门禁端点，
+  // 批量保存强制保持 is_public 不变，防止仅有 MANAGE_MATERIALS 的管理员经此绕过 REVIEW 门禁。
+  const uploaderIsAdmin = row.uploader_user_id == null || isAdminOrAbove(row.uploader_role)
+  const isRestricted = !uploaderIsAdmin && row.is_public === 0
+  const finalIsPublic = isRestricted ? row.is_public : (isPublic ?? row.is_public)
   // 空翻译归一为 null（与无翻译材料的存储约定一致）
   const finalTranslation = translation == null || translation === '' ? null : translation
   // 空题目数组归一为 null（与无题目材料的存储约定一致）

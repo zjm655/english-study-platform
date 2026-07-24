@@ -1,6 +1,8 @@
 import type { JwtPayload } from '#server/types/jwtPayload'
 import { query } from '#server/utils/db'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { isAdminOrAbove, isSuperAdmin } from '#shared/utils/role'
+import { ALL_PERMISSIONS } from '#shared/utils/permission'
+import { getUserPermissions } from '#server/utils/permission'
 import { getRateLimitConfig, checkUserRateLimit } from '#server/utils/rateLimiter'
 
 // 全局服务端中间件：每次请求自动解析 Cookie 中的 JWT
@@ -46,11 +48,23 @@ export default defineEventHandler(async (event) => {
   }
 
   // 5. 挂载用户信息到 event.context（role 以 DB 值为准，而非 JWT 快照）
+  //    同时注入权限键集合供 handler 细粒度守卫：
+  //    - 普通用户（role < ADMIN）直接空数组，零额外查询、无性能回归（占比 99% 的请求）
+  //    - 超管注入 ALL_PERMISSIONS 哨兵（实际判定在 userHasPermission 里走 role 短路）
+  //    - 管理员走每用户 60s 缓存（授权后精确失效）
+  const role = dbUser.role
+  let permissions: string[] = []
+  if (isSuperAdmin(role)) {
+    permissions = ALL_PERMISSIONS
+  } else if (isAdminOrAbove(role)) {
+    permissions = [...(await getUserPermissions(payload.id))]
+  }
   event.context.user = {
     id: payload.id,
     nickname: payload.nickname,
-    role: dbUser.role,
+    role,
     email: payload.email,
+    permissions,
   }
 
   // 6. 用户级限流检查（上传路径独立于全局 enabled）
@@ -65,7 +79,7 @@ export default defineEventHandler(async (event) => {
 
   // 7. 管理员路由前缀门禁：/api/admin/* 仅管理员可访问（handler 内校验作纵深防御）。
   //    前缀带尾斜杠，避免误伤假想的 /api/adminXxx。
-  if (event.path.startsWith('/api/admin/') && event.context.user.role !== ROLE_ADMIN) {
+  if (event.path.startsWith('/api/admin/') && !isAdminOrAbove(event.context.user.role)) {
     return validateError('无管理员权限', 403)
   }
 })

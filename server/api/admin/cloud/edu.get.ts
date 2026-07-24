@@ -1,6 +1,7 @@
 import { estimateServiceUsage } from '#server/utils/cloudEstimate'
 import { adminStatsQuerySchema, validateSuccess, validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * 智能科教平台用量（本地埋点估算）
@@ -9,10 +10,8 @@ import { ROLE_ADMIN } from '#shared/utils/role'
  * 暂无官方查询接口示例，仅使用本地埋点估算。
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.VIEW_STATS)
+  if (err) return err
 
   const parsed = adminStatsQuerySchema.safeParse(getQuery(event))
   if (!parsed.success) {

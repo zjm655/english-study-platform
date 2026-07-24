@@ -16,6 +16,7 @@ import {
 } from '#server/utils/validate'
 import type { UploadMaterialResult } from '#shared/types/material'
 import type { ResultSetHeader } from 'mysql2'
+import { isAdminOrAbove } from '#shared/utils/role'
 
 // ============ 音频限制 ============
 const USER_MAX_DURATION = 180 // 3 分钟
@@ -84,8 +85,8 @@ export default defineEventHandler(
     const unitIdRaw = formData.get('unitId') as string | null
     const audioFile = formData.get('audio') as File | null
 
-    // 2. 角色判断
-    const isAdmin = user.role === 1
+    // 2. 角色判断（管理员 / 超管享受管理员上传档：更长时长、可指定单元）
+    const isAdmin = isAdminOrAbove(user.role)
     const finalUnitId = isAdmin && unitIdRaw ? Number(unitIdRaw) : 0
 
     // 3. Zod 校验

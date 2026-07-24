@@ -7,7 +7,8 @@ import {
   queryMonthlySpendTrend,
 } from '#server/utils/bss'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import { z } from 'zod'
 
 /** BSS 查询参数校验（billingCycle 可选，默认当月） */
@@ -25,10 +26,8 @@ const bssQuerySchema = z.object({
  * 各数据源独立降级，互不阻断；外部调用并行发起。
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.VIEW_STATS)
+  if (err) return err
 
   const parsed = bssQuerySchema.safeParse(getQuery(event))
   if (!parsed.success) {

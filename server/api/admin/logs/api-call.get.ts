@@ -1,16 +1,15 @@
 import { query } from '#server/utils/db'
 import { adminApiCallLogListSchema, validateSuccess, validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * API 调用日志列表（管理员）
  * GET /api/admin/logs/api-call
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.VIEW_LOGS)
+  if (err) return err
 
   const parsed = adminApiCallLogListSchema.safeParse(getQuery(event))
   if (!parsed.success) {

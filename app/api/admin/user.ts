@@ -10,6 +10,7 @@ import type {
   AdminOperationLogListResult,
   AdminOperationLogListQuery,
 } from '#shared/types/adminOperationLog'
+import type { AdminUserPermissionDetail } from '#shared/types/adminPermission'
 
 /**
  * 管理员用户列表（服务端分页 + 搜索 + 状态筛选）。
@@ -69,4 +70,17 @@ export const getAdminUserLogs = (id: number, options: AdminOperationLogListQuery
       pageSize: options.pageSize,
     })}`,
   )
+}
+
+/** 获取某用户的角色 + 已授予权限（授权管理，超管专属） */
+export const getAdminUserPermissions = (id: number) => {
+  return request.json<AdminUserPermissionDetail>(`${adminUserPath}/${id}/permissions`)
+}
+
+/** 覆盖式设置某用户权限（超管专属） */
+export const updateAdminUserPermissions = (id: number, permissions: string[]) => {
+  return request.json<null>(`${adminUserPath}/${id}/permissions`, {
+    method: 'PUT',
+    body: { permissions },
+  })
 }

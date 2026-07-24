@@ -40,8 +40,8 @@
             <span class="info-account">账号: {{ detail.user.account }}</span>
           </div>
           <div class="info-tags">
-            <el-tag :type="detail.user.role === ROLE_ADMIN ? 'warning' : 'info'" size="small">
-              {{ detail.user.role === ROLE_ADMIN ? '管理员' : '普通用户' }}
+            <el-tag :type="roleTag(detail.user.role).type" size="small">
+              {{ roleTag(detail.user.role).text }}
             </el-tag>
             <el-tag type="primary" size="small">{{ levelText(detail.user.level) }}</el-tag>
             <el-tag
@@ -71,26 +71,51 @@
             >注销时间: {{ formatDate(detail.user.deletedAt) }}</span
           >
         </div>
-        <!-- 角色操作 -->
-        <div v-if="detail.user.deletedAt === null" class="info-actions">
-          <el-button
-            v-if="detail.user.role === ROLE_USER"
-            type="warning"
-            size="small"
-            :loading="isRoleChanging"
-            @click="handlePromote"
-          >
-            提升为管理员
-          </el-button>
-          <el-button
-            v-else
-            type="danger"
-            size="small"
-            :loading="isRoleChanging"
-            @click="handleDemote"
-          >
-            降级为普通用户
-          </el-button>
+        <!-- 授权管理（超管专属）：角色 + 细粒度权限，即时生效并记入操作日志 -->
+        <div v-if="isSuperAdmin && detail.user.deletedAt === null" class="grant-section">
+          <div class="grant-row">
+            <span class="grant-label">角色</span>
+            <!-- 唯一超管受保护（不可降权/不可新增）：该目标即查看者自身，以只读标签代替 radio -->
+            <template v-if="detail.user.role === ROLE_SUPER_ADMIN">
+              <el-tag type="danger" size="small">超级管理员（受保护，不可变更）</el-tag>
+            </template>
+            <template v-else>
+              <el-radio-group v-model="editRole" :disabled="isSelf">
+                <el-radio :value="ROLE_USER">普通用户</el-radio>
+                <el-radio :value="ROLE_ADMIN">管理员</el-radio>
+              </el-radio-group>
+              <el-button
+                type="primary"
+                size="small"
+                :loading="isRoleChanging"
+                :disabled="isSelf || editRole === detail.user.role"
+                @click="handleSaveRole"
+              >
+                保存角色
+              </el-button>
+            </template>
+          </div>
+          <div class="grant-row grant-row--perms">
+            <span class="grant-label">权限（对管理员生效；超管隐式全权）</span>
+            <el-checkbox-group
+              v-model="editPermissions"
+              :disabled="isSelf || detail.user.role !== ROLE_ADMIN"
+            >
+              <el-checkbox v-for="key in GRANTABLE_PERMISSIONS" :key="key" :value="key">
+                {{ PERMISSION_LABELS[key] }}
+              </el-checkbox>
+            </el-checkbox-group>
+            <el-button
+              type="primary"
+              size="small"
+              :loading="isPermSaving"
+              :disabled="isSelf"
+              @click="handleSavePermissions"
+            >
+              保存权限
+            </el-button>
+          </div>
+          <p v-if="isSelf" class="grant-tip">不能修改自己的角色与权限</p>
         </div>
       </el-card>
 
@@ -246,9 +271,19 @@
 </template>
 
 <script setup lang="ts">
-import { useAdminUserDetail, useUpdateAdminUserRole, useAdminUserLogs } from '~/composables/admin'
+import {
+  useAdminUserDetail,
+  useUpdateAdminUserRole,
+  useAdminUserLogs,
+  useAdminUserPermissions,
+  useUpdateAdminUserPermissions,
+} from '~/composables/admin'
+import { usePermission } from '~/composables/user'
+import { useUserStore } from '~/store/useUserStore'
 import { toastConfirm, toastSuccess } from '~/utils/popup'
-import { ROLE_ADMIN, ROLE_USER } from '#shared/utils/role'
+import { ROLE_ADMIN, ROLE_USER, ROLE_SUPER_ADMIN } from '#shared/utils/role'
+import { GRANTABLE_PERMISSIONS, PERMISSION_LABELS } from '#shared/utils/permission'
+import type { PermissionKey } from '#shared/utils/permission'
 import type { AdminUserDetail } from '#shared/types/adminUser'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
 
@@ -265,8 +300,16 @@ const userId = Number(route.params.id)
 const { isLoading, execute: detailExecute } = useAdminUserDetail()
 const { isLoading: isRoleChanging, execute: roleExecute } = useUpdateAdminUserRole()
 const { isLoading: logsLoading, execute: logsExecute } = useAdminUserLogs()
+const { execute: permExecute } = useAdminUserPermissions()
+const { isLoading: isPermSaving, execute: permSaveExecute } = useUpdateAdminUserPermissions()
+
+const { isSuperAdmin } = usePermission()
+const userStore = useUserStore()
+const isSelf = computed(() => userStore.user?.id === userId)
 
 const detail = ref<AdminUserDetail | null>(null)
+const editRole = ref<number>(ROLE_USER)
+const editPermissions = ref<PermissionKey[]>([])
 const logs = ref<AdminOperationLogItem[]>([])
 const logsPage = ref(1)
 const logsPageSize = ref(10)
@@ -276,6 +319,15 @@ async function loadDetail() {
   const res = await detailExecute(userId)
   if (res?.code === 200 && res.data) {
     detail.value = res.data
+    editRole.value = res.data.user.role
+  }
+}
+
+// 授权数据（超管专属）：加载目标用户当前权限键
+async function loadPermissions() {
+  const res = await permExecute(userId)
+  if (res?.code === 200 && res.data) {
+    editPermissions.value = res.data.permissions as PermissionKey[]
   }
 }
 
@@ -290,46 +342,45 @@ async function loadLogs() {
   }
 }
 
-async function handlePromote() {
-  try {
-    await toastConfirm('确定将该用户提升为管理员吗？提升后该用户将获得后台管理权限。', '提升确认', {
-      confirmButtonText: '提升',
-      cancelButtonText: '取消',
-      type: 'warning',
-    })
-  } catch {
-    return
-  }
-  const res = await roleExecute({ id: userId, role: ROLE_ADMIN })
-  if (res?.code === 200) {
-    toastSuccess('已提升为管理员')
-    loadDetail()
-  }
-}
-
-async function handleDemote() {
+async function handleSaveRole() {
+  if (!detail.value) return
+  const roleName =
+    editRole.value === ROLE_SUPER_ADMIN
+      ? '超级管理员'
+      : editRole.value === ROLE_ADMIN
+        ? '管理员'
+        : '普通用户'
   try {
     await toastConfirm(
-      '确定将该管理员降级为普通用户吗？降级后该用户将失去所有后台管理权限。',
-      '降权确认',
-      {
-        confirmButtonText: '降级',
-        cancelButtonText: '取消',
-        type: 'warning',
-      },
+      `确定将该用户角色变更为「${roleName}」吗？将即时生效并记入操作日志。`,
+      '角色变更确认',
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' },
     )
   } catch {
     return
   }
-  const res = await roleExecute({ id: userId, role: ROLE_USER })
+  const res = await roleExecute({ id: userId, role: editRole.value })
   if (res?.code === 200) {
-    toastSuccess('已降级为普通用户')
+    toastSuccess('角色已更新')
     loadDetail()
+  }
+}
+
+async function handleSavePermissions() {
+  const res = await permSaveExecute({ id: userId, permissions: editPermissions.value })
+  if (res?.code === 200) {
+    toastSuccess('权限已更新')
   }
 }
 
 function levelText(level: number) {
   return ['未测试', '初级', '中级', '高级'][level] ?? '未测试'
+}
+
+function roleTag(role: number) {
+  if (role >= ROLE_SUPER_ADMIN) return { type: 'danger' as const, text: '超级管理员' }
+  if (role === ROLE_ADMIN) return { type: 'warning' as const, text: '管理员' }
+  return { type: 'info' as const, text: '普通用户' }
 }
 
 function formatDate(s: string) {
@@ -351,13 +402,14 @@ function formatDuration(seconds: number | null) {
 onMounted(() => {
   loadDetail()
   loadLogs()
+  if (isSuperAdmin.value) loadPermissions()
 })
 </script>
 
 <style scoped>
 .user-detail-page {
   width: 100%;
-  max-width: 960px;
+  /* max-width: 960px; */
 }
 
 .page-header {
@@ -426,6 +478,37 @@ onMounted(() => {
 
 .info-actions {
   margin-top: 12px;
+}
+
+.grant-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border-ll);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.grant-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.grant-row--perms {
+  align-items: flex-start;
+}
+
+.grant-label {
+  font-size: 13px;
+  color: var(--text-2);
+  min-width: 72px;
+}
+
+.grant-tip {
+  font-size: 12px;
+  color: var(--text-3);
 }
 
 /* 指标带 */

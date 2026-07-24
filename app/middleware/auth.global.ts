@@ -1,6 +1,6 @@
 import { useToVerify, useCheckinRefresh } from '~/composables/user'
 import { useUserStore } from '~/store/useUserStore'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { isAdminOrAbove } from '#shared/utils/role'
 
 export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return
@@ -23,8 +23,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  // 管理员路由守卫：/admin/* 仅管理员可访问（防误入；真正防线在后端 /api/admin/* 门禁）
-  if (to.path.startsWith('/admin') && userStore.user?.role !== ROLE_ADMIN) {
+  // 管理员路由守卫：/admin/* 仅管理员/超管可访问（防误入；真正防线在后端 /api/admin/* 门禁）
+  if (to.path.startsWith('/admin') && !isAdminOrAbove(userStore.user?.role)) {
     return navigateTo('/')
   }
 })

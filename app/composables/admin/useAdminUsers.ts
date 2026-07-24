@@ -6,6 +6,8 @@ import {
   getAdminUserDetail,
   updateAdminUserRole,
   getAdminUserLogs,
+  getAdminUserPermissions,
+  updateAdminUserPermissions,
 } from '~/api/admin/user'
 import type {
   AdminUserListQuery,
@@ -13,6 +15,7 @@ import type {
   AdminUserUpdatePayload,
   AdminUserDetail,
 } from '#shared/types/adminUser'
+import type { AdminUserPermissionDetail } from '#shared/types/adminPermission'
 import type {
   AdminOperationLogListQuery,
   AdminOperationLogListResult,
@@ -100,6 +103,30 @@ export const useAdminUserLogs = () => {
     success: '',
     clientFail: '获取操作日志失败',
     serverFail: '服务器异常，获取日志失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 获取某用户的角色 + 已授予权限（超管专属授权页） */
+export const useAdminUserPermissions = () => {
+  const cfg = createResCfg<number, AdminUserPermissionDetail>({
+    handle: getAdminUserPermissions,
+    success: '',
+    clientFail: '获取用户权限失败',
+    serverFail: '服务器异常，获取权限失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 覆盖式设置某用户权限（超管专属） */
+export const useUpdateAdminUserPermissions = () => {
+  const cfg = createResCfg<{ id: number; permissions: string[] }, null>({
+    handle: ({ id, permissions }) => updateAdminUserPermissions(id, permissions),
+    success: '权限已更新',
+    clientFail: '权限更新失败',
+    serverFail: '服务器异常，权限更新失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

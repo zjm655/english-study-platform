@@ -1,7 +1,9 @@
 import { query } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { isAdminOrAbove } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type { ResultSetHeader } from 'mysql2'
 
 /**
@@ -13,10 +15,9 @@ import type { ResultSetHeader } from 'mysql2'
  */
 export default defineEventHandler(async (event) => {
   // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_USERS)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const userId = Number(getRouterParam(event, 'userId'))
   if (!userId || isNaN(userId)) {
@@ -38,9 +39,9 @@ export default defineEventHandler(async (event) => {
   }
   const target = targetRows[0]!
 
-  // 护栏：不能销号管理员（需先降权，降权能力本次未做）
-  if (target.role === ROLE_ADMIN) {
-    return validateError('不能销号管理员', 400)
+  // 护栏：不能销号管理员或超级管理员（超管须被更强保护；需先降权）
+  if (isAdminOrAbove(target.role)) {
+    return validateError('不能销号管理员或超级管理员', 400)
   }
 
   const result = await query<ResultSetHeader>(

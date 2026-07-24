@@ -77,8 +77,8 @@ function cycleSpeed() {
 
 <template>
   <div class="audio-player">
-    <!-- 播放按钮 -->
-    <button class="play-btn" @click="handleTogglePlay">
+    <!-- 播放按钮（type=button：组件可能被置于 el-form 内，缺省 type=submit 会触发整页刷新） -->
+    <button type="button" class="play-btn" @click="handleTogglePlay">
       <svg v-if="!store.isPlaying" viewBox="0 0 24 24" fill="currentColor">
         <path d="M8 5v14l11-7z" />
       </svg>
@@ -104,6 +104,7 @@ function cycleSpeed() {
     <!-- 速度控制 -->
     <button
       v-if="showSpeed"
+      type="button"
       class="speed-btn"
       :class="{ 'speed-btn--active': store.playbackRate !== 1 }"
       @click="cycleSpeed"
@@ -122,6 +123,7 @@ function cycleSpeed() {
   background: var(--card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow);
+  width: 100%;
 }
 
 /* 播放按钮 */

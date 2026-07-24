@@ -21,6 +21,8 @@ export interface LoginResPayload {
   email: string | null
   avatarUrl: string | null
   level: number
+  /** 权限键集合（verify 下发，供前端展示控制；超管为全量）。防御式读取 permissions ?? [] */
+  permissions?: string[]
 }
 
 export interface RegisterPayload {

@@ -1,7 +1,9 @@
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { isAdminOrAbove } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type { AdminMaterialRecordDetail } from '#shared/types/adminMaterialRecord'
 
 /**
@@ -9,10 +11,8 @@ import type { AdminMaterialRecordDetail } from '#shared/types/adminMaterialRecor
  * GET /api/admin/material/records/:id
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_MATERIALS)
+  if (err) return err
 
   const id = Number(getRouterParam(event, 'id'))
   if (isNaN(id) || id <= 0) return validateError('无效的记录ID')
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
   const row = rows[0]!
   // 授权口径：普通管理员仅可试听「管理员上传」或「公开」材料；
   // 非公开用户材料后端硬门禁返回 null，绝不签名（需审核权限，见后续设计）。
-  const canAudition = row.role === ROLE_ADMIN || row.is_public === 1
+  const canAudition = isAdminOrAbove(row.role) || row.is_public === 1
   const audioUrl =
     canAudition && row.media_key ? await signUrl(row.media_key, MATERIAL_EXPIRE) : null
   const detail: AdminMaterialRecordDetail = {
@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
     error_message: row.error_message,
     segment_id: row.segment_id,
     username: row.username,
-    source: row.role === ROLE_ADMIN ? 'admin' : 'user',
+    source: isAdminOrAbove(row.role) ? 'admin' : 'user',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     audioUrl,

@@ -2,7 +2,8 @@ import { readBody } from 'h3'
 import { query } from '#server/utils/db'
 import { adminUserUpdateSchema, validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * 管理员修改用户资料（nickname / email / level；本次不含角色变更）
@@ -10,10 +11,9 @@ import { ROLE_ADMIN } from '#shared/utils/role'
  */
 export default defineEventHandler(async (event) => {
   // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_USERS)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const userId = Number(getRouterParam(event, 'userId'))
   if (!userId || isNaN(userId)) {

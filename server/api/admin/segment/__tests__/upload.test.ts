@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import handler from '../upload.post'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 // handler 级集成测试：覆盖 C1（multipart 字符串 unitId 强转）、C3（isPublic 默认）、
 // S5（输入上限）与越权 403。走真实 adminUploadSchema（不 mock validate），堵住旧测试
@@ -24,6 +25,9 @@ vi.mock('#server/utils/adminUpload', () => ({
 }))
 vi.mock('#server/utils/textParser', () => ({ parseTxtFile: vi.fn() }))
 vi.mock('#imports', () => ({ useRuntimeConfig: () => ({ oss: { bucket: 'test-bucket' } }) }))
+// upload.post 透过 permission.ts 引入 db.ts / oss.ts（两者模块顶层读 useRuntimeConfig），node 测试需 mock
+vi.mock('#server/utils/db', () => ({ query: vi.fn(), withTransaction: vi.fn() }))
+vi.mock('#server/utils/oss', () => ({ signUrl: vi.fn(), MATERIAL_EXPIRE: 2100 }))
 
 // ============ 辅助 ============
 
@@ -38,7 +42,7 @@ function makeFormData(fields: Record<string, unknown>) {
   }
 }
 
-const ADMIN = { id: 1, role: 1 }
+const ADMIN = { id: 1, role: 1, permissions: [PERMISSIONS.MANAGE_MATERIALS] }
 
 beforeEach(() => {
   vi.clearAllMocks()
