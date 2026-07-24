@@ -21,10 +21,12 @@ const MIN_PASSWORD_LENGTH = 8
 const MAX_ACCOUNT_LENGTH = 20
 
 export interface SuperAdminSeedConfig {
-  account: string
-  password: string
-  nickname?: string | null
-  email?: string | null
+  // 来自 runtimeConfig/env：Nuxt 会用 destr 解析，纯数字账号/密码会被转成 number，
+  // 故放宽入参类型并在内部统一 String() 归一，避免 .trim() 崩溃。
+  account: string | number
+  password: string | number
+  nickname?: string | number | null
+  email?: string | number | null
   forceReplace?: boolean
 }
 
@@ -39,10 +41,11 @@ export type SeedResult =
  * 返回结果供插件记录日志；不合法配置 / 账号占用 / DB 未就绪均抛错以中止启动（fail-fast）。
  */
 export async function seedSuperAdmin(cfg: SuperAdminSeedConfig): Promise<SeedResult> {
-  const account = cfg.account.trim()
-  const password = cfg.password
-  const nickname = cfg.nickname?.trim() || account
-  const email = cfg.email?.trim() || null
+  // env 值经 Nuxt destr 解析，纯数字会变成 number；统一 String() 归一，避免 .trim() 崩溃
+  const account = String(cfg.account ?? '').trim()
+  const password = String(cfg.password ?? '')
+  const nickname = String(cfg.nickname ?? '').trim() || account
+  const email = String(cfg.email ?? '').trim() || null
 
   // 1. 配置校验（不合法即视为部署错误，fail-fast）
   if (!account || account.length > MAX_ACCOUNT_LENGTH) {

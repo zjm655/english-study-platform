@@ -9,29 +9,36 @@ import { seedSuperAdmin } from '#server/utils/seedSuperAdmin'
 export default defineNitroPlugin(async () => {
   const sa = useRuntimeConfig().superAdmin as
     | {
-        account?: string
-        password?: string
-        nickname?: string
-        email?: string
-        forceReplace?: string
+        account?: string | number
+        password?: string | number
+        nickname?: string | number
+        email?: string | number
+        forceReplace?: string | number | boolean
       }
     | undefined
 
-  // opt-in 开关：未配置账号/密码 → 不启用自举
-  if (!sa?.account || !sa?.password) return
+  // opt-in 开关：未配置账号/密码 → 不启用自举（env 经 destr 可能为 number，先 String 归一再判断）
+  const account = String(sa?.account ?? '').trim()
+  const password = String(sa?.password ?? '')
+  if (!account || !password) return
 
-  const forceReplace = sa.forceReplace === 'true' || sa.forceReplace === '1'
+  // forceReplace 经 destr 可能是布尔 true / 字符串 'true' / 数字 1，统一视为开启
+  const forceReplace =
+    sa?.forceReplace === true ||
+    sa?.forceReplace === 'true' ||
+    sa?.forceReplace === 1 ||
+    sa?.forceReplace === '1'
   const result = await seedSuperAdmin({
-    account: sa.account,
-    password: sa.password,
-    nickname: sa.nickname,
-    email: sa.email,
+    account,
+    password,
+    nickname: sa?.nickname,
+    email: sa?.email,
     forceReplace,
   })
 
   switch (result.status) {
     case 'created':
-      logger.info(`[seedSuperAdmin] 已自举超级管理员（account=${sa.account}, id=${result.userId}）`)
+      logger.info(`[seedSuperAdmin] 已自举超级管理员（account=${account}, id=${result.userId}）`)
       break
     case 'replaced':
       logger.warn(
@@ -40,7 +47,7 @@ export default defineNitroPlugin(async () => {
       break
     case 'skipped-conflict':
       logger.warn(
-        `[seedSuperAdmin] ⚠️ 已存在超管 [${result.existingAccounts.join(', ')}] 与目标 account=${sa.account} 不一致；未设 NUXT_SUPER_ADMIN_FORCE_REPLACE，跳过自举。如需切换请显式开启该开关。`,
+        `[seedSuperAdmin] ⚠️ 已存在超管 [${result.existingAccounts.join(', ')}] 与目标 account=${account} 不一致；未设 NUXT_SUPER_ADMIN_FORCE_REPLACE，跳过自举。如需切换请显式开启该开关。`,
       )
       break
     case 'exists':

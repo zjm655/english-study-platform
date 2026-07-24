@@ -58,6 +58,15 @@ describe('seedSuperAdmin - 无超管', () => {
     await expect(seedSuperAdmin(CFG)).rejects.toThrow(/已被占用/)
     expect(mockWithTransaction).not.toHaveBeenCalled()
   })
+
+  it('账号/密码为纯数字（Nuxt destr 转成 number）→ String 归一后正常建新', async () => {
+    mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([]) // supers=[]、占用查询=[]
+    // 模拟 env 经 destr：NUXT_SUPER_ADMIN_ACCOUNT=13800138000 → number
+    const res = await seedSuperAdmin({ account: 13800138000, password: 12345678 })
+    expect(res).toEqual({ status: 'created', userId: 10 })
+    const [, userParams] = mockConnExecute.mock.calls[0]!
+    expect(userParams[0]).toBe('13800138000') // account 已 String 归一为字符串
+  })
 })
 
 describe('seedSuperAdmin - 已存在超管', () => {
