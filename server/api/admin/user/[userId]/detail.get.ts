@@ -6,7 +6,6 @@ import type {
   AdminUserDetail,
   AdminUserLearningStats,
   AdminUserUnitProgress,
-  AdminUserRecordingItem,
 } from '#shared/types/adminUser'
 
 interface UserRow {
@@ -46,17 +45,8 @@ interface ProgressRow {
   phase4Score: number | null
 }
 
-interface RecordingRow {
-  id: number
-  phase: number
-  score: number | null
-  duration: number | null
-  segmentTitle: string
-  createdAt: string
-}
-
 /**
- * 管理员查看用户详情（学习统计 + Unit 进度 + 录音历史）
+ * 管理员查看用户详情（学习统计 + Unit 进度）
  * GET /api/admin/user/:userId/detail
  */
 export default defineEventHandler(async (event) => {
@@ -111,22 +101,10 @@ export default defineEventHandler(async (event) => {
     [userId],
   )
 
-  // 4. 录音历史（仅元数据，不含音频 URL / 识别内容）
-  const recordingsPromise = query<RecordingRow>(
-    `SELECT r.id, r.phase, r.score, r.duration, s.title AS segmentTitle, r.createdAt
-     FROM recording r
-     JOIN segment s ON r.segment_id = s.id
-     WHERE r.user_id = ? AND r.deleted_at IS NULL
-     ORDER BY r.createdAt DESC
-     LIMIT 20`,
-    [userId],
-  )
-
-  const [statsRows, checkinRows, progressRows, recordingRows] = await Promise.all([
+  const [statsRows, checkinRows, progressRows] = await Promise.all([
     statsPromise,
     checkinPromise,
     progressPromise,
-    recordingsPromise,
   ])
 
   const stats: AdminUserLearningStats = {
@@ -160,20 +138,10 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const recordings: AdminUserRecordingItem[] = recordingRows.map((r) => ({
-    id: r.id,
-    phase: r.phase,
-    score: r.score,
-    duration: r.duration,
-    segmentTitle: r.segmentTitle,
-    createdAt: r.createdAt,
-  }))
-
   const result: AdminUserDetail = {
     user: targetUser,
     stats,
     unitProgress: Array.from(unitMap.values()),
-    recentRecordings: recordings,
   }
 
   return validateSuccess(result, '获取用户详情成功')

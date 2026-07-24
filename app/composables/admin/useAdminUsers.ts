@@ -8,14 +8,19 @@ import {
   getAdminUserLogs,
   getAdminUserPermissions,
   updateAdminUserPermissions,
+  getAdminUserRecordings,
+  auditionUserRecording,
 } from '~/api/admin/user'
 import type {
   AdminUserListQuery,
   AdminUserListResult,
   AdminUserUpdatePayload,
   AdminUserDetail,
+  AdminUserRecordingListQuery,
+  AdminUserRecordingListResult,
+  AdminRecordingDetailResult,
 } from '#shared/types/adminUser'
-import type { AdminUserPermissionDetail } from '#shared/types/adminPermission'
+import type { AdminUserPermissionDetail, AuditionPayload } from '#shared/types/adminPermission'
 import type {
   AdminOperationLogListQuery,
   AdminOperationLogListResult,
@@ -127,6 +132,36 @@ export const useUpdateAdminUserPermissions = () => {
     success: '权限已更新',
     clientFail: '权限更新失败',
     serverFail: '服务器异常，权限更新失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员查看某用户录音记录列表（分页 + 筛选） */
+export const useAdminUserRecordingList = () => {
+  const cfg = createResCfg<
+    { id: number; query: AdminUserRecordingListQuery },
+    AdminUserRecordingListResult
+  >({
+    handle: ({ id, query }) => getAdminUserRecordings(id, query),
+    success: '',
+    clientFail: '获取录音记录失败',
+    serverFail: '服务器异常，获取录音记录失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 审核门禁：查看某用户录音评测详情（填理由 + 留痕成功后返回） */
+export const useAuditionUserRecording = () => {
+  const cfg = createResCfg<
+    { id: number; recordingId: number; payload: AuditionPayload },
+    AdminRecordingDetailResult
+  >({
+    handle: ({ id, recordingId, payload }) => auditionUserRecording(id, recordingId, payload),
+    success: '',
+    clientFail: '查看失败，请检查填写内容',
+    serverFail: '服务器异常，查看失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

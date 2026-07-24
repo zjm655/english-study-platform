@@ -5,12 +5,15 @@ import type {
   AdminUserUpdatePayload,
   AdminUserDetail,
   AdminUserRolePayload,
+  AdminUserRecordingListQuery,
+  AdminUserRecordingListResult,
+  AdminRecordingDetailResult,
 } from '#shared/types/adminUser'
 import type {
   AdminOperationLogListResult,
   AdminOperationLogListQuery,
 } from '#shared/types/adminOperationLog'
-import type { AdminUserPermissionDetail } from '#shared/types/adminPermission'
+import type { AdminUserPermissionDetail, AuditionPayload } from '#shared/types/adminPermission'
 
 /**
  * 管理员用户列表（服务端分页 + 搜索 + 状态筛选）。
@@ -83,4 +86,32 @@ export const updateAdminUserPermissions = (id: number, permissions: string[]) =>
     method: 'PUT',
     body: { permissions },
   })
+}
+
+/** 管理员查看某用户录音记录列表（分页 + 筛选） */
+export const getAdminUserRecordings = (id: number, options: AdminUserRecordingListQuery = {}) => {
+  return request.json<AdminUserRecordingListResult>(
+    `${adminUserPath}/${id}/recordings${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      phase: options.phase,
+      unitId: options.unitId,
+      keyword: options.keyword,
+      scoreBand: options.scoreBand,
+      startDate: options.startDate,
+      endDate: options.endDate,
+    })}`,
+  )
+}
+
+/** 审核门禁：查看某用户录音评测详情（填理由 + 留痕成功后返回签名音频与识别文本） */
+export const auditionUserRecording = (
+  id: number,
+  recordingId: number,
+  payload: AuditionPayload,
+) => {
+  return request.json<AdminRecordingDetailResult>(
+    `${adminUserPath}/${id}/recordings/${recordingId}`,
+    { method: 'POST', body: payload },
+  )
 }

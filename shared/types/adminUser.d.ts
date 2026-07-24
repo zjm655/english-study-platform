@@ -1,5 +1,7 @@
 /** 管理员用户管理共享类型（列表 / 资料修改 / 封禁） */
 
+import type { Recording } from './recording'
+
 /** 用户列表项（不含 passwordHash） */
 export interface AdminUserListItem {
   id: number
@@ -75,14 +77,54 @@ export interface AdminUserUnitProgress {
   segments: AdminUserSegmentProgress[]
 }
 
-/** 用户录音历史项（仅元数据，不含音频 URL / 识别内容） */
-export interface AdminUserRecordingItem {
+/** 录音记录分数档筛选 */
+export type AdminUserRecordingScoreBand = 'all' | 'high' | 'mid' | 'low'
+
+/** 用户录音记录列表查询参数（query string，后端 zod coerce） */
+export interface AdminUserRecordingListQuery {
+  page?: number
+  pageSize?: number
+  phase?: 3 | 4 // 3 配音 / 4 跟读
+  unitId?: number
+  keyword?: string // 按片段标题模糊搜索
+  scoreBand?: AdminUserRecordingScoreBand
+  startDate?: string // YYYY-MM-DD
+  endDate?: string // YYYY-MM-DD
+}
+
+/** 用户录音记录列表项（仅元数据，不含音频 URL / 识别内容） */
+export interface AdminUserRecordingListItem {
   id: number
   phase: number // 3 配音 / 4 跟读
   score: number | null
   duration: number | null // 秒
+  analyzeStatus: 'pending' | 'failed' | 'success'
   segmentTitle: string
+  unitId: number
+  unitTitle: string
   createdAt: string
+}
+
+/** 单元下拉选项（该用户实际有录音的单元） */
+export interface AdminUserUnitOption {
+  unitId: number
+  unitTitle: string
+}
+
+/** 用户录音记录列表响应（服务端分页 + 单元下拉数据） */
+export interface AdminUserRecordingListResult {
+  list: AdminUserRecordingListItem[]
+  total: number
+  page: number
+  pageSize: number
+  unitOptions: AdminUserUnitOption[]
+}
+
+/** 审核门禁——录音评测详情（留痕成功后返回，含签名音频 URL 与识别文本） */
+export interface AdminRecordingDetailResult {
+  recording: Recording
+  segmentTitle: string
+  referenceText: string
 }
 
 /** 用户详情 */
@@ -100,7 +142,6 @@ export interface AdminUserDetail {
   }
   stats: AdminUserLearningStats
   unitProgress: AdminUserUnitProgress[]
-  recentRecordings: AdminUserRecordingItem[]
 }
 
 // ============== 角色变更 ==============

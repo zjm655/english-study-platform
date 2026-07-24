@@ -301,6 +301,36 @@ export const adminMaterialRecordListSchema = z.object({
     .optional(),
 })
 
+/** 管理员查看某用户录音记录列表查询参数校验 */
+export const adminUserRecordingListSchema = z.object({
+  page: z.coerce.number().int().min(1, 'page 不能小于 1').optional().default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1, 'pageSize 不能小于 1')
+    .max(50, 'pageSize 不能大于 50')
+    .optional()
+    .default(10),
+  phase: z.coerce
+    .number()
+    .refine((v) => v === 3 || v === 4, { message: 'phase 必须为 3 或 4' })
+    .optional(),
+  unitId: z.coerce.number().int().min(1, 'unitId 必须为正整数').optional(),
+  keyword: z.string().max(100, 'keyword 过长').optional(),
+  scoreBand: z
+    .enum(['all', 'high', 'mid', 'low'], { message: 'scoreBand 必须为 all/high/mid/low' })
+    .optional()
+    .default('all'),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+})
+
 /** 管理员重处理上传记录参数校验 */
 export const adminMaterialRecordReprocessSchema = z.object({
   unitId: z.number().int().min(0, 'unitId 不能为负数'),

@@ -63,7 +63,7 @@ export default defineNuxtConfig({
       password: '',
       nickname: '',
       email: '',
-      forceReplace:false,
+      forceReplace: false,
     },
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],

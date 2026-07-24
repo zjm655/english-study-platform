@@ -190,32 +190,10 @@
         </template>
       </div>
 
-      <!-- 录音历史 -->
+      <!-- 录音记录（可筛选 + 审核门禁详情） -->
       <div class="section">
-        <h3 class="section-title">录音记录（最近 20 条）</h3>
-        <el-empty
-          v-if="detail.recentRecordings.length === 0"
-          description="暂无录音记录"
-          :image-size="60"
-        />
-        <el-table v-else :data="detail.recentRecordings" stripe row-key="id" size="small">
-          <el-table-column type="index" width="50" label="#" />
-          <el-table-column prop="segmentTitle" label="片段" min-width="150" show-overflow-tooltip />
-          <el-table-column label="阶段" width="80" align="center">
-            <template #default="{ row }">{{ row.phase === 3 ? '配音' : '跟读' }}</template>
-          </el-table-column>
-          <el-table-column label="得分" width="80" align="center">
-            <template #default="{ row }">{{ row.score != null ? row.score : '-' }}</template>
-          </el-table-column>
-          <el-table-column label="时长" width="90" align="center">
-            <template #default="{ row }">{{
-              row.duration != null ? formatDuration(row.duration) : '-'
-            }}</template>
-          </el-table-column>
-          <el-table-column label="时间" width="170">
-            <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
-          </el-table-column>
-        </el-table>
+        <h3 class="section-title">录音记录</h3>
+        <UserRecordingPanel :user-id="userId" />
       </div>
 
       <!-- 操作日志 -->
@@ -279,6 +257,7 @@ import {
   useUpdateAdminUserPermissions,
 } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
+import UserRecordingPanel from '~/components/admin/UserRecordingPanel.vue'
 import { useUserStore } from '~/store/useUserStore'
 import { toastConfirm, toastSuccess } from '~/utils/popup'
 import { ROLE_ADMIN, ROLE_USER, ROLE_SUPER_ADMIN } from '#shared/utils/role'
