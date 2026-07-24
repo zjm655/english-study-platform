@@ -22,6 +22,13 @@ const LOG_SOURCE_SET = new Set<string>(LOG_SOURCES)
 
 const LOG_DIR = join(process.cwd(), 'logs')
 
+/**
+ * 测试环境短路开关：Vitest 会自动注入 process.env.VITEST='true'。
+ * 测试运行时不写文件日志，避免测试用例的 mock 数据污染 logs/（曾导致 nls 用量被误读）。
+ * 生产运行（Nitro）不存在该变量，日志照常写入。
+ */
+const IS_TEST = process.env.VITEST === 'true'
+
 /** 已创建目录缓存（每个 source 只 mkdir 一次） */
 const readyDirs = new Set<string>()
 
@@ -57,6 +64,7 @@ function serialize(args: unknown[]): string {
  * @param args   日志内容
  */
 export async function fileLog(source: LogSource, level: string, ...args: unknown[]): Promise<void> {
+  if (IS_TEST) return
   try {
     // 运行时兜底：非白名单来源回退到 'error'，杜绝 join 路径穿越（纵深防御）
     const safeSource: LogSource = LOG_SOURCE_SET.has(source) ? source : 'error'
