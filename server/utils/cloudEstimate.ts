@@ -47,6 +47,15 @@ const NLS_PRICE_PER_HOUR = 2.5
 const NLS_AVG_MINUTES = 2
 const NLS_UNIT_PRICE = Math.round((NLS_PRICE_PER_HOUR / 60) * NLS_AVG_MINUTES * 1000) / 1000
 
+// OSS 外网下行计费：上传流入（内外网）免费、内网流出免费，仅外网流出（前端签名 URL 直连
+// 播放）收费——这是 OSS 唯一实际成本，却完全绕过 api_call_log。故放弃「上传内外网区分」
+// （零成本洞察），改由 oss_playback_daily 统计播放次数，以「平均音频体积」常量系数折算下行费用。
+const OSS_OUTBOUND_PRICE_PER_GB = 0.37 // 外网下行约 0.37 元/GB（闲时价近似）
+const OSS_AVG_AUDIO_MB = 1.5 // 单次音频平均约 1.5 MB
+/** 每次播放的外网下行估算单价（元/次）：平均体积(GB) × 单价(元/GB)，保留 6 位避免展示拖尾 */
+const OSS_PLAYBACK_UNIT_PRICE =
+  Math.round((OSS_AVG_AUDIO_MB / 1024) * OSS_OUTBOUND_PRICE_PER_GB * 1e6) / 1e6
+
 /** 产品估算配置注册表（集中维护埋点路径与单价，改一处即可） */
 const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
   oss: {
@@ -151,6 +160,35 @@ export async function estimateServiceUsage(
       count,
       unitPrice,
       estimatedCost,
+    })
+  }
+
+  // OSS 外网播放（下行）：数据源是有界日汇总表 oss_playback_daily（非 api_call_log），
+  // 在标准 byPath 之外「增量」追加一行——外网下行是 OSS 唯一实际计费项。
+  // 汇总表缺失或查询异常时降级为 0，不影响其余 OSS 估算行（埋点为旁路能力）。
+  if (product === 'oss') {
+    let playCount = 0
+    try {
+      const playRows = await query<{ cnt: number | string }>(
+        `SELECT COALESCE(SUM(play_count), 0) AS cnt
+         FROM oss_playback_daily
+         WHERE stat_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+        [days],
+      )
+      playCount = Number(playRows[0]?.cnt ?? 0)
+    } catch {
+      // oss_playback_daily 缺失或查询失败时按 0 计，不阻断整体 OSS 估算
+    }
+    const playCost = Math.round(playCount * OSS_PLAYBACK_UNIT_PRICE * 1000) / 1000
+    totalCalls += playCount
+    totalEstimatedCost += playCost
+    byPath.push({
+      path: '/api/oss/playback',
+      label: '前端播放 (外网下行·估算)',
+      method: 'GET',
+      count: playCount,
+      unitPrice: OSS_PLAYBACK_UNIT_PRICE,
+      estimatedCost: playCost,
     })
   }
 

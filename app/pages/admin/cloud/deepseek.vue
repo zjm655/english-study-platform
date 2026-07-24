@@ -128,7 +128,11 @@ function renderTrendChart(dates: string[], callCounts: number[], totalTokens: nu
     tooltip: { trigger: 'axis' },
     legend: { data: ['调用次数', 'Token 用量'], bottom: 0, textStyle: { fontSize: 11 } },
     grid: { left: 50, right: 60, top: 20, bottom: 40 },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
+    },
     yAxis: [
       { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
       { type: 'value', name: 'Token', axisLabel: { fontSize: 11 }, splitLine: { show: false } },

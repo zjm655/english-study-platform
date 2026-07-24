@@ -173,6 +173,22 @@
             readonly
           />
         </div>
+        <div v-if="detail.status === 'success'" class="detail-section">
+          <div class="detail-section__title">音频试听</div>
+          <AudioPlayer
+            v-if="detail.audioUrl"
+            :src="detail.audioUrl"
+            :duration="detail.duration ?? undefined"
+          />
+          <el-alert
+            v-else
+            type="info"
+            :closable="false"
+            show-icon
+            title="非公开用户材料暂不支持试听"
+            description="仅管理员上传或公开材料可试听；查看非公开用户材料需审核权限（见后续设计）。"
+          />
+        </div>
       </div>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>

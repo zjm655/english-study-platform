@@ -141,7 +141,11 @@ function renderTrendChart(dates: string[], callCounts: number[]) {
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
     grid: { left: 45, right: 20, top: 20, bottom: 40 },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
+    },
     yAxis: {
       type: 'value',
       name: '调用次数',

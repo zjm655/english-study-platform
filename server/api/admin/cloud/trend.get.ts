@@ -29,11 +29,11 @@ export default defineEventHandler(async (event) => {
   if (service === 'edu') {
     // edu：按天聚合 api_call_log 的评测鉴权成功调用次数（无耗时/token 维度，填 0）
     const rows = await query<{ date: string; call_count: number | string }>(
-      `SELECT DATE(createdAt) as date, COUNT(*) as call_count
+      `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') as date, COUNT(*) as call_count
        FROM api_call_log
        WHERE route_pattern = ? AND method = ? AND status_code < 400
          AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-       GROUP BY DATE(createdAt)
+       GROUP BY DATE_FORMAT(createdAt, '%Y-%m-%d')
        ORDER BY date ASC`,
       ['/api/evaluation/auth', 'POST', days],
     )
@@ -50,13 +50,13 @@ export default defineEventHandler(async (event) => {
       total_duration: number | string
       total_tokens: number | string
     }>(
-      `SELECT DATE(createdAt) as date,
+      `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') as date,
               COUNT(*) as call_count,
               COALESCE(SUM(duration_ms), 0) as total_duration,
               COALESCE(SUM(total_tokens), 0) as total_tokens
        FROM cloud_service_call_log
        WHERE service = ? AND success = 1 AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
-       GROUP BY DATE(createdAt)
+       GROUP BY DATE_FORMAT(createdAt, '%Y-%m-%d')
        ORDER BY date ASC`,
       [service, days],
     )

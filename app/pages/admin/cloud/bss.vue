@@ -107,10 +107,25 @@
     <section class="panel">
       <header class="panel-head">
         <h3 class="panel-title">账单总览</h3>
-        <span class="panel-note">{{ billingMonth }} · 按产品汇总实付</span>
+        <span class="panel-note">{{ billingMonth }} · 按产品汇总（应付 = 实付 + 优惠券抵扣）</span>
       </header>
       <template v-if="data?.billOverview.success">
+        <div v-if="hasOverview" class="overview-summary">
+          <div class="overview-summary__cell">
+            <span class="overview-summary__label">应付合计</span>
+            <b class="overview-summary__value">￥{{ overviewTotals.pretax }}</b>
+          </div>
+          <div class="overview-summary__cell overview-summary__cell--coupon">
+            <span class="overview-summary__label">优惠券抵扣</span>
+            <b class="overview-summary__value">-￥{{ overviewTotals.deducted }}</b>
+          </div>
+          <div class="overview-summary__cell">
+            <span class="overview-summary__label">实付合计</span>
+            <b class="overview-summary__value">￥{{ overviewTotals.payment }}</b>
+          </div>
+        </div>
         <div v-show="hasOverview" ref="overviewChartRef" class="overview-chart"></div>
+        <div v-show="hasOverview" ref="overviewBarRef" class="overview-bar"></div>
         <el-empty v-if="!hasOverview" description="该账期无消费记录" :image-size="64" />
       </template>
       <div v-else class="unavailable">
@@ -221,14 +236,22 @@
 <script setup lang="ts">
 import { Refresh, WarningFilled } from '@element-plus/icons-vue'
 import { use, graphic, init } from 'echarts/core'
-import { PieChart, LineChart } from 'echarts/charts'
+import { PieChart, LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { BssStatResult } from '#shared/types/adminCloud'
 import { useAdminCloudBss } from '~/composables/admin'
 
-use([PieChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
+use([
+  PieChart,
+  LineChart,
+  BarChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  CanvasRenderer,
+])
 
 definePageMeta({ layout: 'admin' })
 
@@ -242,11 +265,24 @@ const data = ref<BssStatResult | null>(null)
 // 图表
 const overviewChartRef = ref<HTMLElement | null>(null)
 let overviewChart: EChartsType | null = null
+const overviewBarRef = ref<HTMLElement | null>(null)
+let overviewBarChart: EChartsType | null = null
 const trendChartRef = ref<HTMLElement | null>(null)
 let trendChart: EChartsType | null = null
 
 const hasOverview = computed(() => (data.value?.billOverview.items?.length ?? 0) > 0)
 const hasTrend = computed(() => (data.value?.monthlyTrend.items?.length ?? 0) > 0)
+
+/** 账单总览汇总（应付 / 优惠券抵扣 / 实付） */
+const overviewTotals = computed(() => {
+  const items = data.value?.billOverview.items ?? []
+  const fixed = (n: number) => n.toFixed(2)
+  return {
+    pretax: fixed(items.reduce((s, i) => s + i.pretaxAmount, 0)),
+    deducted: fixed(items.reduce((s, i) => s + i.deductedByCoupons, 0)),
+    payment: fixed(items.reduce((s, i) => s + i.paymentAmount, 0)),
+  }
+})
 
 /** 实付合计 */
 const totalPayment = computed(() => {
@@ -260,6 +296,7 @@ async function fetchData() {
     data.value = res.data
     await nextTick()
     renderOverviewChart()
+    renderOverviewBar()
     renderTrendChart()
   }
 }
@@ -280,6 +317,44 @@ function renderOverviewChart() {
         avoidLabelOverlap: true,
         label: { fontSize: 11 },
         data: items.map((i) => ({ name: i.productName, value: i.paymentAmount })),
+      },
+    ],
+  })
+}
+
+function renderOverviewBar() {
+  if (!overviewBarRef.value || !hasOverview.value) return
+  if (!overviewBarChart) overviewBarChart = init(overviewBarRef.value)
+  const items = data.value!.billOverview.items!
+  overviewBarChart.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    legend: { bottom: 0, textStyle: { fontSize: 11 } },
+    grid: { left: 55, right: 20, top: 20, bottom: 45 },
+    xAxis: {
+      type: 'category',
+      data: items.map((i) => i.productName),
+      axisLabel: { fontSize: 11, interval: 0, rotate: items.length > 4 ? 25 : 0 },
+    },
+    yAxis: {
+      type: 'value',
+      name: '金额(元)',
+      axisLabel: { fontSize: 11 },
+      splitLine: { show: false },
+    },
+    series: [
+      {
+        name: '实付',
+        type: 'bar',
+        stack: 'total',
+        data: items.map((i) => i.paymentAmount),
+        itemStyle: { color: '#409eff' },
+      },
+      {
+        name: '优惠券抵扣',
+        type: 'bar',
+        stack: 'total',
+        data: items.map((i) => i.deductedByCoupons),
+        itemStyle: { color: '#e6a23c' },
       },
     ],
   })
@@ -324,6 +399,7 @@ function renderTrendChart() {
 onMounted(() => fetchData())
 onUnmounted(() => {
   overviewChart?.dispose()
+  overviewBarChart?.dispose()
   trendChart?.dispose()
 })
 </script>
@@ -395,9 +471,41 @@ onUnmounted(() => {
 }
 
 /* 图表 */
+.overview-summary {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.overview-summary__cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--bg);
+  border-radius: var(--r);
+}
+.overview-summary__label {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.overview-summary__value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.overview-summary__cell--coupon .overview-summary__value {
+  color: #e6a23c;
+}
 .overview-chart {
   width: 100%;
   height: 300px;
+}
+.overview-bar {
+  width: 100%;
+  height: 300px;
+  margin-top: 8px;
 }
 .trend-chart {
   width: 100%;

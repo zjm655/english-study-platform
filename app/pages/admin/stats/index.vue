@@ -63,7 +63,7 @@
       </section>
     </div>
 
-    <!-- 次级区：错误路径排行 + （安全视角 / 云服务） -->
+    <!-- 次级区：错误路径排行 + 安全视角 -->
     <div class="sub-grid">
       <section class="panel panel--errors">
         <header class="panel-head">
@@ -110,46 +110,20 @@
             </ul>
           </div>
         </section>
-
-        <section class="panel panel--cloud">
-          <header class="panel-head">
-            <h3 class="panel-title">云服务</h3>
-            <span class="panel-note">阿里云 BSS</span>
-          </header>
-          <div v-if="cloudBalance?.success" class="cloud-body">
-            <div class="cloud-hero">
-              <span class="cloud-number">￥{{ cloudBalance.availableAmount ?? '--' }}</span>
-              <span class="cloud-caption">可用额度（{{ cloudBalance.currency ?? 'CNY' }}）</span>
-            </div>
-            <div class="cloud-rows">
-              <div class="cloud-row">
-                <span>可用现金</span><b>￥{{ cloudBalance.availableCashAmount ?? '--' }}</b>
-              </div>
-              <div class="cloud-row">
-                <span>信用额度</span><b>￥{{ cloudBalance.creditAmount ?? '--' }}</b>
-              </div>
-            </div>
-          </div>
-          <div v-else class="cloud-unavailable">
-            <el-icon :size="22"><WarningFilled /></el-icon>
-            <p>余额暂不可用</p>
-            <span>{{ cloudBalance?.error || '加载失败或未配置' }}</span>
-          </div>
-        </section>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Refresh, WarningFilled } from '@element-plus/icons-vue'
+import { Refresh } from '@element-plus/icons-vue'
 import { use, graphic, init } from 'echarts/core'
 import { LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
-import type { AdminStatsResult, DailyTrendItem, CloudBalanceResult } from '#shared/types/adminStats'
-import { useAdminStats, useAdminStatsCloud } from '~/composables/admin'
+import type { AdminStatsResult, DailyTrendItem } from '#shared/types/adminStats'
+import { useAdminStats } from '~/composables/admin'
 
 use([LineChart, BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
@@ -159,9 +133,7 @@ definePageMeta({ layout: 'admin' })
 
 const days = ref(7)
 const { isLoading, execute } = useAdminStats()
-const { execute: executeCloud } = useAdminStatsCloud()
 const statsData = ref<AdminStatsResult | null>(null)
-const cloudBalance = ref<CloudBalanceResult | null>(null)
 
 const hasData = computed(() => (statsData.value?.summary.totalCalls ?? 0) > 0)
 
@@ -170,14 +142,6 @@ async function fetchStats() {
   if (res.code === 200 && res.data) {
     statsData.value = res.data
     updateCharts()
-  }
-}
-
-/** 云账户余额独立拉取（失败不影响主看板，静默降级） */
-async function fetchCloudBalance() {
-  const res = await executeCloud(undefined)
-  if (res.code === 200 && res.data) {
-    cloudBalance.value = res.data
   }
 }
 
@@ -415,7 +379,6 @@ function initCharts() {
 onMounted(() => {
   initCharts()
   fetchStats()
-  fetchCloudBalance()
 })
 
 onUnmounted(() => {
@@ -808,81 +771,12 @@ onUnmounted(() => {
   background: var(--warning);
 }
 
-/* ===== 右列堆叠（安全视角 + 云服务） ===== */
+/* ===== 右列堆叠（安全视角） ===== */
 .right-stack {
   display: flex;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-}
-
-/* ===== 云服务（阿里云 BSS） ===== */
-.cloud-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.cloud-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px 0 2px;
-  gap: 4px;
-}
-
-.cloud-number {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--primary-dark);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.cloud-caption {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.cloud-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px;
-  background: var(--primary-light);
-  border-radius: var(--r);
-}
-
-.cloud-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 13px;
-  color: var(--text-2);
-}
-.cloud-row b {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-1);
-}
-
-.cloud-unavailable {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 22px 16px;
-  color: var(--text-4);
-  text-align: center;
-}
-.cloud-unavailable p {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-3);
-}
-.cloud-unavailable span {
-  font-size: 12px;
-  word-break: break-all;
-  max-width: 100%;
 }
 
 /* ===== 响应式（PC 宽屏优先，窄屏兜底） ===== */

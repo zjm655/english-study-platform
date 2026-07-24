@@ -12,9 +12,9 @@ beforeEach(() => {
 })
 
 describe('cloudEstimate - 分组聚合 + 成功计费', () => {
-  it('单条聚合查询：只调用 query 一次', async () => {
+  it('单条聚合查询：非 OSS 产品只调用 query 一次', async () => {
     mockQuery.mockResolvedValueOnce([])
-    await estimateServiceUsage('oss', 7)
+    await estimateServiceUsage('edu', 7)
     expect(mockQuery).toHaveBeenCalledTimes(1)
   })
 
@@ -30,15 +30,21 @@ describe('cloudEstimate - 分组聚合 + 成功计费', () => {
     expect(res.byPath[0]!.unitPrice).toBe(0.004)
   })
 
-  it('oss：多路径拆分行，按成功次数聚合', async () => {
-    mockQuery.mockResolvedValueOnce([
-      { route_pattern: '/api/recording', method: 'POST', ok_cnt: 10, fail_cnt: 2 },
-      { route_pattern: '/api/segment/upload', method: 'POST', ok_cnt: 5, fail_cnt: 0 },
-      { route_pattern: '/api/admin/segment/upload', method: 'POST', ok_cnt: 3, fail_cnt: 1 },
-    ])
+  it('oss：多路径拆分行 + 追加前端播放(外网下行)行，两次查询', async () => {
+    mockQuery
+      .mockResolvedValueOnce([
+        { route_pattern: '/api/recording', method: 'POST', ok_cnt: 10, fail_cnt: 2 },
+        { route_pattern: '/api/segment/upload', method: 'POST', ok_cnt: 5, fail_cnt: 0 },
+        { route_pattern: '/api/admin/segment/upload', method: 'POST', ok_cnt: 3, fail_cnt: 1 },
+      ])
+      .mockResolvedValueOnce([{ cnt: 200 }]) // oss_playback_daily 窗口内播放总量
     const res = await estimateServiceUsage('oss', 30)
-    expect(res.byPath).toHaveLength(3)
-    expect(res.totalCalls).toBe(18) // 10 + 5 + 3（失败不计）
+    expect(mockQuery).toHaveBeenCalledTimes(2) // 聚合查询 + 播放汇总查询
+    expect(res.byPath).toHaveLength(4) // 3 上传 + 1 前端播放
+    const playback = res.byPath.find((p) => p.path === '/api/oss/playback')
+    expect(playback).toBeTruthy()
+    expect(playback!.count).toBe(200)
+    expect(res.totalCalls).toBe(218) // 上传 18(10+5+3) + 播放 200
   })
 
   it('无记录时各路径计数为 0，总费用为 0', async () => {

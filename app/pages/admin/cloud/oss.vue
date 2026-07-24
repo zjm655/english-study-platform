@@ -64,7 +64,7 @@
       <section class="panel">
         <header class="panel-head">
           <h3 class="panel-title">本地埋点估算明细</h3>
-          <span class="panel-note">基于 api_call_log 统计</span>
+          <span class="panel-note">基于本地埋点统计</span>
         </header>
         <el-table
           v-if="data?.estimate.byPath.length"
@@ -90,8 +90,9 @@
         </el-table>
         <el-empty v-else description="范围内无调用记录" :image-size="64" />
         <p class="estimate-note">
-          ⚠️ 基于本地 API 调用埋点估算，仅供参考。OSS 下载流量（signUrl
-          直连）无法埋点，以官方存储统计为主。
+          ⚠️ 基于本地埋点估算，仅供参考。上传（流入）内外网均免费；OSS 唯一实际成本是外网下行，
+          即前端经签名 URL 直连播放——已由前端播放埋点统计（见「前端播放」行，按平均音频体积估算），
+          精确流量仍以官方 BSS 账单为准。
         </p>
       </section>
 
@@ -218,7 +219,11 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
     tooltip: { trigger: 'axis' },
     legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0, textStyle: { fontSize: 11 } },
     grid: { left: 50, right: 60, top: 20, bottom: 40 },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 11 } },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
+    },
     yAxis: [
       { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
       { type: 'value', name: '耗时(ms)', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
