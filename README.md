@@ -1,6 +1,8 @@
-# Nuxt Minimal Starter
+# 英语学习平台（Nuxt 4 全栈）
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+基于 Nuxt 4 的全栈英语学习平台。学习者按材料片段（segment）依次完成「盲听 → 学习 → 配音 → 影子跟读」四阶段学习流程，完成后可在复习页（`/review`）巩固单词与材料理解；其中「配音」与「影子跟读」接入阿里云智能科教平台进行真实语音评测。
+
+平台另含管理员后台（`/admin`）：材料管理、用户管理、运营统计、阿里云服务（OSS/NLS/智能科教/BSS）与 DeepSeek 监控、日志管理及系统配置。
 
 ## Setup
 
