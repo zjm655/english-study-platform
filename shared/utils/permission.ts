@@ -17,6 +17,8 @@ export const PERMISSIONS = {
   CONFIG: 'config',
   /** 审核门禁：试听非公开用户材料/配音 */
   REVIEW: 'review',
+  /** 审计查看：审核留痕查询导出（监督 REVIEW 持有者，不默认下放） */
+  VIEW_AUDIT: 'view_audit',
   /** 授权管理：改角色 + 授予权限（超管隐式持有，不通过权限表下放） */
   GRANT_PERMISSIONS: 'grant_permissions',
 } as const
@@ -34,6 +36,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   [PERMISSIONS.VIEW_LOGS]: '日志查看',
   [PERMISSIONS.CONFIG]: '系统配置',
   [PERMISSIONS.REVIEW]: '审核门禁',
+  [PERMISSIONS.VIEW_AUDIT]: '审计查看',
   [PERMISSIONS.GRANT_PERMISSIONS]: '授权管理',
 }
 
@@ -68,3 +71,24 @@ export const REVIEW_REASON_CATEGORIES = [
 ] as const
 
 export type ReviewReasonCategory = (typeof REVIEW_REASON_CATEGORIES)[number]
+
+/**
+ * 审核留痕对象类型（与 writeReviewAccessLog 各写入点的 target_type 取值一致）。
+ * 前端筛选下拉与后端 zod 枚举共用，防两处漂移。
+ */
+export const REVIEW_TARGET_TYPES = [
+  'segment',
+  'material_record',
+  'recording',
+  'segment_visibility',
+] as const
+
+export type ReviewTargetType = (typeof REVIEW_TARGET_TYPES)[number]
+
+/** 审核留痕对象类型中文标签（留痕查询页展示用） */
+export const REVIEW_TARGET_TYPE_LABELS: Record<ReviewTargetType, string> = {
+  segment: '材料试听',
+  material_record: '上传记录试听',
+  recording: '配音详情查看',
+  segment_visibility: '公开状态调整',
+}

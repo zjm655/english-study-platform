@@ -1,6 +1,7 @@
 // server/utils/validate.ts
 import { z } from 'zod'
 import type { ResPayload } from '#shared/types/request'
+import { REVIEW_TARGET_TYPES, REVIEW_REASON_CATEGORIES } from '#shared/utils/permission'
 
 // 登陆校验
 export const loginSchema = z.object({
@@ -446,6 +447,37 @@ export const adminOperationLogListSchemaV2 = z.object({
     .default(20),
   action: z.string().max(50, '操作类型不能超过 50 字').optional(),
   keyword: z.string().max(50, '搜索关键词不能超过 50 字').optional(),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+})
+
+/** review_access_log 列表查询校验（审核留痕子页，枚举复用 shared 常量防漂移） */
+export const reviewAccessLogListSchema = z.object({
+  page: z.coerce.number().int().min(1, 'page 不能小于 1').optional().default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1, 'pageSize 不能小于 1')
+    .max(100, 'pageSize 不能大于 100')
+    .optional()
+    .default(20),
+  targetType: z
+    .enum(REVIEW_TARGET_TYPES, {
+      message: `targetType 必须为 ${REVIEW_TARGET_TYPES.join('/')}`,
+    })
+    .optional(),
+  reasonCategory: z
+    .enum(REVIEW_REASON_CATEGORIES, {
+      message: 'reasonCategory 不在白名单内',
+    })
+    .optional(),
+  keyword: z.string().max(100, '搜索关键词不能超过 100 字').optional(),
   startDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')

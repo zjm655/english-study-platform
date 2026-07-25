@@ -2,6 +2,7 @@ import {
   adminLogsApiCallListPath,
   adminLogsCloudServiceListPath,
   adminLogsOperationListPath,
+  adminLogsReviewAccessListPath,
   adminLogsCleanPath,
 } from '../paths'
 import { request } from '~/utils/request'
@@ -11,6 +12,8 @@ import type {
   CloudServiceLogListQuery,
   CloudServiceLogListResult,
   OperationLogListQueryV2,
+  ReviewAccessLogListQuery,
+  ReviewAccessLogListResult,
 } from '#shared/types/adminLogs'
 import type { AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
@@ -52,6 +55,21 @@ export const getOperationLogListV2 = (options: OperationLogListQueryV2 = {}) => 
       page: options.page,
       pageSize: options.pageSize,
       action: options.action,
+      keyword: options.keyword,
+      startDate: options.startDate,
+      endDate: options.endDate,
+    })}`,
+  )
+}
+
+/** 审核留痕列表（view_audit 门禁，监督 REVIEW 敏感操作） */
+export const getReviewAccessLogList = (options: ReviewAccessLogListQuery = {}) => {
+  return request.json<ReviewAccessLogListResult>(
+    `${adminLogsReviewAccessListPath}${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      targetType: options.targetType,
+      reasonCategory: options.reasonCategory,
       keyword: options.keyword,
       startDate: options.startDate,
       endDate: options.endDate,

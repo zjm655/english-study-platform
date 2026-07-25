@@ -2,6 +2,7 @@ import {
   getApiCallLogList,
   getCloudServiceLogList,
   getOperationLogListV2,
+  getReviewAccessLogList,
   cleanLogs,
 } from '~/api/admin/logs'
 import type {
@@ -10,6 +11,8 @@ import type {
   CloudServiceLogListQuery,
   CloudServiceLogListResult,
   OperationLogListQueryV2,
+  ReviewAccessLogListQuery,
+  ReviewAccessLogListResult,
 } from '#shared/types/adminLogs'
 import type { AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
@@ -44,6 +47,18 @@ export const useOperationLogListV2 = () => {
     success: '',
     clientFail: '获取操作日志失败',
     serverFail: '服务器异常，获取日志失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 审核留痕列表（view_audit 门禁） */
+export const useReviewAccessLogList = () => {
+  const cfg = createResCfg<ReviewAccessLogListQuery, ReviewAccessLogListResult>({
+    handle: getReviewAccessLogList,
+    success: '',
+    clientFail: '获取审核留痕失败',
+    serverFail: '服务器异常，获取留痕失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

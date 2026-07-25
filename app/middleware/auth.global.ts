@@ -5,12 +5,14 @@ import { PERMISSIONS } from '#shared/utils/permission'
 import type { PermissionKey } from '#shared/utils/permission'
 
 // 后台页面路径前缀 → 所需权限（与侧边栏/后端门禁口径一致；仅体验层，真正防线在后端）
+// 注意：匹配用 .find 前缀首命中，更具体的路径（如 /admin/logs/review-access）必须排在其父前缀之前
 const ADMIN_PAGE_PERMISSIONS: [prefix: string, permission: PermissionKey][] = [
   ['/admin/material', PERMISSIONS.MANAGE_MATERIALS],
   ['/admin/unit', PERMISSIONS.MANAGE_MATERIALS],
   ['/admin/users', PERMISSIONS.MANAGE_USERS],
   ['/admin/stats', PERMISSIONS.VIEW_STATS],
   ['/admin/cloud', PERMISSIONS.VIEW_STATS],
+  ['/admin/logs/review-access', PERMISSIONS.VIEW_AUDIT],
   ['/admin/logs', PERMISSIONS.VIEW_LOGS],
   ['/admin/config', PERMISSIONS.CONFIG],
 ]

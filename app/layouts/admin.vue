@@ -44,14 +44,26 @@
           <el-icon><MagicStick /></el-icon>
           <span>DeepSeek</span>
         </el-menu-item>
-        <el-sub-menu v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs">
+        <el-sub-menu
+          v-if="can(PERMISSIONS.VIEW_LOGS) || can(PERMISSIONS.VIEW_AUDIT)"
+          index="/admin/logs"
+        >
           <template #title>
             <el-icon><Notebook /></el-icon>
             <span>日志管理</span>
           </template>
-          <el-menu-item index="/admin/logs/api-call">API 调用日志</el-menu-item>
-          <el-menu-item index="/admin/logs/cloud-service">云服务日志</el-menu-item>
-          <el-menu-item index="/admin/logs/operation">操作日志</el-menu-item>
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/api-call"
+            >API 调用日志</el-menu-item
+          >
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/cloud-service"
+            >云服务日志</el-menu-item
+          >
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/operation"
+            >操作日志</el-menu-item
+          >
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_AUDIT)" index="/admin/logs/review-access"
+            >审核留痕</el-menu-item
+          >
         </el-sub-menu>
         <el-menu-item v-if="can(PERMISSIONS.CONFIG)" index="/admin/config">
           <el-icon><Setting /></el-icon>

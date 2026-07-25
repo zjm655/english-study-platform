@@ -122,6 +122,13 @@ const MODULE_CATALOG: {
     permission: PERMISSIONS.VIEW_LOGS,
   },
   {
+    path: '/admin/logs/review-access',
+    title: '审核留痕',
+    desc: 'REVIEW 敏感操作留痕查询导出',
+    icon: Lock,
+    permission: PERMISSIONS.VIEW_AUDIT,
+  },
+  {
     path: '/admin/config',
     title: '系统配置',
     desc: '评测额度 / 限流等全局配置',
