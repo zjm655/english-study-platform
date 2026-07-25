@@ -11,6 +11,7 @@ export function useToRegister() {
     clientFail: '参数校验失败',
     serverFail: '服务器异常，请稍后重试',
     error: '网络异常，请检查网络',
+    notify: 'all',
   })
 
   const { isLoading, execute } = useHandleRes(registerCfg)

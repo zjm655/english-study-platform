@@ -6,7 +6,7 @@ import {
   useMaterialRecords,
   useDeleteMaterialRecord,
 } from '~/composables/material/useUploadRecords'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { toastSuccess, toastWarning, toastConfirm } from '~/utils/popup'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
 
 definePageMeta({ title: '上传材料' })
@@ -103,7 +103,7 @@ function getStatusLabel(status: string) {
 
 async function handleDeleteRecord(id: number) {
   try {
-    await ElMessageBox.confirm('确定删除这条记录吗？关联的学习数据也会被清理。', '确认删除', {
+    await toastConfirm('确定删除这条记录吗？关联的学习数据也会被清理。', '确认删除', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',
@@ -124,7 +124,7 @@ function handleAudioChange(_uploadFile: UploadFile, uploadFiles: UploadFiles) {
   const file = uploadFiles[0]
   if (!file?.raw) return
   if (file.raw.size > MAX_AUDIO_SIZE) {
-    ElMessage.warning('音频文件不能超过 2MB')
+    toastWarning('音频文件不能超过 2MB')
     return
   }
   audioFile.value = file.raw
@@ -147,7 +147,7 @@ async function handleSubmit() {
 
   const res = await execute(formData)
   if (res.code === 200 && res.data) {
-    ElMessage.success('材料上传成功，正在处理中...')
+    toastSuccess('材料上传成功，正在处理中...')
     router.push('/learn')
   }
 }

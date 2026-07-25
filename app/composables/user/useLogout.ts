@@ -7,6 +7,7 @@ export const useLogout = () => {
     clientFail: '登录已过期',
     serverFail: '服务器异常，请稍后重试',
     error: '网络异常，请检查网络',
+    notify: 'all',
   })
 
   const { isLoading, execute } = useHandleRes(logoutCfg)

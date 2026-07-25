@@ -1,4 +1,19 @@
 import { getFavWordIds, toggleFavWord, getFavSegmentIds, toggleFavSegment } from '~/api/user'
+import { isResPayload } from '~/composables/useRequest'
+import { toastError } from '~/utils/popup'
+
+// toggle 抛异常时的统一处理：401 交给 resolveCode 复用登录引导与跳转，其余弹错提示
+function handleToggleError(err: unknown) {
+  if (isResPayload(err) && err.code === 401) {
+    void resolveCode({
+      code: 401,
+      message: err.message,
+      tips: { success: '', clientFail: '', serverFail: '', error: '' },
+    })
+    return
+  }
+  toastError('操作失败，请稍后重试')
+}
 
 /**
  * 用户收藏管理 composable
@@ -15,9 +30,13 @@ export const useFavorites = () => {
   /** 拉取收藏单词列表 */
   async function fetchFavWords() {
     if (wordsLoaded.value) return
-    const res = await getFavWordIds()
-    if (res?.code === 200 && res.data) {
-      favWordIds.value = new Set(res.data)
+    try {
+      const res = await getFavWordIds()
+      if (res?.code === 200 && res.data) {
+        favWordIds.value = new Set(res.data)
+      }
+    } catch {
+      // 读操作静默降级（防 HTTP 错误 throw 导致 unhandled rejection）
     }
     wordsLoaded.value = true
   }
@@ -25,9 +44,13 @@ export const useFavorites = () => {
   /** 拉取收藏片段列表 */
   async function fetchFavSegments() {
     if (segmentsLoaded.value) return
-    const res = await getFavSegmentIds()
-    if (res?.code === 200 && res.data) {
-      favSegmentIds.value = new Set(res.data)
+    try {
+      const res = await getFavSegmentIds()
+      if (res?.code === 200 && res.data) {
+        favSegmentIds.value = new Set(res.data)
+      }
+    } catch {
+      // 读操作静默降级（防 HTTP 错误 throw 导致 unhandled rejection）
     }
     segmentsLoaded.value = true
   }
@@ -58,9 +81,14 @@ export const useFavorites = () => {
       } else {
         // 失败回滚
         favWordIds.value = prev
+        toastError(res?.message || '操作失败，请稍后重试')
       }
 
       return res
+    } catch (err) {
+      // HTTP 错误会直接 throw（不返回 ResPayload）：回滚并提示
+      favWordIds.value = prev
+      handleToggleError(err)
     } finally {
       togglingWord.value = null
     }
@@ -90,9 +118,14 @@ export const useFavorites = () => {
         }
       } else {
         favSegmentIds.value = prev
+        toastError(res?.message || '操作失败，请稍后重试')
       }
 
       return res
+    } catch (err) {
+      // HTTP 错误会直接 throw（不返回 ResPayload）：回滚并提示
+      favSegmentIds.value = prev
+      handleToggleError(err)
     } finally {
       togglingSegment.value = null
     }

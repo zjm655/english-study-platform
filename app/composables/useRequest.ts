@@ -46,6 +46,7 @@ export const useHandleRes = <Payload, Res>(resCfg: CommonReqCfg<Payload, Res>) =
         code: -1,
         message: '未知错误',
         tips: resCfg.tips,
+        notify: resCfg.notify,
       }
 
       try {
