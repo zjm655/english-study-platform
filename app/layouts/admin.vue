@@ -8,12 +8,17 @@
       </div>
 
       <el-menu :default-active="activeMenu" router class="admin-menu">
+        <el-menu-item index="/admin">
+          <el-icon><HomeFilled /></el-icon>
+          <span>首页</span>
+        </el-menu-item>
         <el-sub-menu v-if="can(PERMISSIONS.MANAGE_MATERIALS)" index="/admin/material">
           <template #title>
             <el-icon><Document /></el-icon>
             <span>材料管理</span>
           </template>
           <el-menu-item index="/admin/material">材料列表</el-menu-item>
+          <el-menu-item index="/admin/unit">单元列表</el-menu-item>
           <el-menu-item index="/admin/material/upload">材料上传</el-menu-item>
           <el-menu-item index="/admin/material/records">上传记录</el-menu-item>
         </el-sub-menu>
@@ -78,6 +83,7 @@ import {
   DataAnalysis,
   Notebook,
   Setting,
+  HomeFilled,
 } from '@element-plus/icons-vue'
 import { usePermission } from '~/composables/user'
 import { PERMISSIONS } from '#shared/utils/permission'

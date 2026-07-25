@@ -179,8 +179,8 @@ async function initStats() {
   }
 }
 
-// 事件处理
-const goAdmin = () => navigateTo('/admin/material/upload')
+// 事件处理（后台入口落到 /admin 首页，由首页按权限展示模块入口）
+const goAdmin = () => navigateTo('/admin')
 
 const handleEditProfile = () => {
   logger.log('编辑资料')

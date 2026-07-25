@@ -1,5 +1,6 @@
 export * from './useAdminUpload'
 export * from './useAdminSegments'
+export * from './useAdminUnits'
 export * from './useAdminUsers'
 export * from './useAdminStats'
 export * from './useAdminCloud'

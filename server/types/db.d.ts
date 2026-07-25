@@ -26,6 +26,7 @@ export interface UnitRow {
   level: number
   sort_order: number
   createdAt: string
+  deleted_at: string | null // 软删除时间（NULL 未删除）
 }
 
 export interface SegmentRow {

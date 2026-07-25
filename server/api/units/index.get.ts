@@ -20,7 +20,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
         `SELECT u.*, m.object_key AS unit_media_key
          FROM unit u
          LEFT JOIN media m ON u.cover_media_id = m.id
-         WHERE u.level = ?
+         WHERE u.level = ? AND u.deleted_at IS NULL
          ORDER BY u.sort_order`,
         [level],
       )
@@ -28,6 +28,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
         `SELECT u.*, m.object_key AS unit_media_key
          FROM unit u
          LEFT JOIN media m ON u.cover_media_id = m.id
+         WHERE u.deleted_at IS NULL
          ORDER BY u.level, u.sort_order`,
       )
 
@@ -37,7 +38,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
         `SELECT DISTINCT up.segment_id, s.unit_id
          FROM user_progress up
          JOIN segment s ON up.segment_id = s.id AND s.deleted_at IS NULL
-         WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ?)`,
+         WHERE up.user_id = ? AND s.unit_id IN (SELECT id FROM unit WHERE level = ? AND deleted_at IS NULL)`,
         [userId, level],
       )
     : await query<{ segment_id: number; unit_id: number }>(
@@ -56,7 +57,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitWithProg
   // 3. 查每个单元的总片段数
   const segmentCounts = validLevel
     ? await query<{ unit_id: number; count: number }>(
-        `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ?) AND deleted_at IS NULL GROUP BY unit_id`,
+        `SELECT unit_id, COUNT(*) as count FROM segment WHERE unit_id IN (SELECT id FROM unit WHERE level = ? AND deleted_at IS NULL) AND deleted_at IS NULL GROUP BY unit_id`,
         [level],
       )
     : await query<{ unit_id: number; count: number }>(

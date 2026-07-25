@@ -38,7 +38,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
     `SELECT u.*, m.object_key AS unit_media_key
      FROM unit u
      LEFT JOIN media m ON u.cover_media_id = m.id
-     WHERE u.id = ?`,
+     WHERE u.id = ? AND u.deleted_at IS NULL`,
     [unitId],
   )
   const unit = units[0]
