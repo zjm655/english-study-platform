@@ -17,6 +17,10 @@ const ADMIN_PAGE_PERMISSIONS: [prefix: string, permission: PermissionKey][] = [
   ['/admin/config', PERMISSIONS.CONFIG],
 ]
 
+// 游客可浏览页面（精确正则，不用前缀匹配）：片段学习页 /learn/unit/:id/segment/:segId 不含，
+// 游客点击片段仍走 verify → 401 → /login 链路（行为与现状一致）
+const GUEST_PAGES: RegExp[] = [/^\/$/, /^\/login/, /^\/learn$/, /^\/learn\/unit\/\d+$/]
+
 // 签到刷新每客户端会话仅一次，与 isVerify 解耦（SSR 已验证时 client 不再进 !isVerify 块）
 let checkinRequested = false
 
@@ -28,6 +32,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // 登录态校验（一次/会话；SSR 已由 authVerify.server 插件校验时，
   // isVerify 经 payload 恢复为 true 直接跳过；/admin ssr:false 等无 payload 场景走此兜底）
   if (!userStore.isVerify) {
+    // 游客（无 token）访问白名单页跳过 verify：避免「verify 401 → resolveCode → 弹 /login」；
+    // 不置 isVerify，进入非白名单页时仍会校验
+    if (!useCookie('token').value && GUEST_PAGES.some((re) => re.test(to.path))) {
+      return
+    }
     const verify = useToVerify()
     await verify.userToVerify()
     userStore.isVerify = true

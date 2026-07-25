@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
-import { useCheckinStats, useCheckin } from '~/composables/user'
+import { useCheckin } from '~/composables/user'
+import { userCheckinStatsPath } from '~/api/paths'
 import { toastError } from '~/utils/popup'
 import type { CheckinStats } from '~~/shared/types/user'
 
@@ -19,6 +20,7 @@ useJsonLd(educationalOrgSchema())
 
 const userStore = useUserStore()
 const user = computed(() => userStore.user)
+const isLogin = computed(() => userStore.isLogin)
 
 // 问候语
 const greeting = computed(() => {
@@ -30,10 +32,16 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
-// 打卡统计
-const { isLoading: statsLoading, execute: fetchCheckinStats } = useCheckinStats()
+// 打卡统计：useAsyncRes（登录用户 SSR 直出；游客 immediate:false 零请求，
+// SSR 期 isLogin 由 authVerify 插件先于页面 setup 写入，SSR/CSR 一致）
+const { data: statsRes, pending: statsLoading } = useAsyncRes<CheckinStats>(
+  'checkin-stats',
+  userCheckinStatsPath,
+  undefined,
+  { immediate: userStore.isLogin },
+)
+const checkinStats = computed(() => statsRes.value?.data ?? null)
 const { isLoading: checkinLoading, execute: doCheckin } = useCheckin()
-const checkinStats = ref<CheckinStats | null>(null)
 
 // 判断今日是否已签到
 const isCheckedIn = computed(() => {
@@ -47,8 +55,8 @@ const isCheckedIn = computed(() => {
   )
 })
 
-// 总loading状态
-const isLoading = computed(() => statsLoading.value)
+// 总loading状态（游客 immediate:false 时 pending 不置 true，直出内容）
+const isLoading = computed(() => statsLoading.value && !statsRes.value)
 
 // 格式化学习时长（秒 → 可读格式）
 const formatStudyTime = (seconds: number) => {
@@ -60,27 +68,17 @@ const formatStudyTime = (seconds: number) => {
   return mins > 0 ? `${hours}h${mins}min` : `${hours}h`
 }
 
-async function initStats() {
-  const res = await fetchCheckinStats()
-  if (res?.code === 200) {
-    checkinStats.value = res.data
-  }
-}
-
 async function handleCheckin() {
   if (isCheckedIn.value) return
   const res = await doCheckin()
   if (res?.code === 200) {
-    checkinStats.value = res.data
+    // 签到响应即权威新值，直接写回 useAsyncData 的 data（避免双数据源/多一次刷新请求）
+    statsRes.value = res
     toastSuccess(res.message, 2000)
   } else {
     toastError(res?.message || '签到失败，请稍后重试')
   }
 }
-
-onMounted(() => {
-  initStats()
-})
 </script>
 
 <template>
@@ -104,34 +102,52 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 签到卡片 -->
-      <div class="checkin-card" :class="{ 'checked-in': isCheckedIn }" @click="handleCheckin">
-        <div class="checkin-icon">
-          <el-icon :size="32"><Sunny /></el-icon>
+      <!-- 登录态：签到/学习/统计（均依赖登录态数据） -->
+      <template v-if="isLogin">
+        <!-- 签到卡片 -->
+        <div class="checkin-card" :class="{ 'checked-in': isCheckedIn }" @click="handleCheckin">
+          <div class="checkin-icon">
+            <el-icon :size="32"><Sunny /></el-icon>
+          </div>
+          <div class="checkin-text">
+            <template v-if="checkinLoading">签到中...</template>
+            <template v-else-if="isCheckedIn">今日已签到</template>
+            <template v-else>今日签到</template>
+            <!-- <template v-else>开始签到</template> -->
+          </div>
         </div>
-        <div class="checkin-text">
-          <template v-if="checkinLoading">签到中...</template>
-          <template v-else-if="isCheckedIn">今日已签到</template>
-          <template v-else>今日签到</template>
-          <!-- <template v-else>开始签到</template> -->
-        </div>
-      </div>
 
-      <!-- 开始学习按钮 -->
-      <div class="learn-section">
-        <NuxtLink v-if="isCheckedIn" to="/learn" class="learn-btn"> 开始学习 </NuxtLink>
-        <div v-else class="learn-btn" style="cursor: pointer" @click="handleCheckin">点击签到</div>
-      </div>
-
-      <!-- 统计卡片 -->
-      <div class="stats-section">
-        <div class="stat-card">
-          <div class="stat-label">累计学习</div>
-          <div class="stat-value">{{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}</div>
+        <!-- 开始学习按钮 -->
+        <div class="learn-section">
+          <NuxtLink v-if="isCheckedIn" to="/learn" class="learn-btn"> 开始学习 </NuxtLink>
+          <div v-else class="learn-btn" style="cursor: pointer" @click="handleCheckin">
+            点击签到
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">已学习</div>
-          <div class="stat-value">{{ checkinStats?.totalCheckinDays ?? 0 }}天</div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-section">
+          <div class="stat-card">
+            <div class="stat-label">累计学习</div>
+            <div class="stat-value">
+              {{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">已学习</div>
+            <div class="stat-value">{{ checkinStats?.totalCheckinDays ?? 0 }}天</div>
+          </div>
+        </div>
+      </template>
+
+      <!-- 游客：登录引导（签到/统计是登录态功能，展示零值会误导） -->
+      <div v-else class="guest-section">
+        <p class="guest-tip">登录后即可签到打卡、记录学习进度</p>
+        <div class="learn-section">
+          <NuxtLink to="/login" class="learn-btn">立即登录</NuxtLink>
+        </div>
+        <div class="learn-section" style="margin-top: 0">
+          <NuxtLink to="/learn" class="guest-browse-link">先随便看看学习内容 →</NuxtLink>
         </div>
       </div>
     </template>
@@ -276,6 +292,26 @@ onMounted(() => {
   font-size: 20px;
   font-weight: 700;
   color: var(--text-1);
+}
+
+/* 游客登录引导 */
+.guest-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 200px;
+  gap: 16px;
+}
+
+.guest-tip {
+  font-size: 14px;
+  color: var(--text-3);
+}
+
+.guest-browse-link {
+  font-size: 14px;
+  color: var(--primary);
+  text-decoration: none;
 }
 
 /* Loading */

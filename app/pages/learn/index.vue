@@ -2,6 +2,7 @@
 import { VideoPlay, Check, Upload } from '@element-plus/icons-vue'
 import { useUserProgress } from '~/composables/unit'
 import { useUserStats } from '~/composables/user/useUserStats'
+import { useUserStore } from '~/store/useUserStore'
 import { unitsPath } from '~/api/paths'
 import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
 import type { UserStats } from '#shared/types/user'
@@ -134,6 +135,11 @@ async function initProgress() {
 }
 
 async function initUser() {
+  // 进度/统计是登录态接口：游客不发（避免 401 → resolveCode 弹 /login），直接空态展示
+  if (!useUserStore().isLogin) {
+    dataReady.value = true
+    return
+  }
   await initProgress()
   const statsRes = await fetchUserStats(undefined)
   if (statsRes?.code === 200) {

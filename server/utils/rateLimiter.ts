@@ -87,6 +87,13 @@ function isUploadPath(path: string): boolean {
   return path === '/api/segment/upload' || path === '/api/admin/segment/upload'
 }
 
+/** 限流键与档位匹配统一按 pathname（strip query）：
+ *  防止随机 query 制造无限新桶绕过滑窗限流，并挤爆 windowMap 误伤正常用户 */
+function stripQuery(path: string): string {
+  const i = path.indexOf('?')
+  return i === -1 ? path : path.slice(0, i)
+}
+
 /** 判断是否为登录/注册路径（专用严格限流，独立于全局开关） */
 function isAuthPath(path: string): boolean {
   return AUTH_PATHS.has(path)
@@ -154,6 +161,8 @@ export function invalidateRateLimitCache(): void {
  * @returns 是否允许 + 重试等待秒数
  */
 export function checkRateLimit(ip: string, path: string, cfg: RateLimitSwitches): RateLimitResult {
+  // 限流口径按 endpoint（去 query）：event.path 含 query string
+  path = stripQuery(path)
   // 上传路径：独立开关，不受全局 enabled 影响
   if (isUploadPath(path)) {
     if (!cfg.uploadEnabled) return { allowed: true }
@@ -215,6 +224,8 @@ export function checkUserRateLimit(
   userId: number,
   cfg: RateLimitSwitches,
 ): RateLimitResult {
+  // 限流口径按 endpoint（去 query）：event.path 含 query string
+  path = stripQuery(path)
   // 上传路径：独立开关，不受全局 enabled 影响
   if (isUploadPath(path)) {
     if (!cfg.uploadEnabled) return { allowed: true }

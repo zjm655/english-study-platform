@@ -19,7 +19,11 @@ async function signFromMedia(
  * 请求：GET /api/units/[unitId]/progress
  */
 export default defineEventHandler(async (event): Promise<ResPayload<UnitProgressDetail | null>> => {
-  const userId: number = event.context.user.id
+  // 可选鉴权：游客（auth 中间件公开只读路径放行）无 user，返回裁剪版：
+  // 仅 is_public=1 可见、isMine 恒 false、进度全零、不下发签名 URL
+  const user = event.context.user
+  // 游客用 -1 哨兵：不命中任何 uploader_id，使可见性退化为 is_public=1
+  const userId: number = user?.id ?? -1
   const unitId = Number(getRouterParam(event, 'unitId'))
 
   if (isNaN(unitId)) {
@@ -31,7 +35,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
   const page = Math.max(1, Number(q.page) || 1)
   const pageSize = Math.min(50, Math.max(1, Number(q.pageSize) || 10))
   const offset = (page - 1) * pageSize
-  const adminFlag = isAdminOrAbove(event.context.user.role) ? 1 : 0
+  const adminFlag = user && isAdminOrAbove(user.role) ? 1 : 0
 
   // 1. 查单元信息（联查 media 表获取封面音频）
   const units = await query<UnitRow & { unit_media_key: string | null }>(
@@ -75,11 +79,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
   )
   const total = Number(countRows[0]?.total ?? 0)
 
-  // 3. 查进度
-  const progressRows = await query<UserProgressRow>(
-    'SELECT * FROM user_progress WHERE user_id = ? AND segment_id IN (SELECT id FROM segment WHERE unit_id = ? AND deleted_at IS NULL)',
-    [userId, unitId],
-  )
+  // 3. 查进度（游客跳过，全部 DEFAULT_PROGRESS）
+  const progressRows = user
+    ? await query<UserProgressRow>(
+        'SELECT * FROM user_progress WHERE user_id = ? AND segment_id IN (SELECT id FROM segment WHERE unit_id = ? AND deleted_at IS NULL)',
+        [userId, unitId],
+      )
+    : []
   const progressMap = new Map(progressRows.map((r) => [r.segment_id, r]))
 
   // 4. 签名片段音频
@@ -87,7 +93,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
     segments.map(async (s) => ({
       id: s.id,
       title: s.title,
-      audioUrl: await signFromMedia(s.seg_media_key, MATERIAL_EXPIRE),
+      audioUrl: user ? await signFromMedia(s.seg_media_key, MATERIAL_EXPIRE) : null,
       sortOrder: s.sortOrder,
       isMine: s.isMine === 1,
       progress: (() => {
@@ -112,7 +118,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<UnitProgress
       description: unit.description,
       level: unit.level,
       sortOrder: unit.sort_order,
-      audioUrl: await signFromMedia(unit.unit_media_key, MATERIAL_EXPIRE),
+      audioUrl: user ? await signFromMedia(unit.unit_media_key, MATERIAL_EXPIRE) : null,
     },
     segments: segmentsWithProgress,
     pagination: { page, pageSize, total, hasMore: offset + pageSize < total },

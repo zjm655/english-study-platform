@@ -21,6 +21,8 @@ export function useToLogin() {
     if (res && res.code === 200 && res.data) {
       useUserStore().setUser(res.data)
       useUserStore().isLogin = true
+      // 清空 useAsyncData 缓存：防止游客形态 payload（裁剪版 units 等）串到登录态
+      clearNuxtData()
     }
     return {
       code: res?.code ?? -1,

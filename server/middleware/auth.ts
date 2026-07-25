@@ -15,7 +15,13 @@ export default defineEventHandler(async (event) => {
 
   // 2. 从 Cookie 取 token
   const token = getCookie(event, 'token')
-  if (!token) return validateError('未登录', 401)
+  if (!token) {
+    // 可选鉴权：公开只读路径（单元列表/详情）游客直接放行，不挂 event.context.user，
+    // handler 内据此返回裁剪版；持 token 的请求（含坏 token）仍走下方完整验证，
+    // 登录用户数据形态不变、坏 token 仍 401+清 cookie
+    if (isPublicReadPath(event.method, event.path)) return
+    return validateError('未登录', 401)
+  }
 
   // 3. 验证 token 签名，解析出用户载荷
   let payload: JwtPayload

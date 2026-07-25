@@ -3,10 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import authMiddleware from '../auth'
 import { ALL_PERMISSIONS } from '#shared/utils/permission'
+import { isPublicReadPath } from '../../utils/publicRead'
 
-// 中间件级测试：覆盖封禁/销号即时拦截（deleted_at→401、status=0→403）、正常放行、admin 门禁。
-// verifyToken/getCookie/deleteCookie/validateError/defineEventHandler 均为 Nuxt 自动导入，
-// 在 vitest node 环境手动挂全局。
+// 中间件级测试：覆盖封禁/销号即时拦截（deleted_at→401、status=0→403）、正常放行、admin 门禁、
+// 公开只读路径可选鉴权。
+// verifyToken/getCookie/deleteCookie/validateError/defineEventHandler/isPublicReadPath 均为
+// Nuxt/Nitro 自动导入，在 vitest node 环境手动挂全局。
 
 const mocks = vi.hoisted(() => {
   const mockVerifyToken = vi.fn()
@@ -38,11 +40,16 @@ vi.mock('#server/utils/rateLimiter', () => ({
   checkUserRateLimit: vi.fn().mockReturnValue({ allowed: true }),
 }))
 
+// isPublicReadPath 在中间件内是 Nitro 自动导入：挂真实实现（纯函数，无需 mock）
+;(globalThis as any).isPublicReadPath = isPublicReadPath
+
 // ============ 辅助 ============
 
 function makeEvent(token?: string) {
   return {
-    path: '/api/units',
+    // 默认用非公开路径：/api/units 已是可选鉴权公开路径，无 token 会被放行
+    path: '/api/user/stats',
+    method: 'GET',
     context: {},
     __cookies: token ? { token } : {},
   } as any
@@ -97,6 +104,51 @@ describe('auth 中间件 - 封禁/销号即时拦截', () => {
     event.path = '/api/admin/user'
     const res = await authMiddleware(event)
     expect(res!.code).toBe(403)
+  })
+})
+
+describe('auth 中间件 - 公开只读路径可选鉴权', () => {
+  it('游客 GET /api/units → 放行且不挂 user', async () => {
+    const event = makeEvent()
+    event.path = '/api/units?level=1'
+    const res = await authMiddleware(event)
+    expect(res).toBeUndefined()
+    expect(event.context.user).toBeUndefined()
+  })
+
+  it('游客 GET /api/units/:id/progress → 放行且不挂 user', async () => {
+    const event = makeEvent()
+    event.path = '/api/units/3/progress'
+    const res = await authMiddleware(event)
+    expect(res).toBeUndefined()
+    expect(event.context.user).toBeUndefined()
+  })
+
+  it('游客 POST /api/units → 仍 401（仅放行 GET）', async () => {
+    const event = makeEvent()
+    event.path = '/api/units'
+    event.method = 'POST'
+    const res = await authMiddleware(event)
+    expect(res!.code).toBe(401)
+  })
+
+  it('持 token 访问 GET /api/units → 走完整验证并挂载 user（登录形态不变）', async () => {
+    mocks.mockVerifyToken.mockResolvedValue({ id: 5, nickname: 'n', email: 'e' })
+    mocks.mockQuery.mockResolvedValueOnce([{ id: 5, role: 0, status: 1, deleted_at: null }])
+    const event = makeEvent('tk')
+    event.path = '/api/units'
+    const res = await authMiddleware(event)
+    expect(res).toBeUndefined()
+    expect(event.context.user.id).toBe(5)
+  })
+
+  it('持坏 token 访问 GET /api/units → 仍 401+清 cookie（行为与现状一致）', async () => {
+    mocks.mockVerifyToken.mockRejectedValue(new Error('bad token'))
+    const event = makeEvent('bad')
+    event.path = '/api/units'
+    const res = await authMiddleware(event)
+    expect(res!.code).toBe(401)
+    expect(mocks.mockDeleteCookie).toHaveBeenCalled()
   })
 })
 

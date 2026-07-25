@@ -217,6 +217,8 @@ const handleLogout = async () => {
   if (res?.code === 200) {
     // clearUser 内含 isVerify=false：登出后下次导航重新校验，避免 SSR 化后残留登录态
     userStore.clearUser()
+    // 清空 useAsyncData 缓存：防止登录态 payload（units/checkin-stats 等）串到游客态
+    clearNuxtData()
     navigateTo('/login')
   }
 }

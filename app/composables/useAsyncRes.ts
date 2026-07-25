@@ -23,7 +23,7 @@ const DEFAULT_TIMEOUT = 5000
  *   const units = computed(() => data.value?.data ?? [])
  */
 export function useAsyncRes<T>(
-  key: string,
+  key: string | (() => string),
   path: string | (() => string),
   fetchOpts?: Record<string, unknown>,
   asyncOpts?: AsyncDataOptions<ResPayload<T>>,
