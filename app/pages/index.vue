@@ -10,6 +10,13 @@ definePageMeta({
   isHome: true,
 })
 
+useSeoMeta({
+  title: '首页',
+  description:
+    '每日签到开启英语学习：盲听磨耳、原文精学、AI 配音评分、影子跟读，四阶段闭环提升听说能力。',
+})
+useJsonLd(educationalOrgSchema())
+
 const userStore = useUserStore()
 const user = computed(() => userStore.user)
 

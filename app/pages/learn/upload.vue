@@ -11,6 +11,11 @@ import type { MaterialUploadRecordListItem } from '#shared/types/material'
 
 definePageMeta({ title: '上传材料' })
 
+useSeoMeta({
+  title: '上传材料',
+  description: '上传自定义英语文本或音频，AI 自动生成翻译、词汇、题目与配音训练材料。',
+})
+
 const router = useRouter()
 const { isLoading, execute } = useUploadMaterial()
 const { isLoading: recordsLoading, execute: fetchRecords } = useMaterialRecords()

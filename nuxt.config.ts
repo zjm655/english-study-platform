@@ -6,7 +6,8 @@ export default defineNuxtConfig({
   app: {
     head: {
       script: [
-        { src: '/sdk/engine.js', defer: true },
+        // 评测 SDK（/sdk/engine.js，368KB）已改为片段学习页按需注入（useSpeechEvaluation 的 preloadEngineScript），
+        // 不再全局加载：defer 脚本会排在 Nuxt entry 之前执行，拖慢全站水合起点
         // 防闪烁脚本：页面渲染前设置 data-theme，避免深色模式下白屏闪烁
         {
           innerHTML: `(function(){var t=localStorage.getItem('theme')||'auto';var d=t==='dark'||(t==='auto'&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.setAttribute('data-theme',d?'dark':'light')})()`,
@@ -14,6 +15,10 @@ export default defineNuxtConfig({
         },
       ],
     },
+  },
+  // 管理后台无 SEO 需求且是水合不匹配重灾区，整体关闭 SSR（纯 CSR）
+  routeRules: {
+    '/admin/**': { ssr: false },
   },
   runtimeConfig: {
     public: {

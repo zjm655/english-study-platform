@@ -2,7 +2,6 @@
 import { $fetch } from 'ofetch'
 import type { FetchContext } from 'ofetch'
 import type { ResPayload } from '#shared/types/request.d.ts'
-// import { useRequestHeaders } from '#app'
 
 interface BaseCfg {
   baseURL?: string
@@ -16,13 +15,8 @@ export const createFetch = ({ baseURL = '', credentials = 'include' }: BaseCfg =
 
     onRequest(ctx: FetchContext) {
       const { request, options } = ctx
-      // if (import.meta.server) {
-      //   const headers = useRequestHeaders(['cookie'])
-      //   if (headers.cookie) {
-      //     options.headers = new Headers(options.headers)
-      //     options.headers.set('cookie', headers.cookie)
-      //   }
-      // }
+      // SSR cookie 透传不在此处做（拦截器内无 Nuxt 上下文，raw ofetch 在 SSR 端也无法解析相对路径），
+      // 需要 SSR 直出的数据请走 app/composables/useAsyncRes.ts（useRequestFetch）；本工具保持 client 语义
       logger.info(`请求拦截器 - 发送请求: ${request}  请求类型：${options.method ?? 'GET'}`)
     },
 

@@ -137,6 +137,9 @@ import { useToLogin, useToRegister } from '~/composables/user'
 
 useSeoMeta({
   title: '登录',
+  description: '登录或注册账号，开启四阶段英语听说训练。',
+  // 隐私页无 SEO 价值，不让搜索引擎收录
+  robots: 'noindex, nofollow',
 })
 
 definePageMeta({

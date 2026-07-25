@@ -10,6 +10,11 @@ import { ElMessageBox } from 'element-plus'
 
 definePageMeta({ title: '上传记录' })
 
+useSeoMeta({
+  title: '上传记录',
+  description: '查看自定义材料的上传处理进度与结果，管理已生成的个人学习材料。',
+})
+
 const router = useRouter()
 
 const { isLoading, execute: fetchRecords } = useMaterialRecords()

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { VideoPlay, Check, Upload } from '@element-plus/icons-vue'
-import { useUnits, useUserProgress } from '~/composables/unit'
+import { useUserProgress } from '~/composables/unit'
 import { useUserStats } from '~/composables/user/useUserStats'
+import { unitsPath } from '~/api/paths'
 import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
 import type { UserStats } from '#shared/types/user'
 
@@ -9,8 +10,17 @@ definePageMeta({
   title: '学习',
 })
 
-const { isLoading: unitsLoading, execute: fetchUnits } = useUnits()
-const units = ref<UnitWithProgress[]>([])
+useSeoMeta({
+  title: '学习',
+  description: '按单元逐片段完成盲听、学习、配音、跟读四阶段训练，实时追踪学习进度与配音平均分。',
+})
+
+// 单元列表：useAsyncRes 示范点（SSR 直出 + cookie 透传，只读 GET 无写操作纠缠）
+const { data: unitsRes, pending: unitsLoading } = useAsyncRes<UnitWithProgress[]>(
+  'units',
+  unitsPath,
+)
+const units = computed(() => unitsRes.value?.data ?? [])
 
 const { isLoading: progressLoading, execute: fetchUserProgress } = useUserProgress()
 const userProgress = ref<UserProgress | null>(null)
@@ -123,26 +133,18 @@ async function initProgress() {
   }
 }
 
-async function initUnits() {
-  const unitsRes = await fetchUnits(undefined)
-  if (unitsRes?.code === 200) {
-    units.value = unitsRes.data || []
-  }
-  if (!isLoading.value) dataReady.value = true
-}
-
 async function initUser() {
   await initProgress()
   const statsRes = await fetchUserStats(undefined)
   if (statsRes?.code === 200) {
     userStats.value = statsRes.data
   }
-  if (!isLoading.value) dataReady.value = true
+  // 用户维度数据就绪；单元列表若仍在加载，isLoading 会继续撑住骨架屏
+  dataReady.value = true
 }
 
 onMounted(() => {
   initUser()
-  initUnits()
 })
 </script>
 

@@ -15,6 +15,20 @@ const { isLoading, isLoadingMore, fetchUnitProgress, loadMore } = useUnitProgres
 const { fetchFavSegments, isSegmentFav, toggleSegment, togglingSegment } = useFavorites()
 
 const unitData = ref<UnitProgressDetail['unit'] | null>(null)
+
+// SEO：title 响应式 getter，数据晚到前用静态兜底
+useSeoMeta({
+  title: () => unitData.value?.title ?? '单元详情',
+  description: () =>
+    unitData.value?.description ??
+    '浏览单元内全部学习片段，逐个完成盲听、学习、配音、跟读四阶段训练。',
+})
+useJsonLd(
+  learningResourceSchema({
+    name: '英语听说训练单元',
+    description: '包含盲听、学习、配音、影子跟读四阶段训练的英语学习单元。',
+  }),
+)
 const segments = ref<UnitProgressDetail['segments']>([])
 const error = ref<string | null>(null)
 

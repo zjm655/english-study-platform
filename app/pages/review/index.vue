@@ -12,6 +12,11 @@ definePageMeta({
   title: '复习',
 })
 
+useSeoMeta({
+  title: '复习',
+  description: '翻转单词卡片巩固重点词汇，重练已学材料加深理解，让学过的内容不再遗忘。',
+})
+
 const { load, play, pause: _pause, togglePlay, seek, stop } = useAudioPlayer()
 const audioStore = useAudioStore()
 

@@ -30,6 +30,25 @@ export interface EvaluationResult {
 
 // ─── 辅助函数 ───────────────────────────────────────────────
 
+const ENGINE_SDK_SRC = '/sdk/engine.js'
+
+/**
+ * 按需注入评测 SDK（幂等，client-only）
+ *
+ * SDK 体积约 368KB 且仅片段学习页使用，已从 nuxt.config.ts 全局 head 移除。
+ * 进入片段学习页时调用本函数预下载；就绪判定仍由 ensureSDKLoaded 的轮询完成。
+ */
+export function preloadEngineScript(): void {
+  if (import.meta.server) return
+  // 已挂载或同 src 脚本已在 DOM 中则跳过
+  if (window.EngineEvaluat) return
+  if (document.querySelector(`script[src="${ENGINE_SDK_SRC}"]`)) return
+  const script = document.createElement('script')
+  script.src = ENGINE_SDK_SRC
+  script.defer = true
+  document.head.appendChild(script)
+}
+
 function scoreToStatus(score: number): WordScore['status'] {
   if (score >= 80) return 'correct'
   if (score >= 60) return 'minor'
@@ -125,6 +144,8 @@ export function useSpeechEvaluation() {
         resolve()
         return
       }
+      // 兜底：若页面未预注入（或直达评测入口），此处幂等补注入后再轮询
+      preloadEngineScript()
       const timer = setInterval(() => {
         if (window.EngineEvaluat) {
           clearInterval(timer)

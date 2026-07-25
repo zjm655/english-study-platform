@@ -125,6 +125,9 @@ definePageMeta({
 
 useSeoMeta({
   title: '个人中心',
+  description: '管理个人资料、收藏与学习统计。',
+  // 隐私页无 SEO 价值，不让搜索引擎收录
+  robots: 'noindex, nofollow',
 })
 
 const userStore = useUserStore()
