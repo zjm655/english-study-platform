@@ -34,7 +34,27 @@
             <el-input v-model="form.title" maxlength="100" show-word-limit style="width: 480px" />
           </el-form-item>
           <el-form-item label="是否公开">
-            <el-switch v-model="form.isPublic" active-text="公开" inactive-text="私有" />
+            <!-- 未锁定：普通开关，随批量保存 -->
+            <el-switch
+              v-if="!visibilityLocked"
+              v-model="form.isPublic"
+              active-text="公开"
+              inactive-text="私有"
+            />
+            <!-- 受限材料（非公开用户材料）+ 有审核权限：切换触发填理由门禁 -->
+            <div v-else-if="can(PERMISSIONS.REVIEW)" class="visibility-gated">
+              <el-switch
+                v-model="form.isPublic"
+                :before-change="beforeVisibilityChange"
+                active-text="公开"
+                inactive-text="私有"
+              />
+              <span class="visibility-gated__tip">
+                非公开用户材料——调整公开状态需填写理由，操作将记录访问者/时间/理由用于审计。
+              </span>
+            </div>
+            <!-- 受限材料 + 无审核权限：只读 -->
+            <el-tag v-else type="info" size="small">私有（用户材料，需审核权限调整）</el-tag>
           </el-form-item>
           <el-form-item label="英文原文">
             <el-input
@@ -55,6 +75,22 @@
               show-word-limit
               placeholder="材料中文翻译（可留空）"
             />
+          </el-form-item>
+          <el-form-item v-if="audioUrl || audioLocked" label="音频试听">
+            <div class="audition-field">
+              <AudioPlayer v-if="audioUrl" :src="audioUrl" :duration="audioDuration ?? undefined" />
+              <template v-else-if="can(PERMISSIONS.REVIEW)">
+                <span class="audition-field__tip">
+                  非公开用户材料——填写理由后方可试听，操作将记录访问者/时间/理由用于隐私审计。
+                </span>
+                <el-button type="primary" plain @click="auditionVisible = true">
+                  <el-icon><Unlock /></el-icon><span>填理由解锁试听</span>
+                </el-button>
+              </template>
+              <span v-else class="audition-field__tip">
+                非公开用户材料暂不支持试听（需审核权限）。
+              </span>
+            </div>
           </el-form-item>
         </el-form>
       </el-card>
@@ -173,13 +209,38 @@
         <el-button type="primary" :loading="isSaving" @click="handleSave">保存修改</el-button>
       </div>
     </template>
+
+    <!-- 审核门禁：填理由试听弹窗（与 records 页复用同一组件） -->
+    <AuditionReasonDialog
+      v-model="auditionVisible"
+      :loading="isAuditioning"
+      @confirm="handleAudition"
+    />
+
+    <!-- 审核门禁：调整公开状态填理由弹窗（复用同组件，传入公开状态相关文案） -->
+    <AuditionReasonDialog
+      v-model="visibilityDialogVisible"
+      :loading="isVisibilitySaving"
+      title="调整材料公开状态"
+      confirm-text="确认并调整"
+      description="将非公开用户材料设为公开后将对外可见，操作将记录访问者、时间与理由用于审计，请谨慎操作。"
+      @confirm="handleVisibilityConfirm"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { Back, Plus, Delete } from '@element-plus/icons-vue'
-import { useAdminSegmentDetail, useUpdateAdminSegment } from '~/composables/admin'
+import { Back, Plus, Delete, Unlock } from '@element-plus/icons-vue'
+import {
+  useAdminSegmentDetail,
+  useUpdateAdminSegment,
+  useAuditionSegment,
+  useUpdateSegmentVisibility,
+} from '~/composables/admin'
+import { usePermission } from '~/composables/user'
+import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
 import { toastSuccess, toastWarning } from '~/utils/popup'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type { AdminVocabEditItem, AdminSegmentUpdatePayload } from '#shared/types/adminSegment'
 import type { Question } from '#shared/types/unit'
 
@@ -196,6 +257,15 @@ const segId = Number(route.params.id)
 const unitTitle = ref('')
 const loadError = ref('')
 
+// 音频门禁试听状态（契约增量字段，仅展示层）
+const audioUrl = ref<string | null>(null)
+const audioDuration = ref<number | null>(null)
+const audioLocked = ref(false)
+const auditionVisible = ref(false)
+// 公开状态门禁（受限材料 = 非公开的用户材料，调整需 REVIEW 权限 + 填理由）
+const visibilityLocked = ref(false)
+const visibilityDialogVisible = ref(false)
+
 const form = reactive({
   title: '',
   textContent: '',
@@ -205,8 +275,12 @@ const form = reactive({
   vocabulary: [] as AdminVocabEditItem[],
 })
 
+const { can } = usePermission()
+
 const { isLoading: isLoadingDetail, execute: detailExecute } = useAdminSegmentDetail()
 const { isLoading: isSaving, execute: updateExecute } = useUpdateAdminSegment()
+const { isLoading: isAuditioning, execute: auditionExecute } = useAuditionSegment()
+const { isLoading: isVisibilitySaving, execute: visibilityExecute } = useUpdateSegmentVisibility()
 
 // ===== 词汇编辑 =====
 function addVocab() {
@@ -277,7 +351,10 @@ async function handleSave() {
       exampleSentence: v.exampleSentence?.trim() || null,
       exampleTranslation: v.exampleTranslation?.trim() || null,
     })),
-    isPublic: form.isPublic ? 1 : 0,
+  }
+  // 受限材料（非公开用户材料）的公开状态只走门禁端点，批量保存不提交 isPublic（服务端亦兜底）
+  if (!visibilityLocked.value) {
+    payload.isPublic = form.isPublic ? 1 : 0
   }
 
   const res = await updateExecute({ id: segId, data: payload })
@@ -310,8 +387,43 @@ async function loadDetail() {
       answer: q.answer,
     }))
     form.vocabulary = d.vocabulary.map((v) => ({ ...v }))
+    audioUrl.value = d.audioUrl ?? null
+    audioDuration.value = d.duration ?? null
+    audioLocked.value = d.audioLocked ?? false
+    visibilityLocked.value = d.visibilityLocked ?? false
   } else if (res?.code === 404) {
     loadError.value = res.message || '材料不存在或已删除'
+  }
+}
+
+// ===== 审核门禁试听：填理由 + 留痕落库成功后才返签名 URL =====
+async function handleAudition(payload: { reasonCategory: string; reason: string }) {
+  const res = await auditionExecute({ id: segId, payload })
+  if (res?.code === 200 && res.data) {
+    audioUrl.value = res.data.audioUrl
+    audioDuration.value = res.data.duration
+    audioLocked.value = false
+    auditionVisible.value = false
+  }
+}
+
+// ===== 审核门禁：调整受限材料公开状态（填理由 + 留痕成功后才变更）=====
+// 受限材料恒为私有，切换目标恒为「公开」；before-change 阻止即时切换、先弹窗填理由。
+function beforeVisibilityChange() {
+  visibilityDialogVisible.value = true
+  return false
+}
+async function handleVisibilityConfirm(payload: { reasonCategory: string; reason: string }) {
+  const targetIsPublic = form.isPublic ? 0 : 1
+  const res = await visibilityExecute({
+    id: segId,
+    payload: { isPublic: targetIsPublic, ...payload },
+  })
+  if (res?.code === 200 && res.data) {
+    form.isPublic = res.data.isPublic === 1
+    visibilityLocked.value = false
+    visibilityDialogVisible.value = false
+    toastSuccess('材料公开状态已更新')
   }
 }
 
@@ -364,6 +476,31 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-1);
+}
+
+.audition-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.audition-field__tip {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.visibility-gated {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.visibility-gated__tip {
+  font-size: 12px;
+  color: var(--text-3);
 }
 
 .card-header-row {

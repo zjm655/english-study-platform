@@ -29,6 +29,10 @@ export interface AdminMaterialRecordDetail {
   source: 'user' | 'admin'
   createdAt: string
   updatedAt: string
+  /** 试听音频签名 URL（仅管理员上传/公开材料返回；非公开用户材料为 null） */
+  audioUrl?: string | null
+  /** 音频时长（秒） */
+  duration?: number | null
 }
 
 /** 管理员上传记录列表查询参数 */

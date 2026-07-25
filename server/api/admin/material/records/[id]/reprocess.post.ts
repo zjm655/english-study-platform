@@ -7,7 +7,8 @@ import {
   validateSuccess,
 } from '#server/utils/validate'
 import { processAdminMaterial } from '#server/utils/adminUpload'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * 管理员重处理失败的上传记录
@@ -16,10 +17,8 @@ import { ROLE_ADMIN } from '#shared/utils/role'
  * 防重入：先将 status 从 failed 原子更新为 processing，利用状态机避免并发重复触发。
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_MATERIALS)
+  if (err) return err
 
   const id = Number(getRouterParam(event, 'id'))
   if (isNaN(id) || id <= 0) return validateError('无效的记录ID')

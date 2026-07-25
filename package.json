@@ -1,5 +1,6 @@
 {
-  "name": "nuxt4-demo",
+  "name": "english-learning-platform",
+  "description": "基于 Nuxt 4 的全栈英语学习平台：盲听 → 学习 → 配音 → 影子跟读四阶段学习流程，含真实语音评测、复习页与管理员后台。",
   "type": "module",
   "private": true,
   "scripts": {

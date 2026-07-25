@@ -13,13 +13,14 @@ export interface ReviewMaterialResult {
 }
 
 export const getReviewVocab = async (limit = 10, offset = 0, keyword?: string) => {
-  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
-  if (keyword) params.set('keyword', keyword)
-  return request<ReviewVocabResult>(`${reviewVocabPath}?${params}`, { method: 'GET' })
+  return request<ReviewVocabResult>(`${reviewVocabPath}${buildQuery({ limit, offset, keyword })}`, {
+    method: 'GET',
+  })
 }
 
 export const getReviewMaterial = async (limit = 5, offset = 0, keyword?: string) => {
-  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
-  if (keyword) params.set('keyword', keyword)
-  return request<ReviewMaterialResult>(`${reviewMaterialPath}?${params}`, { method: 'GET' })
+  return request<ReviewMaterialResult>(
+    `${reviewMaterialPath}${buildQuery({ limit, offset, keyword })}`,
+    { method: 'GET' },
+  )
 }

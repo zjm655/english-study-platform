@@ -51,6 +51,14 @@ export interface AdminSegmentDetail {
   unitId: number
   unitTitle: string
   vocabulary: AdminVocabEditItem[]
+  /** 音频签名 URL（契约纯增量）：可播放时为签名 URL，非公开用户材料被门禁扣留时为 null */
+  audioUrl?: string | null
+  /** 音频时长（秒） */
+  duration?: number | null
+  /** 音频被门禁锁定：有音频但因「非公开用户材料」被扣留，供前端决定是否显示「填理由解锁」 */
+  audioLocked?: boolean
+  /** 公开状态被门禁锁定：非公开的用户材料，其公开状态变更需走 REVIEW 门禁 + 留痕 */
+  visibilityLocked?: boolean
 }
 
 /** 材料编辑载荷（仅文本字段，不触发 TTS/AI 再生成） */
@@ -61,4 +69,11 @@ export interface AdminSegmentUpdatePayload {
   questions?: Question[]
   vocabulary?: AdminVocabEditItem[]
   isPublic?: number // 0 | 1
+}
+
+/** 材料公开状态门禁变更载荷（需 REVIEW 权限 + 填理由，镜像音频试听留痕） */
+export interface AdminSegmentVisibilityPayload {
+  isPublic: number // 0 | 1
+  reasonCategory: string
+  reason: string
 }

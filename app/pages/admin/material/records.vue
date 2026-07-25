@@ -173,6 +173,42 @@
             readonly
           />
         </div>
+        <div v-if="detail.status === 'success'" class="detail-section">
+          <div class="detail-section__title">音频试听</div>
+          <AudioPlayer
+            v-if="detail.audioUrl"
+            :src="detail.audioUrl"
+            :duration="detail.duration ?? undefined"
+          />
+          <template v-else>
+            <!-- 非公开用户材料被门禁扣留：有审核权限者可填理由解锁试听 -->
+            <div v-if="can(PERMISSIONS.REVIEW)" class="audition-locked">
+              <el-alert
+                type="warning"
+                :closable="false"
+                show-icon
+                title="非公开用户材料——需填写理由后试听"
+                description="查看非公开用户材料将记录访问者、时间与理由用于隐私审计，请勿滥用。"
+              />
+              <el-button
+                type="primary"
+                plain
+                class="audition-locked__btn"
+                @click="auditionVisible = true"
+              >
+                <el-icon><Unlock /></el-icon><span>填理由解锁试听</span>
+              </el-button>
+            </div>
+            <el-alert
+              v-else
+              type="info"
+              :closable="false"
+              show-icon
+              title="非公开用户材料暂不支持试听"
+              description="仅管理员上传或公开材料可试听；查看非公开用户材料需审核权限。"
+            />
+          </template>
+        </div>
       </div>
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
@@ -211,17 +247,29 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 审核门禁：填理由试听弹窗（records 与 material 编辑页复用同一组件） -->
+    <AuditionReasonDialog
+      v-model="auditionVisible"
+      :loading="isAuditioning"
+      @confirm="handleAudition"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import { Unlock } from '@element-plus/icons-vue'
 import {
   useAdminMaterialRecordList,
   useAdminMaterialRecordDetail,
   useDeleteAdminMaterialRecord,
   useReprocessAdminMaterialRecord,
+  useAuditionMaterialRecord,
 } from '~/composables/admin'
+import { usePermission } from '~/composables/user'
+import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
 import { toastConfirm } from '~/utils/popup'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type {
   AdminMaterialRecordListItem,
   AdminMaterialRecordDetail,
@@ -279,10 +327,13 @@ const pageSize = ref(10)
 const total = ref(0)
 const list = ref<AdminMaterialRecordListItem[]>([])
 
+const { can } = usePermission()
+
 const { isLoading, execute: listExecute } = useAdminMaterialRecordList()
 const { execute: detailExecute } = useAdminMaterialRecordDetail()
 const { execute: deleteExecute } = useDeleteAdminMaterialRecord()
 const { isLoading: isReprocessing, execute: reprocessExecute } = useReprocessAdminMaterialRecord()
+const { isLoading: isAuditioning, execute: auditionExecute } = useAuditionMaterialRecord()
 
 async function loadList() {
   const res = await listExecute({
@@ -327,6 +378,19 @@ async function openDetail(id: number) {
   const res = await detailExecute(id)
   if (res?.code === 200 && res.data) {
     detail.value = res.data
+  }
+}
+
+// ===== 审核门禁试听（非公开用户材料需填理由 + 留痕落库成功后才返签名 URL） =====
+const auditionVisible = ref(false)
+
+async function handleAudition(payload: { reasonCategory: string; reason: string }) {
+  if (!detail.value) return
+  const res = await auditionExecute({ id: detail.value.id, payload })
+  if (res?.code === 200 && res.data) {
+    detail.value.audioUrl = res.data.audioUrl
+    detail.value.duration = res.data.duration
+    auditionVisible.value = false
   }
 }
 
@@ -472,6 +536,13 @@ onMounted(() => {
   font-weight: 600;
   color: var(--text-1);
   margin-bottom: 8px;
+}
+
+.audition-locked {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
 }
 
 .form-tip {

@@ -2,19 +2,13 @@
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useRecorder } from '~/composables/media/useRecorder'
-import {
-  useUploadRecording,
-  useAnalyzeRecording,
-  useMarkAnalyzeFail,
-  useRetryAnalyze,
-  useRecordingHistory,
-} from '~/composables/recording'
+import { useUploadRecording, useRetryAnalyze, useRecordingHistory } from '~/composables/recording'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import type { Recording, UploadRecordingResult } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
-import { getEvaluationAuth } from '~/api/evaluation/auth'
 import { useUserStore } from '~/store/useUserStore'
 import { useSpeechEvaluation } from '~/composables/evaluation/useSpeechEvaluation'
+import { useEvaluationPipeline } from '~/composables/evaluation/useEvaluationPipeline'
 
 interface Props {
   segment: SegmentDetail
@@ -52,10 +46,11 @@ const {
 
 // API
 const { execute: uploadRecording } = useUploadRecording()
-const { execute: analyzeRecording } = useAnalyzeRecording()
-const { execute: markAnalyzeFail } = useMarkAnalyzeFail()
 const { execute: retryAnalyze, isLoading: isRetrying } = useRetryAnalyze()
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
+
+// 评测流程（鉴权 + 保存/失败回退统一封装；实时评测的 initEngine/startRealtime 仍走本组件自有引擎）
+const pipeline = useEvaluationPipeline()
 
 // 评测 SDK
 const {
@@ -160,15 +155,11 @@ async function start() {
   // 每次开始前销毁旧引擎，避免缓存
   destroyEngine()
 
-  // 录音已上传但分析失败时，catch 块需访问上传结果以标记 + 入历史列表
+  // 上传成功后暂存上传结果，供随后的 pipeline.saveEvaluation 使用
   let uploadedRecording: UploadRecordingResult | null = null
 
   try {
-    const authRes = await getEvaluationAuth()
-    if (authRes?.code !== 200 || !authRes.data) {
-      throw new Error(authRes?.message || '获取评测授权失败')
-    }
-    const { warrantId, applicationId } = authRes.data
+    const { warrantId, applicationId } = await pipeline.resolveAuth()
 
     await initEngine(applicationId, String(userId), warrantId)
 
@@ -218,20 +209,19 @@ async function start() {
     }
     uploadedRecording = uploadRes.data
 
-    const saveRes = await analyzeRecording({
-      id: uploadedRecording.id,
-      result: {
-        score: result.score,
-        wordScores: result.wordScores,
-        rawResult: result.rawResult,
-      },
+    // 公共尾段：保存评测结果（成功回填 audioPath；失败标记 + 回退，杜绝"幽灵录音"）
+    const outcome = await pipeline.saveEvaluation({
+      recordingId: uploadedRecording.id,
+      audioPath: uploadedRecording.audioPath,
+      duration: uploadedRecording.duration,
+      createdAt: uploadedRecording.createdAt,
+      segmentId: props.segment.id,
+      phase: 4,
+      userId,
+      result,
     })
-    if (saveRes?.code === 200 && saveRes.data) {
-      // analyze 接口返回的 audioPath 为 recording 表原始列（空），
-      // 用上传接口返回的已签名 OSS 地址回填，保证列表内可即时播放；
-      // 前插入历史列表并选中，评分卡片随即展示
-      addRecording({ ...saveRes.data, audioPath: uploadedRecording.audioPath })
-    }
+    if (outcome.recording) addRecording(outcome.recording)
+    if (!outcome.success) toastError(`${outcome.errorMessage}，已加入历史列表，可点击重试`)
 
     // 回到 idle，可再次跟读或完成
     stage.value = 'idle'
@@ -240,40 +230,10 @@ async function start() {
     const msg = err instanceof Error ? err.message : '跟读评测失败'
     errorMsg.value = msg
     logger.error('[ShadowReading] 评测失败:', err)
-
-    // 录音已上传但分析失败：标记 + 入历史列表，避免"幽灵录音"
-    if (uploadedRecording) {
-      try {
-        const failRes = await markAnalyzeFail({ id: uploadedRecording.id })
-        if (failRes?.code === 200 && failRes.data) {
-          addRecording(failRes.data)
-        } else {
-          // 标记失败，回退构造 Recording 入列表
-          addRecording({
-            id: uploadedRecording.id,
-            userId: userStore.user!.id,
-            segmentId: props.segment.id,
-            phase: 4,
-            audioPath: uploadedRecording.audioPath,
-            score: null,
-            analyzeStatus: 'failed',
-            feedback: null,
-            recognizedText: null,
-            wordScores: null,
-            rawResult: null,
-            duration: uploadedRecording.duration,
-            createdAt: uploadedRecording.createdAt,
-          })
-        }
-        toastError(`${msg}，已加入历史列表，可点击重试`)
-      } catch (markErr) {
-        logger.error('[ShadowReading] 标记分析失败出错:', markErr)
-        toastError(msg)
-      }
-    } else {
-      // 录音未上传成功，保持原行为
-      toastError(msg)
-    }
+    // 走到这里说明错误发生在保存之前（鉴权/初始化/录音/实时评测/上传）——
+    // 上传成功后紧接的 pipeline.saveEvaluation 已在内部处理保存失败的标记与回退、不会抛出，
+    // 故此处 uploadedRecording 尚未落库成功，无需重复标记，仅提示错误即可。
+    toastError(msg)
     stage.value = 'idle'
   }
 }

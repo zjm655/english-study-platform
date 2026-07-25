@@ -2,17 +2,18 @@ import { readBody } from 'h3'
 import { query } from '#server/utils/db'
 import { adminUserRoleSchema, validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ROLE_ADMIN, ROLE_SUPER_ADMIN, isAdminOrAbove } from '#shared/utils/role'
+import { ensurePermission, invalidateUserPermissions } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * 管理员变更用户角色（提升/降权）
  * PUT /api/admin/user/:userId/role
  */
 export default defineEventHandler(async (event) => {
+  const err = ensurePermission(event, PERMISSIONS.GRANT_PERMISSIONS)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const userId = Number(getRouterParam(event, 'userId'))
   if (!userId || isNaN(userId)) {
@@ -41,15 +42,21 @@ export default defineEventHandler(async (event) => {
   }
   const currentRole = targetRows[0]!.role
 
+  // 保护唯一超管：现有超管角色不可经 API 变更（防降权）。
+  // 叠加 schema 拒收 role=2，API 既无法再造超管、也无法降掉迁移 018 置定的唯一超管。
+  if (currentRole === ROLE_SUPER_ADMIN) {
+    return validateError('超级管理员角色受保护，不可变更', 403)
+  }
+
   // 已是目标角色
   if (currentRole === targetRole) {
     return validateError('角色无需变更', 400)
   }
 
-  // 降权（1→0）：检查是否最后一个活跃管理员
-  if (currentRole === ROLE_ADMIN && targetRole === 0) {
+  // 降权（管理员/超管 → 普通用户）：确保系统始终保留至少一位管理员或超管，避免无人可管理。
+  if (isAdminOrAbove(currentRole) && !isAdminOrAbove(targetRole)) {
     const countRows = await query<{ cnt: number }>(
-      'SELECT COUNT(*) AS cnt FROM user WHERE role = 1 AND deleted_at IS NULL AND status = 1',
+      'SELECT COUNT(*) AS cnt FROM user WHERE role IN (1, 2) AND deleted_at IS NULL AND status = 1',
     )
     if (Number(countRows[0]?.cnt ?? 0) <= 1) {
       return validateError('必须保留至少一位管理员，无法降权', 400)
@@ -57,12 +64,14 @@ export default defineEventHandler(async (event) => {
   }
 
   await query('UPDATE user SET role = ? WHERE id = ?', [targetRole, userId])
+  // 角色变更影响权限解析（超管隐式全权 / 降权失去管理权），精确失效目标用户权限缓存
+  invalidateUserPermissions(userId)
 
   await logAdminOperation(user.id, 'user.role.update', 'user', userId, {
     before: currentRole,
     after: targetRole,
   })
 
-  const actionText = targetRole === ROLE_ADMIN ? '已提升为管理员' : '已降级为普通用户'
+  const actionText = targetRole === ROLE_ADMIN ? '已设为管理员' : '已降级为普通用户'
   return validateSuccess(null, actionText)
 })

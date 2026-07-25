@@ -26,10 +26,16 @@ export const useHandleRes = <Payload, Res>(resCfg: CommonReqCfg<Payload, Res>) =
 
   return {
     isLoading,
-    execute: async (payload: Payload): Promise<ResPayload<Res>> => {
+    /**
+     * 执行请求。
+     * @param payload 业务入参
+     * @param opts.silent 静默模式：跳过 resolveCode 的常规成功/错误日志（避免分页等场景刷屏），
+     *   但**仍保留**防重锁、错误归一化与 401/403 鉴权跳转（防止分页时鉴权失效被静默吞掉）。
+     */
+    execute: async (payload: Payload, opts?: { silent?: boolean }): Promise<ResPayload<Res>> => {
       // 防止重复提交
       if (timer !== null || isLoading.value) {
-        return { code: -2, message: '请求进行中，请稍候', data: null as unknown as Res }
+        return { code: -2, message: '请求进行中，请稍候', data: null }
       }
 
       timer = setTimeout(() => {
@@ -40,6 +46,7 @@ export const useHandleRes = <Payload, Res>(resCfg: CommonReqCfg<Payload, Res>) =
         code: -1,
         message: '未知错误',
         tips: resCfg.tips,
+        notify: resCfg.notify,
       }
 
       try {
@@ -52,7 +59,7 @@ export const useHandleRes = <Payload, Res>(resCfg: CommonReqCfg<Payload, Res>) =
         // 区分结构化的 ResPayload 错误和普通异常
         const error: ResPayload<Res> = isResPayload<Res>(err)
           ? err
-          : { code: 0, message: String(err), data: null as unknown as Res }
+          : { code: 0, message: String(err), data: null }
 
         logCfg.code = error?.code ?? 0
         logCfg.message = error.message
@@ -64,7 +71,7 @@ export const useHandleRes = <Payload, Res>(resCfg: CommonReqCfg<Payload, Res>) =
           clearTimeout(timer)
           timer = null
         }
-        void resolveCode(logCfg)
+        void resolveCode(logCfg, opts?.silent)
       }
     },
   }

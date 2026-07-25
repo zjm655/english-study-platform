@@ -1,12 +1,18 @@
 import { query } from '#server/utils/db'
 import { adminStatsQuerySchema, validateSuccess, validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type {
   AdminStatsResult,
   StatsSummary,
   DailyTrendItem,
   TopPathItem,
 } from '#shared/types/adminStats'
+
+/** 看板结果短 TTL 缓存（统计非实时，60s 内共享结果，降低对 api_call_log 的重复大范围扫描）。
+ *  days 受 zod 约束在 1-90，故 Map 最多 90 项，无需额外淘汰。 */
+const CACHE_TTL_MS = 60_000
+const statsCache = new Map<number, { result: AdminStatsResult; expireAt: number }>()
 
 /**
  * 运营统计聚合看板（单一端点，一次返回全部 widget 数据）
@@ -18,16 +24,20 @@ import type {
  */
 export default defineEventHandler(async (event) => {
   // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.VIEW_STATS)
+  if (err) return err
 
   const parsed = adminStatsQuerySchema.safeParse(getQuery(event))
   if (!parsed.success) {
     return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
   const { days } = parsed.data
+
+  // 命中短 TTL 缓存直接返回，避免高频刷新看板时对 api_call_log 反复大范围扫描
+  const cached = statsCache.get(days)
+  if (cached && Date.now() < cached.expireAt) {
+    return validateSuccess(cached.result, '获取运营统计成功')
+  }
 
   // 时间范围下界（所有查询强制带此条件走 idx_created_at / idx_path_created 索引）
   const rangeCond = 'createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)'
@@ -112,5 +122,6 @@ export default defineEventHandler(async (event) => {
   }))
 
   const result: AdminStatsResult = { summary, dailyTrend, topPaths, errorPaths }
+  statsCache.set(days, { result, expireAt: Date.now() + CACHE_TTL_MS })
   return validateSuccess(result, '获取运营统计成功')
 })

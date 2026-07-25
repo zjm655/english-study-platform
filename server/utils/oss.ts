@@ -172,7 +172,7 @@ export async function uploadImagePublic(
   const ext = safeName.includes('.') ? '' : '.png'
   const key = `records/${Date.now()}_${safeName}${ext}`
 
-  const client = getClient() // 使用公网客户端
+  const client = getUploadClient() // 使用公网客户端
   const result = await client.put(key, fileBuffer)
 
   // 公网客户端返回的 url 本身就是公网地址，无需替换
@@ -210,11 +210,11 @@ export async function signAudioUrl(
 // ---------- 自定义 key 上传 ----------
 
 /**
- * 使用自定义 key 上传文件到 OSS（使用公网客户端）
+ * 使用自定义 key 上传文件到 OSS（按 useInternal 配置选择公网/内网客户端）
  * 适用于迁移等需要精确控制存储路径的场景
  */
 export async function uploadWithKey(fileBuffer: Buffer, ossKey: string): Promise<UploadResult> {
-  const client = getClient()
+  const client = getUploadClient()
   const start = Date.now()
   try {
     const result = await client.put(ossKey, fileBuffer)
@@ -243,6 +243,40 @@ export async function uploadWithKey(fileBuffer: Buffer, ossKey: string): Promise
       errorMessage: errMsg.substring(0, 500),
     })
     throw error
+  }
+}
+
+// ---------- 核心功能：删除（孤儿清理） ----------
+/**
+ * 删除 OSS 对象（best-effort，用于「先传 OSS 后写库」事务失败后清理孤儿文件）。
+ * 失败仅记录日志、不抛错——清理是补偿动作，绝不影响主流程的错误返回。
+ * @param ossKey 对象 key
+ */
+export async function deleteObject(ossKey: string): Promise<void> {
+  const client = getUploadClient()
+  const start = Date.now()
+  try {
+    await client.delete(ossKey)
+    logger.info(`[OSS] 删除成功: ${ossKey}`)
+    fileLog('oss', 'info', `[OSS] 删除成功: ${ossKey}`)
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'deleteObject',
+      success: true,
+      durationMs: Date.now() - start,
+    })
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    logger.error(`[OSS] 删除失败: ${ossKey}, 错误: ${errMsg}`)
+    fileLogError('oss', `[OSS] 删除失败: ${ossKey}`, errMsg)
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'deleteObject',
+      success: false,
+      durationMs: Date.now() - start,
+      errorMessage: errMsg.substring(0, 500),
+    })
+    // best-effort：不抛错
   }
 }
 

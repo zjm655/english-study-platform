@@ -4,25 +4,24 @@ import type {
   AdminSegmentListResult,
   AdminSegmentDetail,
   AdminSegmentUpdatePayload,
+  AdminSegmentVisibilityPayload,
 } from '#shared/types/adminSegment'
+import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
 
 /**
  * 管理员材料列表（服务端分页 + 筛选 + 搜索）。
- * query 参数手动拼接 URLSearchParams；unitId/isPublic 可能为 0，须用 !== undefined/null 判断。
+ * unitId/isPublic 可能为 0，buildQuery 会保留数字 0（仅跳过 undefined/null/空串）。
  */
 export const getAdminSegmentList = (options: AdminSegmentListQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null)
-    params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null)
-    params.append('pageSize', String(options.pageSize))
-  if (options.unitId !== undefined && options.unitId !== null)
-    params.append('unitId', String(options.unitId))
-  if (options.isPublic !== undefined && options.isPublic !== null)
-    params.append('isPublic', String(options.isPublic))
-  if (options.keyword) params.append('keyword', options.keyword)
-  const query = params.toString()
-  return request.json<AdminSegmentListResult>(`${adminSegmentPath}${query ? '?' + query : ''}`)
+  return request.json<AdminSegmentListResult>(
+    `${adminSegmentPath}${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      unitId: options.unitId,
+      isPublic: options.isPublic,
+      keyword: options.keyword,
+    })}`,
+  )
 }
 
 /** 管理员材料详情（编辑页加载用） */
@@ -42,5 +41,21 @@ export const updateAdminSegment = (id: number, payload: AdminSegmentUpdatePayloa
 export const deleteAdminSegment = (id: number) => {
   return request.json<null>(`${adminSegmentPath}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+/** 审核门禁：材料试听解锁（填理由 + 留痕成功后返回签名 URL） */
+export const auditionAdminSegment = (id: number, payload: AuditionPayload) => {
+  return request.json<AuditionResult>(`${adminSegmentPath}/${id}/audition`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/** 审核门禁：调整受限材料的公开状态（填理由 + 留痕成功后才变更） */
+export const updateSegmentVisibility = (id: number, payload: AdminSegmentVisibilityPayload) => {
+  return request.json<{ isPublic: number }>(`${adminSegmentPath}/${id}/visibility`, {
+    method: 'PUT',
+    body: payload,
   })
 }

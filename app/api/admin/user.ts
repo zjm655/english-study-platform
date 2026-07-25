@@ -5,26 +5,28 @@ import type {
   AdminUserUpdatePayload,
   AdminUserDetail,
   AdminUserRolePayload,
+  AdminUserRecordingListQuery,
+  AdminUserRecordingListResult,
+  AdminRecordingDetailResult,
 } from '#shared/types/adminUser'
 import type {
   AdminOperationLogListResult,
   AdminOperationLogListQuery,
 } from '#shared/types/adminOperationLog'
+import type { AdminUserPermissionDetail, AuditionPayload } from '#shared/types/adminPermission'
 
 /**
  * 管理员用户列表（服务端分页 + 搜索 + 状态筛选）。
- * query 参数手动拼接 URLSearchParams；仅在有值时附加。
  */
 export const getAdminUserList = (options: AdminUserListQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null)
-    params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null)
-    params.append('pageSize', String(options.pageSize))
-  if (options.keyword) params.append('keyword', options.keyword)
-  if (options.state) params.append('state', options.state)
-  const query = params.toString()
-  return request.json<AdminUserListResult>(`${adminUserPath}${query ? '?' + query : ''}`)
+  return request.json<AdminUserListResult>(
+    `${adminUserPath}${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      keyword: options.keyword,
+      state: options.state,
+    })}`,
+  )
 }
 
 /** 管理员修改用户资料（nickname / email / level） */
@@ -65,13 +67,51 @@ export const updateAdminUserRole = (id: number, role: number) => {
 
 /** 管理员查看用户操作日志 */
 export const getAdminUserLogs = (id: number, options: AdminOperationLogListQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.page !== undefined && options.page !== null)
-    params.append('page', String(options.page))
-  if (options.pageSize !== undefined && options.pageSize !== null)
-    params.append('pageSize', String(options.pageSize))
-  const query = params.toString()
   return request.json<AdminOperationLogListResult>(
-    `${adminUserPath}/${id}/logs${query ? '?' + query : ''}`,
+    `${adminUserPath}/${id}/logs${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+    })}`,
+  )
+}
+
+/** 获取某用户的角色 + 已授予权限（授权管理，超管专属） */
+export const getAdminUserPermissions = (id: number) => {
+  return request.json<AdminUserPermissionDetail>(`${adminUserPath}/${id}/permissions`)
+}
+
+/** 覆盖式设置某用户权限（超管专属） */
+export const updateAdminUserPermissions = (id: number, permissions: string[]) => {
+  return request.json<null>(`${adminUserPath}/${id}/permissions`, {
+    method: 'PUT',
+    body: { permissions },
+  })
+}
+
+/** 管理员查看某用户录音记录列表（分页 + 筛选） */
+export const getAdminUserRecordings = (id: number, options: AdminUserRecordingListQuery = {}) => {
+  return request.json<AdminUserRecordingListResult>(
+    `${adminUserPath}/${id}/recordings${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      phase: options.phase,
+      unitId: options.unitId,
+      keyword: options.keyword,
+      scoreBand: options.scoreBand,
+      startDate: options.startDate,
+      endDate: options.endDate,
+    })}`,
+  )
+}
+
+/** 审核门禁：查看某用户录音评测详情（填理由 + 留痕成功后返回签名音频与识别文本） */
+export const auditionUserRecording = (
+  id: number,
+  recordingId: number,
+  payload: AuditionPayload,
+) => {
+  return request.json<AdminRecordingDetailResult>(
+    `${adminUserPath}/${id}/recordings/${recordingId}`,
+    { method: 'POST', body: payload },
   )
 }

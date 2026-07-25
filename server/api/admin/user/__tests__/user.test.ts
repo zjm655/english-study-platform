@@ -5,6 +5,7 @@ import listHandler from '../index.get'
 import putHandler from '../[userId].put'
 import statusHandler from '../[userId]/status.put'
 import deleteHandler from '../[userId].delete'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 // handler 级集成测试：覆盖管理员用户管理的权限门禁（403）、列表 state/keyword 过滤、
 // 封禁护栏（自己/管理员）、销号 affectedRows、资料修改 email 查重。走真实 validate schema。
@@ -26,10 +27,13 @@ const { mockQuery, mockReadBody, mockLogAdminOperation } = vi.hoisted(() => ({
 vi.mock('#server/utils/db', () => ({ query: mockQuery }))
 vi.mock('#server/utils/adminLog', () => ({ logAdminOperation: mockLogAdminOperation }))
 vi.mock('h3', () => ({ readBody: mockReadBody }))
+// permission.ts 透传引入 oss.ts（其模块顶层读 useRuntimeConfig），node 测试环境需 mock 避免崩溃
+vi.mock('#server/utils/oss', () => ({ signUrl: vi.fn(), MATERIAL_EXPIRE: 2100 }))
 
 // ============ 辅助 ============
 
-const ADMIN = { id: 1, role: 1 }
+// 细粒度守卫下，管理员的权限由 auth 中间件注入；handler 级测试直接在 fixture 里模拟注入结果
+const ADMIN = { id: 1, role: 1, permissions: [PERMISSIONS.MANAGE_USERS] }
 
 function makeEvent(
   opts: {

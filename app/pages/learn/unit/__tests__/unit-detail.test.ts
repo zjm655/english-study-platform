@@ -9,16 +9,22 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }))
 
-// Mock useUnitProgress
-const mockIsLoading = ref(false)
+// Mock useUserStore（页面按 isLogin 控制收藏请求/按钮）
+const { mockUserStore } = vi.hoisted(() => ({
+  mockUserStore: { isLogin: true },
+}))
+vi.mock('~/store/useUserStore', () => ({
+  useUserStore: () => mockUserStore,
+}))
+
+// Mock useUnitProgress（页面仅使用 loadMore 分支；首屏已迁 useAsyncRes）
 const mockIsLoadingMore = ref(false)
-const mockFetchUnitProgress = vi.fn()
 const mockLoadMore = vi.fn()
 vi.mock('~/composables/unit/useUnitProgress', () => ({
   useUnitProgress: () => ({
-    isLoading: mockIsLoading,
+    isLoading: ref(false),
     isLoadingMore: mockIsLoadingMore,
-    fetchUnitProgress: mockFetchUnitProgress,
+    fetchUnitProgress: vi.fn(),
     loadMore: mockLoadMore,
   }),
 }))
@@ -36,6 +42,32 @@ vi.mock('~/composables/useFavorites', () => ({
     togglingSegment: mockTogglingSegment,
   }),
 }))
+
+// Stub Nuxt auto-imports（vitest 环境无 Nuxt runtime，页面内为裸全局引用）
+const mockDetailRes = ref<Record<string, unknown> | undefined>(undefined)
+const mockPending = ref(false)
+const mockFetchError = ref<Error | null>(null)
+const mockRefresh = vi.fn()
+vi.stubGlobal('useAsyncRes', () => ({
+  data: mockDetailRes,
+  pending: mockPending,
+  error: mockFetchError,
+  refresh: mockRefresh,
+}))
+vi.stubGlobal('useSeoMeta', vi.fn())
+vi.stubGlobal('useJsonLd', vi.fn())
+vi.stubGlobal(
+  'learningResourceSchema',
+  vi.fn(() => ({})),
+)
+vi.stubGlobal(
+  'IntersectionObserver',
+  class {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+  },
+)
 
 const mockSuccessData = {
   code: 200,
@@ -111,44 +143,39 @@ function createWrapper() {
 
 describe('UnitDetail Page', () => {
   beforeEach(() => {
-    mockIsLoading.value = false
+    mockUserStore.isLogin = true
+    mockDetailRes.value = mockSuccessData
+    mockPending.value = false
+    mockFetchError.value = null
     mockIsLoadingMore.value = false
-    mockFetchUnitProgress.mockReset()
     mockLoadMore.mockReset()
-    mockFetchUnitProgress.mockResolvedValue(mockSuccessData)
+    mockFetchFavSegments.mockReset()
   })
 
-  it('renders loading state when isLoading is true', () => {
-    mockIsLoading.value = true
+  it('renders loading state when pending without data', () => {
+    mockDetailRes.value = undefined
+    mockPending.value = true
     const wrapper = createWrapper()
     expect(wrapper.find('.loading-container').exists()).toBe(true)
     expect(wrapper.find('.dot-pulse-mock').exists()).toBe(true)
   })
 
-  it('renders unit title and description after loading', async () => {
+  it('renders unit title and description from async data', () => {
     const wrapper = createWrapper()
-    // 等待 onMounted 中的异步操作完成
-    await vi.waitFor(() => {
-      expect(wrapper.text()).toContain('测试单元')
-    })
+    expect(wrapper.text()).toContain('测试单元')
     expect(wrapper.text()).toContain('这是一个测试单元的描述')
   })
 
-  it('renders segment cards with correct titles', async () => {
+  it('renders segment cards with correct titles', () => {
     const wrapper = createWrapper()
-    await vi.waitFor(() => {
-      expect(wrapper.text()).toContain('片段一')
-    })
+    expect(wrapper.text()).toContain('片段一')
     expect(wrapper.text()).toContain('片段二')
   })
 
-  it('renders phase dots with correct states', async () => {
+  it('renders phase dots with correct states', () => {
     const wrapper = createWrapper()
-    await vi.waitFor(() => {
-      const cards = wrapper.findAll('.segment-card')
-      expect(cards.length).toBe(2)
-    })
     const cards = wrapper.findAll('.segment-card')
+    expect(cards.length).toBe(2)
     const firstCardPhases = cards[0]!.findAll('.phase-dot')
     expect(firstCardPhases.length).toBe(4)
     // 第一个卡片：phase1_done=true → 第一个圆点有 done 类
@@ -160,12 +187,8 @@ describe('UnitDetail Page', () => {
     expect(firstCardPhases[2]!.classes()).not.toContain('phase-dot--current')
   })
 
-  it('renders all done for fully completed segment', async () => {
+  it('renders all done for fully completed segment', () => {
     const wrapper = createWrapper()
-    await vi.waitFor(() => {
-      const cards = wrapper.findAll('.segment-card')
-      expect(cards.length).toBe(2)
-    })
     const cards = wrapper.findAll('.segment-card')
     const secondCardPhases = cards[1]!.findAll('.phase-dot')
     secondCardPhases.forEach((dot) => {
@@ -173,8 +196,8 @@ describe('UnitDetail Page', () => {
     })
   })
 
-  it('shows empty state when no segments', async () => {
-    mockFetchUnitProgress.mockResolvedValue({
+  it('shows empty state when no segments', () => {
+    mockDetailRes.value = {
       code: 200,
       message: 'ok',
       data: {
@@ -189,45 +212,38 @@ describe('UnitDetail Page', () => {
         segments: [],
         pagination: { page: 1, pageSize: 10, total: 0, hasMore: false },
       },
-    })
+    }
     const wrapper = createWrapper()
-    await vi.waitFor(() => {
-      expect(wrapper.find('.empty-state').exists()).toBe(true)
-    })
+    expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.text()).toContain('暂无片段数据')
   })
 
-  it('shows error state when API returns non-200', async () => {
-    mockFetchUnitProgress.mockResolvedValue({
-      code: 500,
-      message: '服务器错误',
-      data: null,
-    })
+  it('shows error state when API returns non-200 (page-level, no toast)', () => {
+    mockDetailRes.value = { code: 500, message: '服务器错误', data: null }
     const wrapper = createWrapper()
-    await vi.waitFor(() => {
-      expect(wrapper.find('.error-container').exists()).toBe(true)
-    })
+    expect(wrapper.find('.error-container').exists()).toBe(true)
     expect(wrapper.text()).toContain('服务器错误')
     expect(wrapper.find('.retry-btn').exists()).toBe(true)
   })
 
-  it('links to correct segment pages', async () => {
+  it('shows network error and retry calls refresh', async () => {
+    mockDetailRes.value = undefined
+    mockFetchError.value = new Error('timeout')
     const wrapper = createWrapper()
-    await vi.waitFor(() => {
-      const cards = wrapper.findAll('.segment-card')
-      expect(cards.length).toBe(2)
-    })
+    expect(wrapper.text()).toContain('加载失败，请检查网络')
+    await wrapper.find('.retry-btn').trigger('click')
+    expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it('links to correct segment pages', () => {
+    const wrapper = createWrapper()
     const cards = wrapper.findAll('.segment-card')
     expect(cards[0]!.find('.segment-card__link').attributes('href')).toBe('/learn/unit/1/segment/1')
     expect(cards[1]!.find('.segment-card__link').attributes('href')).toBe('/learn/unit/1/segment/2')
   })
 
-  it('marks own segments with badge and highlight', async () => {
+  it('marks own segments with badge and highlight', () => {
     const wrapper = createWrapper()
-    await vi.waitFor(() => {
-      const cards = wrapper.findAll('.segment-card')
-      expect(cards.length).toBe(2)
-    })
     const cards = wrapper.findAll('.segment-card')
     // 片段一 isMine=true → 高亮类 + 「我的」角标
     expect(cards[0]!.classes()).toContain('segment-card--mine')
@@ -236,5 +252,20 @@ describe('UnitDetail Page', () => {
     // 片段二 isMine=false → 无高亮与角标
     expect(cards[1]!.classes()).not.toContain('segment-card--mine')
     expect(cards[1]!.find('.segment-card__badge').exists()).toBe(false)
+  })
+
+  it('logged-in user: fetches favorites and shows fav buttons', () => {
+    const wrapper = createWrapper()
+    expect(mockFetchFavSegments).toHaveBeenCalled()
+    expect(wrapper.findAll('.segment-fav-btn').length).toBe(2)
+  })
+
+  it('guest: no favorites request and no fav buttons', () => {
+    mockUserStore.isLogin = false
+    const wrapper = createWrapper()
+    expect(mockFetchFavSegments).not.toHaveBeenCalled()
+    expect(wrapper.findAll('.segment-fav-btn').length).toBe(0)
+    // 内容仍可浏览（裁剪版）
+    expect(wrapper.text()).toContain('测试单元')
   })
 })

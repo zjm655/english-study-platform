@@ -15,7 +15,7 @@ export const useToVerify = () => {
 
   async function userToVerify() {
     const res = await execute(null)
-    if (res && res.code === 200) {
+    if (res && res.code === 200 && res.data) {
       useUserStore().setUser(res.data)
       useUserStore().isLogin = true
     }

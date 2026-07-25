@@ -1,79 +1,113 @@
 <script setup lang="ts">
-import { adminConfigPath } from '~/api/paths'
-import { request } from '~/utils/request'
+import { useConfigs, useUpdateConfig, useUpdateConfigs } from '~/composables/admin'
 
 definePageMeta({ layout: 'admin' })
 
 const loading = ref(false)
 const saving = ref(false)
-const configs = ref<Record<string, { value: string; description: string | null }>>({})
 
-// 表单数据
-const dailyLimit = ref(20)
+// 三层架构：页面只调 composable（内含 loading / 防重 / 401-403 跳转），不裸调 request
+const { execute: fetchConfigsExec } = useConfigs()
+const { execute: updateConfigExec } = useUpdateConfig()
+const { execute: updateConfigsExec } = useUpdateConfigs()
 
-// API 限流开关
+// ─── 单位换算 ───────────────────────────────────────────
+const UNIT_OPTIONS = [
+  { label: '分钟', value: 60 },
+  { label: '小时', value: 3600 },
+  { label: '天', value: 86400 },
+  { label: '周', value: 604800 },
+]
+
+/** 秒 → { val, unit }：从大到小找第一个整除单位，否则 fallback 分钟 */
+function secondsToUnit(sec: number): { val: number; unit: number } {
+  for (const u of [...UNIT_OPTIONS].reverse()) {
+    if (sec >= u.value && sec % u.value === 0) return { val: sec / u.value, unit: u.value }
+  }
+  return { val: Math.round(sec / 60), unit: 60 }
+}
+
+// ─── 评测额度 ───────────────────────────────────────────
+const evalMax = ref(20)
+const evalWindowVal = ref(1)
+const evalWindowUnit = ref(86400)
+
+// ─── API 限流开关 ─────────────────────────────────────────
 const rateLimitEnabled = ref(true)
 const rateLimitIpLevel = ref(true)
 const rateLimitUserLevel = ref(true)
 
-// 上传材料限流（独立于全局限流开关）
+// ─── 上传限流 ───────────────────────────────────────────
 const uploadLimitEnabled = ref(true)
-const uploadLimitMax = ref(10)
-const uploadLimitWindow = ref(60)
+const uploadMax = ref(10)
+const uploadWindowVal = ref(1)
+const uploadWindowUnit = ref(60)
 
+// ─── 加载配置 ───────────────────────────────────────────
 async function fetchConfigs() {
   loading.value = true
   try {
-    const res =
-      await request<Record<string, { value: string; description: string | null }>>(adminConfigPath)
+    const res = await fetchConfigsExec(null)
     if (res.code === 200 && res.data) {
-      configs.value = res.data
-      dailyLimit.value = parseInt(res.data['daily_eval_limit']?.value ?? '20', 10) || 20
-      rateLimitEnabled.value = res.data['rate_limit_enabled']?.value === '1'
-      rateLimitIpLevel.value = res.data['rate_limit_ip_level']?.value === '1'
-      rateLimitUserLevel.value = res.data['rate_limit_user_level']?.value === '1'
-      uploadLimitEnabled.value = res.data['rate_limit_upload_enabled']?.value === '1'
-      uploadLimitMax.value = parseInt(res.data['rate_limit_upload_max']?.value ?? '10', 10) || 10
-      uploadLimitWindow.value =
-        parseInt(res.data['rate_limit_upload_window']?.value ?? '60', 10) || 60
+      const d = res.data
+      // 评测额度
+      evalMax.value = parseInt(d['daily_eval_limit']?.value ?? '20', 10) || 20
+      const evalWinSec = parseInt(d['eval_limit_window']?.value ?? '86400', 10) || 86400
+      const evalParsed = secondsToUnit(evalWinSec)
+      evalWindowVal.value = evalParsed.val
+      evalWindowUnit.value = evalParsed.unit
+      // API 限流
+      rateLimitEnabled.value = d['rate_limit_enabled']?.value === '1'
+      rateLimitIpLevel.value = d['rate_limit_ip_level']?.value === '1'
+      rateLimitUserLevel.value = d['rate_limit_user_level']?.value === '1'
+      // 上传限流
+      uploadLimitEnabled.value = d['rate_limit_upload_enabled']?.value === '1'
+      uploadMax.value = parseInt(d['rate_limit_upload_max']?.value ?? '10', 10) || 10
+      const uploadWinSec = parseInt(d['rate_limit_upload_window']?.value ?? '60', 10) || 60
+      const uploadParsed = secondsToUnit(uploadWinSec)
+      uploadWindowVal.value = uploadParsed.val
+      uploadWindowUnit.value = uploadParsed.unit
     }
   } finally {
     loading.value = false
   }
 }
 
-async function saveDailyLimit() {
-  if (dailyLimit.value < 0) {
+// ─── 保存评测额度 ─────────────────────────────────────────
+async function saveEvalLimit() {
+  if (evalMax.value < 0 || evalWindowVal.value < 1) {
     ElMessage.warning('请输入有效的非负整数')
     return
   }
   saving.value = true
   try {
-    const res = await request(adminConfigPath, {
-      method: 'PUT',
-      body: { key: 'daily_eval_limit', value: String(dailyLimit.value) },
-    })
+    const windowSec = evalWindowVal.value * evalWindowUnit.value
+    const res = await updateConfigsExec([
+      { key: 'daily_eval_limit', value: String(evalMax.value) },
+      { key: 'eval_limit_window', value: String(windowSec) },
+    ])
     if (res.code === 200) {
-      ElMessage.success(res.message ?? '保存成功')
+      ElMessage.success('保存成功')
     } else {
       ElMessage.error(res.message ?? '保存失败')
+      await fetchConfigs()
     }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
   } finally {
     saving.value = false
   }
 }
 
+// ─── 保存限流开关 ─────────────────────────────────────────
 async function saveRateLimitConfig(key: string, enabled: boolean) {
   try {
-    const res = await request(adminConfigPath, {
-      method: 'PUT',
-      body: { key, value: enabled ? '1' : '0' },
-    })
+    const res = await updateConfigExec({ key, value: enabled ? '1' : '0' })
     if (res.code === 200) {
       ElMessage.success(res.message ?? '保存成功')
     } else {
       ElMessage.error(res.message ?? '保存失败')
-      // 保存失败时回滚开关状态（重新加载）
       await fetchConfigs()
     }
   } catch {
@@ -82,27 +116,23 @@ async function saveRateLimitConfig(key: string, enabled: boolean) {
   }
 }
 
+// ─── 保存上传限流 ─────────────────────────────────────────
 async function saveUploadLimit() {
-  if (uploadLimitMax.value < 1 || uploadLimitWindow.value < 1) {
+  if (uploadMax.value < 1 || uploadWindowVal.value < 1) {
     ElMessage.warning('请输入有效的正整数')
     return
   }
   saving.value = true
   try {
-    const [resMax, resWindow] = await Promise.all([
-      request(adminConfigPath, {
-        method: 'PUT',
-        body: { key: 'rate_limit_upload_max', value: String(uploadLimitMax.value) },
-      }),
-      request(adminConfigPath, {
-        method: 'PUT',
-        body: { key: 'rate_limit_upload_window', value: String(uploadLimitWindow.value) },
-      }),
+    const windowSec = uploadWindowVal.value * uploadWindowUnit.value
+    const res = await updateConfigsExec([
+      { key: 'rate_limit_upload_max', value: String(uploadMax.value) },
+      { key: 'rate_limit_upload_window', value: String(windowSec) },
     ])
-    if (resMax.code === 200 && resWindow.code === 200) {
+    if (res.code === 200) {
       ElMessage.success('保存成功')
     } else {
-      ElMessage.error(resMax.message ?? resWindow.message ?? '保存失败')
+      ElMessage.error(res.message ?? '保存失败')
       await fetchConfigs()
     }
   } catch {
@@ -117,111 +147,208 @@ onMounted(fetchConfigs)
 </script>
 
 <template>
-  <div v-loading="loading" class="page-container">
-    <el-card shadow="never">
-      <template #header>
-        <span class="card-title">系统配置</span>
-      </template>
+  <div v-loading="loading" class="config-page">
+    <div class="config-header">
+      <h2 class="config-page-title">系统配置</h2>
+      <p class="config-desc">调整评测额度、API 限流与上传限流等全局策略，保存后即时生效。</p>
+    </div>
 
-      <el-form label-width="180px" style="max-width: 500px">
-        <el-form-item label="每日评测次数上限">
-          <el-input-number
-            v-model="dailyLimit"
-            :min="0"
-            :max="999"
-            :step="5"
-            controls-position="right"
-          />
-          <div class="form-tip">
-            普通用户每天可进行的评测次数（配音 + 跟读），管理员不受限制。设为 0 表示不限制。
+    <div class="config-grid">
+      <!-- ═══ 评测额度 ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">评测额度</span>
+            <span class="card-sub">普通用户评测频率上限</span>
           </div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="saving" @click="saveDailyLimit">保存</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        </template>
+        <el-form label-width="110px">
+          <el-form-item label="额度限制">
+            <div class="window-row">
+              <span class="window-label">每</span>
+              <el-input-number
+                v-model="evalWindowVal"
+                :min="1"
+                :max="999"
+                :step="1"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <el-select v-model="evalWindowUnit" style="width: 80px">
+                <el-option
+                  v-for="u in UNIT_OPTIONS"
+                  :key="u.value"
+                  :label="u.label"
+                  :value="u.value"
+                />
+              </el-select>
+              <span class="window-label">最多</span>
+              <el-input-number
+                v-model="evalMax"
+                :min="0"
+                :max="999"
+                :step="5"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <span class="window-label">次</span>
+            </div>
+            <div class="form-tip">
+              普通用户在时间窗口内可进行的评测次数（配音 + 跟读），管理员不受限制。设为 0
+              表示不限制。
+            </div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveEvalLimit">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
 
-    <el-card shadow="never" style="margin-top: 16px">
-      <template #header>
-        <span class="card-title">API 限流配置</span>
-      </template>
+      <!-- ═══ API 限流 ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">API 限流</span>
+            <span class="card-sub">全局请求频率保护</span>
+          </div>
+        </template>
+        <el-form label-width="110px">
+          <el-form-item label="总开关">
+            <el-switch
+              v-model="rateLimitEnabled"
+              @change="(v) => saveRateLimitConfig('rate_limit_enabled', Boolean(v))"
+            />
+            <div class="form-tip">关闭后所有限流检查均不生效（不推荐）。</div>
+          </el-form-item>
+          <el-form-item label="IP 级限流">
+            <el-switch
+              v-model="rateLimitIpLevel"
+              @change="(v) => saveRateLimitConfig('rate_limit_ip_level', Boolean(v))"
+            />
+            <div class="form-tip">同一 IP 的所有用户共享请求配额，防止单 IP 滥用。</div>
+          </el-form-item>
+          <el-form-item label="用户级限流">
+            <el-switch
+              v-model="rateLimitUserLevel"
+              @change="(v) => saveRateLimitConfig('rate_limit_user_level', Boolean(v))"
+            />
+            <div class="form-tip">每个登录用户独立配额，避免同 IP 多用户互相影响。</div>
+          </el-form-item>
+        </el-form>
+      </el-card>
 
-      <el-form label-width="180px" style="max-width: 500px">
-        <el-form-item label="启用限流（总开关）">
-          <el-switch
-            v-model="rateLimitEnabled"
-            @change="(v) => saveRateLimitConfig('rate_limit_enabled', Boolean(v))"
-          />
-          <div class="form-tip">关闭后所有限流检查均不生效（不推荐）。</div>
-        </el-form-item>
-        <el-form-item label="IP 级限流">
-          <el-switch
-            v-model="rateLimitIpLevel"
-            @change="(v) => saveRateLimitConfig('rate_limit_ip_level', Boolean(v))"
-          />
-          <div class="form-tip">同一 IP 的所有用户共享请求配额，防止单 IP 滥用。</div>
-        </el-form-item>
-        <el-form-item label="用户级限流">
-          <el-switch
-            v-model="rateLimitUserLevel"
-            @change="(v) => saveRateLimitConfig('rate_limit_user_level', Boolean(v))"
-          />
-          <div class="form-tip">每个登录用户独立配额，避免同 IP 多用户互相影响。</div>
-        </el-form-item>
-      </el-form>
-    </el-card>
-
-    <el-card shadow="never" style="margin-top: 16px">
-      <template #header>
-        <span class="card-title">上传材料限流配置</span>
-      </template>
-
-      <el-form label-width="180px" style="max-width: 500px">
-        <el-form-item label="启用上传限流">
-          <el-switch
-            v-model="uploadLimitEnabled"
-            @change="(v) => saveRateLimitConfig('rate_limit_upload_enabled', Boolean(v))"
-          />
-          <div class="form-tip">独立于全局限流开关。关闭后上传材料请求不受限流检查。</div>
-        </el-form-item>
-        <el-form-item label="窗口内最大请求数">
-          <el-input-number
-            v-model="uploadLimitMax"
-            :min="1"
-            :max="999"
-            :step="1"
-            controls-position="right"
-          />
-          <div class="form-tip">每个用户在时间窗口内可发起的上传材料请求数上限。</div>
-        </el-form-item>
-        <el-form-item label="时间窗口（秒）">
-          <el-input-number
-            v-model="uploadLimitWindow"
-            :min="1"
-            :max="3600"
-            :step="10"
-            controls-position="right"
-          />
-          <div class="form-tip">限流统计的时间窗口大小（秒），常用 60 秒。</div>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" :loading="saving" @click="saveUploadLimit">保存</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
+      <!-- ═══ 上传限流 ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">上传限流</span>
+            <span class="card-sub">上传材料请求频率</span>
+          </div>
+        </template>
+        <el-form label-width="110px">
+          <el-form-item label="启用上传限流">
+            <el-switch
+              v-model="uploadLimitEnabled"
+              @change="(v) => saveRateLimitConfig('rate_limit_upload_enabled', Boolean(v))"
+            />
+            <div class="form-tip">独立于全局限流开关。关闭后上传材料请求不受限流检查。</div>
+          </el-form-item>
+          <el-form-item label="频率限制">
+            <div class="window-row">
+              <span class="window-label">每</span>
+              <el-input-number
+                v-model="uploadWindowVal"
+                :min="1"
+                :max="999"
+                :step="1"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <el-select v-model="uploadWindowUnit" style="width: 80px">
+                <el-option
+                  v-for="u in UNIT_OPTIONS"
+                  :key="u.value"
+                  :label="u.label"
+                  :value="u.value"
+                />
+              </el-select>
+              <span class="window-label">最多</span>
+              <el-input-number
+                v-model="uploadMax"
+                :min="1"
+                :max="999"
+                :step="1"
+                controls-position="right"
+                style="width: 100px"
+              />
+              <span class="window-label">次</span>
+            </div>
+            <div class="form-tip">每个用户在时间窗口内可发起的上传材料请求数上限。</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveUploadLimit">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.page-container {
+.config-page {
   padding: 20px;
 }
+.config-header {
+  margin-bottom: 16px;
+}
+.config-page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.config-desc {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.config-card {
+  border-radius: var(--r-lg);
+  height: 100%;
+}
+.card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .card-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--text-1);
+}
+.card-sub {
+  font-size: 12px;
+  color: var(--text-4);
+}
+.window-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.window-label {
+  font-size: 14px;
+  color: var(--el-text-color-regular);
+  white-space: nowrap;
 }
 .form-tip {
+  display: block;
+  width: 100%;
   font-size: 12px;
   color: var(--el-text-color-secondary);
   margin-top: 4px;

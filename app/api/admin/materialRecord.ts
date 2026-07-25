@@ -5,19 +5,19 @@ import type {
   AdminMaterialRecordDetail,
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
+import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
 
 /** 管理员上传记录列表 */
 export const getAdminMaterialRecordList = (options: AdminMaterialRecordListQuery = {}) => {
-  const params = new URLSearchParams()
-  if (options.page !== undefined) params.append('page', String(options.page))
-  if (options.pageSize !== undefined) params.append('pageSize', String(options.pageSize))
-  if (options.status) params.append('status', options.status)
-  if (options.source && options.source !== 'all') params.append('source', options.source)
-  if (options.startDate) params.append('startDate', options.startDate)
-  if (options.endDate) params.append('endDate', options.endDate)
-  const query = params.toString()
   return request.json<AdminMaterialRecordListResult>(
-    `${adminMaterialRecordPath}${query ? '?' + query : ''}`,
+    `${adminMaterialRecordPath}${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      status: options.status,
+      source: options.source && options.source !== 'all' ? options.source : undefined,
+      startDate: options.startDate,
+      endDate: options.endDate,
+    })}`,
   )
 }
 
@@ -37,6 +37,14 @@ export const reprocessAdminMaterialRecord = (
   payload: AdminMaterialRecordReprocessPayload,
 ) => {
   return request.json<null>(`${adminMaterialRecordPath}/${id}/reprocess`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+/** 审核门禁：上传记录试听解锁（填理由 + 留痕成功后返回签名 URL） */
+export const auditionAdminMaterialRecord = (id: number, payload: AuditionPayload) => {
+  return request.json<AuditionResult>(`${adminMaterialRecordPath}/${id}/audition`, {
     method: 'POST',
     body: payload,
   })

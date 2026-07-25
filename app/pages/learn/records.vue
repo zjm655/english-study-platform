@@ -6,9 +6,14 @@ import {
   useDeleteMaterialRecord,
 } from '~/composables/material/useUploadRecords'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
-import { ElMessageBox } from 'element-plus'
+import { toastConfirm } from '~/utils/popup'
 
 definePageMeta({ title: '上传记录' })
+
+useSeoMeta({
+  title: '上传记录',
+  description: '查看自定义材料的上传处理进度与结果，管理已生成的个人学习材料。',
+})
 
 const router = useRouter()
 
@@ -78,7 +83,7 @@ async function handleTogglePublic(record: MaterialUploadRecordListItem) {
 
 async function handleDelete(record: MaterialUploadRecordListItem) {
   try {
-    await ElMessageBox.confirm('确定删除这条记录吗？关联的学习数据也会被清理。', '确认删除', {
+    await toastConfirm('确定删除这条记录吗？关联的学习数据也会被清理。', '确认删除', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',

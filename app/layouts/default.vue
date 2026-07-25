@@ -91,7 +91,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  max-width: 430px;
+  /* max-width: 430px; */
   margin: 0 auto;
 }
 

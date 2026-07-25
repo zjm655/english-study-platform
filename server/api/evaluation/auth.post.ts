@@ -12,6 +12,7 @@
 
 import crypto from 'node:crypto'
 import { serverFetch } from '#server/utils/request'
+import { query } from '#server/utils/db'
 import { networkInterfaces } from 'node:os'
 
 /**
@@ -50,7 +51,16 @@ export default defineEventHandler(
     const { checkDailyQuota } = await import('#server/utils/quotaChecker')
     const quota = await checkDailyQuota(userId, userRole)
     if (!quota.allowed) {
-      return validateError(`今日评测次数已达上限（${quota.used}/${quota.limit}），明天再试吧`, 403)
+      const windowDesc =
+        quota.windowSec >= 86400
+          ? `${Math.round(quota.windowSec / 86400)} 天`
+          : quota.windowSec >= 3600
+            ? `${Math.round(quota.windowSec / 3600)} 小时`
+            : `${Math.round(quota.windowSec / 60)} 分钟`
+      return validateError(
+        `每 ${windowDesc}评测次数已达上限（${quota.used}/${quota.limit}），请稍后再试`,
+        403,
+      )
     }
 
     const { aiContent } = useRuntimeConfig()
@@ -135,6 +145,13 @@ export default defineEventHandler(
         logger.error('[evaluation auth] 阿里云返回错误:', respData)
         return validateError(respData.message || '获取评测授权失败', 502)
       }
+
+      // 记录本次评测鉴权发放（作为每日额度计数依据，fire-and-forget 不阻塞响应）。
+      // 见 quotaChecker.checkDailyQuota：额度按 eval_auth_log 发放次数统计，
+      // 从服务端侧堵死「不回写 analyze 即可绕过额度」的刷量问题。
+      query('INSERT INTO eval_auth_log (user_id) VALUES (?)', [userId]).catch((err) => {
+        logger.error('[evaluation auth] 记录鉴权发放失败:', err)
+      })
 
       return validateSuccess({
         warrantId: respData.data.warrant_id,

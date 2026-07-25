@@ -1,6 +1,7 @@
 // server/utils/validate.ts
 import { z } from 'zod'
 import type { ResPayload } from '#shared/types/request'
+import { REVIEW_TARGET_TYPES, REVIEW_REASON_CATEGORIES } from '#shared/utils/permission'
 
 // 登陆校验
 export const loginSchema = z.object({
@@ -20,6 +21,9 @@ export const loginSchema = z.object({
       if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(val)) categories++ // 包含特殊符号
       return categories >= 2
     }, '密码必须包含数字、字母、特殊符号中的至少两类'),
+  // 登录连错达阈值后必填（handler 内条件强制），常态可选，不影响正常登录
+  captchaToken: z.string().optional(),
+  captchaCode: z.string().optional(),
 })
 
 // 注册校验
@@ -44,6 +48,8 @@ export const registerSchema = z
         return categories >= 2
       }, '密码必须包含数字、字母、特殊符号中的至少两类'),
     password2: z.string().min(8, '密码长度不能少于8位').max(25, '密码长度不能超过25位'),
+    captchaToken: z.string().min(1, '请输入图形验证码'),
+    captchaCode: z.string().min(1, '请输入图形验证码'),
   })
   .refine((data) => data.password1 === data.password2, {
     message: '两次密码输入不一致',
@@ -201,6 +207,31 @@ export const adminSegmentUpdateSchema = z.object({
     .optional(),
 })
 
+// ============== 管理员单元管理 ==============
+
+/** 管理员单元列表查询参数校验（query string 均为字符串，必须 z.coerce） */
+export const adminUnitListSchema = z.object({
+  page: z.coerce.number().int().min(1, 'page 不能小于 1').optional().default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1, 'pageSize 不能小于 1')
+    .max(50, 'pageSize 不能大于 50')
+    .optional()
+    .default(10),
+  // 0 = 用户自定义材料单元，是合法筛选值；不设上限，等级可自由扩展
+  level: z.coerce.number().int().min(0, 'level 不能为负数').optional(),
+  keyword: z.string().max(100, '搜索关键词不能超过 100 个字符').optional(),
+})
+
+/** 管理员单元保存校验（新建与编辑共用；level 为自由数字等级，数字越大难度越高，0 保留给自定义单元） */
+export const adminUnitSaveSchema = z.object({
+  title: z.string().min(1, '标题不能为空').max(100, '标题不能超过 100 个字符'),
+  description: z.string().max(500, '简介不能超过 500 个字符').nullish(),
+  level: z.number().int().min(1, 'level 必须 ≥1（0 保留给自定义单元）'),
+  sortOrder: z.number().int().min(0, 'sortOrder 不能为负数'),
+})
+
 // ============== 管理员用户管理 ==============
 
 /** 管理员用户列表查询参数校验（query string 均为字符串，必须 z.coerce） */
@@ -234,7 +265,7 @@ export const adminUserStatusSchema = z.object({
   status: z.number().refine((v) => v === 0 || v === 1, 'status 必须为 0 或 1'),
 })
 
-/** 管理员角色变更校验 */
+/** 管理员角色变更校验（仅普通用户↔管理员；超管唯一且不可经 API 分配） */
 export const adminUserRoleSchema = z.object({
   role: z.coerce.number().refine((v) => v === 0 || v === 1, 'role 必须为 0 或 1'),
 })
@@ -284,6 +315,36 @@ export const adminMaterialRecordListSchema = z.object({
     .optional(),
   source: z
     .enum(['all', 'user', 'admin'], { message: 'source 必须为 all/user/admin' })
+    .optional()
+    .default('all'),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+})
+
+/** 管理员查看某用户录音记录列表查询参数校验 */
+export const adminUserRecordingListSchema = z.object({
+  page: z.coerce.number().int().min(1, 'page 不能小于 1').optional().default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1, 'pageSize 不能小于 1')
+    .max(50, 'pageSize 不能大于 50')
+    .optional()
+    .default(10),
+  phase: z.coerce
+    .number()
+    .refine((v) => v === 3 || v === 4, { message: 'phase 必须为 3 或 4' })
+    .optional(),
+  unitId: z.coerce.number().int().min(1, 'unitId 必须为正整数').optional(),
+  keyword: z.string().max(100, 'keyword 过长').optional(),
+  scoreBand: z
+    .enum(['all', 'high', 'mid', 'low'], { message: 'scoreBand 必须为 all/high/mid/low' })
     .optional()
     .default('all'),
   startDate: z
@@ -386,6 +447,37 @@ export const adminOperationLogListSchemaV2 = z.object({
     .default(20),
   action: z.string().max(50, '操作类型不能超过 50 字').optional(),
   keyword: z.string().max(50, '搜索关键词不能超过 50 字').optional(),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
+    .optional(),
+})
+
+/** review_access_log 列表查询校验（审核留痕子页，枚举复用 shared 常量防漂移） */
+export const reviewAccessLogListSchema = z.object({
+  page: z.coerce.number().int().min(1, 'page 不能小于 1').optional().default(1),
+  pageSize: z.coerce
+    .number()
+    .int()
+    .min(1, 'pageSize 不能小于 1')
+    .max(100, 'pageSize 不能大于 100')
+    .optional()
+    .default(20),
+  targetType: z
+    .enum(REVIEW_TARGET_TYPES, {
+      message: `targetType 必须为 ${REVIEW_TARGET_TYPES.join('/')}`,
+    })
+    .optional(),
+  reasonCategory: z
+    .enum(REVIEW_REASON_CATEGORIES, {
+      message: 'reasonCategory 不在白名单内',
+    })
+    .optional(),
+  keyword: z.string().max(100, '搜索关键词不能超过 100 字').optional(),
   startDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')

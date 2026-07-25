@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { useOperationLogListV2 } from '~/composables/admin'
-import { adminLogsExportPath, adminLogsCleanPath } from '~/api/paths'
-import { request } from '~/utils/request'
+import { useOperationLogListV2, useCleanLogs } from '~/composables/admin'
+import { adminLogsExportPath } from '~/api/paths'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
 
@@ -9,6 +8,7 @@ definePageMeta({ layout: 'admin', title: '操作日志' })
 useSeoMeta({ title: '操作日志 - 管理后台' })
 
 const { isLoading, execute } = useOperationLogListV2()
+const { execute: cleanLogsExec } = useCleanLogs()
 
 // 筛选
 const filterAction = ref('')
@@ -89,10 +89,7 @@ async function handleClean() {
   }
   cleaning.value = true
   try {
-    const res = await request<{ deletedRows: number }>(adminLogsCleanPath, {
-      method: 'POST',
-      body: { table: 'admin_operation_log', days: cleanDays.value },
-    })
+    const res = await cleanLogsExec({ table: 'admin_operation_log', days: cleanDays.value })
     if (res.code === 200) {
       ElMessage.success(res.message ?? `已清理 ${res.data?.deletedRows ?? 0} 条记录`)
       loadList()

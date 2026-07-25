@@ -5,8 +5,9 @@ import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { extractAudioMeta } from '#server/utils/audioMeta'
 import { generateLearningContent, generateTitle } from '#server/utils/aiContent'
 import { textToSpeech } from '#server/utils/tts'
-import { uploadWithKey } from '#server/utils/oss'
+import { uploadWithKey, deleteObject } from '#server/utils/oss'
 import { withTransaction, pool } from '#server/utils/db'
+import { mapWithConcurrency } from '#server/utils/concurrency'
 import {
   validateError,
   validateSuccess,
@@ -15,6 +16,7 @@ import {
 } from '#server/utils/validate'
 import type { UploadMaterialResult } from '#shared/types/material'
 import type { ResultSetHeader } from 'mysql2'
+import { isAdminOrAbove } from '#shared/utils/role'
 
 // ============ 音频限制 ============
 const USER_MAX_DURATION = 180 // 3 分钟
@@ -83,8 +85,8 @@ export default defineEventHandler(
     const unitIdRaw = formData.get('unitId') as string | null
     const audioFile = formData.get('audio') as File | null
 
-    // 2. 角色判断
-    const isAdmin = user.role === 1
+    // 2. 角色判断（管理员 / 超管享受管理员上传档：更长时长、可指定单元）
+    const isAdmin = isAdminOrAbove(user.role)
     const finalUnitId = isAdmin && unitIdRaw ? Number(unitIdRaw) : 0
 
     // 3. Zod 校验
@@ -214,8 +216,11 @@ export default defineEventHandler(
       segmentMediaId,
     ])
 
-    // ===== Step 4: AI 内容生成 =====
-    const aiResult = await generateLearningContent(textContent)
+    // ===== Step 4: AI 内容生成 + 标题生成（并行，二者仅依赖 textContent 且互不依赖） =====
+    const [aiResult, titleResult] = await Promise.all([
+      generateLearningContent(textContent),
+      generateTitle(textContent),
+    ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
       await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
       await updateRecordFailed(recordId, 'AI 内容生成失败')
@@ -226,8 +231,6 @@ export default defineEventHandler(
     const vocabulary: NonNullable<typeof aiResult.vocabulary> = aiResult.vocabulary
     const questions: NonNullable<typeof aiResult.questions> = aiResult.questions
 
-    // ===== Step 5: 词汇 TTS + 全部入库（事务） =====
-    const titleResult = await generateTitle(textContent)
     let title: string
     if (titleResult.success && titleResult.title) {
       title = titleResult.title
@@ -236,10 +239,29 @@ export default defineEventHandler(
       title = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
     }
 
+    // ===== Step 5: 词汇音频（TTS + OSS）——事务外受限并发预生成 =====
+    // 关键：TTS(WebSocket) 与 OSS 上传是耗时网络 I/O，绝不能放在事务内，否则单条上传会
+    // 长时间占用连接池连接（connectionLimit=10），高并发下打满连接池、阻塞所有 DB 请求。
+    // 此处并发受限（最多 4）预生成；词汇音频失败（TTS 或 OSS 任一失败）则 media=null，
+    // 不影响整体入库（保留原「词汇音频失败不影响整体」语义）。
+    const vocabAudios = await mapWithConcurrency(vocabulary, 4, async (vocab) => {
+      const vocabTts = await textToSpeech(vocab.word)
+      if (!vocabTts.success || !vocabTts.audio) return { vocab, media: null }
+      const vocabKey = `audio/vocab/${randomUUID()}.mp3`
+      try {
+        await uploadWithKey(vocabTts.audio, vocabKey)
+      } catch {
+        // 词汇音频上传失败不影响整体
+        return { vocab, media: null }
+      }
+      return { vocab, media: { key: vocabKey, size: vocabTts.audio.length } }
+    })
+
+    // ===== Step 6: 全部入库（短事务，仅纯 DB 写，不含任何网络 I/O） =====
     let segmentId: number
     try {
       segmentId = await withTransaction(async (conn) => {
-        // 5a. 插入 segment
+        // 6a. 插入 segment
         const [segRes] = await conn.execute<ResultSetHeader>(
           `INSERT INTO segment (unit_id, title, textContent, translation, questions, is_public, media_id, sort_order)
          VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
@@ -255,25 +277,15 @@ export default defineEventHandler(
         )
         const newSegmentId = segRes.insertId
 
-        // 5b. 插入 vocabulary + 词汇音频
+        // 6b. 插入 vocabulary + 词汇音频 media（音频已在事务外生成好，此处仅纯 DB 写）
         let vocabIndex = 0
-        for (const vocab of vocabulary) {
-          // TTS 生成词汇音频
+        for (const { vocab, media } of vocabAudios) {
           let vocabMediaId: number | null = null
-          const vocabTts = await textToSpeech(vocab.word)
-
-          if (vocabTts.success && vocabTts.audio) {
-            const vocabKey = `audio/vocab/${randomUUID()}.mp3`
-            try {
-              await uploadWithKey(vocabTts.audio, vocabKey)
-            } catch {
-              // 词汇音频上传失败不影响整体，跳过
-            }
-
+          if (media) {
             const [vmRes] = await conn.execute<ResultSetHeader>(
               `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, mime_type, size_bytes, duration, status)
              VALUES (NULL, 'vocab_audio', 'oss', ?, ?, 'audio/mpeg', ?, 0, 1)`,
-              [bucket, vocabKey, vocabTts.audio.length],
+              [bucket, media.key, media.size],
             )
             vocabMediaId = vmRes.insertId
           }
@@ -301,6 +313,11 @@ export default defineEventHandler(
       logger.error('[material upload] 事务失败:', err)
       await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
       await updateRecordFailed(recordId, '入库失败')
+      // 事务失败：清理已上传但未成功入库的 OSS 对象（主音频 + 词汇音频），避免孤儿文件（best-effort）
+      void deleteObject(ossKey)
+      for (const { media } of vocabAudios) {
+        if (media) void deleteObject(media.key)
+      }
       return validateError('入库失败，请稍后重试', 500)
     }
 

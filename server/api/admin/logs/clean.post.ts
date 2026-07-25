@@ -3,7 +3,8 @@ import type { ResultSetHeader } from 'mysql2'
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import { z } from 'zod'
 
 /** 表名白名单（防注入） */
@@ -23,10 +24,9 @@ const cleanSchema = z.object({
  * POST /api/admin/logs/clean  { table: 'api_call_log', days: 90 }
  */
 export default defineEventHandler(async (event) => {
+  const err = ensurePermission(event, PERMISSIONS.VIEW_LOGS)
+  if (err) return err
   const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
 
   const body = await readBody(event)
   const parsed = cleanSchema.safeParse(body)

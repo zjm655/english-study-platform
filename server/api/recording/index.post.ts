@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { withTransaction } from '#server/utils/db'
-import { uploadWithKey, signUrl, RECORDING_EXPIRE } from '#server/utils/oss'
+import { uploadWithKey, signUrl, deleteObject, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
 
 import type { RecordingRow } from '#server/types/db'
@@ -145,6 +145,8 @@ export default defineEventHandler(
       })
     } catch (err) {
       logger.error('[recording upload] 事务失败:', err)
+      // 先传 OSS 后写库，事务失败则删除已上传对象，避免 OSS 孤儿文件（best-effort）
+      void deleteObject(ossKey)
       return validateError('上传失败，请稍后重试', 500)
     }
 

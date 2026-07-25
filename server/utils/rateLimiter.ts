@@ -43,13 +43,27 @@ const DEFAULT_CONFIG: RateLimitConfig = {
 const ROUTE_CONFIGS: Record<string, RateLimitConfig> = {
   '/api/evaluation/auth': { windowMs: 60_000, maxRequests: 10 }, // 评测鉴权 10次/分钟
   '/api/admin': { windowMs: 60_000, maxRequests: 120 }, // 管理后台 120次/分钟
+  '/api/oss/playback': { windowMs: 60_000, maxRequests: 300 }, // OSS 播放埋点：高频播放，宽松桶避免误伤
 }
+
+/** 登录/注册专用严格限流路径：防暴力破解 / 灌水，独立于全局 enabled 开关 */
+const AUTH_PATHS = new Set(['/api/user/login', '/api/user/register'])
+/** 登录/注册限流配置：10 次/分钟/IP */
+const AUTH_CONFIG: RateLimitConfig = { windowMs: 60_000, maxRequests: 10 }
 
 /** IP -> 时间戳数组 */
 const windowMap = new Map<string, number[]>()
 
 /** 最大跟踪 IP 数（防止内存无限增长） */
 const MAX_ENTRIES = 10_000
+
+/** 达到容量上限时淘汰最旧插入的键（FIFO 近似 LRU），而非拒绝新键——避免 IP 泛洪时误伤正常用户 */
+function evictOldestIfFull(): void {
+  if (windowMap.size >= MAX_ENTRIES) {
+    const oldestKey = windowMap.keys().next().value
+    if (oldestKey !== undefined) windowMap.delete(oldestKey)
+  }
+}
 
 /** 定时清理间隔（每 5 分钟清理一次过期 IP） */
 const CLEANUP_INTERVAL_MS = 5 * 60_000
@@ -73,12 +87,26 @@ function isUploadPath(path: string): boolean {
   return path === '/api/segment/upload' || path === '/api/admin/segment/upload'
 }
 
+/** 限流键与档位匹配统一按 pathname（strip query）：
+ *  防止随机 query 制造无限新桶绕过滑窗限流，并挤爆 windowMap 误伤正常用户 */
+function stripQuery(path: string): string {
+  const i = path.indexOf('?')
+  return i === -1 ? path : path.slice(0, i)
+}
+
+/** 判断是否为登录/注册路径（专用严格限流，独立于全局开关） */
+function isAuthPath(path: string): boolean {
+  return AUTH_PATHS.has(path)
+}
+
 /** 获取路径对应的限流配置。上传路径使用动态配置（rate_limit_upload_*） */
 function getConfig(path: string, cfg: RateLimitSwitches): RateLimitConfig {
   // 上传路径：使用动态配置（独立于全局限流开关）
   if (isUploadPath(path)) {
     return { windowMs: cfg.uploadWindow * 1000, maxRequests: cfg.uploadMax }
   }
+  // 登录/注册：专用严格档
+  if (isAuthPath(path)) return AUTH_CONFIG
   // 精确匹配优先
   if (ROUTE_CONFIGS[path]) return ROUTE_CONFIGS[path]!
   // 前缀匹配（如 /api/admin/*）
@@ -133,9 +161,13 @@ export function invalidateRateLimitCache(): void {
  * @returns 是否允许 + 重试等待秒数
  */
 export function checkRateLimit(ip: string, path: string, cfg: RateLimitSwitches): RateLimitResult {
+  // 限流口径按 endpoint（去 query）：event.path 含 query string
+  path = stripQuery(path)
   // 上传路径：独立开关，不受全局 enabled 影响
   if (isUploadPath(path)) {
     if (!cfg.uploadEnabled) return { allowed: true }
+  } else if (isAuthPath(path)) {
+    // 登录/注册：始终启用严格限流（防暴力破解），不受全局 enabled/ipLevel 影响
   } else {
     // 非上传路径：受全局 enabled + ipLevel 控制
     if (!cfg.enabled || !cfg.ipLevel) return { allowed: true }
@@ -151,10 +183,8 @@ export function checkRateLimit(ip: string, path: string, cfg: RateLimitSwitches)
   // 获取或创建该键的时间戳数组
   let timestamps = windowMap.get(key)
   if (!timestamps) {
-    // 超过上限时拒绝新键（防止内存无限增长），已有键不受影响
-    if (windowMap.size >= MAX_ENTRIES) {
-      return { allowed: false, retryAfter: 60 }
-    }
+    // 容量上限保护：淘汰最旧键而非拒绝新键（避免 IP 泛洪时误伤正常用户）
+    evictOldestIfFull()
     timestamps = []
     windowMap.set(key, timestamps)
   }
@@ -194,9 +224,13 @@ export function checkUserRateLimit(
   userId: number,
   cfg: RateLimitSwitches,
 ): RateLimitResult {
+  // 限流口径按 endpoint（去 query）：event.path 含 query string
+  path = stripQuery(path)
   // 上传路径：独立开关，不受全局 enabled 影响
   if (isUploadPath(path)) {
     if (!cfg.uploadEnabled) return { allowed: true }
+  } else if (isAuthPath(path)) {
+    // 登录/注册：始终启用严格限流（防暴力破解），不受全局 enabled/userLevel 影响
   } else {
     // 非上传路径：受全局 enabled + userLevel 控制
     if (!cfg.enabled || !cfg.userLevel) return { allowed: true }
@@ -212,10 +246,8 @@ export function checkUserRateLimit(
   // 获取或创建该键的时间戳数组
   let timestamps = windowMap.get(key)
   if (!timestamps) {
-    // 超过上限时拒绝新键（防止内存无限增长），已有键不受影响
-    if (windowMap.size >= MAX_ENTRIES) {
-      return { allowed: false, retryAfter: 60 }
-    }
+    // 容量上限保护：淘汰最旧键而非拒绝新键（避免 IP 泛洪时误伤正常用户）
+    evictOldestIfFull()
     timestamps = []
     windowMap.set(key, timestamps)
   }

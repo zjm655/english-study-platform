@@ -4,17 +4,16 @@ import {
   validateSuccess,
   validateError,
 } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 
 /**
  * 管理员操作日志列表（统一日志管理子页）
  * GET /api/admin/logs/operation
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.VIEW_LOGS)
+  if (err) return err
 
   const parsed = adminOperationLogListSchemaV2.safeParse(getQuery(event))
   if (!parsed.success) {

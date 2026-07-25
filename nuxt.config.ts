@@ -6,6 +6,10 @@ export default defineNuxtConfig({
   app: {
     head: {
       script: [
+        // 评测 SDK（368KB）：必须全局 head + defer，且**不可**改为 bodyClose/按需动态注入——
+        // 它是 Emscripten 产物，用 `typeof process === 'object'` 判断 Node 环境；若排在 Nuxt entry
+        // 之后执行，entry 已注入 window.process 垫片，SDK 会误判为 Node 走 require("fs") 直接报错。
+        // head + defer 保证它按文档顺序先于 entry 执行（就绪判定由 ensureSDKLoaded 轮询完成）
         { src: '/sdk/engine.js', defer: true },
         // 防闪烁脚本：页面渲染前设置 data-theme，避免深色模式下白屏闪烁
         {
@@ -14,6 +18,10 @@ export default defineNuxtConfig({
         },
       ],
     },
+  },
+  // 管理后台无 SEO 需求且是水合不匹配重灾区，整体关闭 SSR（纯 CSR）
+  routeRules: {
+    '/admin/**': { ssr: false },
   },
   runtimeConfig: {
     public: {
@@ -56,6 +64,14 @@ export default defineNuxtConfig({
     bss: {
       accessKeyId: '',
       accessKeySecret: '',
+    },
+    // 启动期自举全局唯一超级管理员（env 注入；account/password 皆空则不启用）
+    superAdmin: {
+      account: '',
+      password: '',
+      nickname: '',
+      email: '',
+      forceReplace: false,
     },
   },
   modules: ['@element-plus/nuxt', '@pinia/nuxt'],

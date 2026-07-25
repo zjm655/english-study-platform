@@ -1,6 +1,7 @@
 import { query } from '#server/utils/db'
 import { adminUserListSchema, validateSuccess, validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type { AdminUserListItem, AdminUserListResult } from '#shared/types/adminUser'
 
 /**
@@ -9,10 +10,8 @@ import type { AdminUserListItem, AdminUserListResult } from '#shared/types/admin
  */
 export default defineEventHandler(async (event) => {
   // 纵深防御：中间件已对 /api/admin/* 做管理员门禁，此处再校验一次
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_USERS)
+  if (err) return err
 
   const parsed = adminUserListSchema.safeParse(getQuery(event))
   if (!parsed.success) {

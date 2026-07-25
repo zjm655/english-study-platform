@@ -26,6 +26,7 @@ export const useUpdateMaterialRecord = () => {
     clientFail: '更新失败',
     serverFail: '服务器异常',
     error: '网络异常',
+    notify: 'all',
   })
   return useHandleRes(cfg)
 }
@@ -37,6 +38,7 @@ export const useDeleteMaterialRecord = () => {
     clientFail: '删除失败',
     serverFail: '服务器异常',
     error: '网络异常',
+    notify: 'all',
   })
   return useHandleRes(cfg)
 }

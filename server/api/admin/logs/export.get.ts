@@ -1,13 +1,16 @@
 import { query } from '#server/utils/db'
 import { validateError } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
+import type { PermissionKey } from '#shared/utils/permission'
 import { z } from 'zod'
 
-/** 表名白名单（防注入） */
-const TABLE_WHITELIST: Record<string, string> = {
-  api_call_log: 'api_call_log',
-  cloud_service_call_log: 'cloud_service_call_log',
-  admin_operation_log: 'admin_operation_log',
+/** 表名白名单（防注入）→ 导出所需权限：常规日志表 VIEW_LOGS；审核留痕为审计数据，需 VIEW_AUDIT */
+const TABLE_WHITELIST: Record<string, PermissionKey> = {
+  api_call_log: PERMISSIONS.VIEW_LOGS,
+  cloud_service_call_log: PERMISSIONS.VIEW_LOGS,
+  admin_operation_log: PERMISSIONS.VIEW_LOGS,
+  review_access_log: PERMISSIONS.VIEW_AUDIT,
 }
 
 const exportSchema = z.object({
@@ -21,21 +24,23 @@ const exportSchema = z.object({
  * GET /api/admin/logs/export?table=api_call_log&startDate=2026-07-01&endDate=2026-07-21
  */
 export default defineEventHandler(async (event) => {
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
-
   const parsed = exportSchema.safeParse(getQuery(event))
   if (!parsed.success) {
     return validateError(parsed.error.issues[0]?.message ?? '参数校验失败', 400)
   }
   const { table, startDate, endDate } = parsed.data
 
-  const safeTable = TABLE_WHITELIST[table]
-  if (!safeTable) {
-    return validateError('不支持的表名，可选：api_call_log / cloud_service_call_log / admin_operation_log', 400)
+  const requiredPermission = TABLE_WHITELIST[table]
+  if (!requiredPermission) {
+    return validateError(
+      '不支持的表名，可选：api_call_log / cloud_service_call_log / admin_operation_log / review_access_log',
+      400,
+    )
   }
+  // 按表取所需权限再门禁：审核留痕表要求 view_audit，避免 VIEW_LOGS 持有者绕道导出审计数据
+  const err = ensurePermission(event, requiredPermission)
+  if (err) return err
+  const safeTable = table
 
   // 构建 WHERE
   const where: string[] = []
@@ -69,7 +74,10 @@ export default defineEventHandler(async (event) => {
       .map((h) => {
         const val = row[h]
         if (val === null || val === undefined) return ''
-        const str = typeof val === 'object' ? JSON.stringify(val) : String(val)
+        const raw = typeof val === 'object' ? JSON.stringify(val) : String(val)
+        // 防 CSV 公式注入：以 = + - @ 或制表符/回车开头的单元格前置单引号，
+        // 避免 Excel/WPS 把用户可控字段（account、api 路径等）当作公式执行（如 =HYPERLINK(...)）
+        const str = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
         // 含逗号/引号/换行的字段用双引号包裹
         return str.includes(',') || str.includes('"') || str.includes('\n')
           ? `"${str.replace(/"/g, '""')}"`

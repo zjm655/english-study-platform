@@ -3,6 +3,7 @@ import {
   getAdminMaterialRecordDetail,
   deleteAdminMaterialRecord,
   reprocessAdminMaterialRecord,
+  auditionAdminMaterialRecord,
 } from '~/api/admin/materialRecord'
 import type {
   AdminMaterialRecordListQuery,
@@ -10,6 +11,7 @@ import type {
   AdminMaterialRecordDetail,
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
+import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
 
 /** 管理员上传记录列表 */
 export const useAdminMaterialRecordList = () => {
@@ -55,6 +57,18 @@ export const useReprocessAdminMaterialRecord = () => {
     clientFail: '重处理失败',
     serverFail: '服务器异常',
     error: '网络异常',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 审核门禁：上传记录试听解锁（填理由→留痕→签名） */
+export const useAuditionMaterialRecord = () => {
+  const cfg = createResCfg<{ id: number; payload: AuditionPayload }, AuditionResult>({
+    handle: ({ id, payload }) => auditionAdminMaterialRecord(id, payload),
+    success: '',
+    clientFail: '解锁失败，请检查填写内容',
+    serverFail: '服务器异常，解锁失败',
+    error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)
 }

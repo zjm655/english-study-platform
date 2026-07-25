@@ -2,6 +2,8 @@
 import { Check } from '@element-plus/icons-vue'
 import { useUnitProgress } from '~/composables/unit'
 import { useFavorites } from '~/composables/useFavorites'
+import { useUserStore } from '~/store/useUserStore'
+import { unitsPath } from '~/api/paths'
 import type { UnitProgressDetail } from '#shared/types/unit'
 
 definePageMeta({
@@ -10,48 +12,93 @@ definePageMeta({
 
 const route = useRoute()
 const unitId = computed(() => Number(route.params.id))
+const userStore = useUserStore()
 
-const { isLoading, isLoadingMore, fetchUnitProgress, loadMore } = useUnitProgress()
+// 首屏走 useAsyncRes（SSR 直出，游客可浏览裁剪版）；失败静默降级页内空态，不弹 toast
+const {
+  data: detailRes,
+  pending,
+  error: fetchError,
+  refresh,
+} = useAsyncRes<UnitProgressDetail | null>(
+  () => `unit-progress-${unitId.value}`,
+  () => `${unitsPath}/${unitId.value}/progress`,
+)
+
+// 分页追加保留 useHandleRes silent 链路（无 SEO 价值不必 SSR）
+const { isLoadingMore, loadMore } = useUnitProgress()
 const { fetchFavSegments, isSegmentFav, toggleSegment, togglingSegment } = useFavorites()
 
-const unitData = ref<UnitProgressDetail['unit'] | null>(null)
-const segments = ref<UnitProgressDetail['segments']>([])
-const error = ref<string | null>(null)
+const unitData = computed(() => detailRes.value?.data?.unit ?? null)
 
-// 分页状态（服务端默认每页 10 条）
+// SEO：数据 SSR 期就绪，title/JSON-LD 直出真实单元信息（getter 兜底静态文案）
+useSeoMeta({
+  title: () => unitData.value?.title ?? '单元详情',
+  description: () =>
+    unitData.value?.description ??
+    '浏览单元内全部学习片段，逐个完成盲听、学习、配音、跟读四阶段训练。',
+})
+useJsonLd(() =>
+  learningResourceSchema({
+    name: unitData.value?.title ?? '英语听说训练单元',
+    description:
+      unitData.value?.description ?? '包含盲听、学习、配音、影子跟读四阶段训练的英语学习单元。',
+  }),
+)
+
+// 分页状态：首屏来自 useAsyncRes，loadMore 追加页存本地（跨单元导航时重置）
+const extraSegments = ref<UnitProgressDetail['segments']>([])
 const page = ref(1)
-const hasMore = ref(true)
+const extraHasMore = ref<boolean | null>(null)
 const sentinelRef = ref<HTMLElement | null>(null)
+
+const segments = computed(() => [
+  ...(detailRes.value?.data?.segments ?? []),
+  ...extraSegments.value,
+])
+const hasMore = computed(
+  () => extraHasMore.value ?? detailRes.value?.data?.pagination.hasMore ?? false,
+)
+
+// 错误归一：网络/超时（error ref）与业务失败（code!==200，如 404）统一页内展示
+const error = computed(() => {
+  if (fetchError.value) return '加载失败，请检查网络'
+  const payload = detailRes.value
+  if (payload && payload.code !== 200) return payload.message || '加载失败'
+  return null
+})
+
+const isLoading = computed(() => pending.value && !detailRes.value)
 
 let scrollObserver: IntersectionObserver | null = null
 
-async function loadData() {
-  error.value = null
+// 跨单元导航（组件复用不重挂）：重置本地分页状态，响应式 key 自动重取首屏
+watch(unitId, () => {
+  extraSegments.value = []
   page.value = 1
-  hasMore.value = true
-  const res = await fetchUnitProgress(unitId.value)
-  if (res?.code === 200 && res.data) {
-    unitData.value = res.data.unit
-    segments.value = res.data.segments
-    hasMore.value = res.data.pagination.hasMore
-  } else {
-    error.value = res?.message || '加载失败'
-  }
+  extraHasMore.value = null
+})
+
+async function retry() {
+  extraSegments.value = []
+  page.value = 1
+  extraHasMore.value = null
+  await refresh()
 }
 
 async function loadMoreSegments() {
   if (!hasMore.value || isLoadingMore.value) return
   const res = await loadMore(unitId.value, page.value + 1)
   if (res?.code === 200 && res.data) {
-    segments.value.push(...res.data.segments)
+    extraSegments.value.push(...res.data.segments)
     page.value++
-    hasMore.value = res.data.pagination.hasMore
+    extraHasMore.value = res.data.pagination.hasMore
   }
 }
 
 onMounted(() => {
-  loadData()
-  fetchFavSegments()
+  // 收藏是登录态数据：游客不发（避免 401 → resolveCode 弹 /login）
+  if (userStore.isLogin) fetchFavSegments()
 
   scrollObserver = new IntersectionObserver(
     (entries) => {
@@ -96,7 +143,7 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
     <!-- Error -->
     <div v-else-if="error" class="error-container">
       <div class="error-text">{{ error }}</div>
-      <button class="retry-btn" @click="loadData">重试</button>
+      <button class="retry-btn" @click="retry">重试</button>
     </div>
 
     <!-- Empty -->
@@ -142,6 +189,7 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
           </NuxtLink>
 
           <button
+            v-if="userStore.isLogin"
             class="segment-fav-btn"
             :class="{ 'segment-fav-btn--active': isSegmentFav(segment.id) }"
             :disabled="togglingSegment === segment.id"

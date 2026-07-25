@@ -4,7 +4,9 @@ import {
   validateSuccess,
   validateError,
 } from '#server/utils/validate'
-import { ROLE_ADMIN } from '#shared/utils/role'
+import { ROLE_ADMIN, isAdminOrAbove } from '#shared/utils/role'
+import { ensurePermission } from '#server/utils/permission'
+import { PERMISSIONS } from '#shared/utils/permission'
 import type {
   AdminMaterialRecordListItem,
   AdminMaterialRecordListResult,
@@ -16,10 +18,8 @@ import type {
  */
 export default defineEventHandler(async (event) => {
   // 纵深防御
-  const user = event.context.user
-  if (!user || user.role !== ROLE_ADMIN) {
-    return validateError('无管理员权限', 403)
-  }
+  const err = ensurePermission(event, PERMISSIONS.MANAGE_MATERIALS)
+  if (err) return err
 
   const parsed = adminMaterialRecordListSchema.safeParse(getQuery(event))
   if (!parsed.success) {
@@ -38,13 +38,13 @@ export default defineEventHandler(async (event) => {
     listParams.push(status)
     countParams.push(status)
   }
-  // source 筛选：按 user.role 过滤
+  // source 筛选：按 user.role 过滤（管理员/超管均计入 admin 侧，role >= ROLE_ADMIN）
   if (source === 'user') {
-    where.push('u.role IS NOT NULL AND u.role != ?')
+    where.push('u.role IS NOT NULL AND u.role < ?')
     listParams.push(ROLE_ADMIN)
     countParams.push(ROLE_ADMIN)
   } else if (source === 'admin') {
-    where.push('u.role = ?')
+    where.push('u.role >= ?')
     listParams.push(ROLE_ADMIN)
     countParams.push(ROLE_ADMIN)
   }
@@ -96,7 +96,7 @@ export default defineEventHandler(async (event) => {
     segment_id: row.segment_id,
     is_public: row.is_public,
     username: row.username,
-    source: row.role === ROLE_ADMIN ? 'admin' : 'user',
+    source: isAdminOrAbove(row.role) ? 'admin' : 'user',
     createdAt: row.createdAt,
   }))
 

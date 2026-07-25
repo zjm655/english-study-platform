@@ -9,6 +9,7 @@
 // 性能保证：afterResponse 中仅做纯内存取值 + fire-and-forget 调用，对请求延迟零影响。
 import { logApiCall, flushApiCallLog } from '#server/utils/apiCallLog'
 import { flushCloudServiceLog } from '#server/utils/cloudServiceLog'
+import { flushOssPlaybackLog } from '#server/utils/ossPlaybackLog'
 import { checkRateLimit, getRateLimitConfig } from '#server/utils/rateLimiter'
 export default defineNitroPlugin((nitroApp) => {
   // 请求进入（中间件链之前）：限流检查 + 打时间戳
@@ -54,6 +55,8 @@ export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('afterResponse', (event) => {
     const start = event.context._apiLogStart as number | undefined
     if (!start) return
+    // OSS 播放埋点端点自身不写 api_call_log：否则每次播放都自记录，放大埋点表并污染统计
+    if (event.path === '/api/oss/playback') return
     logApiCall({
       path: event.path.slice(0, 200),
       routePattern: event.context.matchedRoute?.path ?? null,
@@ -70,5 +73,6 @@ export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('close', async () => {
     await flushApiCallLog()
     await flushCloudServiceLog()
+    await flushOssPlaybackLog()
   })
 })

@@ -1,5 +1,6 @@
 import { useAudioStore } from '~/store/useAudioStore'
 import type { Howl } from 'howler'
+import { reportOssPlayback } from '~/api/oss'
 
 // 顶层单例，不响应式
 let howl: Howl | null = null
@@ -63,6 +64,12 @@ export function useAudioPlayer() {
     // 应用已有的播放速度和音量
     howl.rate(store.playbackRate)
     howl.volume(store.volume)
+
+    // OSS 外网播放埋点：仅当播放源为 OSS 签名 URL（aliyuncs.com）时上报一次。
+    // 外网下行是 OSS 唯一实际计费项；本地 blob / 非 OSS 源被跳过。fire-and-forget，不阻塞。
+    if (src.includes('aliyuncs.com')) {
+      void reportOssPlayback()
+    }
   }
 
   // 播放

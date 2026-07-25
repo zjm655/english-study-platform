@@ -2,7 +2,8 @@ import { SignJWT, jwtVerify } from 'jose'
 import type { JwtPayload } from '#server/types/jwtPayload'
 
 // 获取运行时环境里面的jwt密钥，并转换为字符串数组的形式(因为jose生成token要求array string)
-function getSecret() {
+// 导出以便验证码工具（captcha.ts）复用同一密钥签发/校验无状态 token
+export function getSecret() {
   return new TextEncoder().encode(useRuntimeConfig().jwtSecret)
 }
 

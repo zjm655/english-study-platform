@@ -9,6 +9,7 @@ export function createResCfg<Payload, Res>({
   clientFail,
   serverFail,
   error,
+  notify,
   handle,
 }: FlatResCfg<Payload, Res>): CommonReqCfg<Payload, Res> {
   return {
@@ -18,6 +19,7 @@ export function createResCfg<Payload, Res>({
       serverFail: serverFail ?? '服务器错误',
       error: error ?? '未知错误',
     },
+    notify,
     handle,
   }
 }

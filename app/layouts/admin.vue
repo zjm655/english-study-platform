@@ -8,27 +8,29 @@
       </div>
 
       <el-menu :default-active="activeMenu" router class="admin-menu">
-        <el-sub-menu index="/admin/material">
+        <el-menu-item index="/admin">
+          <el-icon><HomeFilled /></el-icon>
+          <span>首页</span>
+        </el-menu-item>
+        <el-sub-menu v-if="can(PERMISSIONS.MANAGE_MATERIALS)" index="/admin/material">
           <template #title>
             <el-icon><Document /></el-icon>
             <span>材料管理</span>
           </template>
           <el-menu-item index="/admin/material">材料列表</el-menu-item>
+          <el-menu-item index="/admin/unit">单元列表</el-menu-item>
           <el-menu-item index="/admin/material/upload">材料上传</el-menu-item>
           <el-menu-item index="/admin/material/records">上传记录</el-menu-item>
         </el-sub-menu>
-        <el-sub-menu index="/admin/users">
-          <template #title>
-            <el-icon><User /></el-icon>
-            <span>用户管理</span>
-          </template>
-          <el-menu-item index="/admin/users">用户列表</el-menu-item>
-        </el-sub-menu>
-        <el-menu-item index="/admin/stats">
+        <el-menu-item v-if="can(PERMISSIONS.MANAGE_USERS)" index="/admin/users">
+          <el-icon><User /></el-icon>
+          <span>用户管理</span>
+        </el-menu-item>
+        <el-menu-item v-if="can(PERMISSIONS.VIEW_STATS)" index="/admin/stats">
           <el-icon><DataAnalysis /></el-icon>
           <span>运营统计</span>
         </el-menu-item>
-        <el-sub-menu index="/admin/cloud">
+        <el-sub-menu v-if="can(PERMISSIONS.VIEW_STATS)" index="/admin/cloud">
           <template #title>
             <el-icon><Cloudy /></el-icon>
             <span>阿里云服务</span>
@@ -38,20 +40,32 @@
           <el-menu-item index="/admin/cloud/edu">智能科教平台</el-menu-item>
           <el-menu-item index="/admin/cloud/bss">BSS 费用中心</el-menu-item>
         </el-sub-menu>
-        <el-menu-item index="/admin/cloud/deepseek">
+        <el-menu-item v-if="can(PERMISSIONS.VIEW_STATS)" index="/admin/cloud/deepseek">
           <el-icon><MagicStick /></el-icon>
           <span>DeepSeek</span>
         </el-menu-item>
-        <el-sub-menu index="/admin/logs">
+        <el-sub-menu
+          v-if="can(PERMISSIONS.VIEW_LOGS) || can(PERMISSIONS.VIEW_AUDIT)"
+          index="/admin/logs"
+        >
           <template #title>
             <el-icon><Notebook /></el-icon>
             <span>日志管理</span>
           </template>
-          <el-menu-item index="/admin/logs/api-call">API 调用日志</el-menu-item>
-          <el-menu-item index="/admin/logs/cloud-service">云服务日志</el-menu-item>
-          <el-menu-item index="/admin/logs/operation">操作日志</el-menu-item>
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/api-call"
+            >API 调用日志</el-menu-item
+          >
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/cloud-service"
+            >云服务日志</el-menu-item
+          >
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/operation"
+            >操作日志</el-menu-item
+          >
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_AUDIT)" index="/admin/logs/review-access"
+            >审核留痕</el-menu-item
+          >
         </el-sub-menu>
-        <el-menu-item index="/admin/config">
+        <el-menu-item v-if="can(PERMISSIONS.CONFIG)" index="/admin/config">
           <el-icon><Setting /></el-icon>
           <span>系统配置</span>
         </el-menu-item>
@@ -81,7 +95,12 @@ import {
   DataAnalysis,
   Notebook,
   Setting,
+  HomeFilled,
 } from '@element-plus/icons-vue'
+import { usePermission } from '~/composables/user'
+import { PERMISSIONS } from '#shared/utils/permission'
+
+const { can } = usePermission()
 
 const { init: initTheme } = useTheme()
 

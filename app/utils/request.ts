@@ -6,6 +6,7 @@ const _request = createFetch()
 
 const DEFAULT_TIMEOUT = 5000
 const FILE_TIMEOUT = 30000
+const SLOW_TIMEOUT = 20000
 
 /** 通用请求（向后兼容，现有 JSON 调用无需改动） */
 export const request = Object.assign(
@@ -29,6 +30,14 @@ export const request = Object.assign(
     file<T>(path: string, options?: Record<string, unknown>) {
       return _request<ResPayload<T>>(path, {
         signal: AbortSignal.timeout(FILE_TIMEOUT),
+        ...options,
+      })
+    },
+
+    /** 慢请求：20s 超时，用于统计聚合 / 云服务查询等耗时读接口，避免默认 5s 误中断 */
+    slow<T>(path: string, options?: Record<string, unknown>) {
+      return _request<ResPayload<T>>(path, {
+        signal: AbortSignal.timeout(SLOW_TIMEOUT),
         ...options,
       })
     },

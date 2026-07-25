@@ -13,6 +13,11 @@ definePageMeta({
   title: '片段学习',
 })
 
+useSeoMeta({
+  title: '片段学习',
+  description: '完成当前片段的盲听选择题、原文精学、AI 配音评分与影子跟读四阶段训练。',
+})
+
 const route = useRoute()
 const segId = computed(() => Number(route.params.segId))
 const unitId = computed(() => Number(route.params.id))
