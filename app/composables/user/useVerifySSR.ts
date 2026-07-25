@@ -33,7 +33,7 @@ export async function useVerifySSR(): Promise<void> {
     // 没有 .raw/.create 方法，调用会直接 TypeError；改用 onResponse 拦截器拿响应头
     const payload = await requestFetch<ResPayload<LoginResPayload>>(userVerifyPath, {
       signal: AbortSignal.timeout(5000),
-      onResponse({ response }) {
+      onResponse({ response }: { response: Response }) {
         // 续期透传（必做）：token 滑动续期只发生在 verify handler，其 setCookie
         // 落在内部子请求 event 上不会到达浏览器；不透传则续期链路彻底断裂
         if (!event) return

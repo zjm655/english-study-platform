@@ -101,7 +101,9 @@ export function useSpeechEvaluation() {
     if (!data) return null
     if (data instanceof Blob) return data
     if (data instanceof ArrayBuffer) return data
-    if (ArrayBuffer.isView(data)) return data as ArrayBufferView
+    // 新版 TS 中 isView 窄化为 ArrayBufferView<ArrayBufferLike>（含 SharedArrayBuffer），与 BlobPart 不兼容；
+    // SDK 回调实际不会产出 SharedArrayBuffer 视图，直接断言为 BlobPart
+    if (ArrayBuffer.isView(data)) return data as BlobPart
     if (typeof data === 'string') {
       // 可能是 base64 字符串
       try {
