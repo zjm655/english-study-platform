@@ -94,7 +94,9 @@ onMounted(() => {
       <!-- 顶部问候 -->
       <div class="greeting-section">
         <div class="greeting-text">
-          <ClientOnly> {{ greeting }}，{{ user?.nickname || '学习者' }} </ClientOnly>
+          <!-- greeting 依赖浏览器本地时间保留 ClientOnly（fallback 占位防跳动）；nickname 已由 SSR verify 直出 -->
+          <ClientOnly>{{ greeting }}<template #fallback>你好</template></ClientOnly
+          >，{{ user?.nickname || '学习者' }}
         </div>
         <div v-if="checkinStats?.currentStreakDays" class="streak-badge">
           <el-icon><Sunny /></el-icon>

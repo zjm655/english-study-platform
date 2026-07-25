@@ -1,102 +1,101 @@
 <template>
   <div class="profile-page">
-    <ClientOnly>
-      <!-- 未登录状态 -->
-      <div v-if="!isLogin" class="not-login">
-        <el-icon :size="64" class="not-login__icon"><UserFilled /></el-icon>
-        <p class="not-login__text">登录后查看更多功能</p>
-        <NuxtLink to="/login">
-          <el-button type="primary">去登录</el-button>
-        </NuxtLink>
+    <!-- 登录态由 authVerify.server 插件在 SSR 期写入 store，本页可直接 SSR 直出，无需 ClientOnly -->
+    <!-- 未登录状态 -->
+    <div v-if="!isLogin" class="not-login">
+      <el-icon :size="64" class="not-login__icon"><UserFilled /></el-icon>
+      <p class="not-login__text">登录后查看更多功能</p>
+      <NuxtLink to="/login">
+        <el-button type="primary">去登录</el-button>
+      </NuxtLink>
+    </div>
+
+    <!-- 已登录状态 -->
+    <template v-else>
+      <!-- 用户信息卡片 -->
+      <div class="user-card">
+        <div class="user-info">
+          <div class="avatar">
+            <el-avatar :size="64" :src="user?.avatarUrl ?? undefined">
+              <el-icon :size="32"><UserFilled /></el-icon>
+            </el-avatar>
+          </div>
+          <div class="user-details">
+            <div class="nickname">{{ user?.nickname || '未设置昵称' }}</div>
+            <div class="level-badge">
+              <el-tag :type="levelType" size="small">{{ levelText }}</el-tag>
+            </div>
+          </div>
+        </div>
+        <div class="user-stats">
+          <div class="stat-item">
+            <div class="stat-value">{{ checkinStats?.currentStreakDays ?? 0 }}</div>
+            <div class="stat-label">连续学习</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">
+              {{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}
+            </div>
+            <div class="stat-label">累计学习</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">{{ userStats?.completedSegments ?? 0 }}</div>
+            <div class="stat-label">已完成片段</div>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <div class="stat-value">
+              {{ userStats?.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--' }}
+            </div>
+            <div class="stat-label">配音平均分</div>
+          </div>
+        </div>
       </div>
 
-      <!-- 已登录状态 -->
-      <template v-else>
-        <!-- 用户信息卡片 -->
-        <div class="user-card">
-          <div class="user-info">
-            <div class="avatar">
-              <el-avatar :size="64" :src="user?.avatarUrl ?? undefined">
-                <el-icon :size="32"><UserFilled /></el-icon>
-              </el-avatar>
-            </div>
-            <div class="user-details">
-              <div class="nickname">{{ user?.nickname || '未设置昵称' }}</div>
-              <div class="level-badge">
-                <el-tag :type="levelType" size="small">{{ levelText }}</el-tag>
-              </div>
-            </div>
+      <!-- 设置菜单 -->
+      <div class="settings-section">
+        <div class="section-title">设置</div>
+        <div class="menu-list">
+          <div v-if="isAdmin" class="menu-item" @click="goAdmin">
+            <el-icon><Platform /></el-icon>
+            <span>管理员后台</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
-          <div class="user-stats">
-            <div class="stat-item">
-              <div class="stat-value">{{ checkinStats?.currentStreakDays ?? 0 }}</div>
-              <div class="stat-label">连续学习</div>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <div class="stat-value">
-                {{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}
-              </div>
-              <div class="stat-label">累计学习</div>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <div class="stat-value">{{ userStats?.completedSegments ?? 0 }}</div>
-              <div class="stat-label">已完成片段</div>
-            </div>
-            <div class="stat-divider"></div>
-            <div class="stat-item">
-              <div class="stat-value">
-                {{ userStats?.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--' }}
-              </div>
-              <div class="stat-label">配音平均分</div>
-            </div>
+          <div class="menu-item" @click="handleEditProfile">
+            <el-icon><Edit /></el-icon>
+            <span>编辑资料</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
+          <div class="menu-item" @click="handleLearningGoal">
+            <el-icon><TrophyBase /></el-icon>
+            <span>学习目标</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
+          <div class="menu-item" @click="handleNotification">
+            <el-icon><Bell /></el-icon>
+            <span>提醒设置</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
+          </div>
+          <div class="menu-item">
+            <el-icon><Moon /></el-icon>
+            <span>深色模式</span>
+            <el-switch v-model="isDarkMode" class="switch" />
+          </div>
+          <div class="menu-item" @click="handleAbout">
+            <el-icon><InfoFilled /></el-icon>
+            <span>关于我们</span>
+            <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
         </div>
+      </div>
 
-        <!-- 设置菜单 -->
-        <div class="settings-section">
-          <div class="section-title">设置</div>
-          <div class="menu-list">
-            <div v-if="isAdmin" class="menu-item" @click="goAdmin">
-              <el-icon><Platform /></el-icon>
-              <span>管理员后台</span>
-              <el-icon class="arrow"><ArrowRight /></el-icon>
-            </div>
-            <div class="menu-item" @click="handleEditProfile">
-              <el-icon><Edit /></el-icon>
-              <span>编辑资料</span>
-              <el-icon class="arrow"><ArrowRight /></el-icon>
-            </div>
-            <div class="menu-item" @click="handleLearningGoal">
-              <el-icon><TrophyBase /></el-icon>
-              <span>学习目标</span>
-              <el-icon class="arrow"><ArrowRight /></el-icon>
-            </div>
-            <div class="menu-item" @click="handleNotification">
-              <el-icon><Bell /></el-icon>
-              <span>提醒设置</span>
-              <el-icon class="arrow"><ArrowRight /></el-icon>
-            </div>
-            <div class="menu-item">
-              <el-icon><Moon /></el-icon>
-              <span>深色模式</span>
-              <el-switch v-model="isDarkMode" class="switch" />
-            </div>
-            <div class="menu-item" @click="handleAbout">
-              <el-icon><InfoFilled /></el-icon>
-              <span>关于我们</span>
-              <el-icon class="arrow"><ArrowRight /></el-icon>
-            </div>
-          </div>
-        </div>
-
-        <!-- 退出登录按钮 -->
-        <div class="logout-section">
-          <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
-        </div>
-      </template>
-    </ClientOnly>
+      <!-- 退出登录按钮 -->
+      <div class="logout-section">
+        <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -216,9 +215,8 @@ const handleLogout = async () => {
 
   const res = await doLogout()
   if (res?.code === 200) {
-    userStore.user = null
-    userStore.isLogin = false
-    // userStore.isVerify = false
+    // clearUser 内含 isVerify=false：登出后下次导航重新校验，避免 SSR 化后残留登录态
+    userStore.clearUser()
     navigateTo('/login')
   }
 }

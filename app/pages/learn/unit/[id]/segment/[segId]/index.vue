@@ -4,7 +4,6 @@ import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useStudyTimer } from '~/composables/user/useStudyTimer'
-import { preloadEngineScript } from '~/composables/evaluation/useSpeechEvaluation'
 import BlindListening from '~/components/phases/BlindListening.vue'
 import TextLearning from '~/components/phases/TextLearning.vue'
 import DubbingPractice from '~/components/phases/DubbingPractice.vue'
@@ -98,8 +97,6 @@ async function loadData() {
 
 onMounted(() => {
   loadData()
-  // 预注入评测 SDK（368KB，已从全局 head 移除）：进页即开始下载，Phase 3/4 评测入口体感不变
-  preloadEngineScript()
 })
 
 // 切换阶段（只允许跳转到已完成阶段或下一个待完成阶段）
