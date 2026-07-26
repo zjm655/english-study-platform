@@ -3,12 +3,14 @@ import {
   createAdminUnit,
   updateAdminUnit,
   deleteAdminUnit,
+  batchDeleteAdminUnits,
 } from '~/api/admin/unit'
 import type {
   AdminUnitListQuery,
   AdminUnitListResult,
   AdminUnitSavePayload,
 } from '#shared/types/adminUnit'
+import type { BatchResult } from '#shared/types/adminBatch'
 
 /** 管理员单元列表（服务端分页 + 筛选 + 搜索） */
 export const useAdminUnitList = () => {
@@ -53,6 +55,18 @@ export const useDeleteAdminUnit = () => {
     success: '删除成功',
     clientFail: '删除失败',
     serverFail: '服务器异常，删除失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员批量删除单元（软删除；成功文案由页面按 BatchResult 汇总） */
+export const useBatchDeleteAdminUnits = () => {
+  const cfg = createResCfg<number[], BatchResult>({
+    handle: batchDeleteAdminUnits,
+    success: '',
+    clientFail: '批量删除失败，请检查选中项',
+    serverFail: '服务器异常，批量删除失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

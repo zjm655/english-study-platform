@@ -43,7 +43,19 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="isLoading" :data="list" stripe row-key="id">
+      <AdminBatchBar :count="selectedRows.length" @clear="clear">
+        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+      </AdminBatchBar>
+
+      <el-table
+        ref="tableRef"
+        v-loading="isLoading"
+        :data="list"
+        stripe
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column type="selection" width="46" :selectable="(row: any) => row.id !== 0" />
         <el-table-column label="ID" width="90">
           <template #default="{ row }">
             <span class="unit-id">{{ row.id }}</span>
@@ -155,8 +167,10 @@ import {
   useCreateAdminUnit,
   useUpdateAdminUnit,
   useDeleteAdminUnit,
+  useBatchDeleteAdminUnits,
+  useTableSelection,
 } from '~/composables/admin'
-import { toastSuccess, toastConfirm } from '~/utils/popup'
+import { toastSuccess, toastConfirm, toastBatchResult } from '~/utils/popup'
 import type { AdminUnitListItem, AdminUnitListQuery } from '#shared/types/adminUnit'
 
 definePageMeta({
@@ -180,6 +194,11 @@ const { isLoading, execute: listExecute } = useAdminUnitList()
 const { isLoading: isCreating, execute: createExecute } = useCreateAdminUnit()
 const { isLoading: isUpdating, execute: updateExecute } = useUpdateAdminUnit()
 const { execute: deleteExecute } = useDeleteAdminUnit()
+const { execute: batchDeleteExecute } = useBatchDeleteAdminUnits()
+
+// 批量选择（id=0 系统保留单元经 :selectable 不可选，后端 skipped 双保险）
+const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
+  useTableSelection<AdminUnitListItem>()
 
 const isSaving = computed(() => isCreating.value || isUpdating.value)
 
@@ -306,6 +325,33 @@ async function handleDelete(row: AdminUnitListItem) {
     toastSuccess('删除成功')
     // 当前页删空且非首页时回退一页
     if (list.value.length === 1 && page.value > 1) page.value -= 1
+    loadList()
+  }
+}
+
+async function handleBatchDelete() {
+  const count = selectedRows.value.length
+  // 汇总选中单元的材料数总和，强提示影响面
+  const totalSegments = selectedRows.value.reduce((sum, row) => sum + row.segmentCount, 0)
+  const impact =
+    totalSegments > 0
+      ? `选中单元下共有 ${totalSegments} 篇材料，删除后将对学生不可见。`
+      : '删除后这些单元将对学生不可见。'
+  try {
+    await toastConfirm(`确定删除选中的 ${count} 个单元吗？${impact}`, '批量删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return // 用户取消
+  }
+  const res = await batchDeleteExecute(selectedIds.value)
+  if (res?.code === 200 && res.data) {
+    toastBatchResult(res.data)
+    clear()
+    // 当前页可能被删空且非首页时回退一页
+    if (list.value.length === count && page.value > 1) page.value -= 1
     loadList()
   }
 }

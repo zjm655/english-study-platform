@@ -1,4 +1,4 @@
-import { adminUserPath } from '../paths'
+import { adminUserPath, adminUserBatchPath } from '../paths'
 import type {
   AdminUserListQuery,
   AdminUserListResult,
@@ -14,6 +14,7 @@ import type {
   AdminOperationLogListQuery,
 } from '#shared/types/adminOperationLog'
 import type { AdminUserPermissionDetail, AuditionPayload } from '#shared/types/adminPermission'
+import type { AdminUserBatchPayload, BatchResult } from '#shared/types/adminBatch'
 
 /**
  * 管理员用户列表（服务端分页 + 搜索 + 状态筛选）。
@@ -49,6 +50,14 @@ export const updateAdminUserStatus = (id: number, status: number) => {
 export const deleteAdminUser = (id: number) => {
   return request.json<null>(`${adminUserPath}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+/** 管理员批量操作用户（ban=批量封禁 / unban=批量解封 / delete=批量销号，部分成功语义） */
+export const batchAdminUsers = (payload: AdminUserBatchPayload) => {
+  return request.json<BatchResult>(adminUserBatchPath, {
+    method: 'POST',
+    body: payload,
   })
 }
 

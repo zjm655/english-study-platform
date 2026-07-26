@@ -215,6 +215,8 @@ export const adminSegmentUpdateSchema = z.object({
     .number()
     .refine((v) => v === 0 || v === 1, 'isPublic 必须为 0 或 1')
     .optional(),
+  // 所属单元变更（可选；0=自定义单元合法；与受限材料 is_public 防绕过逻辑正交）
+  unitId: z.number().int().min(0, 'unitId 不能为负数').optional(),
 })
 
 // ============== 管理员单元管理 ==============
@@ -496,6 +498,48 @@ export const reviewAccessLogListSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式必须为 YYYY-MM-DD')
     .optional(),
+})
+
+// ============== 管理后台批量操作 ==============
+
+/** 批量 ids 数组：去重正整数，默认上限 100 */
+const batchIds = (max = 100) =>
+  z
+    .array(z.number().int().positive('id 必须为正整数'))
+    .min(1, 'ids 不能为空')
+    .max(max, `ids 数量不能超过 ${max}`)
+    .transform((arr) => [...new Set(arr)])
+
+/** 材料批量操作校验（delete=批量软删 / move=批量修改所属单元） */
+export const adminSegmentBatchSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('delete'), ids: batchIds() }),
+  z.object({
+    action: z.literal('move'),
+    ids: batchIds(),
+    unitId: z.number().int().min(0, 'unitId 不能为负数'),
+  }),
+])
+
+/** 单元批量操作校验（仅 delete） */
+export const adminUnitBatchSchema = z.object({
+  action: z.literal('delete'),
+  ids: batchIds(),
+})
+
+/** 上传记录批量操作校验（delete / reprocess，reprocess 上限 20 与批量上传对齐防挤爆队列） */
+export const adminMaterialRecordBatchSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('delete'), ids: batchIds() }),
+  z.object({
+    action: z.literal('reprocess'),
+    ids: batchIds(20),
+    unitId: z.number().int().min(0, 'unitId 不能为负数'),
+  }),
+])
+
+/** 用户批量操作校验（ban=封禁 / unban=解封 / delete=销号） */
+export const adminUserBatchSchema = z.object({
+  action: z.enum(['ban', 'unban', 'delete'], { message: 'action 必须为 ban/unban/delete' }),
+  ids: batchIds(),
 })
 
 // ============== 通用工具 ==============

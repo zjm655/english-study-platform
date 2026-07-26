@@ -3,6 +3,7 @@ import {
   getAdminSegmentDetail,
   updateAdminSegment,
   deleteAdminSegment,
+  batchAdminSegments,
   auditionAdminSegment,
   updateSegmentVisibility,
 } from '~/api/admin/segment'
@@ -14,6 +15,7 @@ import type {
   AdminSegmentVisibilityPayload,
 } from '#shared/types/adminSegment'
 import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
+import type { AdminSegmentBatchPayload, BatchResult } from '#shared/types/adminBatch'
 
 /** 管理员材料列表（服务端分页 + 筛选 + 搜索） */
 export const useAdminSegmentList = () => {
@@ -58,6 +60,18 @@ export const useDeleteAdminSegment = () => {
     success: '删除成功',
     clientFail: '删除失败',
     serverFail: '服务器异常，删除失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员批量操作材料（delete=批量软删 / move=批量修改所属单元；成功文案由页面按 BatchResult 汇总） */
+export const useBatchAdminSegments = () => {
+  const cfg = createResCfg<AdminSegmentBatchPayload, BatchResult>({
+    handle: batchAdminSegments,
+    success: '',
+    clientFail: '批量操作失败，请检查选中项',
+    serverFail: '服务器异常，批量操作失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

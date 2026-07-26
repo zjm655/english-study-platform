@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useReviewAccessLogList } from '~/composables/admin'
+import { useReviewAccessLogList, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
 import {
   REVIEW_TARGET_TYPES,
@@ -13,6 +13,10 @@ definePageMeta({ layout: 'admin', title: '审核留痕' })
 useSeoMeta({ title: '审核留痕 - 管理后台' })
 
 const { isLoading, execute } = useReviewAccessLogList()
+
+// 批量选择（选中行导出，便于按具体访问记录审计）
+const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
+  useTableSelection<ReviewAccessLogItem>()
 
 // 筛选
 const filterTargetType = ref('')
@@ -77,6 +81,13 @@ function handleExport() {
   params.append('table', 'review_access_log')
   if (filterStartDate.value) params.append('startDate', filterStartDate.value)
   if (filterEndDate.value) params.append('endDate', filterEndDate.value)
+  window.open(`${adminLogsExportPath}?${params.toString()}`, '_blank')
+}
+
+function handleExportSelected() {
+  const params = new URLSearchParams()
+  params.append('table', 'review_access_log')
+  params.append('ids', selectedIds.value.join(','))
   window.open(`${adminLogsExportPath}?${params.toString()}`, '_blank')
 }
 
@@ -183,7 +194,19 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="isLoading" :data="list" stripe row-key="id">
+      <AdminBatchBar :count="selectedRows.length" @clear="clear">
+        <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
+      </AdminBatchBar>
+
+      <el-table
+        ref="tableRef"
+        v-loading="isLoading"
+        :data="list"
+        stripe
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column type="selection" width="46" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="operatorAccount" label="操作者" width="130">
           <template #default="{ row }">{{ row.operatorAccount || '已删除' }}</template>
