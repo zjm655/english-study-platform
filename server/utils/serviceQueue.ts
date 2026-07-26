@@ -113,6 +113,16 @@ export function invalidateServiceQueueCache(): void {
   cacheGeneration++
 }
 
+/**
+ * 确保并发配置已加载并热更到队列实例（供 GET /api/admin/monitor 在读水位前调用）。
+ * 背景：配置为惰性加载——只在首次 withQueue 时读库；服务刚重启且无云调用时队列实例
+ * 保持初始 Infinity，getQueueStats 会误报「不限流」。本函数走 TTL 缓存，监控轮询不放大查询。
+ */
+export async function syncServiceQueueConcurrency(): Promise<void> {
+  if (IS_TEST && !forceEnabledInTest) return
+  await refreshConcurrency()
+}
+
 export interface WithQueueOptions {
   /** 优先级：数值越大越先执行（p-queue 语义）。约定：用户交互任务 1，后台/管理员批量 0 */
   priority?: number

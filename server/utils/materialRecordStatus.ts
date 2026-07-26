@@ -5,6 +5,7 @@
 //   消除 records/index.get.ts 时代的每条一次 COUNT 的 N+1 查询）。
 import { query } from './db'
 import type { MaterialRecordStatusItem, MaterialUploadStatus } from '#shared/types/material'
+import type { UploadTaskStats } from '#shared/types/adminMonitor'
 
 interface StatusRow {
   id: number
@@ -75,4 +76,31 @@ export async function fetchRecordStatuses(
   }
 
   return items
+}
+
+/**
+ * 上传任务状态分布快照（供 GET /api/admin/monitor，类型契约在 #shared/types/adminMonitor）：
+ * 排队/处理中全量计数 + 今日（服务器时区）成败计数。
+ * SUM(条件) 经 mysql2 返回 DECIMAL 字符串/NULL，统一 Number 归一。
+ */
+export async function fetchUploadTaskStats(): Promise<UploadTaskStats> {
+  const rows = await query<{
+    queued: number | string | null
+    processing: number | string | null
+    todaySuccess: number | string | null
+    todayFailed: number | string | null
+  }>(
+    `SELECT SUM(status='queued') AS queued,
+            SUM(status='processing') AS processing,
+            SUM(status='success' AND createdAt >= CURDATE()) AS todaySuccess,
+            SUM(status='failed' AND createdAt >= CURDATE()) AS todayFailed
+     FROM material_upload_record`,
+  )
+  const row = rows[0]
+  return {
+    queued: Number(row?.queued ?? 0),
+    processing: Number(row?.processing ?? 0),
+    todaySuccess: Number(row?.todaySuccess ?? 0),
+    todayFailed: Number(row?.todayFailed ?? 0),
+  }
 }

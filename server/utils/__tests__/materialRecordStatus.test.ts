@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   fetchRecordStatuses,
   fetchQueuedSnapshot,
+  fetchUploadTaskStats,
   countAheadInSnapshot,
 } from '../materialRecordStatus'
 
@@ -81,5 +82,26 @@ describe('fetchQueuedSnapshot', () => {
     const snapshot = await fetchQueuedSnapshot()
     expect(snapshot).toEqual([1, 4])
     expect(String(mockQuery.mock.calls[0]![0])).toContain(`status = 'queued'`)
+  })
+})
+
+describe('fetchUploadTaskStats', () => {
+  it('SUM 返回 DECIMAL 字符串/NULL 时统一 Number 归一', async () => {
+    mockQuery.mockResolvedValue([
+      { queued: '2', processing: 1, todaySuccess: null, todayFailed: '0' },
+    ])
+    const stats = await fetchUploadTaskStats()
+    expect(stats).toEqual({ queued: 2, processing: 1, todaySuccess: 0, todayFailed: 0 })
+    const sql = String(mockQuery.mock.calls[0]![0])
+    expect(sql).toContain(`SUM(status='queued')`)
+    expect(sql).toContain('CURDATE()')
+  })
+
+  it('空表（SUM 全 NULL）返回全 0', async () => {
+    mockQuery.mockResolvedValue([
+      { queued: null, processing: null, todaySuccess: null, todayFailed: null },
+    ])
+    const stats = await fetchUploadTaskStats()
+    expect(stats).toEqual({ queued: 0, processing: 0, todaySuccess: 0, todayFailed: 0 })
   })
 })

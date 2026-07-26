@@ -4,6 +4,7 @@ import {
   withQueue,
   getQueueStats,
   invalidateServiceQueueCache,
+  syncServiceQueueConcurrency,
   __forceEnableForTest,
 } from '../serviceQueue'
 
@@ -167,5 +168,15 @@ describe('getQueueStats', () => {
       expect(s).toHaveProperty('size')
       expect(s).toHaveProperty('pending')
     }
+  })
+
+  it('冷启动未发生云调用时 syncServiceQueueConcurrency 把配置热更到队列实例（监控不误报不限流）', async () => {
+    __forceEnableForTest(true)
+    setConcurrency({ tts: 4, nls: 2 })
+    // 未调 withQueue，直接同步配置
+    await syncServiceQueueConcurrency()
+    const stats = getQueueStats()
+    expect(stats.find((s) => s.name === 'tts')?.concurrency).toBe(4)
+    expect(stats.find((s) => s.name === 'nls')?.concurrency).toBe(2)
   })
 })

@@ -9,6 +9,7 @@
  */
 import { query } from '#server/utils/db'
 import { isAdminOrAbove } from '#shared/utils/role'
+import type { EvalGateSnapshot } from '#shared/types/adminMonitor'
 
 export interface QuotaResult {
   allowed: boolean
@@ -134,4 +135,19 @@ export async function checkEvalGate(): Promise<EvalGateResult> {
   const active = Number(rows[0]?.cnt ?? 0)
 
   return { allowed: active < max, active, limit: max }
+}
+
+/**
+ * 评测闸门实时快照（监控专用，与 checkEvalGate 平行共存，类型契约在 #shared/types/adminMonitor）：
+ * 无论 max 是否为 0 都真实计数——监控要看真实活跃数；
+ * checkEvalGate 的 max<=0 短路不查库是评测鉴权热路径的快路径，不得合并。
+ * 配置复用 getGateConfig 的 5min 缓存，sys_config 查询不被监控轮询放大。
+ */
+export async function getEvalGateSnapshot(): Promise<EvalGateSnapshot> {
+  const { max, windowSec } = await getGateConfig()
+  const rows = await query<{ cnt: number | string }>(
+    `SELECT COUNT(*) as cnt FROM eval_auth_log WHERE createdAt > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+    [windowSec],
+  )
+  return { active: Number(rows[0]?.cnt ?? 0), limit: max, windowSec }
 }

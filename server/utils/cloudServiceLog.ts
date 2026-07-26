@@ -108,3 +108,8 @@ export async function flushCloudServiceLog(): Promise<void> {
     await flush()
   }
 }
+
+/** 只读探针：内存缓冲水位快照（供 GET /api/admin/monitor 观测，不暴露队列引用） */
+export function getCloudServiceLogStats(): { size: number; maxSize: number; dropped: number } {
+  return { size: queue.length, maxSize: MAX_QUEUE_SIZE, dropped: droppedCount }
+}
