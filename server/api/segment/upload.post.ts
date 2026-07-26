@@ -5,6 +5,7 @@ import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { extractAudioMeta } from '#server/utils/audioMeta'
 import { generateLearningContent, generateTitle } from '#server/utils/aiContent'
 import { textToSpeech } from '#server/utils/tts'
+import { ttsWithRetry } from '#server/utils/ttsRetry'
 import { uploadWithKey, deleteObject } from '#server/utils/oss'
 import { withTransaction, pool } from '#server/utils/db'
 import { mapWithConcurrency } from '#server/utils/concurrency'
@@ -245,7 +246,8 @@ export default defineEventHandler(
     // 此处并发受限（最多 4）预生成；词汇音频失败（TTS 或 OSS 任一失败）则 media=null，
     // 不影响整体入库（保留原「词汇音频失败不影响整体」语义）。
     const vocabAudios = await mapWithConcurrency(vocabulary, 4, async (vocab) => {
-      const vocabTts = await textToSpeech(vocab.word)
+      // 词汇发音走带重试版：失败会被静默跳过（该词永久无发音），瞬时性故障值得重试
+      const vocabTts = await ttsWithRetry(vocab.word)
       if (!vocabTts.success || !vocabTts.audio) return { vocab, media: null }
       const vocabKey = `audio/vocab/${randomUUID()}.mp3`
       try {

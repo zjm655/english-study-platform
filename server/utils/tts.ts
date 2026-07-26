@@ -46,6 +46,9 @@ const WIN_EPOCH_OFFSET = 11644473600
 
 // ==================== 导出类型 ====================
 
+/** TTS 失败类别（供 ttsRetry 判定可否重试：auth 不重试，network/closed/timeout 可重试） */
+export type TtsErrorKind = 'auth' | 'timeout' | 'network' | 'closed' | 'unknown'
+
 export interface TtsResult {
   /** 是否转换成功 */
   success: boolean
@@ -53,9 +56,54 @@ export interface TtsResult {
   audio?: Buffer
   /** 失败时的错误原因 */
   error?: string
+  /** 失败类别（结构化分类，避免调用方对错误文案做字符串匹配） */
+  errorKind?: TtsErrorKind
 }
 
 // ==================== 内部工具函数 ====================
+
+/**
+ * 从任意异常值提取「永不为空」的错误描述 + 结构化分类。
+ * 背景：Node>=18 Happy Eyeballs 多地址连接失败抛 AggregateError，其 message 恒为空串、
+ * 真实原因在 .errors[] 里；部分 ErrnoException 也只有 code 无 message。
+ * 若直接取 err.message 会导致埋点 error_message 空白、无法诊断（已在生产发生）。
+ * 导出仅为单测，业务方不应直接使用。
+ */
+export function describeError(err: unknown): { message: string; kind: TtsErrorKind } {
+  let message: string
+  if (err instanceof AggregateError) {
+    const parts = err.errors
+      .map((e) =>
+        e instanceof Error ? ((e as NodeJS.ErrnoException).code ?? e.message) : String(e),
+      )
+      .filter(Boolean)
+    message = parts.length > 0 ? `AggregateError: ${parts.join('; ')}` : ''
+  } else if (err instanceof Error) {
+    const code = (err as NodeJS.ErrnoException).code
+    message = err.message || (code ? `${err.name}(${code})` : '') || err.name
+  } else {
+    message = String(err ?? '')
+  }
+  if (!message.trim()) {
+    message = '未知错误(空message)'
+  }
+
+  let kind: TtsErrorKind = 'unknown'
+  if (message.includes('403')) {
+    kind = 'auth'
+  } else if (message.includes('超时')) {
+    kind = 'timeout'
+  } else if (
+    /ECONNREFUSED|ECONNRESET|ETIMEDOUT|EPIPE|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|Unexpected server response/.test(
+      message,
+    )
+  ) {
+    kind = 'network'
+  } else if (message.includes('意外关闭')) {
+    kind = 'closed'
+  }
+  return { message, kind }
+}
 
 /**
  * 生成 Sec-MS-GEC 令牌
@@ -335,6 +383,13 @@ export async function textToSpeech(
         clearTimeout(timeout)
         reject(err)
       })
+
+      // 未 open 即被关闭（如代理拒绝后立即断开）：带 close code 拒绝，避免只能等 30s 超时；
+      // open 后的正常关闭重复 reject 已 settled 的 Promise，是无害空操作
+      socket.on('close', (code, reason) => {
+        clearTimeout(timeout)
+        reject(new Error(`WebSocket 意外关闭 code=${code} reason=${reason?.toString() || '-'}`))
+      })
     })
 
     // 4. 发送配置消息
@@ -388,13 +443,14 @@ export async function textToSpeech(
           reject(err)
         }
 
-        const onClose = () => {
+        const onClose = (code: number, reason: Buffer) => {
           clearTimeout(timeout)
           ws!.off('message', onMessage)
           ws!.off('error', onError)
           ws!.off('close', onClose)
           if (!turnEnded) {
-            reject(new Error('WebSocket 连接意外关闭'))
+            // 携带 close code/reason：CF Worker 会回传 1011 'upstream error' 等诊断信息
+            reject(new Error(`WebSocket 意外关闭 code=${code} reason=${reason?.toString() || '-'}`))
           }
         }
 
@@ -436,32 +492,37 @@ export async function textToSpeech(
     })
     return { success: true, audio }
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err)
+    const { message: errMsg, kind } = describeError(err)
     const ms = Date.now() - start
-    logger.error(`[tts] 转换失败 (via=${via}):`, errMsg)
-    fileLogError('tts', `[tts] 转换失败 (${ms}ms)`, errMsg, { textLength: trimmed.length, via })
+    logger.error(`[tts] 转换失败 (via=${via}, kind=${kind}):`, errMsg)
+    fileLogError('tts', `[tts] 转换失败 (${ms}ms)`, errMsg, {
+      textLength: trimmed.length,
+      via,
+      kind,
+    })
     void logCloudServiceCall({
       service: 'tts',
       operation: 'textToSpeech',
       success: false,
       durationMs: ms,
-      errorMessage: errMsg.substring(0, 500),
+      errorMessage: `${errMsg} (via=${via})`.substring(0, 500),
     })
 
-    if (errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('连接超时')) {
+    if (kind === 'auth' || kind === 'network') {
       // 403 且走代理时，多半是 Worker 的 PROXY_KEY 与 NUXT_TTS_PROXY_KEY 不一致，或 Sec-MS-GEC/Chromium 版本过期
       return {
         success: false,
+        errorKind: kind,
         error:
           via === 'proxy'
             ? 'TTS 代理连接失败，请检查代理密钥或上游鉴权'
             : 'TTS 服务连接失败，可能需要代理',
       }
     }
-    if (errMsg.includes('超时')) {
-      return { success: false, error: 'TTS 转换超时' }
+    if (kind === 'timeout') {
+      return { success: false, errorKind: kind, error: 'TTS 转换超时' }
     }
-    return { success: false, error: `TTS 转换失败: ${errMsg}` }
+    return { success: false, errorKind: kind, error: `TTS 转换失败: ${errMsg}` }
   } finally {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
       ws.close()

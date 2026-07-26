@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { isDialogueText, parseTxtFile } from './textParser'
 import { generateLearningContent, generateTitle } from './aiContent'
 import { textToSpeech } from './tts'
+import { ttsWithRetry } from './ttsRetry'
 import { uploadWithKey } from './oss'
 import { extractAudioMeta } from './audioMeta'
 import { pool, withTransaction } from './db'
@@ -201,7 +202,8 @@ export async function processAdminMaterial(
     // 绝不放在事务内：TTS(WebSocket) 与 OSS 上传是耗时网络 I/O，会长时间占用连接池连接。
     // 词汇音频失败（TTS 或 OSS 任一失败）则 media=null，不影响整体入库。
     const vocabAudios = await mapWithConcurrency(vocabulary, 4, async (vocab) => {
-      const vocabTts = await textToSpeech(vocab.word)
+      // 词汇发音走带重试版：失败会被静默跳过（该词永久无发音），瞬时性故障值得重试
+      const vocabTts = await ttsWithRetry(vocab.word)
       if (!vocabTts.success || !vocabTts.audio) return { vocab, media: null }
       const vocabKey = `audio/vocab/${randomUUID()}.mp3`
       try {
