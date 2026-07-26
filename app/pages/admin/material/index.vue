@@ -51,7 +51,14 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar :count="selectedRows.length" @clear="clear">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.title"
+        @clear="clear"
+        @remove="removeRow"
+      >
         <el-button type="primary" size="small" @click="openMoveDialog">批量修改单元</el-button>
         <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
       </AdminBatchBar>
@@ -64,7 +71,7 @@
         row-key="id"
         @selection-change="onSelectionChange"
       >
-        <el-table-column type="selection" width="46" />
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
         <el-table-column prop="unitTitle" label="所属单元" min-width="150" show-overflow-tooltip />
@@ -163,9 +170,17 @@ const { isLoading, execute: listExecute } = useAdminSegmentList()
 const { execute: deleteExecute } = useDeleteAdminSegment()
 const { isLoading: isBatching, execute: batchExecute } = useBatchAdminSegments()
 
-// 批量选择（仅当前页，翻页/刷新自动复位）
-const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
-  useTableSelection<AdminSegmentListItem>()
+// 批量选择（reserve-selection 跨页保留；上限对齐后端 batchIds=100）
+const {
+  tableRef,
+  selectedRows,
+  selectedIds,
+  onSelectionChange,
+  clear,
+  canSelect,
+  removeRow,
+  offPageCount,
+} = useTableSelection<AdminSegmentListItem>({ limit: 100, pageRows: () => list.value })
 
 // 批量修改单元弹窗
 const moveVisible = ref(false)
@@ -191,11 +206,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterUnitId.value = undefined
   filterIsPublic.value = undefined
   filterKeyword.value = ''
@@ -237,6 +254,8 @@ async function handleDelete(row: AdminSegmentListItem) {
 
 async function handleBatchDelete() {
   const count = selectedRows.value.length
+  // 页内选中数（跨页选中后 count 可能大于当前页行数，回退页码须按页内数判断）
+  const onPageCount = count - offPageCount.value
   try {
     await toastConfirm(`确定删除选中的 ${count} 条材料吗？删除后将对学生不可见。`, '批量删除确认', {
       confirmButtonText: '删除',
@@ -251,7 +270,7 @@ async function handleBatchDelete() {
     toastBatchResult(res.data)
     clear()
     // 当前页可能被删空且非首页时回退一页
-    if (list.value.length === count && page.value > 1) page.value -= 1
+    if (list.value.length === onPageCount && page.value > 1) page.value -= 1
     loadList()
   }
 }

@@ -10,10 +10,6 @@ useSeoMeta({ title: '云服务调用日志 - 管理后台' })
 const { isLoading, execute } = useCloudServiceLogList()
 const { execute: cleanLogsExec } = useCleanLogs()
 
-// 批量选择（选中行导出，便于按具体调用排错）
-const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
-  useTableSelection<CloudServiceLogItem>()
-
 // 筛选
 const filterService = ref('')
 const filterSuccess = ref<string>('') // '' / '1' / '0'
@@ -26,6 +22,10 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const list = ref<CloudServiceLogItem[]>([])
+
+// 批量选择（reserve-selection 跨页保留；选中行导出上限对齐后端 export ids=200）
+const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect, removeRow, offPageCount } =
+  useTableSelection<CloudServiceLogItem>({ limit: 200, pageRows: () => list.value })
 
 // 详情 Drawer
 const detailVisible = ref(false)
@@ -52,11 +52,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterService.value = ''
   filterSuccess.value = ''
   filterOperationKeyword.value = ''
@@ -226,7 +228,14 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar :count="selectedRows.length" @clear="clear">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.operation"
+        @clear="clear"
+        @remove="removeRow"
+      >
         <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
       </AdminBatchBar>
 
@@ -238,7 +247,7 @@ onMounted(() => {
         row-key="id"
         @selection-change="onSelectionChange"
       >
-        <el-table-column type="selection" width="46" />
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="service" label="Service" width="120">
           <template #default="{ row }">

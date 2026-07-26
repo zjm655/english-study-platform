@@ -52,15 +52,28 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar :count="selectedRows.length" @clear="clear">
-        <el-button
-          type="warning"
-          size="small"
-          :disabled="selectedFailedIds.length === 0"
-          @click="openBatchReprocess"
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.title"
+        @clear="clear"
+        @remove="removeRow"
+      >
+        <el-tooltip
+          content="重试单次上限 20 条，请减少选择"
+          placement="top"
+          :disabled="selectedFailedIds.length <= 20"
         >
-          批量重试（仅失败 {{ selectedFailedIds.length }} 条）
-        </el-button>
+          <el-button
+            type="warning"
+            size="small"
+            :disabled="selectedFailedIds.length === 0 || selectedFailedIds.length > 20"
+            @click="openBatchReprocess"
+          >
+            批量重试（仅失败 {{ selectedFailedIds.length }} 条）
+          </el-button>
+        </el-tooltip>
         <el-button size="small" @click="handleBatchExport">导出选中</el-button>
         <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
       </AdminBatchBar>
@@ -73,7 +86,7 @@
         row-key="id"
         @selection-change="onSelectionChange"
       >
-        <el-table-column type="selection" width="46" />
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
         <el-table-column label="状态" width="90" align="center">
@@ -254,7 +267,7 @@
           </el-form-item>
         </template>
         <el-form-item v-else label="选中记录">
-          <span>{{ selectedFailedIds.length }} 条失败记录</span>
+          <span>{{ selectedFailedIds.length }} 条失败记录（非失败/状态已变更的记录将被跳过）</span>
         </el-form-item>
         <el-form-item label="目标单元">
           <el-select
@@ -375,9 +388,17 @@ const { isLoading: isReprocessing, execute: reprocessExecute } = useReprocessAdm
 const { isLoading: isBatching, execute: batchExecute } = useBatchAdminMaterialRecords()
 const { isLoading: isAuditioning, execute: auditionExecute } = useAuditionMaterialRecord()
 
-// 批量选择（仅当前页）；批量重试只对选中的 failed 生效
-const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
-  useTableSelection<AdminMaterialRecordListItem>()
+// 批量选择（reserve-selection 跨页保留，上限对齐后端 batchIds=100）；批量重试只对选中的 failed 生效
+const {
+  tableRef,
+  selectedRows,
+  selectedIds,
+  onSelectionChange,
+  clear,
+  canSelect,
+  removeRow,
+  offPageCount,
+} = useTableSelection<AdminMaterialRecordListItem>({ limit: 100, pageRows: () => list.value })
 const selectedFailedIds = computed(() =>
   selectedRows.value.filter((r) => r.status === 'failed').map((r) => r.id),
 )
@@ -462,11 +483,13 @@ watch(hasActiveRecord, (active) => {
 })
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterStatus.value = ''
   filterSource.value = 'all'
   dateRange.value = null
@@ -592,8 +615,10 @@ async function handleBatchDelete() {
   const res = await batchExecute({ action: 'delete', ids: selectedIds.value })
   if (res?.code === 200 && res.data) {
     toastBatchResult(res.data)
+    // 页内选中数（跨页选中后 count 可能大于当前页行数，回退页码须按页内数判断）
+    const onPageCount = count - offPageCount.value
     clear()
-    if (list.value.length === count && page.value > 1) page.value -= 1
+    if (list.value.length === onPageCount && page.value > 1) page.value -= 1
     loadList()
   }
 }

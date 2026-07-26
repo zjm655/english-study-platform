@@ -43,7 +43,14 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar :count="selectedRows.length" @clear="clear">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.title"
+        @clear="clear"
+        @remove="removeRow"
+      >
         <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
       </AdminBatchBar>
 
@@ -55,7 +62,12 @@
         row-key="id"
         @selection-change="onSelectionChange"
       >
-        <el-table-column type="selection" width="46" :selectable="(row: any) => row.id !== 0" />
+        <el-table-column
+          type="selection"
+          width="46"
+          reserve-selection
+          :selectable="(row: any) => row.id !== 0 && canSelect(row)"
+        />
         <el-table-column label="ID" width="90">
           <template #default="{ row }">
             <span class="unit-id">{{ row.id }}</span>
@@ -196,9 +208,17 @@ const { isLoading: isUpdating, execute: updateExecute } = useUpdateAdminUnit()
 const { execute: deleteExecute } = useDeleteAdminUnit()
 const { execute: batchDeleteExecute } = useBatchDeleteAdminUnits()
 
-// 批量选择（id=0 系统保留单元经 :selectable 不可选，后端 skipped 双保险）
-const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
-  useTableSelection<AdminUnitListItem>()
+// 批量选择（reserve-selection 跨页保留；id=0 系统保留单元经 :selectable 不可选，后端 skipped 双保险）
+const {
+  tableRef,
+  selectedRows,
+  selectedIds,
+  onSelectionChange,
+  clear,
+  canSelect,
+  removeRow,
+  offPageCount,
+} = useTableSelection<AdminUnitListItem>({ limit: 100, pageRows: () => list.value })
 
 const isSaving = computed(() => isCreating.value || isUpdating.value)
 
@@ -221,11 +241,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterLevel.value = null
   filterKeyword.value = ''
   page.value = 1
@@ -349,9 +371,11 @@ async function handleBatchDelete() {
   const res = await batchDeleteExecute(selectedIds.value)
   if (res?.code === 200 && res.data) {
     toastBatchResult(res.data)
+    // 页内选中数（跨页选中后 count 可能大于当前页行数，回退页码须按页内数判断）
+    const onPageCount = count - offPageCount.value
     clear()
     // 当前页可能被删空且非首页时回退一页
-    if (list.value.length === count && page.value > 1) page.value -= 1
+    if (list.value.length === onPageCount && page.value > 1) page.value -= 1
     loadList()
   }
 }

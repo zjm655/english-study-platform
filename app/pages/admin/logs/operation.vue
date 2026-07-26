@@ -10,10 +10,6 @@ useSeoMeta({ title: '操作日志 - 管理后台' })
 const { isLoading, execute } = useOperationLogListV2()
 const { execute: cleanLogsExec } = useCleanLogs()
 
-// 批量选择（选中行导出，便于按具体操作排错）
-const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
-  useTableSelection<AdminOperationLogItem>()
-
 // 筛选
 const filterAction = ref('')
 const filterKeyword = ref('')
@@ -25,6 +21,10 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const list = ref<AdminOperationLogItem[]>([])
+
+// 批量选择（reserve-selection 跨页保留；选中行导出上限对齐后端 export ids=200）
+const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect, removeRow, offPageCount } =
+  useTableSelection<AdminOperationLogItem>({ limit: 200, pageRows: () => list.value })
 
 // 详情 Drawer
 const detailVisible = ref(false)
@@ -50,11 +50,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterAction.value = ''
   filterKeyword.value = ''
   filterStartDate.value = ''
@@ -208,7 +210,14 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar :count="selectedRows.length" @clear="clear">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.action"
+        @clear="clear"
+        @remove="removeRow"
+      >
         <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
       </AdminBatchBar>
 
@@ -220,7 +229,7 @@ onMounted(() => {
         row-key="id"
         @selection-change="onSelectionChange"
       >
-        <el-table-column type="selection" width="46" />
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="adminAccount" label="管理员" width="130">
           <template #default="{ row }">{{ row.adminAccount || '已删除' }}</template>

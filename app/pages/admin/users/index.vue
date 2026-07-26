@@ -38,7 +38,14 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar :count="selectedRows.length" @clear="clear">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.nickname || r.account"
+        @clear="clear"
+        @remove="removeRow"
+      >
         <el-button type="warning" size="small" @click="handleBatchStatus('ban')"
           >批量封禁</el-button
         >
@@ -56,7 +63,12 @@
         row-key="id"
         @selection-change="onSelectionChange"
       >
-        <el-table-column type="selection" width="46" :selectable="(row: any) => !isLocked(row)" />
+        <el-table-column
+          type="selection"
+          width="46"
+          reserve-selection
+          :selectable="(row: any) => !isLocked(row) && canSelect(row)"
+        />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="account" label="账号" min-width="120" />
         <el-table-column label="昵称" min-width="120">
@@ -208,9 +220,17 @@ const { execute: statusExecute } = useUpdateAdminUserStatus()
 const { execute: deleteExecute } = useDeleteAdminUser()
 const { execute: batchExecute } = useBatchAdminUsers()
 
-// 批量选择（管理员/已注销经 :selectable 不可选，后端护栏双保险）
-const { tableRef, selectedRows, selectedIds, onSelectionChange, clear } =
-  useTableSelection<AdminUserListItem>()
+// 批量选择（reserve-selection 跨页保留；管理员/已注销经 :selectable 不可选，后端护栏双保险）
+const {
+  tableRef,
+  selectedRows,
+  selectedIds,
+  onSelectionChange,
+  clear,
+  canSelect,
+  removeRow,
+  offPageCount,
+} = useTableSelection<AdminUserListItem>({ limit: 100, pageRows: () => list.value })
 
 // 编辑对话框
 const editDialogVisible = ref(false)
@@ -230,11 +250,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterKeyword.value = ''
   filterState.value = 'all'
   page.value = 1
@@ -380,8 +402,10 @@ async function handleBatchDelete() {
   const res = await batchExecute({ action: 'delete', ids: selectedIds.value })
   if (res?.code === 200 && res.data) {
     toastBatchResult(res.data)
+    // 页内选中数（跨页选中后 count 可能大于当前页行数，回退页码须按页内数判断）
+    const onPageCount = count - offPageCount.value
     clear()
-    if (list.value.length === count && page.value > 1) page.value -= 1
+    if (list.value.length === onPageCount && page.value > 1) page.value -= 1
     loadList()
   }
 }
