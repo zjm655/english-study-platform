@@ -6,12 +6,36 @@
 // - plugin 的 request 钩子在整条中间件链之前触发（精确计时），afterResponse 在响应发送后触发
 //   （此时 auth 已执行完毕，user 必定已挂载），天然无顺序耦合
 //
+// 5xx 兜底（error 钩子）：handler 抛错时 h3 的 errorHandler 发送响应后 event.handled=true
+// 会短路 afterResponse（恒不触发），抛出的 4xx/5xx/404 全部漏记——靠 'error' 钩子补记，
+// 双入口用 event.context._apiLogged 标志去重（钩子自身出错的边缘路径两钩子可能都触发）。
+//
 // 性能保证：afterResponse 中仅做纯内存取值 + fire-and-forget 调用，对请求延迟零影响。
+import type { H3Event } from 'h3'
 import { logApiCall, flushApiCallLog } from '#server/utils/apiCallLog'
 import { flushCloudServiceLog } from '#server/utils/cloudServiceLog'
 import { flushOssPlaybackLog } from '#server/utils/ossPlaybackLog'
 import { checkRateLimit, getRateLimitConfig } from '#server/utils/rateLimiter'
 export default defineNitroPlugin((nitroApp) => {
+  // 统一记录入口：afterResponse（正常响应）与 error（抛错兜底）共用，_apiLogged 保证每请求只记一条
+  function record(event: H3Event, statusCode: number): void {
+    if (event.context._apiLogged) return
+    event.context._apiLogged = true
+    // OSS 播放埋点端点自身不写 api_call_log：否则每次播放都自记录，放大埋点表并污染统计
+    if (event.path === '/api/oss/playback') return
+    const start = event.context._apiLogStart as number | undefined
+    logApiCall({
+      path: event.path.slice(0, 200),
+      routePattern: event.context.matchedRoute?.path ?? null,
+      method: event.method,
+      statusCode,
+      businessCode: (event.context._apiLogBusinessCode as number) ?? null,
+      durationMs: start ? Date.now() - start : 0,
+      userId: event.context.user?.id ?? null,
+      ip: getRequestIP(event, { xForwardedFor: true }) ?? null,
+    })
+  }
+
   // 请求进入（中间件链之前）：限流检查 + 打时间戳
   nitroApp.hooks.hook('request', async (event) => {
     if (!event.path.startsWith('/api')) return
@@ -33,6 +57,10 @@ export default defineNitroPlugin((nitroApp) => {
       )
       // 标记已处理，阻止后续 handler 执行
       ;(event as { _handled?: boolean })._handled = true
+      // IP 级 429 在此直接补记：此处提前 return 导致 _apiLogStart 未设、afterResponse 不会记录，
+      // 若不补记则攻击/高频期错误率反而显示为 0
+      event.context._apiLogBusinessCode = 429
+      record(event, 429)
       return
     }
 
@@ -53,20 +81,17 @@ export default defineNitroPlugin((nitroApp) => {
 
   // 响应发送后：异步写入埋点（不 await，写入失败静默吞错）
   nitroApp.hooks.hook('afterResponse', (event) => {
-    const start = event.context._apiLogStart as number | undefined
-    if (!start) return
-    // OSS 播放埋点端点自身不写 api_call_log：否则每次播放都自记录，放大埋点表并污染统计
-    if (event.path === '/api/oss/playback') return
-    logApiCall({
-      path: event.path.slice(0, 200),
-      routePattern: event.context.matchedRoute?.path ?? null,
-      method: event.method,
-      statusCode: event.node.res.statusCode,
-      businessCode: (event.context._apiLogBusinessCode as number) ?? null,
-      durationMs: Date.now() - start,
-      userId: event.context.user?.id ?? null,
-      ip: getRequestIP(event, { xForwardedFor: true }) ?? null,
-    })
+    if (!event.path.startsWith('/api')) return
+    record(event, event.node.res.statusCode)
+  })
+
+  // 抛错兜底：createError 抛出的 4xx/5xx、未捕获异常 500、未匹配 /api 路由的 404 均走此处
+  //（h3 错误路径不触发 afterResponse）。statusCode 优先取 H3Error.statusCode（h3 已归一化，
+  // 恒存在），不读 res.statusCode——error 钩子并行触发，此刻响应可能尚未写出。
+  nitroApp.hooks.hook('error', (error, { event }) => {
+    if (!event || !event.path?.startsWith('/api')) return
+    const statusCode = (error as { statusCode?: number }).statusCode ?? 500
+    record(event, statusCode)
   })
 
   // 进程退出前最后 flush 队列中残留的埋点数据

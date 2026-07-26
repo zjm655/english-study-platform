@@ -29,16 +29,17 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
-  const { title, textContent, translation, questions, vocabulary, isPublic } = parsed.data
+  const { title, textContent, translation, questions, vocabulary, isPublic, unitId } = parsed.data
 
   // 校验材料存在且未删除；联表取上传者归属，用于判定「受限材料」（非公开的用户材料）。
   const existing = await query<{
     id: number
     is_public: number
+    unit_id: number
     uploader_user_id: number | null
     uploader_role: number | null
   }>(
-    `SELECT s.id, s.is_public, r.user_id AS uploader_user_id, uu.role AS uploader_role
+    `SELECT s.id, s.is_public, s.unit_id, r.user_id AS uploader_user_id, uu.role AS uploader_role
      FROM segment s
      LEFT JOIN material_upload_record r ON r.segment_id = s.id
      LEFT JOIN user uu ON r.user_id = uu.id
@@ -49,6 +50,18 @@ export default defineEventHandler(async (event) => {
     return validateError('材料不存在或已删除', 404)
   }
   const row = existing[0]!
+
+  // 所属单元变更：目标单元须存在且未删除（0=自定义单元保留位，无需查表）
+  const finalUnitId = unitId ?? row.unit_id
+  if (finalUnitId !== row.unit_id && finalUnitId !== 0) {
+    const unitRows = await query<{ id: number }>(
+      'SELECT id FROM unit WHERE id = ? AND deleted_at IS NULL',
+      [finalUnitId],
+    )
+    if (unitRows.length === 0) {
+      return validateError('目标单元不存在或已删除', 404)
+    }
+  }
 
   // 防绕过：受限材料（非公开的用户材料）的公开状态只能走 visibility 门禁端点，
   // 批量保存强制保持 is_public 不变，防止仅有 MANAGE_MATERIALS 的管理员经此绕过 REVIEW 门禁。
@@ -66,9 +79,9 @@ export default defineEventHandler(async (event) => {
       // 1. 更新 segment 文本字段（questions 已 JSON.stringify，避免写入 [object Object]）
       await conn.execute(
         `UPDATE segment
-         SET title = ?, textContent = ?, translation = ?, questions = ?, is_public = ?
+         SET title = ?, textContent = ?, translation = ?, questions = ?, is_public = ?, unit_id = ?
          WHERE id = ? AND deleted_at IS NULL`,
-        [title, textContent, finalTranslation, finalQuestions, finalIsPublic, segId],
+        [title, textContent, finalTranslation, finalQuestions, finalIsPublic, finalUnitId, segId],
       )
 
       // 2. 词汇 diff（payload 未传 vocabulary 时不动词汇）
@@ -130,6 +143,9 @@ export default defineEventHandler(async (event) => {
     return validateError('保存失败，请稍后重试', 500)
   }
 
-  await logAdminOperation(user.id, 'segment.update', 'segment', segId, { title })
+  await logAdminOperation(user.id, 'segment.update', 'segment', segId, {
+    title,
+    ...(finalUnitId !== row.unit_id ? { fromUnitId: row.unit_id, toUnitId: finalUnitId } : {}),
+  })
   return validateSuccess(null, '保存成功')
 })

@@ -31,6 +31,8 @@ function secondsToUnit(sec: number): { val: number; unit: number } {
 const evalMax = ref(20)
 const evalWindowVal = ref(1)
 const evalWindowUnit = ref(86400)
+// 全局评测并发闸门（0=不限制）
+const evalGateMax = ref(20)
 
 // ─── API 限流开关 ─────────────────────────────────────────
 const rateLimitEnabled = ref(true)
@@ -42,6 +44,16 @@ const uploadLimitEnabled = ref(true)
 const uploadMax = ref(10)
 const uploadWindowVal = ref(1)
 const uploadWindowUnit = ref(60)
+
+// ─── 云服务并发队列（0=不限流）───────────────────────────
+const queueTts = ref(4)
+const queueNls = ref(2)
+const queueDeepseek = ref(3)
+const queueUpload = ref(2)
+
+// ─── 语音识别 STT ────────────────────────────────────────
+const sttBackend = ref<'filetrans' | 'flash'>('filetrans')
+const sttTrialStartDate = ref<string | null>(null)
 
 // ─── 加载配置 ───────────────────────────────────────────
 async function fetchConfigs() {
@@ -56,6 +68,7 @@ async function fetchConfigs() {
       const evalParsed = secondsToUnit(evalWinSec)
       evalWindowVal.value = evalParsed.val
       evalWindowUnit.value = evalParsed.unit
+      evalGateMax.value = parseInt(d['eval_gate_max']?.value ?? '20', 10) || 0
       // API 限流
       rateLimitEnabled.value = d['rate_limit_enabled']?.value === '1'
       rateLimitIpLevel.value = d['rate_limit_ip_level']?.value === '1'
@@ -67,6 +80,15 @@ async function fetchConfigs() {
       const uploadParsed = secondsToUnit(uploadWinSec)
       uploadWindowVal.value = uploadParsed.val
       uploadWindowUnit.value = uploadParsed.unit
+      // 云服务并发队列
+      queueTts.value = parseInt(d['queue_tts_concurrency']?.value ?? '4', 10) || 0
+      queueNls.value = parseInt(d['queue_nls_concurrency']?.value ?? '2', 10) || 0
+      queueDeepseek.value = parseInt(d['queue_deepseek_concurrency']?.value ?? '3', 10) || 0
+      queueUpload.value = parseInt(d['queue_upload_concurrency']?.value ?? '2', 10) || 0
+      // 语音识别 STT（试用日期 '-' 占位视为未填）
+      sttBackend.value = d['stt_backend']?.value === 'flash' ? 'flash' : 'filetrans'
+      const rawTrialDate = d['stt_trial_start_date']?.value ?? '-'
+      sttTrialStartDate.value = /^\d{4}-\d{2}-\d{2}$/.test(rawTrialDate) ? rawTrialDate : null
     }
   } finally {
     loading.value = false
@@ -85,6 +107,7 @@ async function saveEvalLimit() {
     const res = await updateConfigsExec([
       { key: 'daily_eval_limit', value: String(evalMax.value) },
       { key: 'eval_limit_window', value: String(windowSec) },
+      { key: 'eval_gate_max', value: String(evalGateMax.value) },
     ])
     if (res.code === 200) {
       ElMessage.success('保存成功')
@@ -144,6 +167,58 @@ async function saveUploadLimit() {
 }
 
 onMounted(fetchConfigs)
+
+// ─── 保存队列并发 ─────────────────────────────────────
+async function saveQueueConfig() {
+  const vals = [queueTts.value, queueNls.value, queueDeepseek.value, queueUpload.value]
+  if (vals.some((v) => v < 0 || !Number.isInteger(v))) {
+    ElMessage.warning('请输入有效的非负整数（0=不限流）')
+    return
+  }
+  saving.value = true
+  try {
+    const res = await updateConfigsExec([
+      { key: 'queue_tts_concurrency', value: String(queueTts.value) },
+      { key: 'queue_nls_concurrency', value: String(queueNls.value) },
+      { key: 'queue_deepseek_concurrency', value: String(queueDeepseek.value) },
+      { key: 'queue_upload_concurrency', value: String(queueUpload.value) },
+    ])
+    if (res.code === 200) {
+      ElMessage.success('保存成功，新并发数对后续任务立即生效')
+    } else {
+      ElMessage.error(res.message ?? '保存失败')
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
+  } finally {
+    saving.value = false
+  }
+}
+
+// ─── 保存语音识别 STT ─────────────────────────────────────
+async function saveSttConfig() {
+  saving.value = true
+  try {
+    const res = await updateConfigsExec([
+      { key: 'stt_backend', value: sttBackend.value },
+      // PUT 校验 value 非空：未填日期用 '-' 占位（后端/监控解析非日期即视为未设置）
+      { key: 'stt_trial_start_date', value: sttTrialStartDate.value || '-' },
+    ])
+    if (res.code === 200) {
+      ElMessage.success('保存成功，对后续上传任务立即生效')
+    } else {
+      ElMessage.error(res.message ?? '保存失败')
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
+  } finally {
+    saving.value = false
+  }
+}
 </script>
 
 <template>
@@ -196,6 +271,20 @@ onMounted(fetchConfigs)
             <div class="form-tip">
               普通用户在时间窗口内可进行的评测次数（配音 + 跟读），管理员不受限制。设为 0
               表示不限制。
+            </div>
+          </el-form-item>
+          <el-form-item label="并发闸门">
+            <el-input-number
+              v-model="evalGateMax"
+              :min="0"
+              :max="999"
+              :step="5"
+              controls-position="right"
+              style="width: 120px"
+            />
+            <div class="form-tip">
+              全局同时进行的评测数上限（按近 5 分钟鉴权发放估算，含管理员），超出提示稍后重试。设为
+              0 表示不限制。
             </div>
           </el-form-item>
           <el-form-item>
@@ -287,6 +376,97 @@ onMounted(fetchConfigs)
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="saving" @click="saveUploadLimit">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
+      <!-- ═══ 云服务并发队列 ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">云服务并发队列</span>
+            <span class="card-sub">各云产品同时调用数上限（超出部分在本机内存队列排队）</span>
+          </div>
+        </template>
+        <el-form label-width="140px">
+          <el-form-item label="Edge TTS">
+            <el-input-number
+              v-model="queueTts"
+              :min="0"
+              :max="99"
+              controls-position="right"
+              style="width: 120px"
+            />
+            <div class="form-tip">文本转语音并发上限。0 = 不限流。</div>
+          </el-form-item>
+          <el-form-item label="NLS 语音识别">
+            <el-input-number
+              v-model="queueNls"
+              :min="0"
+              :max="99"
+              controls-position="right"
+              style="width: 120px"
+            />
+            <div class="form-tip">阿里云试用版配额通常为 2，请按控制台实际配额调整。</div>
+          </el-form-item>
+          <el-form-item label="DeepSeek">
+            <el-input-number
+              v-model="queueDeepseek"
+              :min="0"
+              :max="99"
+              controls-position="right"
+              style="width: 120px"
+            />
+            <div class="form-tip">含内容审核/内容生成/标题生成三类调用。</div>
+          </el-form-item>
+          <el-form-item label="上传流水线">
+            <el-input-number
+              v-model="queueUpload"
+              :min="0"
+              :max="99"
+              controls-position="right"
+              style="width: 120px"
+            />
+            <div class="form-tip">同时处理的材料上传任务数（每任务驻留约 5MB 内存）。</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveQueueConfig">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
+      <!-- ═══ 语音识别 STT ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">语音识别（STT）</span>
+            <span class="card-sub"
+              >材料上传音频转文字的后端选择（额度尽/试用到期等自动回退极速版）</span
+            >
+          </div>
+        </template>
+        <el-form label-width="140px">
+          <el-form-item label="识别后端">
+            <el-select v-model="sttBackend" style="width: 260px">
+              <el-option value="filetrans" label="标准版 filetrans（每日 120 分钟免费）" />
+              <el-option value="flash" label="极速版 flash（商用按量计费）" />
+            </el-select>
+            <div class="form-tip">
+              标准版为异步识别（分钟级），命中额度超限/试用到期/并发超限/下载失败/超时会自动回退极速版，不改此配置。
+            </div>
+          </el-form-item>
+          <el-form-item label="试用开通日期">
+            <el-date-picker
+              v-model="sttTrialStartDate"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="选择 NLS 服务开通日期"
+              style="width: 260px"
+            />
+            <div class="form-tip">免费试用期 3 个月，运行监控页据此展示到期倒计时。</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveSttConfig">保存</el-button>
           </el-form-item>
         </el-form>
       </el-card>

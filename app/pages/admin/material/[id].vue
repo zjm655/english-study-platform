@@ -10,9 +10,20 @@
         <div>
           <h2 class="page-title">编辑材料</h2>
           <p class="page-desc">
-            <el-tag v-if="unitTitle" size="small" type="info" effect="plain">{{
-              unitTitle
-            }}</el-tag>
+            <el-select
+              v-model="form.unitId"
+              size="small"
+              filterable
+              placeholder="所属单元"
+              class="unit-select"
+            >
+              <el-option
+                v-for="u in unitOptions"
+                :key="u.id"
+                :label="u.id === 0 ? `${u.title}（系统保留）` : u.title"
+                :value="u.id"
+              />
+            </el-select>
             <span class="page-desc__note">仅保存文本字段，不会重新生成音频与 AI 内容。</span>
           </p>
         </div>
@@ -238,11 +249,12 @@ import {
   useUpdateSegmentVisibility,
 } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
+import { getUnits } from '~/api/unit/units'
 import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
 import { toastSuccess, toastWarning } from '~/utils/popup'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { AdminVocabEditItem, AdminSegmentUpdatePayload } from '#shared/types/adminSegment'
-import type { Question } from '#shared/types/unit'
+import type { Question, UnitWithProgress } from '#shared/types/unit'
 
 definePageMeta({
   layout: 'admin',
@@ -254,7 +266,6 @@ useSeoMeta({ title: '编辑材料 - 管理后台' })
 const route = useRoute()
 const segId = Number(route.params.id)
 
-const unitTitle = ref('')
 const loadError = ref('')
 
 // 音频门禁试听状态（契约增量字段，仅展示层）
@@ -271,9 +282,26 @@ const form = reactive({
   textContent: '',
   translation: '',
   isPublic: true,
+  unitId: 0,
   questions: [] as Question[],
   vocabulary: [] as AdminVocabEditItem[],
 })
+
+// 单元下拉数据（所属单元变更；无 id=0 行时手动前置自定义单元占位）
+const units = ref<UnitWithProgress[]>([])
+const unitOptions = computed(() => {
+  const hasCustom = units.value.some((u) => u.id === 0)
+  return hasCustom
+    ? units.value
+    : [{ id: 0, title: '自定义单元' } as UnitWithProgress, ...units.value]
+})
+
+async function loadUnits() {
+  const res = await getUnits()
+  if (res?.code === 200 && res.data) {
+    units.value = res.data
+  }
+}
 
 const { can } = usePermission()
 
@@ -356,6 +384,8 @@ async function handleSave() {
   if (!visibilityLocked.value) {
     payload.isPublic = form.isPublic ? 1 : 0
   }
+  // 所属单元变更（0=自定义单元合法；服务端校验目标单元存在）
+  payload.unitId = form.unitId
 
   const res = await updateExecute({ id: segId, data: payload })
   if (res?.code === 200) {
@@ -376,11 +406,11 @@ async function loadDetail() {
   const res = await detailExecute(segId)
   if (res?.code === 200 && res.data) {
     const d = res.data
-    unitTitle.value = d.unitTitle
     form.title = d.title
     form.textContent = d.textContent
     form.translation = d.translation ?? ''
     form.isPublic = d.isPublic === 1
+    form.unitId = d.unitId
     form.questions = d.questions.map((q) => ({
       question: q.question,
       options: [...q.options],
@@ -428,6 +458,7 @@ async function handleVisibilityConfirm(payload: { reasonCategory: string; reason
 }
 
 onMounted(() => {
+  loadUnits()
   loadDetail()
 })
 </script>
@@ -466,6 +497,10 @@ onMounted(() => {
 .page-desc__note {
   font-size: 13px;
   color: var(--text-3);
+}
+
+.unit-select {
+  width: 200px;
 }
 
 .edit-card {

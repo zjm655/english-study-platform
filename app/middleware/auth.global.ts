@@ -13,6 +13,7 @@ const ADMIN_PAGE_PERMISSIONS: [prefix: string, permission: PermissionKey][] = [
   ['/admin/stats', PERMISSIONS.VIEW_STATS],
   ['/admin/cloud', PERMISSIONS.VIEW_STATS],
   ['/admin/logs/review-access', PERMISSIONS.VIEW_AUDIT],
+  ['/admin/monitor', PERMISSIONS.CONFIG],
   ['/admin/logs', PERMISSIONS.VIEW_LOGS],
   ['/admin/config', PERMISSIONS.CONFIG],
 ]

@@ -10,6 +10,7 @@ import {
   updateAdminUserPermissions,
   getAdminUserRecordings,
   auditionUserRecording,
+  batchAdminUsers,
 } from '~/api/admin/user'
 import type {
   AdminUserListQuery,
@@ -25,6 +26,7 @@ import type {
   AdminOperationLogListQuery,
   AdminOperationLogListResult,
 } from '#shared/types/adminOperationLog'
+import type { AdminUserBatchPayload, BatchResult } from '#shared/types/adminBatch'
 
 /** 管理员用户列表（服务端分页 + 搜索 + 状态筛选） */
 export const useAdminUserList = () => {
@@ -69,6 +71,18 @@ export const useDeleteAdminUser = () => {
     success: '销号成功',
     clientFail: '销号失败',
     serverFail: '服务器异常，销号失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员批量操作用户（ban/unban/delete；成功文案由页面按 BatchResult 汇总） */
+export const useBatchAdminUsers = () => {
+  const cfg = createResCfg<AdminUserBatchPayload, BatchResult>({
+    handle: batchAdminUsers,
+    success: '',
+    clientFail: '批量操作失败，请检查选中项',
+    serverFail: '服务器异常，批量操作失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

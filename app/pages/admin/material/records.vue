@@ -20,6 +20,7 @@
           @change="handleSearch"
         >
           <el-option label="全部" value="" />
+          <el-option label="排队中" value="queued" />
           <el-option label="处理中" value="processing" />
           <el-option label="成功" value="success" />
           <el-option label="失败" value="failed" />
@@ -51,7 +52,41 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="isLoading" :data="list" stripe row-key="id">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.title"
+        @clear="clear"
+        @remove="removeRow"
+      >
+        <el-tooltip
+          content="重试单次上限 20 条，请减少选择"
+          placement="top"
+          :disabled="selectedFailedIds.length <= 20"
+        >
+          <el-button
+            type="warning"
+            size="small"
+            :disabled="selectedFailedIds.length === 0 || selectedFailedIds.length > 20"
+            @click="openBatchReprocess"
+          >
+            批量重试（仅失败 {{ selectedFailedIds.length }} 条）
+          </el-button>
+        </el-tooltip>
+        <el-button size="small" @click="handleBatchExport">导出选中</el-button>
+        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+      </AdminBatchBar>
+
+      <el-table
+        ref="tableRef"
+        v-loading="isLoading"
+        :data="list"
+        stripe
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
         <el-table-column label="状态" width="90" align="center">
@@ -113,7 +148,7 @@
           :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next, jumper"
           background
-          @current-change="loadList"
+          @current-change="() => loadList()"
           @size-change="handleSizeChange"
         />
       </div>
@@ -215,34 +250,44 @@
       </template>
     </el-dialog>
 
-    <!-- 重处理弹窗 -->
+    <!-- 重处理弹窗（单条 / 批量共用） -->
     <el-dialog
       v-model="reprocessVisible"
-      title="重处理失败记录"
-      width="400px"
+      :title="reprocessMode === 'single' ? '重处理失败记录' : '批量重试失败记录'"
+      width="440px"
       :close-on-click-modal="false"
     >
       <el-form label-width="80px">
-        <el-form-item label="记录ID">
-          <el-input :model-value="reprocessRecord?.id" disabled />
-        </el-form-item>
-        <el-form-item label="标题">
-          <el-input :model-value="reprocessRecord?.title" disabled />
+        <template v-if="reprocessMode === 'single'">
+          <el-form-item label="记录ID">
+            <el-input :model-value="reprocessRecord?.id" disabled />
+          </el-form-item>
+          <el-form-item label="标题">
+            <el-input :model-value="reprocessRecord?.title" disabled />
+          </el-form-item>
+        </template>
+        <el-form-item v-else label="选中记录">
+          <span>{{ selectedFailedIds.length }} 条失败记录（非失败/状态已变更的记录将被跳过）</span>
         </el-form-item>
         <el-form-item label="目标单元">
-          <el-input-number
+          <el-select
             v-model="reprocessUnitId"
-            :min="0"
-            :step="1"
-            style="width: 200px"
-            placeholder="0=自定义单元"
-          />
-          <span class="form-tip">0=自定义单元，正整数=指定单元</span>
+            filterable
+            placeholder="选择目标单元"
+            style="width: 280px"
+          >
+            <el-option
+              v-for="u in reprocessUnitOptions"
+              :key="u.id"
+              :label="u.id === 0 ? `${u.title}（系统保留）` : u.title"
+              :value="u.id"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="reprocessVisible = false">取消</el-button>
-        <el-button type="primary" :loading="isReprocessing" @click="handleReprocess">
+        <el-button type="primary" :loading="isReprocessing || isBatching" @click="handleReprocess">
           确认重处理
         </el-button>
       </template>
@@ -261,19 +306,26 @@
 import { Unlock } from '@element-plus/icons-vue'
 import {
   useAdminMaterialRecordList,
+  useAdminMaterialRecordStatuses,
   useAdminMaterialRecordDetail,
   useDeleteAdminMaterialRecord,
   useReprocessAdminMaterialRecord,
+  useBatchAdminMaterialRecords,
   useAuditionMaterialRecord,
+  useTableSelection,
 } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
+import { usePolling } from '~/composables/usePolling'
+import { getUnits } from '~/api/unit/units'
 import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
-import { toastConfirm } from '~/utils/popup'
+import { toastConfirm, toastWarning, toastBatchResult } from '~/utils/popup'
+import { exportRowsToCsv } from '~/utils/csvExport'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type {
   AdminMaterialRecordListItem,
   AdminMaterialRecordDetail,
 } from '#shared/types/adminMaterialRecord'
+import type { UnitWithProgress } from '#shared/types/unit'
 
 definePageMeta({
   layout: 'admin',
@@ -333,29 +385,111 @@ const { isLoading, execute: listExecute } = useAdminMaterialRecordList()
 const { execute: detailExecute } = useAdminMaterialRecordDetail()
 const { execute: deleteExecute } = useDeleteAdminMaterialRecord()
 const { isLoading: isReprocessing, execute: reprocessExecute } = useReprocessAdminMaterialRecord()
+const { isLoading: isBatching, execute: batchExecute } = useBatchAdminMaterialRecords()
 const { isLoading: isAuditioning, execute: auditionExecute } = useAuditionMaterialRecord()
 
-async function loadList() {
-  const res = await listExecute({
-    page: page.value,
-    pageSize: pageSize.value,
-    status: (filterStatus.value || undefined) as AdminMaterialRecordListItem['status'] | undefined,
-    source: filterSource.value,
-    startDate: dateRange.value?.[0],
-    endDate: dateRange.value?.[1],
-  })
+// 批量选择（reserve-selection 跨页保留，上限对齐后端 batchIds=100）；批量重试只对选中的 failed 生效
+const {
+  tableRef,
+  selectedRows,
+  selectedIds,
+  onSelectionChange,
+  clear,
+  canSelect,
+  removeRow,
+  offPageCount,
+} = useTableSelection<AdminMaterialRecordListItem>({ limit: 100, pageRows: () => list.value })
+const selectedFailedIds = computed(() =>
+  selectedRows.value.filter((r) => r.status === 'failed').map((r) => r.id),
+)
+
+// 单元下拉数据（重处理弹窗目标单元映射；无 id=0 行时手动前置自定义单元占位）
+const units = ref<UnitWithProgress[]>([])
+const reprocessUnitOptions = computed(() => {
+  const hasCustom = units.value.some((u) => u.id === 0)
+  return hasCustom
+    ? units.value
+    : [{ id: 0, title: '自定义单元' } as UnitWithProgress, ...units.value]
+})
+
+async function loadUnits() {
+  const res = await getUnits()
+  if (res?.code === 200 && res.data) {
+    units.value = res.data
+  }
+}
+
+async function loadList(silent = false) {
+  const res = await listExecute(
+    {
+      page: page.value,
+      pageSize: pageSize.value,
+      status: (filterStatus.value || undefined) as
+        AdminMaterialRecordListItem['status'] | undefined,
+      source: filterSource.value,
+      startDate: dateRange.value?.[0],
+      endDate: dateRange.value?.[1],
+    },
+    { silent },
+  )
   if (res?.code === 200 && res.data) {
     list.value = res.data.list
     total.value = res.data.total
   }
 }
 
+// ─── 异步任务轮询（usePolling 指数衰减 5s→30s）：活跃项走批量状态轻接口增量合并，
+// 转终态时再整刷列表校正分页统计，无活跃项自动停止 ───
+const { execute: fetchStatuses } = useAdminMaterialRecordStatuses()
+
+const hasActiveRecord = computed(() =>
+  list.value.some((r) => r.status === 'queued' || r.status === 'processing'),
+)
+
+const { start: startPolling, stop: stopPolling } = usePolling(
+  async () => {
+    const ids = list.value
+      .filter((r) => r.status === 'queued' || r.status === 'processing')
+      .map((r) => r.id)
+    if (!ids.length) return true
+    const res = await fetchStatuses(ids, { silent: true })
+    if (res?.code === 200 && res.data) {
+      let reachedTerminal = false
+      for (const item of res.data) {
+        const target = list.value.find((r) => r.id === item.id)
+        if (!target) continue
+        if (
+          target.status !== item.status &&
+          (item.status === 'success' || item.status === 'failed')
+        ) {
+          reachedTerminal = true
+        }
+        target.status = item.status
+        target.error_message = item.error_message
+        target.segment_id = item.segment_id
+        target.title = item.title
+      }
+      // 终态转换后整刷一次：筛选/分页统计（如「仅看失败」）依赖服务端口径
+      if (reachedTerminal) await loadList(true)
+    }
+    return !hasActiveRecord.value
+  },
+  { baseMs: 5000 },
+)
+
+watch(hasActiveRecord, (active) => {
+  if (active) startPolling()
+  else stopPolling()
+})
+
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterStatus.value = ''
   filterSource.value = 'all'
   dateRange.value = null
@@ -412,37 +546,111 @@ async function handleDelete(row: AdminMaterialRecordListItem) {
   }
 }
 
-// ===== 重处理 =====
+// ===== 重处理（单条 / 批量共用弹窗与目标单元选择） =====
 const reprocessVisible = ref(false)
+const reprocessMode = ref<'single' | 'batch'>('single')
 const reprocessRecord = ref<AdminMaterialRecordListItem | null>(null)
 const reprocessUnitId = ref(0)
 
 function openReprocess(row: AdminMaterialRecordListItem) {
+  reprocessMode.value = 'single'
   reprocessRecord.value = row
   reprocessUnitId.value = 0
   reprocessVisible.value = true
 }
 
+function openBatchReprocess() {
+  if (selectedFailedIds.value.length === 0) {
+    toastWarning('选中项中没有失败记录')
+    return
+  }
+  if (selectedFailedIds.value.length > 20) {
+    toastWarning('一次最多重试 20 条失败记录，请减少选择')
+    return
+  }
+  reprocessMode.value = 'batch'
+  reprocessRecord.value = null
+  reprocessUnitId.value = 0
+  reprocessVisible.value = true
+}
+
 async function handleReprocess() {
-  if (!reprocessRecord.value) return
-  const res = await reprocessExecute({
-    id: reprocessRecord.value.id,
-    payload: { unitId: reprocessUnitId.value },
+  if (reprocessMode.value === 'single') {
+    if (!reprocessRecord.value) return
+    const res = await reprocessExecute({
+      id: reprocessRecord.value.id,
+      payload: { unitId: reprocessUnitId.value },
+    })
+    if (res?.code === 200) {
+      reprocessVisible.value = false
+      loadList()
+    }
+    return
+  }
+  const res = await batchExecute({
+    action: 'reprocess',
+    ids: selectedFailedIds.value,
+    unitId: reprocessUnitId.value,
   })
-  if (res?.code === 200) {
+  if (res?.code === 200 && res.data) {
+    toastBatchResult(res.data)
     reprocessVisible.value = false
+    clear()
     loadList()
   }
+}
+
+// ===== 批量删除 / 导出 =====
+async function handleBatchDelete() {
+  const count = selectedRows.value.length
+  try {
+    await toastConfirm(
+      `确定删除选中的 ${count} 条记录吗？将同时删除关联的学习材料（进行中的任务会被跳过）。`,
+      '批量删除确认',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  const res = await batchExecute({ action: 'delete', ids: selectedIds.value })
+  if (res?.code === 200 && res.data) {
+    toastBatchResult(res.data)
+    // 页内选中数（跨页选中后 count 可能大于当前页行数，回退页码须按页内数判断）
+    const onPageCount = count - offPageCount.value
+    clear()
+    if (list.value.length === onPageCount && page.value > 1) page.value -= 1
+    loadList()
+  }
+}
+
+function handleBatchExport() {
+  // 导出列表可见字段（状态/来源转中文口径与表格一致），纯前端零请求
+  const rows = selectedRows.value.map((r) => ({
+    ID: r.id,
+    标题: r.title,
+    状态: statusTagText(r.status),
+    失败原因: r.error_message ?? '',
+    上传者: r.username,
+    来源: sourceTagText(r.source),
+    公开: r.is_public ? '公开' : '私有',
+    片段ID: r.segment_id ?? '',
+    创建时间: formatDate(r.createdAt),
+  }))
+  exportRowsToCsv(rows, `material_records_selected_${fmt(new Date())}`)
 }
 
 // ===== 工具函数 =====
 function statusTagType(status: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
   return (
-    ({ processing: 'warning', success: 'success', failed: 'danger' } as const)[status] ?? 'info'
+    ({ queued: 'info', processing: 'warning', success: 'success', failed: 'danger' } as const)[
+      status
+    ] ?? 'info'
   )
 }
 function statusTagText(status: string) {
-  return { processing: '处理中', success: '成功', failed: '失败' }[status] ?? status
+  return (
+    { queued: '排队中', processing: '处理中', success: '成功', failed: '失败' }[status] ?? status
+  )
 }
 function sourceTagType(source: string) {
   return source === 'admin' ? 'warning' : 'info'
@@ -459,6 +667,7 @@ function formatDate(s: string) {
 }
 
 onMounted(() => {
+  loadUnits()
   loadList()
 })
 </script>

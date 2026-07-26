@@ -1,13 +1,13 @@
-import { randomUUID } from 'node:crypto'
-import { moderateText } from '#server/utils/contentModeration'
-import { speechToText } from '#server/utils/speechToText'
-import { compareTextSimilarity } from '#server/utils/textSimilarity'
-import { extractAudioMeta } from '#server/utils/audioMeta'
-import { generateLearningContent, generateTitle } from '#server/utils/aiContent'
-import { textToSpeech } from '#server/utils/tts'
-import { uploadWithKey, deleteObject } from '#server/utils/oss'
-import { withTransaction, pool } from '#server/utils/db'
-import { mapWithConcurrency } from '#server/utils/concurrency'
+import { withQueue } from '#server/utils/serviceQueue'
+import {
+  runMaterialJob,
+  createUploadRecord,
+  updateRecordFailed,
+  isUploadQueueFull,
+  USER_MAX_SIZE,
+  ADMIN_MAX_SIZE,
+} from '#server/utils/materialJob'
+import { query } from '#server/utils/db'
 import {
   validateError,
   validateSuccess,
@@ -15,62 +15,15 @@ import {
   uploadMaterialAdminSchema,
 } from '#server/utils/validate'
 import type { UploadMaterialResult } from '#shared/types/material'
-import type { ResultSetHeader } from 'mysql2'
 import { isAdminOrAbove } from '#shared/utils/role'
 
-// ============ 音频限制 ============
-const USER_MAX_DURATION = 180 // 3 分钟
-const ADMIN_MAX_DURATION = 600 // 10 分钟
-const USER_MAX_SIZE = 2 * 1024 * 1024 // 2MB
-const ADMIN_MAX_SIZE = 5 * 1024 * 1024 // 5MB
-
-// ============ 辅助函数 ============
-
-function getExt(filename: string): string {
-  return filename.split('.').pop()?.toLowerCase() || 'mp3'
-}
-
-function extToFormat(filename: string): 'mp3' | 'wav' | 'aac' | 'opus' | 'mp4' {
-  const ext = getExt(filename)
-  if (['wav', 'aac', 'opus', 'mp4'].includes(ext))
-    return ext as 'mp3' | 'wav' | 'aac' | 'opus' | 'mp4'
-  return 'mp3'
-}
-
-// ============ 记录追踪辅助函数 ============
-
-async function createUploadRecord(
-  userId: number,
-  title: string,
-  textContent: string,
-  voice: string,
-  isPublic: number,
-): Promise<number> {
-  const [res] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, status)
-     VALUES (?, ?, ?, ?, ?, 'processing')`,
-    [userId, title, textContent, voice, isPublic],
-  )
-  return res.insertId
-}
-
-async function updateRecordFailed(recordId: number, error: string) {
-  await pool.execute(
-    `UPDATE material_upload_record SET status = 'failed', error_message = ? WHERE id = ?`,
-    [error.substring(0, 500), recordId],
-  )
-}
-
-async function updateRecordSuccess(recordId: number, segmentId: number) {
-  await pool.execute(
-    `UPDATE material_upload_record SET status = 'success', segment_id = ? WHERE id = ?`,
-    [segmentId, recordId],
-  )
-}
-
 /**
- * 上传自定义材料
+ * 上传自定义材料（异步任务模式）
  * 请求：POST /api/segment/upload (multipart/form-data)
+ *
+ * 同步段只做纯本地操作（解析 + zod 校验 + 建 queued 记录 + 入队），秒级返回 recordId；
+ * 完整流水线（审核/STT/TTS/OSS/AI/入库）由 runMaterialJob 在 upload 队列内异步执行，
+ * 前端轮询 GET /api/material/records 展示「排队中/处理中/完成/失败」。
  */
 export default defineEventHandler(
   async (event): Promise<ResPayload<UploadMaterialResult | null>> => {
@@ -101,238 +54,60 @@ export default defineEventHandler(
 
     if (!textContent) return validateError('材料文本不能为空')
 
-    // 预生成标题（用于记录表）—— 先截取保底，成功后再用 AI 标题更新
-    const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
+    // 4. 入队深度防御
+    if (await isUploadQueueFull()) {
+      return validateError('系统繁忙，请稍后再试', 503)
+    }
 
-    // 创建上传记录（事务外，确保失败也能追踪）
+    // 5. 音频大小前置校验 + Buffer 拷贝进任务闭包（任务与 event 生命周期解耦）
+    // 提前拦截超大文件：避免先烧 STT/OSS 云费、大 Buffer 驻留队列（流水线内 Step 3 仍有后置兼校）
+    let audioBuffer: Buffer | undefined
+    let audioFileName: string | undefined
+    if (audioFile && audioFile instanceof File && audioFile.size > 0) {
+      const maxSize = isAdmin ? ADMIN_MAX_SIZE : USER_MAX_SIZE
+      if (audioFile.size > maxSize) {
+        return validateError(`音频大小超过限制（${maxSize / 1024 / 1024}MB）`)
+      }
+      audioBuffer = Buffer.from(await audioFile.arrayBuffer())
+      audioFileName = audioFile.name
+    }
+
+    // 6. 建 queued 记录（record 是任务唯一真相源）
+    const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
     const recordId = await createUploadRecord(user.id, fallbackTitle, textContent, voice, isPublic)
 
-    logger.info(
-      `[material upload] 开始处理 user=${user.id} record=${recordId} ${audioFile ? '用户上传音频' : 'TTS合成'} 文本${textContent.length}字`,
+    // 7. 排队位置估算（DB COUNT，重启自洽，不依赖内存队列插桩）
+    const aheadRows = await query<{ cnt: number | string }>(
+      `SELECT COUNT(*) as cnt FROM material_upload_record WHERE status = 'queued' AND id < ?`,
+      [recordId],
     )
+    const queuePosition = Number(aheadRows[0]?.cnt ?? 0)
 
-    // ===== Step 1: 文本审核 =====
-    const mod1 = await moderateText(textContent)
-    if (!mod1.safe) {
-      await updateRecordFailed(recordId, `材料内容不合规: ${mod1.reason}`)
-      return validateError(`材料内容不合规: ${mod1.reason}`)
-    }
-
-    // ===== Step 2: 音频处理 =====
-    let audioBuffer: Buffer
-    let mediaType: string
-
-    if (audioFile && audioFile instanceof File && audioFile.size > 0) {
-      // 2a. 读取音频 buffer
-      audioBuffer = Buffer.from(await audioFile.arrayBuffer())
-      mediaType = 'user_material'
-
-      // 2b. 语音转文字
-      const sttResult = await speechToText(audioBuffer, extToFormat(audioFile.name))
-      if (!sttResult.success) {
-        await updateRecordFailed(recordId, `音频识别失败: ${sttResult.error}`)
-        return validateError(`音频识别失败: ${sttResult.error}`)
-      }
-
-      // 2c. 音频文本审核
-      const recognizedText = sttResult.text ?? ''
-      if (recognizedText.trim()) {
-        const mod2 = await moderateText(recognizedText)
-        if (!mod2.safe) {
-          await updateRecordFailed(recordId, `音频内容不合规: ${mod2.reason}`)
-          return validateError(`音频内容不合规: ${mod2.reason}`)
-        }
-
-        // 2d. 文本相似度对比
-        const sim = compareTextSimilarity(textContent, recognizedText)
-        if (!sim.passed) {
-          await updateRecordFailed(
-            recordId,
-            `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`,
-          )
-          return validateError(
-            `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`,
-          )
-        }
-      }
-    } else {
-      // 2e. 无音频：TTS 生成
-      const ttsResult = await textToSpeech(textContent, voice)
-      if (!ttsResult.success || !ttsResult.audio) {
-        await updateRecordFailed(recordId, '音频生成失败')
-        return validateError('音频生成失败，请稍后重试')
-      }
-      audioBuffer = ttsResult.audio
-      mediaType = 'tts'
-    }
-
-    // 2f. 上传音频到 OSS
-    const ext = audioFile && audioFile instanceof File ? getExt(audioFile.name) : 'mp3'
-    const ossKey = `audio/material/${randomUUID()}.${ext}`
-    const bucket = useRuntimeConfig().oss.bucket
-
-    try {
-      await uploadWithKey(audioBuffer, ossKey)
-    } catch (err) {
-      logger.error('[material upload] OSS 上传失败:', err)
-      await updateRecordFailed(recordId, '文件上传失败')
-      return validateError('文件上传失败，请稍后重试', 500)
-    }
-
-    // 2g. 插入 media 记录
-    const originalName = audioFile && audioFile instanceof File ? audioFile.name : 'tts.mp3'
-    const [mediaRes] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, original_name, mime_type, size_bytes, status)
-     VALUES (?, ?, 'oss', ?, ?, ?, ?, ?, 1)`,
-      [user.id, mediaType, bucket, ossKey, originalName, `audio/${ext}`, audioBuffer.length],
-    )
-    const segmentMediaId = mediaRes.insertId
-
-    // ===== Step 3: 音频元数据校验 =====
-    const meta = await extractAudioMeta(audioBuffer)
-    if (!meta) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, '无法解析音频信息')
-      return validateError('无法解析音频信息')
-    }
-
-    const maxDuration = isAdmin ? ADMIN_MAX_DURATION : USER_MAX_DURATION
-    const maxSize = isAdmin ? ADMIN_MAX_SIZE : USER_MAX_SIZE
-
-    if (meta.duration > maxDuration) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, `音频时长超限: ${meta.duration.toFixed(1)}s`)
-      return validateError(`音频时长 ${meta.duration.toFixed(1)}s 超过限制（${maxDuration}s）`)
-    }
-    if (meta.size > maxSize) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, `音频大小超限: ${(meta.size / 1024 / 1024).toFixed(1)}MB`)
-      return validateError(`音频大小 ${(meta.size / 1024 / 1024).toFixed(1)}MB 超过限制`)
-    }
-
-    // 更新 media 的 duration
-    await pool.execute('UPDATE media SET duration = ? WHERE id = ?', [
-      meta.duration,
-      segmentMediaId,
-    ])
-
-    // ===== Step 4: AI 内容生成 + 标题生成（并行，二者仅依赖 textContent 且互不依赖） =====
-    const [aiResult, titleResult] = await Promise.all([
-      generateLearningContent(textContent),
-      generateTitle(textContent),
-    ])
-    if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, 'AI 内容生成失败')
-      return validateError('AI 内容生成失败，请稍后重试')
-    }
-
-    // 窄化类型（上面已检查非空，但 TS 在闭包中无法追踪）
-    const vocabulary: NonNullable<typeof aiResult.vocabulary> = aiResult.vocabulary
-    const questions: NonNullable<typeof aiResult.questions> = aiResult.questions
-
-    let title: string
-    if (titleResult.success && titleResult.title) {
-      title = titleResult.title
-    } else {
-      logger.warn('[material upload] 标题生成失败，降级为文本截取:', titleResult.error)
-      title = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
-    }
-
-    // ===== Step 5: 词汇音频（TTS + OSS）——事务外受限并发预生成 =====
-    // 关键：TTS(WebSocket) 与 OSS 上传是耗时网络 I/O，绝不能放在事务内，否则单条上传会
-    // 长时间占用连接池连接（connectionLimit=10），高并发下打满连接池、阻塞所有 DB 请求。
-    // 此处并发受限（最多 4）预生成；词汇音频失败（TTS 或 OSS 任一失败）则 media=null，
-    // 不影响整体入库（保留原「词汇音频失败不影响整体」语义）。
-    const vocabAudios = await mapWithConcurrency(vocabulary, 4, async (vocab) => {
-      const vocabTts = await textToSpeech(vocab.word)
-      if (!vocabTts.success || !vocabTts.audio) return { vocab, media: null }
-      const vocabKey = `audio/vocab/${randomUUID()}.mp3`
-      try {
-        await uploadWithKey(vocabTts.audio, vocabKey)
-      } catch {
-        // 词汇音频上传失败不影响整体
-        return { vocab, media: null }
-      }
-      return { vocab, media: { key: vocabKey, size: vocabTts.audio.length } }
+    // 8. 入 upload 队列 fire-and-forget（用户交互任务高优先级；runMaterialJob 内部永不抛出）
+    withQueue(
+      'upload',
+      () =>
+        runMaterialJob({
+          recordId,
+          userId: user.id,
+          isAdmin,
+          textContent,
+          voice,
+          isPublic,
+          unitId: finalUnitId,
+          audioBuffer,
+          audioFileName,
+        }),
+      { priority: 1 },
+    ).catch(async (err) => {
+      // 兜底：任务在排队阶段被移除（如进程关闭前 abort）等极端情况；自身绝不再抛
+      logger.error('[material upload] 任务入队执行异常:', err)
+      await updateRecordFailed(recordId, '任务调度异常，请重试').catch(() => {})
     })
 
-    // ===== Step 6: 全部入库（短事务，仅纯 DB 写，不含任何网络 I/O） =====
-    let segmentId: number
-    try {
-      segmentId = await withTransaction(async (conn) => {
-        // 6a. 插入 segment
-        const [segRes] = await conn.execute<ResultSetHeader>(
-          `INSERT INTO segment (unit_id, title, textContent, translation, questions, is_public, media_id, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-          [
-            finalUnitId,
-            title,
-            textContent,
-            aiResult.translation ?? '',
-            JSON.stringify(questions),
-            isPublic,
-            segmentMediaId,
-          ],
-        )
-        const newSegmentId = segRes.insertId
-
-        // 6b. 插入 vocabulary + 词汇音频 media（音频已在事务外生成好，此处仅纯 DB 写）
-        let vocabIndex = 0
-        for (const { vocab, media } of vocabAudios) {
-          let vocabMediaId: number | null = null
-          if (media) {
-            const [vmRes] = await conn.execute<ResultSetHeader>(
-              `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, mime_type, size_bytes, duration, status)
-             VALUES (NULL, 'vocab_audio', 'oss', ?, ?, 'audio/mpeg', ?, 0, 1)`,
-              [bucket, media.key, media.size],
-            )
-            vocabMediaId = vmRes.insertId
-          }
-
-          await conn.execute(
-            `INSERT INTO vocabulary (segment_id, word, forms, phonetic, meaning, exampleSentence, exampleTranslation, media_id, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              newSegmentId,
-              vocab.word,
-              vocab.forms ?? null,
-              vocab.phonetic ?? null,
-              vocab.meaning,
-              vocab.exampleSentence ?? null,
-              vocab.exampleTranslation ?? null,
-              vocabMediaId,
-              vocabIndex++,
-            ],
-          )
-        }
-
-        return newSegmentId
-      })
-    } catch (err) {
-      logger.error('[material upload] 事务失败:', err)
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, '入库失败')
-      // 事务失败：清理已上传但未成功入库的 OSS 对象（主音频 + 词汇音频），避免孤儿文件（best-effort）
-      void deleteObject(ossKey)
-      for (const { media } of vocabAudios) {
-        if (media) void deleteObject(media.key)
-      }
-      return validateError('入库失败，请稍后重试', 500)
-    }
-
-    // 更新记录为成功
-    await updateRecordSuccess(recordId, segmentId)
-
-    // 如果 AI 生成的标题与 fallback 不同，更新记录标题
-    if (title !== fallbackTitle) {
-      await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [
-        title,
-        recordId,
-      ])
-    }
-
-    logger.info(`[material upload] 上传成功 record=${recordId} segment=${segmentId} title=${title}`)
-    return validateSuccess<UploadMaterialResult>({ segmentId, title }, '材料上传成功')
+    logger.info(
+      `[material upload] 已入队 user=${user.id} record=${recordId} 排队位置=${queuePosition}`,
+    )
+    return validateSuccess<UploadMaterialResult>({ recordId, queuePosition }, '材料已加入处理队列')
   },
 )

@@ -54,6 +54,12 @@ export default defineNuxtConfig({
       gateway: 'nls-gateway.aliyuncs.com',
       appKey: '',
     },
+    // Edge TTS 代理（Cloudflare Worker 中转，解决服务器公网 IP 被微软封锁）；
+    // url 留空则直连微软（本地开发默认），非空时 key 必须与 Worker 的 PROXY_KEY 一致
+    ttsProxy: {
+      url: '',
+      key: '',
+    },
     aiContent: {
       appId: '',
       appSecret: '',

@@ -12,6 +12,7 @@
 
 import { fileLog, fileLogError } from './fileLogger'
 import { logCloudServiceCall } from './cloudServiceLog'
+import { withQueue } from './serviceQueue'
 
 // ==================== 导出类型 ====================
 
@@ -246,24 +247,27 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 
   let callStart = 0
   try {
-    callStart = Date.now()
-    const resp = await serverFetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${ds.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: ds.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: trimmed },
-        ],
-        temperature: 0.3,
-        max_tokens: MAX_TOKENS,
-      }),
-      timeout: API_TIMEOUT,
-      tag: '[aiContent]',
+    // deepseek 云产品并发闸门：callStart 在队列 acquire 后才赋值，duration_ms 只计执行不计排队
+    const resp = await withQueue('deepseek', () => {
+      callStart = Date.now()
+      return serverFetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ds.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: ds.model,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: trimmed },
+          ],
+          temperature: 0.3,
+          max_tokens: MAX_TOKENS,
+        }),
+        timeout: API_TIMEOUT,
+        tag: '[aiContent]',
+      })
     })
 
     if (!resp.ok) {
@@ -406,24 +410,27 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
 
   let callStart = 0
   try {
-    callStart = Date.now()
-    const resp = await serverFetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${ds.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: ds.model,
-        messages: [
-          { role: 'system', content: TITLE_SYSTEM_PROMPT },
-          { role: 'user', content: trimmed.substring(0, 500) },
-        ],
-        temperature: 0.3,
-        max_tokens: TITLE_MAX_TOKENS,
-      }),
-      timeout: TITLE_API_TIMEOUT,
-      tag: '[aiContent]',
+    // deepseek 云产品并发闸门：同 generateLearningContent
+    const resp = await withQueue('deepseek', () => {
+      callStart = Date.now()
+      return serverFetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ds.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: ds.model,
+          messages: [
+            { role: 'system', content: TITLE_SYSTEM_PROMPT },
+            { role: 'user', content: trimmed.substring(0, 500) },
+          ],
+          temperature: 0.3,
+          max_tokens: TITLE_MAX_TOKENS,
+        }),
+        timeout: TITLE_API_TIMEOUT,
+        tag: '[aiContent]',
+      })
     })
 
     if (!resp.ok) {

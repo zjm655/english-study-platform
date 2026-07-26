@@ -51,7 +51,27 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="isLoading" :data="list" stripe row-key="id">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.title"
+        @clear="clear"
+        @remove="removeRow"
+      >
+        <el-button type="primary" size="small" @click="openMoveDialog">批量修改单元</el-button>
+        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+      </AdminBatchBar>
+
+      <el-table
+        ref="tableRef"
+        v-loading="isLoading"
+        :data="list"
+        stripe
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
         <el-table-column prop="unitTitle" label="所属单元" min-width="150" show-overflow-tooltip />
@@ -89,14 +109,39 @@
         />
       </div>
     </el-card>
+
+    <!-- 批量修改所属单元弹窗 -->
+    <el-dialog v-model="moveVisible" title="批量修改所属单元" width="420px">
+      <el-form label-width="80px">
+        <el-form-item label="选中材料">
+          <span>{{ selectedRows.length }} 条</span>
+        </el-form-item>
+        <el-form-item label="目标单元">
+          <el-select v-model="moveUnitId" placeholder="选择单元" filterable style="width: 260px">
+            <el-option v-for="u in units" :key="u.id" :label="u.title" :value="u.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="moveVisible = false">取消</el-button>
+        <el-button type="primary" :loading="isBatching" @click="handleBatchMove"
+          >确认修改</el-button
+        >
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Upload, Search } from '@element-plus/icons-vue'
 import { getUnits } from '~/api/unit/units'
-import { useAdminSegmentList, useDeleteAdminSegment } from '~/composables/admin'
-import { toastSuccess, toastConfirm } from '~/utils/popup'
+import {
+  useAdminSegmentList,
+  useDeleteAdminSegment,
+  useBatchAdminSegments,
+  useTableSelection,
+} from '~/composables/admin'
+import { toastSuccess, toastConfirm, toastWarning, toastBatchResult } from '~/utils/popup'
 import type { AdminSegmentListItem, AdminSegmentListQuery } from '#shared/types/adminSegment'
 import type { UnitWithProgress } from '#shared/types/unit'
 
@@ -123,6 +168,23 @@ const units = ref<UnitWithProgress[]>([])
 
 const { isLoading, execute: listExecute } = useAdminSegmentList()
 const { execute: deleteExecute } = useDeleteAdminSegment()
+const { isLoading: isBatching, execute: batchExecute } = useBatchAdminSegments()
+
+// 批量选择（reserve-selection 跨页保留；上限对齐后端 batchIds=100）
+const {
+  tableRef,
+  selectedRows,
+  selectedIds,
+  onSelectionChange,
+  clear,
+  canSelect,
+  removeRow,
+  offPageCount,
+} = useTableSelection<AdminSegmentListItem>({ limit: 100, pageRows: () => list.value })
+
+// 批量修改单元弹窗
+const moveVisible = ref(false)
+const moveUnitId = ref<number>()
 
 function buildQuery(): AdminSegmentListQuery {
   return {
@@ -144,11 +206,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterUnitId.value = undefined
   filterIsPublic.value = undefined
   filterKeyword.value = ''
@@ -184,6 +248,52 @@ async function handleDelete(row: AdminSegmentListItem) {
     toastSuccess('删除成功')
     // 当前页删空且非首页时回退一页
     if (list.value.length === 1 && page.value > 1) page.value -= 1
+    loadList()
+  }
+}
+
+async function handleBatchDelete() {
+  const count = selectedRows.value.length
+  // 页内选中数（跨页选中后 count 可能大于当前页行数，回退页码须按页内数判断）
+  const onPageCount = count - offPageCount.value
+  try {
+    await toastConfirm(`确定删除选中的 ${count} 条材料吗？删除后将对学生不可见。`, '批量删除确认', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+  } catch {
+    return // 用户取消
+  }
+  const res = await batchExecute({ action: 'delete', ids: selectedIds.value })
+  if (res?.code === 200 && res.data) {
+    toastBatchResult(res.data)
+    clear()
+    // 当前页可能被删空且非首页时回退一页
+    if (list.value.length === onPageCount && page.value > 1) page.value -= 1
+    loadList()
+  }
+}
+
+function openMoveDialog() {
+  moveUnitId.value = undefined
+  moveVisible.value = true
+}
+
+async function handleBatchMove() {
+  if (typeof moveUnitId.value !== 'number') {
+    toastWarning('请选择目标单元')
+    return
+  }
+  const res = await batchExecute({
+    action: 'move',
+    ids: selectedIds.value,
+    unitId: moveUnitId.value,
+  })
+  if (res?.code === 200 && res.data) {
+    toastBatchResult(res.data)
+    moveVisible.value = false
+    clear()
     loadList()
   }
 }

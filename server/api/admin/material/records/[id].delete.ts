@@ -17,11 +17,17 @@ export default defineEventHandler(async (event) => {
   if (isNaN(id) || id <= 0) return validateError('无效的记录ID')
 
   // 查询记录确认存在并获取关联信息
-  const rows = await query<{ segment_id: number | null; title: string | null }>(
-    'SELECT segment_id, title FROM material_upload_record WHERE id = ?',
+  const rows = await query<{ segment_id: number | null; title: string | null; status: string }>(
+    'SELECT segment_id, title, status FROM material_upload_record WHERE id = ?',
     [id],
   )
   if (!rows.length) return validateError('记录不存在', 404)
+
+  // 护栏：进行中的任务不可删除——流水线仍会写该记录/关联资源，删除会与其竞态产生孤儿数据
+  const status = rows[0]!.status
+  if (status === 'queued' || status === 'processing') {
+    return validateError('任务进行中，无法删除', 400)
+  }
 
   const segmentId = rows[0]?.segment_id ?? null
   const title = rows[0]?.title ?? ''

@@ -1,4 +1,4 @@
-import { adminMaterialRecordPath } from '../paths'
+import { adminMaterialRecordPath, adminMaterialRecordBatchPath } from '../paths'
 import type {
   AdminMaterialRecordListQuery,
   AdminMaterialRecordListResult,
@@ -6,6 +6,8 @@ import type {
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
 import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
+import type { MaterialRecordStatusItem } from '#shared/types/material'
+import type { AdminMaterialRecordBatchPayload, BatchResult } from '#shared/types/adminBatch'
 
 /** 管理员上传记录列表 */
 export const getAdminMaterialRecordList = (options: AdminMaterialRecordListQuery = {}) => {
@@ -26,9 +28,24 @@ export const getAdminMaterialRecordDetail = (id: number) => {
   return request.json<AdminMaterialRecordDetail>(`${adminMaterialRecordPath}/${id}`)
 }
 
+/** 批量查询上传任务状态（轮询轻接口，可查所有用户记录） */
+export const getAdminMaterialRecordStatuses = (ids: number[]) => {
+  return request.json<MaterialRecordStatusItem[]>(
+    `${adminMaterialRecordPath}/status${buildQuery({ ids: ids.join(',') })}`,
+  )
+}
+
 /** 管理员删除上传记录 */
 export const deleteAdminMaterialRecord = (id: number) => {
   return request.json<null>(`${adminMaterialRecordPath}/${id}`, { method: 'DELETE' })
+}
+
+/** 管理员批量操作上传记录（delete=批量删除 / reprocess=批量重试，部分成功语义） */
+export const batchAdminMaterialRecords = (payload: AdminMaterialRecordBatchPayload) => {
+  return request.json<BatchResult>(adminMaterialRecordBatchPath, {
+    method: 'POST',
+    body: payload,
+  })
 }
 
 /** 管理员重处理失败记录 */

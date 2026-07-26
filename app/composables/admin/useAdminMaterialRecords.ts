@@ -1,7 +1,9 @@
 import {
   getAdminMaterialRecordList,
+  getAdminMaterialRecordStatuses,
   getAdminMaterialRecordDetail,
   deleteAdminMaterialRecord,
+  batchAdminMaterialRecords,
   reprocessAdminMaterialRecord,
   auditionAdminMaterialRecord,
 } from '~/api/admin/materialRecord'
@@ -12,6 +14,8 @@ import type {
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
 import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
+import type { MaterialRecordStatusItem } from '#shared/types/material'
+import type { AdminMaterialRecordBatchPayload, BatchResult } from '#shared/types/adminBatch'
 
 /** 管理员上传记录列表 */
 export const useAdminMaterialRecordList = () => {
@@ -21,6 +25,18 @@ export const useAdminMaterialRecordList = () => {
     clientFail: '获取上传记录失败',
     serverFail: '服务器异常，获取记录失败',
     error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 批量查询上传任务状态（轮询专用，调用侧以 { silent: true } 静默执行） */
+export const useAdminMaterialRecordStatuses = () => {
+  const cfg = createResCfg<number[], MaterialRecordStatusItem[]>({
+    handle: getAdminMaterialRecordStatuses,
+    success: '',
+    clientFail: '获取任务状态失败',
+    serverFail: '服务器异常',
+    error: '网络异常',
   })
   return useHandleRes(cfg)
 }
@@ -56,6 +72,18 @@ export const useReprocessAdminMaterialRecord = () => {
     success: '重处理已提交',
     clientFail: '重处理失败',
     serverFail: '服务器异常',
+    error: '网络异常',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员批量操作上传记录（delete=批量删除 / reprocess=批量重试；成功文案由页面按 BatchResult 汇总） */
+export const useBatchAdminMaterialRecords = () => {
+  const cfg = createResCfg<AdminMaterialRecordBatchPayload, BatchResult>({
+    handle: batchAdminMaterialRecords,
+    success: '',
+    clientFail: '批量操作失败，请检查选中项',
+    serverFail: '服务器异常，批量操作失败',
     error: '网络异常',
   })
   return useHandleRes(cfg)

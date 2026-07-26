@@ -4,8 +4,10 @@ import { ArrowLeft, Delete, View, Upload } from '@element-plus/icons-vue'
 import { useUploadMaterial } from '~/composables/material/useUploadMaterial'
 import {
   useMaterialRecords,
+  useMaterialRecordStatuses,
   useDeleteMaterialRecord,
 } from '~/composables/material/useUploadRecords'
+import { usePolling } from '~/composables/usePolling'
 import { toastSuccess, toastWarning, toastConfirm } from '~/utils/popup'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
 
@@ -51,12 +53,63 @@ const canSubmit = computed(
 
 const recentRecords = ref<MaterialUploadRecordListItem[]>([])
 
-async function loadRecentRecords() {
-  const res = await fetchRecords({ limit: 3 })
+async function loadRecentRecords(silent = false) {
+  const res = await fetchRecords({ limit: 3 }, { silent })
+  // 轮询与手动刷新并发时防重锁返回 code -2，直接忽略本轮
   if (res?.code === 200 && res.data) {
     recentRecords.value = res.data
   }
 }
+
+// ─── 异步任务轮询（usePolling 指数衰减 3s→30s）：活跃项走批量状态轻接口增量合并，
+// 转终态时整刷一次列表（拿 segment_id/AI 标题），全部终态后自动停止 ───
+const { execute: fetchStatuses } = useMaterialRecordStatuses()
+
+const hasActiveRecord = computed(() =>
+  recentRecords.value.some((r) => r.status === 'queued' || r.status === 'processing'),
+)
+
+function activeRecordIds() {
+  return recentRecords.value
+    .filter((r) => r.status === 'queued' || r.status === 'processing')
+    .map((r) => r.id)
+}
+
+const {
+  start: startPolling,
+  stop: stopPolling,
+  reset: resetPolling,
+} = usePolling(async () => {
+  const ids = activeRecordIds()
+  if (!ids.length) return true
+  const res = await fetchStatuses(ids, { silent: true })
+  // 轮询与手动刷新并发时防重锁返回 code -2，直接忽略本轮
+  if (res?.code === 200 && res.data) {
+    let reachedTerminal = false
+    for (const item of res.data) {
+      const target = recentRecords.value.find((r) => r.id === item.id)
+      if (!target) continue
+      if (
+        target.status !== item.status &&
+        (item.status === 'success' || item.status === 'failed')
+      ) {
+        reachedTerminal = true
+      }
+      target.status = item.status
+      target.error_message = item.error_message
+      target.segment_id = item.segment_id
+      target.title = item.title
+      target.queuedAhead = item.queuedAhead
+    }
+    if (reachedTerminal) await loadRecentRecords(true)
+  }
+  return !hasActiveRecord.value
+})
+
+watch(hasActiveRecord, (active) => {
+  if (active) startPolling()
+  else stopPolling()
+})
 
 onMounted(() => {
   loadRecentRecords()
@@ -83,21 +136,25 @@ function getStatusType(status: string) {
       return 'success'
     case 'failed':
       return 'danger'
+    case 'queued':
+      return 'warning'
     default:
       return 'info'
   }
 }
 
-function getStatusLabel(status: string) {
-  switch (status) {
+function getStatusLabel(record: MaterialUploadRecordListItem) {
+  switch (record.status) {
     case 'success':
       return '成功'
     case 'failed':
       return '失败'
     case 'processing':
       return '处理中'
+    case 'queued':
+      return record.queuedAhead ? `排队中（前方 ${record.queuedAhead} 个）` : '排队中'
     default:
-      return status
+      return record.status
   }
 }
 
@@ -147,8 +204,17 @@ async function handleSubmit() {
 
   const res = await execute(formData)
   if (res.code === 200 && res.data) {
-    toastSuccess('材料上传成功，正在处理中...')
-    router.push('/learn')
+    toastSuccess(
+      res.data.queuePosition > 0
+        ? `已加入处理队列，前方还有 ${res.data.queuePosition} 个任务`
+        : '已加入处理队列，预计 1-2 分钟完成',
+    )
+    // 不再跳转：留在本页通过「最近上传」轮询展示排队/处理进度
+    textContent.value = ''
+    audioFile.value = null
+    await loadRecentRecords()
+    // 新任务入队：重置衰减回起始间隔快轮（未在轮询中则等价启动）
+    resetPolling()
   }
 }
 </script>
@@ -228,7 +294,7 @@ async function handleSubmit() {
       <!-- 提交 -->
       <div class="form-actions">
         <el-button type="primary" :loading="isLoading" :disabled="!canSubmit" @click="handleSubmit">
-          {{ isLoading ? '处理中（约 15-30 秒）...' : '提交材料' }}
+          {{ isLoading ? '提交中...' : '提交材料' }}
         </el-button>
       </div>
     </form>
@@ -252,14 +318,14 @@ async function handleSubmit() {
           :class="{
             'record-card--success': record.status === 'success',
             'record-card--failed': record.status === 'failed',
-            'record-card--processing': record.status === 'processing',
+            'record-card--processing': record.status === 'processing' || record.status === 'queued',
           }"
         >
           <div class="record-card__main">
             <div class="record-card__title">{{ record.title }}</div>
             <div class="record-card__meta">
               <el-tag :type="getStatusType(record.status)" size="small">
-                {{ getStatusLabel(record.status) }}
+                {{ getStatusLabel(record) }}
               </el-tag>
               <span class="record-card__time">{{ formatTime(record.createdAt) }}</span>
             </div>
