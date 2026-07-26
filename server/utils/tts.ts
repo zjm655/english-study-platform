@@ -7,6 +7,11 @@
  *
  * 协议参考: rany2/edge-tts (Python)
  * 音频格式: audio-24khz-48kbitrate-mono-mp3 (48kbps CBR)
+ *
+ * 代理支持：生产服务器公网 IP 访问微软出口被封时，可配置 runtimeConfig.ttsProxy
+ * （NUXT_TTS_PROXY_URL / NUXT_TTS_PROXY_KEY）走 Cloudflare Worker 中转
+ * （content/cloudflare/tts-proxy-worker.js）——鉴权 query 原样透传，仅替换 wss 基址
+ * 并附加 X-Proxy-Key 校验头；不配置则直连微软，行为与历史一致。
  */
 
 import crypto from 'node:crypto'
@@ -221,12 +226,13 @@ function buildSsmlMessage(requestId: string, ssml: string): string {
 
 /**
  * 构造完整的 WebSocket URL（含认证参数）
+ * @param proxyUrl 代理基址（如 wss://xxx/tts），非空时替换直连基址，鉴权 query 不变
  */
-function generateWsUrl(): string {
+function generateWsUrl(proxyUrl?: string): string {
   const connectionId = crypto.randomUUID().replace(/-/g, '')
   const secMsGec = generateSecMsGec()
   return [
-    `${WSS_BASE}?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}`,
+    `${proxyUrl || WSS_BASE}?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}`,
     `&ConnectionId=${connectionId}`,
     `&Sec-MS-GEC=${secMsGec}`,
     `&Sec-MS-GEC-Version=1-${CHROMIUM_VERSION}`,
@@ -291,14 +297,20 @@ export async function textToSpeech(
   const sanitized = sanitizeText(trimmed)
   const chunks = splitText(sanitized)
 
-  // 2. 准备连接
-  const url = generateWsUrl()
+  // 2. 准备连接（配置了代理则经 Cloudflare Worker 中转，否则直连微软）
+  const { ttsProxy } = useRuntimeConfig()
+  const proxyUrl = (ttsProxy?.url ?? '').trim()
+  const via = proxyUrl ? 'proxy' : 'direct'
+  const url = generateWsUrl(proxyUrl || undefined)
   const wsHeaders: Record<string, string> = {
     Pragma: 'no-cache',
     'Cache-Control': 'no-cache',
     Origin: 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold',
     'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROMIUM_VERSION} Safari/537.36 Edg/${CHROMIUM_VERSION}`,
     'Accept-Language': 'en-US,en;q=0.9',
+  }
+  if (proxyUrl) {
+    wsHeaders['X-Proxy-Key'] = (ttsProxy?.key ?? '').trim()
   }
 
   let ws: WebSocket | null = null
@@ -396,7 +408,7 @@ export async function textToSpeech(
     // 7. 拼接音频并返回
     if (audioChunks.length === 0) {
       logger.error('[tts] 转换失败: 未返回音频数据')
-      fileLogError('tts', '[tts] 转换失败: 未返回音频数据', { textLength: trimmed.length })
+      fileLogError('tts', '[tts] 转换失败: 未返回音频数据', { textLength: trimmed.length, via })
       void logCloudServiceCall({
         service: 'tts',
         operation: 'textToSpeech',
@@ -409,11 +421,12 @@ export async function textToSpeech(
 
     const audio = Buffer.concat(audioChunks)
     const ms = Date.now() - start
-    logger.info(`[tts] 转换成功 (${ms}ms, ${audio.length}B)`)
+    logger.info(`[tts] 转换成功 (${ms}ms, ${audio.length}B, via=${via})`)
     fileLog('tts', 'info', '[tts] 转换成功', {
       ms,
       audioBytes: audio.length,
       textLength: trimmed.length,
+      via,
     })
     void logCloudServiceCall({
       service: 'tts',
@@ -425,8 +438,8 @@ export async function textToSpeech(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
     const ms = Date.now() - start
-    logger.error('[tts] 转换失败:', errMsg)
-    fileLogError('tts', `[tts] 转换失败 (${ms}ms)`, errMsg, { textLength: trimmed.length })
+    logger.error(`[tts] 转换失败 (via=${via}):`, errMsg)
+    fileLogError('tts', `[tts] 转换失败 (${ms}ms)`, errMsg, { textLength: trimmed.length, via })
     void logCloudServiceCall({
       service: 'tts',
       operation: 'textToSpeech',
@@ -436,7 +449,14 @@ export async function textToSpeech(
     })
 
     if (errMsg.includes('403') || errMsg.includes('ECONNREFUSED') || errMsg.includes('连接超时')) {
-      return { success: false, error: 'TTS 服务连接失败，可能需要代理' }
+      // 403 且走代理时，多半是 Worker 的 PROXY_KEY 与 NUXT_TTS_PROXY_KEY 不一致，或 Sec-MS-GEC/Chromium 版本过期
+      return {
+        success: false,
+        error:
+          via === 'proxy'
+            ? 'TTS 代理连接失败，请检查代理密钥或上游鉴权'
+            : 'TTS 服务连接失败，可能需要代理',
+      }
     }
     if (errMsg.includes('超时')) {
       return { success: false, error: 'TTS 转换超时' }
