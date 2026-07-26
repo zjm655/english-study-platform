@@ -47,6 +47,24 @@ export interface RateLimiterStats {
   maxEntries: number
 }
 
+/** 语音识别 STT 双后端状态 */
+export interface SttMonitorStat {
+  /** 配置的后端（filetrans=标准版 flash=极速版） */
+  backend: 'filetrans' | 'flash'
+  /** 最近一次实际使用的后端（进程内观测，重启为 null） */
+  lastUsedBackend: 'filetrans' | 'flash' | null
+  /** 今日标准版已识别音频时长（毫秒，本地聚合口径非官方计量） */
+  todayBizMs: number
+  /** 标准版每日免费额度（分钟） */
+  freeQuotaMin: number
+  /** 试用开通日期（YYYY-MM-DD，未设置为 null） */
+  trialStartDate: string | null
+  /** 试用剩余天数（未设置为 null，可为负） */
+  trialDaysLeft: number | null
+  /** 今日自动回退极速版次数 */
+  todayFallbacks: number
+}
+
 /** GET /api/admin/monitor 聚合快照（均为进程内实时状态，多实例部署仅反映本实例） */
 export interface AdminMonitorSnapshot {
   queues: QueueStatItem[]
@@ -54,6 +72,7 @@ export interface AdminMonitorSnapshot {
   uploadTasks: UploadTaskStats
   buffers: LogBufferStat[]
   rateLimiter: RateLimiterStats
+  stt: SttMonitorStat
   /** 快照生成时刻（ISO 字符串，服务器时间） */
   serverTime: string
 }

@@ -51,6 +51,10 @@ const queueNls = ref(2)
 const queueDeepseek = ref(3)
 const queueUpload = ref(2)
 
+// ─── 语音识别 STT ────────────────────────────────────────
+const sttBackend = ref<'filetrans' | 'flash'>('filetrans')
+const sttTrialStartDate = ref<string | null>(null)
+
 // ─── 加载配置 ───────────────────────────────────────────
 async function fetchConfigs() {
   loading.value = true
@@ -81,6 +85,10 @@ async function fetchConfigs() {
       queueNls.value = parseInt(d['queue_nls_concurrency']?.value ?? '2', 10) || 0
       queueDeepseek.value = parseInt(d['queue_deepseek_concurrency']?.value ?? '3', 10) || 0
       queueUpload.value = parseInt(d['queue_upload_concurrency']?.value ?? '2', 10) || 0
+      // 语音识别 STT（试用日期 '-' 占位视为未填）
+      sttBackend.value = d['stt_backend']?.value === 'flash' ? 'flash' : 'filetrans'
+      const rawTrialDate = d['stt_trial_start_date']?.value ?? '-'
+      sttTrialStartDate.value = /^\d{4}-\d{2}-\d{2}$/.test(rawTrialDate) ? rawTrialDate : null
     }
   } finally {
     loading.value = false
@@ -177,6 +185,29 @@ async function saveQueueConfig() {
     ])
     if (res.code === 200) {
       ElMessage.success('保存成功，新并发数对后续任务立即生效')
+    } else {
+      ElMessage.error(res.message ?? '保存失败')
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
+  } finally {
+    saving.value = false
+  }
+}
+
+// ─── 保存语音识别 STT ─────────────────────────────────────
+async function saveSttConfig() {
+  saving.value = true
+  try {
+    const res = await updateConfigsExec([
+      { key: 'stt_backend', value: sttBackend.value },
+      // PUT 校验 value 非空：未填日期用 '-' 占位（后端/监控解析非日期即视为未设置）
+      { key: 'stt_trial_start_date', value: sttTrialStartDate.value || '-' },
+    ])
+    if (res.code === 200) {
+      ElMessage.success('保存成功，对后续上传任务立即生效')
     } else {
       ElMessage.error(res.message ?? '保存失败')
       await fetchConfigs()
@@ -400,6 +431,42 @@ async function saveQueueConfig() {
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="saving" @click="saveQueueConfig">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
+      <!-- ═══ 语音识别 STT ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">语音识别（STT）</span>
+            <span class="card-sub"
+              >材料上传音频转文字的后端选择（额度尽/试用到期等自动回退极速版）</span
+            >
+          </div>
+        </template>
+        <el-form label-width="140px">
+          <el-form-item label="识别后端">
+            <el-select v-model="sttBackend" style="width: 260px">
+              <el-option value="filetrans" label="标准版 filetrans（每日 120 分钟免费）" />
+              <el-option value="flash" label="极速版 flash（商用按量计费）" />
+            </el-select>
+            <div class="form-tip">
+              标准版为异步识别（分钟级），命中额度超限/试用到期/并发超限/下载失败/超时会自动回退极速版，不改此配置。
+            </div>
+          </el-form-item>
+          <el-form-item label="试用开通日期">
+            <el-date-picker
+              v-model="sttTrialStartDate"
+              type="date"
+              value-format="YYYY-MM-DD"
+              placeholder="选择 NLS 服务开通日期"
+              style="width: 260px"
+            />
+            <div class="form-tip">免费试用期 3 个月，运行监控页据此展示到期倒计时。</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveSttConfig">保存</el-button>
           </el-form-item>
         </el-form>
       </el-card>

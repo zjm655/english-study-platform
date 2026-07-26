@@ -162,6 +162,71 @@
         </div>
       </section>
     </div>
+
+    <!-- 语音识别 STT -->
+    <section class="panel">
+      <header class="panel-head">
+        <h3 class="panel-title">语音识别 STT</h3>
+        <span class="panel-sub">标准版每日免费额度为本地聚合口径，非官方计量</span>
+      </header>
+      <div v-if="snapshot" class="stt-body">
+        <div class="stt-quota">
+          <div class="buffer-head">
+            <span class="buffer-name">今日标准版已用</span>
+            <span class="buffer-count">
+              {{ sttUsedMinutes }} / {{ snapshot.stt.freeQuotaMin }} 分钟
+            </span>
+          </div>
+          <el-progress
+            :percentage="percent(snapshot.stt.todayBizMs, snapshot.stt.freeQuotaMin * 60000)"
+            :status="
+              progressStatus(percent(snapshot.stt.todayBizMs, snapshot.stt.freeQuotaMin * 60000))
+            "
+            :show-text="false"
+            :stroke-width="10"
+          />
+        </div>
+        <div class="stt-meta">
+          <div class="stt-meta-item">
+            <span class="stat-label">配置后端</span>
+            <el-tag :type="snapshot.stt.backend === 'filetrans' ? 'success' : 'info'" size="small">
+              {{ snapshot.stt.backend === 'filetrans' ? '标准版' : '极速版' }}
+            </el-tag>
+            <span
+              v-if="
+                snapshot.stt.lastUsedBackend &&
+                snapshot.stt.lastUsedBackend !== snapshot.stt.backend
+              "
+              class="num-warning stt-hint"
+            >
+              最近实际走{{ snapshot.stt.lastUsedBackend === 'flash' ? '极速版' : '标准版' }}
+            </span>
+          </div>
+          <div class="stt-meta-item">
+            <span class="stat-label">今日自动回退</span>
+            <span
+              class="stat-value stat-value--sm"
+              :class="{ 'num-warning': snapshot.stt.todayFallbacks > 0 }"
+            >
+              {{ snapshot.stt.todayFallbacks }} 次
+            </span>
+          </div>
+          <div class="stt-meta-item">
+            <span class="stat-label">试用剩余</span>
+            <span v-if="snapshot.stt.trialDaysLeft === null" class="stat-value stat-value--sm">
+              未设置
+            </span>
+            <span
+              v-else
+              class="stat-value stat-value--sm"
+              :class="trialToneClass(snapshot.stt.trialDaysLeft)"
+            >
+              {{ snapshot.stt.trialDaysLeft >= 0 ? `${snapshot.stt.trialDaysLeft} 天` : '已到期' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -207,6 +272,18 @@ const gatePercent = computed(() => {
   if (!snapshot.value || snapshot.value.evalGate.limit <= 0) return 0
   return percent(snapshot.value.evalGate.active, snapshot.value.evalGate.limit)
 })
+
+const sttUsedMinutes = computed(() => {
+  if (!snapshot.value) return 0
+  return Math.round((snapshot.value.stt.todayBizMs / 60000) * 10) / 10
+})
+
+/** 试用倒计时着色：≤3 天 danger、≤14 天 warning */
+function trialToneClass(daysLeft: number): string {
+  if (daysLeft <= 3) return 'num-danger'
+  if (daysLeft <= 14) return 'num-warning'
+  return 'num-success'
+}
 
 function percent(value: number, max: number): number {
   if (max <= 0) return 0
@@ -406,6 +483,40 @@ function formatTime(iso: string): string {
 
 .num-danger {
   color: var(--danger, #f56c6c);
+}
+
+/* ===== STT ===== */
+.stt-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: center;
+}
+
+.stt-meta {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+
+.stt-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-value--sm {
+  font-size: 16px;
+}
+
+.stt-hint {
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .stt-body {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* 窄屏降级单列 */

@@ -8,7 +8,7 @@ import { runMaterialJob } from '../materialJob'
 
 const {
   mockModerateText,
-  mockSpeechToText,
+  mockRecognizeSpeech,
   mockTextToSpeech,
   mockTtsWithRetry,
   mockUploadWithKey,
@@ -20,7 +20,7 @@ const {
   mockWithTransaction,
 } = vi.hoisted(() => ({
   mockModerateText: vi.fn(),
-  mockSpeechToText: vi.fn(),
+  mockRecognizeSpeech: vi.fn(),
   mockTextToSpeech: vi.fn(),
   mockTtsWithRetry: vi.fn(),
   mockUploadWithKey: vi.fn(),
@@ -33,7 +33,7 @@ const {
 }))
 
 vi.mock('../contentModeration', () => ({ moderateText: mockModerateText }))
-vi.mock('../speechToText', () => ({ speechToText: mockSpeechToText }))
+vi.mock('../sttFiletrans', () => ({ recognizeSpeech: mockRecognizeSpeech }))
 vi.mock('../tts', () => ({ textToSpeech: mockTextToSpeech }))
 vi.mock('../ttsRetry', () => ({ ttsWithRetry: mockTtsWithRetry }))
 vi.mock('../oss', () => ({ uploadWithKey: mockUploadWithKey, deleteObject: mockDeleteObject }))
@@ -120,16 +120,44 @@ describe('runMaterialJob', () => {
     expect(mockDeleteObject).not.toHaveBeenCalled()
   })
 
-  it('用户上传音频链路：走 STT + 二次审核，不调 TTS 合成正文', async () => {
-    mockSpeechToText.mockResolvedValue({ success: true, text: BASE_PARAMS.textContent })
+  it('用户上传音频链路：先传 OSS 再走 STT + 二次审核，不调 TTS 合成正文', async () => {
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: BASE_PARAMS.textContent })
     await runMaterialJob({
       ...BASE_PARAMS,
       audioBuffer: FAKE_AUDIO,
       audioFileName: 'user.mp3',
     })
-    expect(mockSpeechToText).toHaveBeenCalled()
+    expect(mockRecognizeSpeech).toHaveBeenCalled()
+    // OSS 上传前移：STT 调用时收到已上传的 ossKey
+    expect(mockRecognizeSpeech.mock.calls[0]![0].ossKey).toBeTruthy()
+    expect(mockUploadWithKey).toHaveBeenCalled()
     expect(mockTextToSpeech).not.toHaveBeenCalled()
     expect(recordStatusUpdates().some((s) => s.includes("'success'"))).toBe(true)
+  })
+
+  it('用户音频时长超限：meta 前移校验，不触发 OSS 上传与 STT（不烧 filetrans 额度）', async () => {
+    mockExtractAudioMeta.mockResolvedValue({ duration: 200, size: 1000 })
+    await runMaterialJob({
+      ...BASE_PARAMS,
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'user.mp3',
+    })
+    expect(recordStatusUpdates().some((s) => s.includes("'failed'"))).toBe(true)
+    expect(mockUploadWithKey).not.toHaveBeenCalled()
+    expect(mockRecognizeSpeech).not.toHaveBeenCalled()
+  })
+
+  it('OSS 上传后 STT 失败：清理栈删除已上传的主音频对象', async () => {
+    mockRecognizeSpeech.mockResolvedValue({ success: false, error: '识别失败' })
+    await runMaterialJob({
+      ...BASE_PARAMS,
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'user.mp3',
+    })
+    expect(recordStatusUpdates().some((s) => s.includes("'failed'"))).toBe(true)
+    // 主音频已上传即登记清理栈，STT 失败后被删除
+    expect(mockUploadWithKey).toHaveBeenCalledTimes(1)
+    expect(mockDeleteObject).toHaveBeenCalledTimes(1)
   })
 
   it('文本审核不通过：failed 且不进入后续流水线', async () => {

@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto'
 import type { ResultSetHeader } from 'mysql2'
 import { moderateText } from './contentModeration'
-import { speechToText } from './speechToText'
+import { recognizeSpeech } from './sttFiletrans'
 import { compareTextSimilarity } from './textSimilarity'
 import { extractAudioMeta } from './audioMeta'
 import { generateLearningContent, generateTitle } from './aiContent'
@@ -145,20 +145,68 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     }
 
     // ===== Step 2: 音频处理 =====
+    // 主音频 key/限制先算好：用户音频路径需在 STT 前完成 OSS 上传（filetrans 以签名 URL 作 file_link）
     let audioBuffer: Buffer
     let mediaType: string
+    let audioDuration = 0
+    const ext = params.audioFileName ? getExt(params.audioFileName) : 'mp3'
+    const ossKey = `audio/material/${randomUUID()}.${ext}`
+    const bucket = useRuntimeConfig().oss.bucket
+    const maxDuration = isAdmin ? ADMIN_MAX_DURATION : USER_MAX_DURATION
+    const maxSize = isAdmin ? ADMIN_MAX_SIZE : USER_MAX_SIZE
+
+    /** 元数据校验：返回错误文案（null=通过），并记录时长供 media 入库 */
+    const checkAudioMeta = async (buf: Buffer): Promise<string | null> => {
+      const meta = await extractAudioMeta(buf)
+      if (!meta) return '无法解析音频信息'
+      if (meta.duration > maxDuration) {
+        return `音频时长 ${meta.duration.toFixed(1)}s 超过限制（${maxDuration}s）`
+      }
+      if (meta.size > maxSize) {
+        return `音频大小 ${(meta.size / 1024 / 1024).toFixed(1)}MB 超过限制`
+      }
+      audioDuration = meta.duration
+      return null
+    }
+
+    /** 主音频上传（成功即登记清理栈，后续任何失败统一由 fail() 删除） */
+    const uploadMainAudio = async (buf: Buffer): Promise<boolean> => {
+      try {
+        await uploadWithKey(buf, ossKey)
+        uploadedKeys.push(ossKey)
+        return true
+      } catch (err) {
+        logger.error('[material job] OSS 上传失败:', err)
+        return false
+      }
+    }
 
     if (params.audioBuffer && params.audioBuffer.length > 0) {
       audioBuffer = params.audioBuffer
       mediaType = 'user_material'
 
-      // 2b. 语音转文字
-      const sttResult = await speechToText(audioBuffer, extToFormat(params.audioFileName ?? ''))
+      // 2a. 元数据校验前移：超长/超大音频不烧 filetrans 免费额度与 STT 成本
+      const metaErr = await checkAudioMeta(audioBuffer)
+      if (metaErr) {
+        return await fail(metaErr)
+      }
+
+      // 2b. 主音频先上传 OSS（filetrans 需要可下载的签名 URL）
+      if (!(await uploadMainAudio(audioBuffer))) {
+        return await fail('文件上传失败')
+      }
+
+      // 2c. 语音转文字（标准版 filetrans 优先，命中回退集自动改走极速版）
+      const sttResult = await recognizeSpeech({
+        audioBuffer,
+        format: extToFormat(params.audioFileName ?? ''),
+        ossKey,
+      })
       if (!sttResult.success) {
         return await fail(`音频识别失败: ${sttResult.error}`)
       }
 
-      // 2c. 音频文本审核
+      // 2d. 音频文本审核
       const recognizedText = sttResult.text ?? ''
       if (recognizedText.trim()) {
         const mod2 = await moderateText(recognizedText)
@@ -166,64 +214,48 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
           return await fail(`音频内容不合规: ${mod2.reason}`)
         }
 
-        // 2d. 文本相似度对比
+        // 2e. 文本相似度对比
         const sim = compareTextSimilarity(textContent, recognizedText)
         if (!sim.passed) {
           return await fail(`音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`)
         }
       }
     } else {
-      // 2e. 无音频：TTS 生成
+      // 2f. 无音频：TTS 生成（合成后同样校验元数据再上传）
       const ttsResult = await textToSpeech(textContent, voice)
       if (!ttsResult.success || !ttsResult.audio) {
         return await fail(`音频生成失败: ${ttsResult.error ?? '未知原因'}`)
       }
       audioBuffer = ttsResult.audio
       mediaType = 'tts'
+
+      const metaErr = await checkAudioMeta(audioBuffer)
+      if (metaErr) {
+        return await fail(metaErr)
+      }
+
+      if (!(await uploadMainAudio(audioBuffer))) {
+        return await fail('文件上传失败')
+      }
     }
 
-    // 2f. 上传音频到 OSS
-    const ext = params.audioFileName ? getExt(params.audioFileName) : 'mp3'
-    const ossKey = `audio/material/${randomUUID()}.${ext}`
-    const bucket = useRuntimeConfig().oss.bucket
-
-    try {
-      await uploadWithKey(audioBuffer, ossKey)
-      uploadedKeys.push(ossKey)
-    } catch (err) {
-      logger.error('[material job] OSS 上传失败:', err)
-      return await fail('文件上传失败')
-    }
-
-    // 2g. 插入 media 记录
+    // 2g. 插入 media 记录（duration 已在元数据校验时取得，直接入库）
     const originalName = params.audioFileName ?? 'tts.mp3'
     const [mediaRes] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, original_name, mime_type, size_bytes, status)
-     VALUES (?, ?, 'oss', ?, ?, ?, ?, ?, 1)`,
-      [userId, mediaType, bucket, ossKey, originalName, `audio/${ext}`, audioBuffer.length],
+      `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, original_name, mime_type, size_bytes, duration, status)
+     VALUES (?, ?, 'oss', ?, ?, ?, ?, ?, ?, 1)`,
+      [
+        userId,
+        mediaType,
+        bucket,
+        ossKey,
+        originalName,
+        `audio/${ext}`,
+        audioBuffer.length,
+        audioDuration,
+      ],
     )
     segmentMediaId = mediaRes.insertId
-
-    // ===== Step 3: 音频元数据校验 =====
-    const meta = await extractAudioMeta(audioBuffer)
-    if (!meta) {
-      return await fail('无法解析音频信息')
-    }
-
-    const maxDuration = isAdmin ? ADMIN_MAX_DURATION : USER_MAX_DURATION
-    const maxSize = isAdmin ? ADMIN_MAX_SIZE : USER_MAX_SIZE
-
-    if (meta.duration > maxDuration) {
-      return await fail(`音频时长 ${meta.duration.toFixed(1)}s 超过限制（${maxDuration}s）`)
-    }
-    if (meta.size > maxSize) {
-      return await fail(`音频大小 ${(meta.size / 1024 / 1024).toFixed(1)}MB 超过限制`)
-    }
-
-    await pool.execute('UPDATE media SET duration = ? WHERE id = ?', [
-      meta.duration,
-      segmentMediaId,
-    ])
 
     // ===== Step 4: AI 内容生成 + 标题生成（并行） =====
     const [aiResult, titleResult] = await Promise.all([

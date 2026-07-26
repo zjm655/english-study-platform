@@ -22,6 +22,8 @@ export interface CloudServiceCallEntry {
   completionTokens?: number | null
   /** DeepSeek 总 token 数（仅 deepseek 服务） */
   totalTokens?: number | null
+  /** 业务时长毫秒（nls filetrans=音频时长 BizDuration，区别于 durationMs 执行耗时） */
+  bizDurationMs?: number | null
 }
 
 // ─── 内存队列 ────────────────────────────────────────
@@ -48,7 +50,7 @@ async function flush(): Promise<void> {
   if (queue.length === 0) return
   const batch = queue.splice(0, BATCH_SIZE)
   try {
-    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
+    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
     const params = batch.flatMap((e) => [
       e.service,
       e.operation,
@@ -57,10 +59,11 @@ async function flush(): Promise<void> {
       e.promptTokens ?? null,
       e.completionTokens ?? null,
       e.totalTokens ?? null,
+      e.bizDurationMs ?? null,
       e.errorMessage || null, // 空串归一为 NULL，避免导出/统计出现空白 error_message
     ])
     await query(
-      `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, error_message)
+      `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, biz_duration_ms, error_message)
        VALUES ${values}`,
       params,
     )

@@ -1,6 +1,7 @@
 import { getQueueStats, syncServiceQueueConcurrency } from '#server/utils/serviceQueue'
 import { getEvalGateSnapshot } from '#server/utils/quotaChecker'
 import { fetchUploadTaskStats } from '#server/utils/materialRecordStatus'
+import { getSttMonitorSnapshot } from '#server/utils/sttFiletrans'
 import { getApiCallLogStats } from '#server/utils/apiCallLog'
 import { getCloudServiceLogStats } from '#server/utils/cloudServiceLog'
 import { getRateLimiterStats } from '#server/utils/rateLimiter'
@@ -24,9 +25,10 @@ export default defineEventHandler(
 
     // 先同步并发配置到队列实例（冷启动未发生过云调用时队列还是初始 Infinity，
     // 直接读会误报「不限流」）；走 5min TTL 缓存，5s 轮询不放大查询
-    const [evalGate, uploadTasks] = await Promise.all([
+    const [evalGate, uploadTasks, stt] = await Promise.all([
       getEvalGateSnapshot(),
       fetchUploadTaskStats(),
+      getSttMonitorSnapshot(),
       syncServiceQueueConcurrency(),
     ])
 
@@ -39,6 +41,7 @@ export default defineEventHandler(
         { name: 'cloudServiceLog', ...getCloudServiceLogStats() },
       ],
       rateLimiter: getRateLimiterStats(),
+      stt,
       serverTime: new Date().toISOString(),
     })
   },
