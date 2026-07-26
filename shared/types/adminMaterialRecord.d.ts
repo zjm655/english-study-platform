@@ -1,3 +1,5 @@
+import type { MaterialUploadStatus } from './material'
+
 /** 上传来源筛选 */
 export type UploadSource = 'all' | 'user' | 'admin'
 
@@ -5,7 +7,7 @@ export type UploadSource = 'all' | 'user' | 'admin'
 export interface AdminMaterialRecordListItem {
   id: number
   title: string
-  status: 'processing' | 'success' | 'failed'
+  status: MaterialUploadStatus
   error_message: string | null
   segment_id: number | null
   is_public: number
@@ -22,7 +24,7 @@ export interface AdminMaterialRecordDetail {
   text_content: string
   voice: string
   is_public: number
-  status: 'processing' | 'success' | 'failed'
+  status: MaterialUploadStatus
   error_message: string | null
   segment_id: number | null
   username: string
@@ -39,7 +41,7 @@ export interface AdminMaterialRecordDetail {
 export interface AdminMaterialRecordListQuery {
   page?: number
   pageSize?: number
-  status?: 'processing' | 'success' | 'failed'
+  status?: MaterialUploadStatus
   source?: UploadSource
   startDate?: string
   endDate?: string

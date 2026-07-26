@@ -11,6 +11,7 @@ import RPCClient from '@alicloud/pop-core'
 import { fileLog, fileLogError } from './fileLogger'
 import { logCloudServiceCall } from './cloudServiceLog'
 import { serverFetch } from './request'
+import { withQueue } from './serviceQueue'
 import { logger } from '../../shared/utils/logger'
 
 // ==================== 导出类型 ====================
@@ -175,15 +176,19 @@ export async function speechToText(
 
   let callStart2 = 0
   try {
-    callStart2 = Date.now()
-    const resp = await serverFetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-      },
-      body: new Uint8Array(audioBuffer),
-      timeout: 60000,
-      tag: '[speechToText]',
+    // nls 云产品并发闸门：仅包物理识别调用（getToken 有缓存不占名额），
+    // callStart2 在队列 acquire 后才赋值，duration_ms 只计执行不计排队
+    const resp = await withQueue('nls', () => {
+      callStart2 = Date.now()
+      return serverFetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+        body: new Uint8Array(audioBuffer),
+        timeout: 60000,
+        tag: '[speechToText]',
+      })
     })
 
     const data = (await resp.json()) as FlashRecognizerResponse

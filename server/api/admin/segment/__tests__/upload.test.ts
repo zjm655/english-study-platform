@@ -5,22 +5,22 @@ import handler from '../upload.post'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 // handler 级集成测试：覆盖 C1（multipart 字符串 unitId 强转）、C3（isPublic 默认）、
-// S5（输入上限）与越权 403。走真实 adminUploadSchema（不 mock validate），堵住旧测试
-// 直调 processAdminMaterial（传数字）绕过 handler 的盲区。
+// S5（输入上限）与越权 403。走真实 adminUploadSchema（不 mock validate）。
+// 异步化后 handler 调 enqueueAdminMaterial（入队回执）而非同步 processAdminMaterial。
 
 vi.hoisted(() => {
   ;(globalThis as any).defineEventHandler = (handler: any) => handler
 })
 
-const { mockReadFormData, mockProcessAdminMaterial, mockProcessAdminBatch } = vi.hoisted(() => ({
+const { mockReadFormData, mockEnqueueAdminMaterial, mockProcessAdminBatch } = vi.hoisted(() => ({
   mockReadFormData: vi.fn(),
-  mockProcessAdminMaterial: vi.fn(),
+  mockEnqueueAdminMaterial: vi.fn(),
   mockProcessAdminBatch: vi.fn(),
 }))
 
 vi.mock('h3', () => ({ readFormData: mockReadFormData }))
 vi.mock('#server/utils/adminUpload', () => ({
-  processAdminMaterial: mockProcessAdminMaterial,
+  enqueueAdminMaterial: mockEnqueueAdminMaterial,
   processAdminBatch: mockProcessAdminBatch,
 }))
 vi.mock('#server/utils/textParser', () => ({ parseTxtFile: vi.fn() }))
@@ -54,7 +54,7 @@ describe('管理员上传接口 - 权限', () => {
   it('非管理员调用返回 403', async () => {
     const res = await handler(makeEvent({ id: 2, role: 0 }))
     expect(res.code).toBe(403)
-    expect(mockProcessAdminMaterial).not.toHaveBeenCalled()
+    expect(mockEnqueueAdminMaterial).not.toHaveBeenCalled()
   })
 
   it('未登录（无 user）返回 403', async () => {
@@ -78,13 +78,13 @@ describe('管理员上传接口 - 入参强转（C1/C3 回归）', () => {
         audio: null,
       }),
     )
-    mockProcessAdminMaterial.mockResolvedValue({ success: true, segmentId: 100, title: 'T' })
+    mockEnqueueAdminMaterial.mockResolvedValue({ success: true, recordId: 100, title: 'T' })
 
     const res = await handler(makeEvent(ADMIN))
 
     expect(res.code).toBe(200)
-    expect(mockProcessAdminMaterial).toHaveBeenCalledTimes(1)
-    const arg = mockProcessAdminMaterial.mock.calls[0]![0]
+    expect(mockEnqueueAdminMaterial).toHaveBeenCalledTimes(1)
+    const arg = mockEnqueueAdminMaterial.mock.calls[0]![0]
     expect(arg.unitId).toBe(0)
     expect(arg.isPublic).toBe(1)
   })
@@ -100,12 +100,12 @@ describe('管理员上传接口 - 入参强转（C1/C3 回归）', () => {
         audio: null,
       }),
     )
-    mockProcessAdminMaterial.mockResolvedValue({ success: true, segmentId: 101, title: 'T2' })
+    mockEnqueueAdminMaterial.mockResolvedValue({ success: true, recordId: 101, title: 'T2' })
 
     const res = await handler(makeEvent(ADMIN))
 
     expect(res.code).toBe(200)
-    expect(mockProcessAdminMaterial.mock.calls[0]![0].isPublic).toBe(1)
+    expect(mockEnqueueAdminMaterial.mock.calls[0]![0].isPublic).toBe(1)
   })
 })
 
@@ -126,7 +126,7 @@ describe('管理员上传接口 - 输入上限（S5）', () => {
     )
     const res = await handler(makeEvent(ADMIN))
     expect(res.code).toBe(400)
-    expect(mockProcessAdminMaterial).not.toHaveBeenCalled()
+    expect(mockEnqueueAdminMaterial).not.toHaveBeenCalled()
   })
 
   it('batch 模式超过 20 个文件返回 400', async () => {

@@ -50,6 +50,8 @@ function getStatusType(status: string) {
       return 'success'
     case 'failed':
       return 'danger'
+    case 'queued':
+      return 'warning'
     default:
       return 'info'
   }
@@ -63,6 +65,8 @@ function getStatusLabel(status: string) {
       return '失败'
     case 'processing':
       return '处理中'
+    case 'queued':
+      return '排队中'
     default:
       return status
   }
@@ -122,7 +126,7 @@ async function handleDelete(record: MaterialUploadRecordListItem) {
         :class="{
           'record-item--success': record.status === 'success',
           'record-item--failed': record.status === 'failed',
-          'record-item--processing': record.status === 'processing',
+          'record-item--processing': record.status === 'processing' || record.status === 'queued',
         }"
       >
         <div class="record-item__header">

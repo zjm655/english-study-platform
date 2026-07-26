@@ -7,6 +7,7 @@ import { uploadWithKey } from './oss'
 import { extractAudioMeta } from './audioMeta'
 import { pool, withTransaction } from './db'
 import { mapWithConcurrency } from './concurrency'
+import { withQueue } from './serviceQueue'
 import { logger } from '../../shared/utils/logger'
 import type { AdminUploadItemResult } from '../../shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
@@ -23,11 +24,12 @@ async function createUploadRecord(
   textContent: string,
   voice: string,
   isPublic: number,
+  status: 'queued' | 'processing' = 'processing',
 ): Promise<number> {
   const [res] = await pool.execute<ResultSetHeader>(
     `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, status)
-     VALUES (?, ?, ?, ?, ?, 'processing')`,
-    [userId, title, textContent, voice, isPublic],
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [userId, title, textContent, voice, isPublic, status],
   )
   return res.insertId
 }
@@ -286,7 +288,51 @@ export async function processAdminMaterial(
   }
 }
 
-// ============ 批量处理 ============
+// ============ 异步入队封装 ============
+
+/**
+ * 把单个材料任务入 upload 队列（管理员低优先级）：
+ * 同步段仅做对话检测（免费正则，拒绝时不建记录）+ 建 queued 记录；
+ * 完整流水线由 processAdminMaterial(existingRecordId) 在队列内执行（其内部含终态写入与 catch-all）。
+ */
+export async function enqueueAdminMaterial(
+  params: Omit<ProcessAdminMaterialParams, 'existingRecordId'>,
+): Promise<AdminUploadItemResult & { recordId?: number }> {
+  const { userId, textContent, title, voice, isPublic } = params
+
+  // 轻校验：拒绝时不产生记录（与同步时代行为一致）
+  if (isDialogueText(textContent)) {
+    return { index: 0, success: false, error: '材料为对话格式，不支持上传' }
+  }
+
+  const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
+  let recordId: number
+  try {
+    recordId = await createUploadRecord(
+      userId,
+      title || fallbackTitle,
+      textContent,
+      voice,
+      isPublic,
+      'queued',
+    )
+  } catch (err) {
+    logger.error('[admin upload] 创建记录失败:', err)
+    return { index: 0, success: false, error: '创建上传记录失败' }
+  }
+
+  // fire-and-forget 入队：管理员批量任务低优先级（0 < 用户交互任务的 1）
+  withQueue('upload', () => processAdminMaterial({ ...params, existingRecordId: recordId }), {
+    priority: 0,
+  }).catch(async (err) => {
+    logger.error('[admin upload] 任务入队执行异常:', err)
+    await updateRecordFailed(recordId, '任务调度异常，请重试').catch(() => {})
+  })
+
+  return { index: 0, success: true, recordId, title: title || fallbackTitle }
+}
+
+// ============ 批量处理（已改为拆单入队，不再串行执行流水线） ============
 
 export async function processAdminBatch(params: {
   userId: number
@@ -313,7 +359,8 @@ export async function processAdminBatch(params: {
       continue
     }
 
-    const result = await processAdminMaterial({
+    // 拆单入队：每个文件独立任务，可与用户任务交错调度，不再整块霸占队列
+    const result = await enqueueAdminMaterial({
       userId,
       unitId,
       textContent: parsed.textContent,

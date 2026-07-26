@@ -39,8 +39,8 @@ export default defineEventHandler(async (event) => {
 
   await query(`UPDATE sys_config SET config_value = ? WHERE config_key = ?`, [value, key])
 
-  // 使额度缓存失效
-  if (key === 'daily_eval_limit' || key === 'eval_limit_window') {
+  // 使额度/评测闸门缓存失效
+  if (key === 'daily_eval_limit' || key === 'eval_limit_window' || key.startsWith('eval_gate_')) {
     invalidateQuotaCache()
   }
 
@@ -48,6 +48,12 @@ export default defineEventHandler(async (event) => {
   if (key.startsWith('rate_limit_')) {
     const { invalidateRateLimitCache } = await import('#server/utils/rateLimiter')
     invalidateRateLimitCache()
+  }
+
+  // 使服务队列并发配置缓存失效（下次入队即读新值并热更 p-queue concurrency）
+  if (key.startsWith('queue_')) {
+    const { invalidateServiceQueueCache } = await import('#server/utils/serviceQueue')
+    invalidateServiceQueueCache()
   }
 
   // 审计留痕

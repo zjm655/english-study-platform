@@ -1,7 +1,7 @@
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import type { MaterialUploadRecordRow } from '#server/types/db'
-import type { MaterialUploadRecordListItem } from '#shared/types/material'
+import type { MaterialUploadRecordListItem, MaterialUploadStatus } from '#shared/types/material'
 
 /**
  * 查询当前用户的材料上传记录
@@ -28,12 +28,26 @@ export default defineEventHandler(
     const list: MaterialUploadRecordListItem[] = rows.map((r) => ({
       id: r.id,
       title: r.title,
-      status: r.status as 'processing' | 'success' | 'failed',
+      status: r.status as MaterialUploadStatus,
       error_message: r.error_message,
       segment_id: r.segment_id,
       is_public: r.is_public,
       createdAt: r.createdAt,
     }))
+
+    // 排队中的记录附加前方任务数（DB COUNT，重启自洽，不依赖内存队列插桩）
+    const queuedItems = list.filter((r) => r.status === 'queued')
+    if (queuedItems.length > 0) {
+      await Promise.all(
+        queuedItems.map(async (item) => {
+          const ahead = await query<{ cnt: number | string }>(
+            `SELECT COUNT(*) as cnt FROM material_upload_record WHERE status = 'queued' AND id < ?`,
+            [item.id],
+          )
+          item.queuedAhead = Number(ahead[0]?.cnt ?? 0)
+        }),
+      )
+    }
 
     return validateSuccess(list)
   },

@@ -18,6 +18,7 @@ import crypto from 'node:crypto'
 import WebSocket from 'ws'
 import { fileLog, fileLogError } from './fileLogger'
 import { logCloudServiceCall } from './cloudServiceLog'
+import { withQueue } from './serviceQueue'
 
 // ==================== 常量 ====================
 
@@ -334,12 +335,19 @@ export async function textToSpeech(
   text: string,
   voice: string = DEFAULT_VOICE,
 ): Promise<TtsResult> {
-  // 1. 校验输入
+  // 1. 校验输入（留在队列外：无效输入不占并发名额）
   const trimmed = text.trim()
   if (!trimmed) {
     return { success: false, error: '文本不能为空' }
   }
 
+  // 云产品并发闸门：执行主体（含埋点计时起点）在队列 acquire 之后，
+  // 保证 cloud_service_call_log.duration_ms 只计执行不计排队
+  return withQueue('tts', () => textToSpeechExecute(trimmed, voice))
+}
+
+/** TTS 单次物理调用执行体（已在队列名额内） */
+async function textToSpeechExecute(trimmed: string, voice: string): Promise<TtsResult> {
   const start = Date.now()
   const fullVoice = toFullVoiceName(voice)
   const sanitized = sanitizeText(trimmed)

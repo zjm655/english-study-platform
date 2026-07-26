@@ -20,6 +20,7 @@
           @change="handleSearch"
         >
           <el-option label="全部" value="" />
+          <el-option label="排队中" value="queued" />
           <el-option label="处理中" value="processing" />
           <el-option label="成功" value="success" />
           <el-option label="失败" value="failed" />
@@ -113,7 +114,7 @@
           :page-sizes="[10, 20, 50]"
           layout="total, sizes, prev, pager, next, jumper"
           background
-          @current-change="loadList"
+          @current-change="() => loadList()"
           @size-change="handleSizeChange"
         />
       </div>
@@ -335,20 +336,51 @@ const { execute: deleteExecute } = useDeleteAdminMaterialRecord()
 const { isLoading: isReprocessing, execute: reprocessExecute } = useReprocessAdminMaterialRecord()
 const { isLoading: isAuditioning, execute: auditionExecute } = useAuditionMaterialRecord()
 
-async function loadList() {
-  const res = await listExecute({
-    page: page.value,
-    pageSize: pageSize.value,
-    status: (filterStatus.value || undefined) as AdminMaterialRecordListItem['status'] | undefined,
-    source: filterSource.value,
-    startDate: dateRange.value?.[0],
-    endDate: dateRange.value?.[1],
-  })
+async function loadList(silent = false) {
+  const res = await listExecute(
+    {
+      page: page.value,
+      pageSize: pageSize.value,
+      status: (filterStatus.value || undefined) as
+        AdminMaterialRecordListItem['status'] | undefined,
+      source: filterSource.value,
+      startDate: dateRange.value?.[0],
+      endDate: dateRange.value?.[1],
+    },
+    { silent },
+  )
   if (res?.code === 200 && res.data) {
     list.value = res.data.list
     total.value = res.data.total
   }
 }
+
+// ─── 异步任务轮询：列表含排队/处理中记录时每 5s 静默刷新，无活跃项自动停止 ───
+let pollTimer: ReturnType<typeof setInterval> | null = null
+const hasActiveRecord = computed(() =>
+  list.value.some((r) => r.status === 'queued' || r.status === 'processing'),
+)
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+watch(hasActiveRecord, (active) => {
+  if (active && !pollTimer) {
+    pollTimer = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return
+      await loadList(true)
+      if (!hasActiveRecord.value) stopPolling()
+    }, 5000)
+  } else if (!active) {
+    stopPolling()
+  }
+})
+
+onUnmounted(stopPolling)
 
 function handleSearch() {
   page.value = 1
@@ -438,11 +470,15 @@ async function handleReprocess() {
 // ===== 工具函数 =====
 function statusTagType(status: string): 'primary' | 'success' | 'warning' | 'info' | 'danger' {
   return (
-    ({ processing: 'warning', success: 'success', failed: 'danger' } as const)[status] ?? 'info'
+    ({ queued: 'info', processing: 'warning', success: 'success', failed: 'danger' } as const)[
+      status
+    ] ?? 'info'
   )
 }
 function statusTagText(status: string) {
-  return { processing: '处理中', success: '成功', failed: '失败' }[status] ?? status
+  return (
+    { queued: '排队中', processing: '处理中', success: '成功', failed: '失败' }[status] ?? status
+  )
 }
 function sourceTagType(source: string) {
   return source === 'admin' ? 'warning' : 'info'

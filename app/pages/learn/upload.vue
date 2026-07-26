@@ -51,16 +51,49 @@ const canSubmit = computed(
 
 const recentRecords = ref<MaterialUploadRecordListItem[]>([])
 
-async function loadRecentRecords() {
-  const res = await fetchRecords({ limit: 3 })
+async function loadRecentRecords(silent = false) {
+  const res = await fetchRecords({ limit: 3 }, { silent })
+  // 轮询与手动刷新并发时防重锁返回 code -2，直接忽略本轮
   if (res?.code === 200 && res.data) {
     recentRecords.value = res.data
   }
 }
 
+// ─── 异步任务轮询：存在排队/处理中记录时每 3s 刷新，终态后自动停止 ───
+const POLL_INTERVAL = 3000
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
+const hasActiveRecord = computed(() =>
+  recentRecords.value.some((r) => r.status === 'queued' || r.status === 'processing'),
+)
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+function startPolling() {
+  if (pollTimer) return
+  pollTimer = setInterval(async () => {
+    // 页面不可见时暂停请求（回到前台下一轮自然恢复）
+    if (document.visibilityState !== 'visible') return
+    await loadRecentRecords(true)
+    if (!hasActiveRecord.value) stopPolling()
+  }, POLL_INTERVAL)
+}
+
+watch(hasActiveRecord, (active) => {
+  if (active) startPolling()
+  else stopPolling()
+})
+
 onMounted(() => {
   loadRecentRecords()
 })
+
+onUnmounted(stopPolling)
 
 function formatTime(iso: string): string {
   const d = new Date(iso)
@@ -83,21 +116,25 @@ function getStatusType(status: string) {
       return 'success'
     case 'failed':
       return 'danger'
+    case 'queued':
+      return 'warning'
     default:
       return 'info'
   }
 }
 
-function getStatusLabel(status: string) {
-  switch (status) {
+function getStatusLabel(record: MaterialUploadRecordListItem) {
+  switch (record.status) {
     case 'success':
       return '成功'
     case 'failed':
       return '失败'
     case 'processing':
       return '处理中'
+    case 'queued':
+      return record.queuedAhead ? `排队中（前方 ${record.queuedAhead} 个）` : '排队中'
     default:
-      return status
+      return record.status
   }
 }
 
@@ -147,8 +184,15 @@ async function handleSubmit() {
 
   const res = await execute(formData)
   if (res.code === 200 && res.data) {
-    toastSuccess('材料上传成功，正在处理中...')
-    router.push('/learn')
+    toastSuccess(
+      res.data.queuePosition > 0
+        ? `已加入处理队列，前方还有 ${res.data.queuePosition} 个任务`
+        : '已加入处理队列，预计 1-2 分钟完成',
+    )
+    // 不再跳转：留在本页通过「最近上传」轮询展示排队/处理进度
+    textContent.value = ''
+    audioFile.value = null
+    await loadRecentRecords()
   }
 }
 </script>
@@ -228,7 +272,7 @@ async function handleSubmit() {
       <!-- 提交 -->
       <div class="form-actions">
         <el-button type="primary" :loading="isLoading" :disabled="!canSubmit" @click="handleSubmit">
-          {{ isLoading ? '处理中（约 15-30 秒）...' : '提交材料' }}
+          {{ isLoading ? '提交中...' : '提交材料' }}
         </el-button>
       </div>
     </form>
@@ -252,14 +296,14 @@ async function handleSubmit() {
           :class="{
             'record-card--success': record.status === 'success',
             'record-card--failed': record.status === 'failed',
-            'record-card--processing': record.status === 'processing',
+            'record-card--processing': record.status === 'processing' || record.status === 'queued',
           }"
         >
           <div class="record-card__main">
             <div class="record-card__title">{{ record.title }}</div>
             <div class="record-card__meta">
               <el-tag :type="getStatusType(record.status)" size="small">
-                {{ getStatusLabel(record.status) }}
+                {{ getStatusLabel(record) }}
               </el-tag>
               <span class="record-card__time">{{ formatTime(record.createdAt) }}</span>
             </div>

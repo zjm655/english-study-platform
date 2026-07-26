@@ -1,6 +1,6 @@
 import { readFormData } from 'h3'
 import { adminUploadSchema, validateSuccess, validateError } from '#server/utils/validate'
-import { processAdminMaterial, processAdminBatch } from '#server/utils/adminUpload'
+import { enqueueAdminMaterial, processAdminBatch } from '#server/utils/adminUpload'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
 import { ensurePermission } from '#server/utils/permission'
@@ -55,7 +55,7 @@ export default defineEventHandler(async (event) => {
       audioFileName = audio.name
     }
 
-    const result = await processAdminMaterial({
+    const result = await enqueueAdminMaterial({
       userId,
       unitId: validUnitId,
       textContent: trimmedText,
@@ -98,6 +98,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  // 异步入队回执：success=已入队（实际处理结果看「上传记录」页），failed=同步校验被拒
   const successCount = results.filter((r) => r.success).length
   const response: AdminUploadResponse = {
     results,
@@ -107,5 +108,5 @@ export default defineEventHandler(async (event) => {
       failed: results.length - successCount,
     },
   }
-  return validateSuccess(response)
+  return validateSuccess(response, `已入队 ${successCount} 条，处理进度请在上传记录页查看`)
 })

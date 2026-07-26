@@ -309,8 +309,8 @@ export const adminMaterialRecordListSchema = z.object({
     .optional()
     .default(10),
   status: z
-    .enum(['processing', 'success', 'failed'], {
-      message: 'status 必须为 processing/success/failed',
+    .enum(['queued', 'processing', 'success', 'failed'], {
+      message: 'status 必须为 queued/processing/success/failed',
     })
     .optional(),
   source: z

@@ -1,8 +1,12 @@
-/** 上传材料响应 */
+/** 上传材料响应（异步任务模式：秒回记录 ID，处理进度轮询上传记录） */
 export interface UploadMaterialResult {
-  segmentId: number
-  title: string
+  recordId: number
+  /** 入队时前方排队任务数 */
+  queuePosition: number
 }
+
+/** 材料上传记录状态 */
+export type MaterialUploadStatus = 'queued' | 'processing' | 'success' | 'failed'
 
 /** 材料上传记录 */
 export interface MaterialUploadRecord {
@@ -12,7 +16,7 @@ export interface MaterialUploadRecord {
   text_content: string
   voice: string
   is_public: number
-  status: 'processing' | 'success' | 'failed'
+  status: MaterialUploadStatus
   error_message: string | null
   segment_id: number | null
   createdAt: string
@@ -23,11 +27,13 @@ export interface MaterialUploadRecord {
 export interface MaterialUploadRecordListItem {
   id: number
   title: string
-  status: 'processing' | 'success' | 'failed'
+  status: MaterialUploadStatus
   error_message: string | null
   segment_id: number | null
   is_public: number
   createdAt: string
+  /** 仅 status='queued' 时返回：前方排队任务数 */
+  queuedAhead?: number
 }
 
 /** 更新材料记录参数 */

@@ -60,17 +60,23 @@ export default defineEventHandler(async (event) => {
   const record = rows[0]!
   const config = useRuntimeConfig()
 
-  // fire-and-forget：异步处理，失败时 processAdminMaterial 内部会将 status 改回 failed
-  processAdminMaterial({
-    userId: record.user_id,
-    unitId,
-    textContent: record.text_content,
-    title: record.title,
-    voice: record.voice,
-    isPublic: record.is_public,
-    bucket: config.oss.bucket || '',
-    existingRecordId: id,
-  }).catch((err) => {
+  // fire-and-forget：入 upload 队列异步处理（管理员低优先级），失败时 processAdminMaterial 内部会将 status 改回 failed
+  const { withQueue } = await import('#server/utils/serviceQueue')
+  withQueue(
+    'upload',
+    () =>
+      processAdminMaterial({
+        userId: record.user_id,
+        unitId,
+        textContent: record.text_content,
+        title: record.title,
+        voice: record.voice,
+        isPublic: record.is_public,
+        bucket: config.oss.bucket || '',
+        existingRecordId: id,
+      }),
+    { priority: 0 },
+  ).catch((err) => {
     logger.error('[admin reprocess] 重处理异常:', err)
   })
 
