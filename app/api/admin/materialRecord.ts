@@ -6,6 +6,7 @@ import type {
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
 import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
+import type { MaterialRecordStatusItem } from '#shared/types/material'
 
 /** 管理员上传记录列表 */
 export const getAdminMaterialRecordList = (options: AdminMaterialRecordListQuery = {}) => {
@@ -24,6 +25,13 @@ export const getAdminMaterialRecordList = (options: AdminMaterialRecordListQuery
 /** 管理员获取上传记录详情 */
 export const getAdminMaterialRecordDetail = (id: number) => {
   return request.json<AdminMaterialRecordDetail>(`${adminMaterialRecordPath}/${id}`)
+}
+
+/** 批量查询上传任务状态（轮询轻接口，可查所有用户记录） */
+export const getAdminMaterialRecordStatuses = (ids: number[]) => {
+  return request.json<MaterialRecordStatusItem[]>(
+    `${adminMaterialRecordPath}/status${buildQuery({ ids: ids.join(',') })}`,
+  )
 }
 
 /** 管理员删除上传记录 */

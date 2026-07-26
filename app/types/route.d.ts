@@ -7,6 +7,8 @@ declare module 'vue-router' {
     hideTabBar?: boolean
     /** 隐藏顶部 Header（如全屏页面） */
     hideHeader?: boolean
+    /** 解除 default 布局的 430px 限宽（如登录页 PC 双栏） */
+    fullWidth?: boolean
     isHome?: boolean
   }
 }

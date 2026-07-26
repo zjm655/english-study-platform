@@ -1,5 +1,12 @@
 import { withQueue } from '#server/utils/serviceQueue'
-import { runMaterialJob, createUploadRecord, updateRecordFailed } from '#server/utils/materialJob'
+import {
+  runMaterialJob,
+  createUploadRecord,
+  updateRecordFailed,
+  isUploadQueueFull,
+  USER_MAX_SIZE,
+  ADMIN_MAX_SIZE,
+} from '#server/utils/materialJob'
 import { query } from '#server/utils/db'
 import {
   validateError,
@@ -9,9 +16,6 @@ import {
 } from '#server/utils/validate'
 import type { UploadMaterialResult } from '#shared/types/material'
 import { isAdminOrAbove } from '#shared/utils/role'
-
-/** 入队深度防御：排队任务超过该数直接拒绝，防止极端情况下内存中堆积过多音频 Buffer */
-const MAX_QUEUED = 50
 
 /**
  * 上传自定义材料（异步任务模式）
@@ -51,17 +55,19 @@ export default defineEventHandler(
     if (!textContent) return validateError('材料文本不能为空')
 
     // 4. 入队深度防御
-    const queuedRows = await query<{ cnt: number | string }>(
-      `SELECT COUNT(*) as cnt FROM material_upload_record WHERE status = 'queued'`,
-    )
-    if (Number(queuedRows[0]?.cnt ?? 0) >= MAX_QUEUED) {
+    if (await isUploadQueueFull()) {
       return validateError('系统繁忙，请稍后再试', 503)
     }
 
-    // 5. 音频 Buffer 拷贝进任务闭包（任务与 event 生命周期解耦）
+    // 5. 音频大小前置校验 + Buffer 拷贝进任务闭包（任务与 event 生命周期解耦）
+    // 提前拦截超大文件：避免先烧 STT/OSS 云费、大 Buffer 驻留队列（流水线内 Step 3 仍有后置兼校）
     let audioBuffer: Buffer | undefined
     let audioFileName: string | undefined
     if (audioFile && audioFile instanceof File && audioFile.size > 0) {
+      const maxSize = isAdmin ? ADMIN_MAX_SIZE : USER_MAX_SIZE
+      if (audioFile.size > maxSize) {
+        return validateError(`音频大小超过限制（${maxSize / 1024 / 1024}MB）`)
+      }
       audioBuffer = Buffer.from(await audioFile.arrayBuffer())
       audioFileName = audioFile.name
     }
@@ -94,9 +100,9 @@ export default defineEventHandler(
         }),
       { priority: 1 },
     ).catch(async (err) => {
-      // 兜底：任务在排队阶段被移除（如进程关闭前 abort）等极端情况
+      // 兜底：任务在排队阶段被移除（如进程关闭前 abort）等极端情况；自身绝不再抛
       logger.error('[material upload] 任务入队执行异常:', err)
-      await updateRecordFailed(recordId, '任务调度异常，请重试')
+      await updateRecordFailed(recordId, '任务调度异常，请重试').catch(() => {})
     })
 
     logger.info(

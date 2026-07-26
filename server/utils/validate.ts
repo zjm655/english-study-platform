@@ -143,6 +143,16 @@ export const updateMaterialRecordSchema = z.object({
   isPublic: z.coerce.number().refine((v) => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
 })
 
+// 材料上传记录状态批量查询（轮询轻接口）：ids 为逗号分隔正整数串，去重后 1~50 个
+export const recordStatusQuerySchema = z.object({
+  ids: z
+    .string()
+    .min(1, 'ids 不能为空')
+    .transform((s) => [...new Set(s.split(','))].map((v) => Number(v.trim())))
+    .refine((arr) => arr.length >= 1 && arr.length <= 50, 'ids 数量需在 1~50 之间')
+    .refine((arr) => arr.every((n) => Number.isInteger(n) && n > 0), 'ids 必须为逗号分隔的正整数'),
+})
+
 /** 复习列表查询参数校验（limit 在 API 层自行设置默认值） */
 export const reviewQuerySchema = z.object({
   limit: z.coerce.number().min(1, 'limit 不能小于 1').max(50, 'limit 不能大于 50').optional(),

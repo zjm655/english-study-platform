@@ -7,6 +7,7 @@ import {
   validateSuccess,
 } from '#server/utils/validate'
 import { processAdminMaterial } from '#server/utils/adminUpload'
+import { updateRecordFailed } from '#server/utils/materialJob'
 import { ensurePermission } from '#server/utils/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
@@ -14,7 +15,8 @@ import { PERMISSIONS } from '#shared/utils/permission'
  * 管理员重处理失败的上传记录
  * POST /api/admin/material/records/:id/reprocess
  *
- * 防重入：先将 status 从 failed 原子更新为 processing，利用状态机避免并发重复触发。
+ * 防重入：先将 status 从 failed 原子更新为 queued，利用状态机避免并发重复触发；
+ * 排队期间保持 queued（正确计入队列深度/排队位置口径），由 processAdminMaterial 执行时置 processing。
  */
 export default defineEventHandler(async (event) => {
   const err = ensurePermission(event, PERMISSIONS.MANAGE_MATERIALS)
@@ -30,10 +32,10 @@ export default defineEventHandler(async (event) => {
   }
   const { unitId } = parsed.data
 
-  // 原子状态转换：failed → processing（防重入，affectedRows=0 说明已被抢占或状态不对）
+  // 原子状态转换：failed → queued（防重入，affectedRows=0 说明已被抢占或状态不对）
   const lockResult = await query<ResultSetHeader>(
-    'UPDATE material_upload_record SET status = ? WHERE id = ? AND status = ?',
-    ['processing', id, 'failed'],
+    'UPDATE material_upload_record SET status = ?, error_message = NULL WHERE id = ? AND status = ?',
+    ['queued', id, 'failed'],
   )
   const affected = (lockResult as unknown as ResultSetHeader).affectedRows ?? 0
   if (affected === 0) {
@@ -76,8 +78,10 @@ export default defineEventHandler(async (event) => {
         existingRecordId: id,
       }),
     { priority: 0 },
-  ).catch((err) => {
+  ).catch(async (err) => {
+    // 兜底：任务在排队阶段被拒时回写 failed，避免记录永久卡在 queued/processing
     logger.error('[admin reprocess] 重处理异常:', err)
+    await updateRecordFailed(id, '任务调度异常，请重试').catch(() => {})
   })
 
   return validateSuccess(null, '重处理已提交')

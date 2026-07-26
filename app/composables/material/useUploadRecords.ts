@@ -1,10 +1,12 @@
 import {
   getMaterialRecords,
+  getMaterialRecordStatuses,
   updateMaterialRecord,
   deleteMaterialRecord,
 } from '~/api/material/records'
 import type {
   MaterialUploadRecordListItem,
+  MaterialRecordStatusItem,
   UpdateMaterialRecordPayload,
 } from '#shared/types/material'
 
@@ -13,6 +15,18 @@ export const useMaterialRecords = () => {
     handle: getMaterialRecords,
     success: '',
     clientFail: '获取记录失败',
+    serverFail: '服务器异常',
+    error: '网络异常',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 批量查询上传任务状态（轮询专用，调用侧以 { silent: true } 静默执行） */
+export const useMaterialRecordStatuses = () => {
+  const cfg = createResCfg<number[], MaterialRecordStatusItem[]>({
+    handle: getMaterialRecordStatuses,
+    success: '',
+    clientFail: '获取任务状态失败',
     serverFail: '服务器异常',
     error: '网络异常',
   })

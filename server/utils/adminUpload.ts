@@ -3,11 +3,12 @@ import { isDialogueText, parseTxtFile } from './textParser'
 import { generateLearningContent, generateTitle } from './aiContent'
 import { textToSpeech } from './tts'
 import { ttsWithRetry } from './ttsRetry'
-import { uploadWithKey } from './oss'
+import { uploadWithKey, deleteObject } from './oss'
 import { extractAudioMeta } from './audioMeta'
 import { pool, withTransaction } from './db'
 import { mapWithConcurrency } from './concurrency'
 import { withQueue } from './serviceQueue'
+import { isUploadQueueFull } from './materialJob'
 import { logger } from '../../shared/utils/logger'
 import type { AdminUploadItemResult } from '../../shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
@@ -113,6 +114,28 @@ export async function processAdminMaterial(
     }
   }
 
+  // 清理栈：已上传的 OSS key（失败时统一 best-effort 删除）+ 主音频 media id（仿 materialJob）
+  const uploadedKeys: string[] = []
+  let segmentMediaId: number | null = null
+  // 事务提交后置真：segment 已引用资源，此后任何写失败都不得走 fail()
+  let committed = false
+  let committedSegmentId = 0
+
+  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 */
+  async function fail(message: string): Promise<void> {
+    try {
+      if (segmentMediaId !== null) {
+        await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
+      }
+      await updateRecordFailed(recordId, message)
+    } catch (err) {
+      logger.error('[admin upload] 失败状态写入异常:', err)
+    }
+    for (const key of uploadedKeys) {
+      void deleteObject(key)
+    }
+  }
+
   try {
     // 2. 音频处理
     let audioBuffer_: Buffer
@@ -125,7 +148,7 @@ export async function processAdminMaterial(
     } else {
       const ttsResult = await textToSpeech(textContent, voice)
       if (!ttsResult.success || !ttsResult.audio) {
-        await updateRecordFailed(recordId, '音频生成失败')
+        await fail('音频生成失败')
         return { index: 0, success: false, error: '音频生成失败' }
       }
       audioBuffer_ = ttsResult.audio
@@ -136,9 +159,10 @@ export async function processAdminMaterial(
     const ossKey = `audio/material/${randomUUID()}.${ext}`
     try {
       await uploadWithKey(audioBuffer_, ossKey)
+      uploadedKeys.push(ossKey)
     } catch (err) {
       logger.error('[admin upload] OSS 上传失败:', err)
-      await updateRecordFailed(recordId, '文件上传失败')
+      await fail('文件上传失败')
       return { index: 0, success: false, error: '文件上传失败' }
     }
 
@@ -149,24 +173,21 @@ export async function processAdminMaterial(
        VALUES (?, ?, 'oss', ?, ?, ?, ?, ?, 1)`,
       [userId, mediaType, bucket, ossKey, originalName, `audio/${ext}`, audioBuffer_.length],
     )
-    const segmentMediaId = mediaRes.insertId
+    segmentMediaId = mediaRes.insertId
 
     // 5. 音频元数据校验
     const meta = await extractAudioMeta(audioBuffer_)
     if (!meta) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, '无法解析音频信息')
+      await fail('无法解析音频信息')
       return { index: 0, success: false, error: '无法解析音频信息' }
     }
 
     if (meta.duration > ADMIN_MAX_DURATION) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, `音频时长超限: ${meta.duration.toFixed(1)}s`)
+      await fail(`音频时长超限: ${meta.duration.toFixed(1)}s`)
       return { index: 0, success: false, error: `音频时长超限` }
     }
     if (meta.size > ADMIN_MAX_SIZE) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, `音频大小超限`)
+      await fail(`音频大小超限`)
       return { index: 0, success: false, error: '音频大小超限' }
     }
 
@@ -181,8 +202,7 @@ export async function processAdminMaterial(
       title ? Promise.resolve(null) : generateTitle(textContent),
     ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
-      await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
-      await updateRecordFailed(recordId, 'AI 内容生成失败')
+      await fail('AI 内容生成失败')
       return { index: 0, success: false, error: 'AI 内容生成失败' }
     }
 
@@ -210,6 +230,7 @@ export async function processAdminMaterial(
       const vocabKey = `audio/vocab/${randomUUID()}.mp3`
       try {
         await uploadWithKey(vocabTts.audio, vocabKey)
+        uploadedKeys.push(vocabKey)
       } catch {
         // 词汇音频上传失败不影响整体
         return { vocab, media: null }
@@ -266,7 +287,10 @@ export async function processAdminMaterial(
       return newSegmentId
     })
 
-    // 9. 更新记录为成功
+    // 9. 更新记录为成功（提交后 OSS 对象归业务所有，不再由清理栈管理）
+    committed = true
+    committedSegmentId = segmentId
+    uploadedKeys.length = 0
     await updateRecordSuccess(recordId, segmentId)
     if (finalTitle !== fallbackTitle) {
       await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [
@@ -279,11 +303,19 @@ export async function processAdminMaterial(
     return { index: 0, success: true, segmentId, title: finalTitle }
   } catch (err) {
     logger.error('[admin upload] 处理失败:', err)
-    try {
-      await updateRecordFailed(recordId, '处理失败')
-    } catch {
-      /* ignore */
+    if (committed) {
+      // 提交后仅剩记录状态写失败：重试一次 success 补写，绝不误伤已入库的 segment/media/OSS
+      await updateRecordSuccess(recordId, committedSegmentId).catch((e) =>
+        logger.error('[admin upload] 提交后 success 状态补写失败:', e),
+      )
+      return {
+        index: 0,
+        success: true,
+        segmentId: committedSegmentId,
+        title: title || fallbackTitle,
+      }
     }
+    await fail('处理失败')
     return { index: 0, success: false, error: '处理失败' }
   }
 }
@@ -303,6 +335,16 @@ export async function enqueueAdminMaterial(
   // 轻校验：拒绝时不产生记录（与同步时代行为一致）
   if (isDialogueText(textContent)) {
     return { index: 0, success: false, error: '材料为对话格式，不支持上传' }
+  }
+
+  // 入队深度防御（与用户端同口径）：防止管理员批量反复提交堆积内存 Buffer
+  try {
+    if (await isUploadQueueFull()) {
+      return { index: 0, success: false, error: '队列已满，请稍后再试' }
+    }
+  } catch (err) {
+    logger.error('[admin upload] 队列深度检查失败:', err)
+    return { index: 0, success: false, error: '队列状态检查失败，请重试' }
   }
 
   const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent

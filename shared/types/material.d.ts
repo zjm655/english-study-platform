@@ -36,6 +36,17 @@ export interface MaterialUploadRecordListItem {
   queuedAhead?: number
 }
 
+/** 材料上传任务状态项（批量状态轮询轻接口返回） */
+export interface MaterialRecordStatusItem {
+  id: number
+  status: MaterialUploadStatus
+  error_message: string | null
+  segment_id: number | null
+  title: string
+  /** 仅 status='queued' 时返回：前方排队任务数 */
+  queuedAhead?: number
+}
+
 /** 更新材料记录参数 */
 export interface UpdateMaterialRecordPayload {
   isPublic: number

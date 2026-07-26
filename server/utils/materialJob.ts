@@ -22,11 +22,23 @@ import { uploadWithKey, deleteObject } from './oss'
 import { withTransaction, pool } from './db'
 import { mapWithConcurrency } from './concurrency'
 
-// ============ 音频限制 ============
+// ============ 音频限制（export 供上传 handler 入队前前置校验，避免大文件先烧 STT/OSS 云费） ============
 const USER_MAX_DURATION = 180 // 3 分钟
 const ADMIN_MAX_DURATION = 600 // 10 分钟
-const USER_MAX_SIZE = 2 * 1024 * 1024 // 2MB
-const ADMIN_MAX_SIZE = 5 * 1024 * 1024 // 5MB
+export const USER_MAX_SIZE = 2 * 1024 * 1024 // 2MB
+export const ADMIN_MAX_SIZE = 5 * 1024 * 1024 // 5MB
+
+// ============ 入队深度防御（用户/管理员入队共用） ============
+/** 排队任务超过该数直接拒绝，防止极端情况下内存中堆积过多音频 Buffer */
+export const MAX_QUEUED = 50
+
+export async function isUploadQueueFull(): Promise<boolean> {
+  const [rows] = await pool.execute(
+    `SELECT COUNT(*) as cnt FROM material_upload_record WHERE status = 'queued'`,
+  )
+  const cnt = (rows as Array<{ cnt: number | string }>)[0]?.cnt ?? 0
+  return Number(cnt) >= MAX_QUEUED
+}
 
 // ============ 记录辅助（供 handler 与本任务共用） ============
 
@@ -97,6 +109,9 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
   // 清理栈：已上传的 OSS key（失败时统一 best-effort 删除）+ 主音频 media id
   const uploadedKeys: string[] = []
   let segmentMediaId: number | null = null
+  // 事务提交后置真：segment 已引用资源，此后任何写失败都不得走 fail()（禁 media/删 OSS/翻转 failed）
+  let committed = false
+  let committedSegmentId = 0
 
   /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 */
   async function fail(message: string): Promise<void> {
@@ -302,6 +317,8 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     }
 
     // 成功收尾：入库完成后 OSS 对象归业务所有，不再由清理栈管理
+    committed = true
+    committedSegmentId = segmentId
     uploadedKeys.length = 0
     await updateRecordSuccess(recordId, segmentId)
     if (title !== fallbackTitle) {
@@ -315,6 +332,13 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
   } catch (err) {
     // catch-all 兜底：绝不向 fire-and-forget 调用方抛出（unhandled rejection 会崩进程）
     logger.error('[material job] 未预期异常:', err)
+    if (committed) {
+      // 提交后仅剩记录状态写失败：重试一次 success 补写，绝不误伤已入库的 segment/media/OSS
+      await updateRecordSuccess(recordId, committedSegmentId).catch((e) =>
+        logger.error('[material job] 提交后 success 状态补写失败:', e),
+      )
+      return
+    }
     await fail('处理失败，请重试或联系管理员')
   }
 }

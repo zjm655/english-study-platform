@@ -262,12 +262,14 @@
 import { Unlock } from '@element-plus/icons-vue'
 import {
   useAdminMaterialRecordList,
+  useAdminMaterialRecordStatuses,
   useAdminMaterialRecordDetail,
   useDeleteAdminMaterialRecord,
   useReprocessAdminMaterialRecord,
   useAuditionMaterialRecord,
 } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
+import { usePolling } from '~/composables/usePolling'
 import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
 import { toastConfirm } from '~/utils/popup'
 import { PERMISSIONS } from '#shared/utils/permission'
@@ -355,32 +357,49 @@ async function loadList(silent = false) {
   }
 }
 
-// ─── 异步任务轮询：列表含排队/处理中记录时每 5s 静默刷新，无活跃项自动停止 ───
-let pollTimer: ReturnType<typeof setInterval> | null = null
+// ─── 异步任务轮询（usePolling 指数衰减 5s→30s）：活跃项走批量状态轻接口增量合并，
+// 转终态时再整刷列表校正分页统计，无活跃项自动停止 ───
+const { execute: fetchStatuses } = useAdminMaterialRecordStatuses()
+
 const hasActiveRecord = computed(() =>
   list.value.some((r) => r.status === 'queued' || r.status === 'processing'),
 )
 
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
-}
+const { start: startPolling, stop: stopPolling } = usePolling(
+  async () => {
+    const ids = list.value
+      .filter((r) => r.status === 'queued' || r.status === 'processing')
+      .map((r) => r.id)
+    if (!ids.length) return true
+    const res = await fetchStatuses(ids, { silent: true })
+    if (res?.code === 200 && res.data) {
+      let reachedTerminal = false
+      for (const item of res.data) {
+        const target = list.value.find((r) => r.id === item.id)
+        if (!target) continue
+        if (
+          target.status !== item.status &&
+          (item.status === 'success' || item.status === 'failed')
+        ) {
+          reachedTerminal = true
+        }
+        target.status = item.status
+        target.error_message = item.error_message
+        target.segment_id = item.segment_id
+        target.title = item.title
+      }
+      // 终态转换后整刷一次：筛选/分页统计（如「仅看失败」）依赖服务端口径
+      if (reachedTerminal) await loadList(true)
+    }
+    return !hasActiveRecord.value
+  },
+  { baseMs: 5000 },
+)
 
 watch(hasActiveRecord, (active) => {
-  if (active && !pollTimer) {
-    pollTimer = setInterval(async () => {
-      if (document.visibilityState !== 'visible') return
-      await loadList(true)
-      if (!hasActiveRecord.value) stopPolling()
-    }, 5000)
-  } else if (!active) {
-    stopPolling()
-  }
+  if (active) startPolling()
+  else stopPolling()
 })
-
-onUnmounted(stopPolling)
 
 function handleSearch() {
   page.value = 1

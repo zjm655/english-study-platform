@@ -1,6 +1,7 @@
 import { readFormData } from 'h3'
 import { adminUploadSchema, validateSuccess, validateError } from '#server/utils/validate'
 import { enqueueAdminMaterial, processAdminBatch } from '#server/utils/adminUpload'
+import { ADMIN_MAX_SIZE } from '#server/utils/materialJob'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
 import { ensurePermission } from '#server/utils/permission'
@@ -51,6 +52,10 @@ export default defineEventHandler(async (event) => {
     let audioBuffer: Buffer | undefined
     let audioFileName: string | undefined
     if (audio && audio.size > 0) {
+      // 大小前置校验：避免超大文件先烧 TTS/OSS 云费、大 Buffer 驻留队列
+      if (audio.size > ADMIN_MAX_SIZE) {
+        return validateError(`音频大小超过限制（${ADMIN_MAX_SIZE / 1024 / 1024}MB）`, 400)
+      }
       audioBuffer = Buffer.from(await audio.arrayBuffer())
       audioFileName = audio.name
     }

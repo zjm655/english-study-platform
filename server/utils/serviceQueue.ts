@@ -42,6 +42,8 @@ let cachedConcurrency: { values: Map<ServiceQueueName, number>; expireAt: number
 const CACHE_TTL = 5 * 60 * 1000
 /** 单飞（single-flight）：并发冷缓存时共享同一次刷新，避免重复查询与竞态 */
 let refreshInFlight: Promise<Map<ServiceQueueName, number>> | null = null
+/** 失效代数：invalidate 时 +1，在途刷新完成时代数不符则不写缓存（防旧配置覆盖新失效） */
+let cacheGeneration = 0
 
 /** 等待告警：任务在队列中等待超过该时长则记文件日志（节流：每队列每分钟至多一条） */
 const WAIT_WARN_MS = 10_000
@@ -69,6 +71,7 @@ async function refreshConcurrency(): Promise<Map<ServiceQueueName, number>> {
     return refreshInFlight
   }
   refreshInFlight = (async () => {
+    const gen = cacheGeneration
     try {
       const { query } = await import('#server/utils/db')
       const keys = QUEUE_NAMES.map((n) => `'queue_${n}_concurrency'`).join(', ')
@@ -86,7 +89,10 @@ async function refreshConcurrency(): Promise<Map<ServiceQueueName, number>> {
         const n = values.get(name) ?? 0
         getQueue(name).concurrency = n > 0 ? n : Infinity
       }
-      cachedConcurrency = { values, expireAt: Date.now() + CACHE_TTL }
+      // 刷新期间若发生过 invalidate（管理端刚改完配置），本次结果已旧：不写缓存，下次重新查库
+      if (gen === cacheGeneration) {
+        cachedConcurrency = { values, expireAt: Date.now() + CACHE_TTL }
+      }
       return values
     } catch {
       // 查询失败：优先沿用旧值（不延长 TTL，下次仍重试）；无旧值则本次按不限流处理，不写缓存
@@ -104,12 +110,13 @@ async function refreshConcurrency(): Promise<Map<ServiceQueueName, number>> {
 /** 使配置缓存失效（管理端修改 queue_* 配置后调用，下次入队即读新值并热更） */
 export function invalidateServiceQueueCache(): void {
   cachedConcurrency = null
+  cacheGeneration++
 }
 
 export interface WithQueueOptions {
   /** 优先级：数值越大越先执行（p-queue 语义）。约定：用户交互任务 1，后台/管理员批量 0 */
   priority?: number
-  /** 排队取消信号：触发时若任务尚未开始执行，直接从队列移除并 reject */
+  /** 排队取消信号：触发时若任务尚未开始执行则 reject（p-queue 惰性取消：项仍占 size 计数、闭包保留至出队） */
   signal?: AbortSignal
 }
 

@@ -137,6 +137,25 @@ describe('withQueue', () => {
     const result = await withQueue('tts', async () => 'still-works')
     expect(result).toBe('still-works')
   })
+
+  it('刷新在途时 invalidate：在途结果不写缓存，下次入队重新查库', async () => {
+    __forceEnableForTest(true)
+    // 第一次查询挂起，期间发生 invalidate（模拟管理端刚改完配置）
+    let resolveFirst!: (rows: unknown) => void
+    mockQuery.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+    invalidateServiceQueueCache()
+
+    const first = withQueue('tts', async () => 'first')
+    await sleep(10) // 确保在途刷新已发起
+    invalidateServiceQueueCache() // 管理端 PUT 新配置
+    resolveFirst([{ config_key: 'queue_tts_concurrency', config_value: '1' }]) // 旧配置返回
+    await first
+
+    // 旧结果不得写缓存：下次入队必须重新查库（拿到新配置 5）
+    mockQuery.mockResolvedValue([{ config_key: 'queue_tts_concurrency', config_value: '5' }])
+    await withQueue('tts', async () => 'second')
+    expect(getQueueStats().find((s) => s.name === 'tts')?.concurrency).toBe(5)
+  })
 })
 
 describe('getQueueStats', () => {

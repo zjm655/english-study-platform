@@ -175,4 +175,30 @@ describe('runMaterialJob', () => {
     const failedCall = mockPoolExecute.mock.calls.find(([sql]) => String(sql).includes("'failed'"))
     expect(String(failedCall![1])).toContain('超过限制')
   })
+
+  it('事务提交后 success 写入报错：不误伤已入库资源，重试补写 success', async () => {
+    let successCalls = 0
+    mockPoolExecute.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("'success'")) {
+        successCalls++
+        if (successCalls === 1) throw new Error('network blip')
+        return [{ affectedRows: 1 }]
+      }
+      if (String(sql).startsWith('INSERT')) return [{ insertId: 100, affectedRows: 1 }]
+      return [{ affectedRows: 1 }]
+    })
+
+    await expect(runMaterialJob({ ...BASE_PARAMS })).resolves.toBeUndefined()
+
+    // 重试了一次 success 补写
+    expect(successCalls).toBe(2)
+    // 绝不清理 OSS / 禁用 media / 写 failed
+    expect(mockDeleteObject).not.toHaveBeenCalled()
+    expect(mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes("'failed'"))).toBe(false)
+    expect(
+      mockPoolExecute.mock.calls.some(([sql]) =>
+        String(sql).includes('UPDATE media SET status = 0'),
+      ),
+    ).toBe(false)
+  })
 })

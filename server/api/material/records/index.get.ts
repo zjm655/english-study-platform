@@ -1,5 +1,6 @@
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
+import { fetchQueuedSnapshot, countAheadInSnapshot } from '#server/utils/materialRecordStatus'
 import type { MaterialUploadRecordRow } from '#server/types/db'
 import type { MaterialUploadRecordListItem, MaterialUploadStatus } from '#shared/types/material'
 
@@ -35,18 +36,13 @@ export default defineEventHandler(
       createdAt: r.createdAt,
     }))
 
-    // 排队中的记录附加前方任务数（DB COUNT，重启自洽，不依赖内存队列插桩）
+    // 排队中的记录附加前方任务数（一次全局 queued 快照 JS 内算完，避免每条一次 COUNT 的 N+1）
     const queuedItems = list.filter((r) => r.status === 'queued')
     if (queuedItems.length > 0) {
-      await Promise.all(
-        queuedItems.map(async (item) => {
-          const ahead = await query<{ cnt: number | string }>(
-            `SELECT COUNT(*) as cnt FROM material_upload_record WHERE status = 'queued' AND id < ?`,
-            [item.id],
-          )
-          item.queuedAhead = Number(ahead[0]?.cnt ?? 0)
-        }),
-      )
+      const snapshot = await fetchQueuedSnapshot()
+      for (const item of queuedItems) {
+        item.queuedAhead = countAheadInSnapshot(snapshot, item.id)
+      }
     }
 
     return validateSuccess(list)

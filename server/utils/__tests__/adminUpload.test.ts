@@ -10,33 +10,41 @@ import { processAdminMaterial, processAdminBatch } from '../adminUpload'
 const {
   mockTextToSpeech,
   mockUploadWithKey,
+  mockDeleteObject,
   mockExtractAudioMeta,
   mockGenerateLearningContent,
   mockGenerateTitle,
   mockPoolExecute,
   mockWithTransaction,
+  mockIsUploadQueueFull,
 } = vi.hoisted(() => {
   const mockTextToSpeech = vi.fn()
   const mockUploadWithKey = vi.fn()
+  const mockDeleteObject = vi.fn()
   const mockExtractAudioMeta = vi.fn()
   const mockGenerateLearningContent = vi.fn()
   const mockGenerateTitle = vi.fn()
   const mockPoolExecute = vi.fn()
   const mockWithTransaction = vi.fn()
+  const mockIsUploadQueueFull = vi.fn()
   return {
     mockTextToSpeech: mockTextToSpeech,
     mockUploadWithKey: mockUploadWithKey,
+    mockDeleteObject: mockDeleteObject,
     mockExtractAudioMeta: mockExtractAudioMeta,
     mockGenerateLearningContent: mockGenerateLearningContent,
     mockGenerateTitle: mockGenerateTitle,
     mockPoolExecute: mockPoolExecute,
     mockWithTransaction: mockWithTransaction,
+    mockIsUploadQueueFull: mockIsUploadQueueFull,
   }
 })
 
 // Mock 外部依赖
 vi.mock('../tts', () => ({ textToSpeech: mockTextToSpeech }))
-vi.mock('../oss', () => ({ uploadWithKey: mockUploadWithKey }))
+vi.mock('../oss', () => ({ uploadWithKey: mockUploadWithKey, deleteObject: mockDeleteObject }))
+// materialJob 仅提供队列深度检查，mock 掉避免拉入其完整依赖链（STT/审核等）
+vi.mock('../materialJob', () => ({ isUploadQueueFull: mockIsUploadQueueFull }))
 vi.mock('../audioMeta', () => ({ extractAudioMeta: mockExtractAudioMeta }))
 vi.mock('../aiContent', () => ({
   generateLearningContent: mockGenerateLearningContent,
@@ -56,6 +64,7 @@ vi.mock('../../../shared/utils/logger', () => ({
 const FAKE_AUDIO = Buffer.from('fake-mp3-data')
 
 function setupDefaults() {
+  mockIsUploadQueueFull.mockResolvedValue(false)
   mockPoolExecute.mockImplementation(async (sql: string) => {
     if (sql.startsWith('INSERT')) return [{ insertId: 1, affectedRows: 1 }]
     return [[]]
@@ -216,6 +225,62 @@ describe('processAdminMaterial', () => {
 
     expect(result.success).toBe(true)
     expect(result.title).toBe(longText.slice(0, 50) + '...')
+  })
+
+  it('事务失败：清理栈删除主音频与词汇音频 OSS 对象 + media 禁用 + failed', async () => {
+    setupDefaults()
+    mockWithTransaction.mockRejectedValue(new Error('db down'))
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Normal text for transaction failure.',
+      title: 'Test',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    expect(result.success).toBe(false)
+    // 主音频 + 1 个词汇音频均被清理
+    expect(mockDeleteObject).toHaveBeenCalledTimes(2)
+    // media 禁用
+    expect(
+      mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes('UPDATE media SET status')),
+    ).toBe(true)
+    // record 标 failed
+    expect(mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes("'failed'"))).toBe(true)
+  })
+
+  it('事务提交后 success 写入报错：不误伤已入库资源，重试补写 success', async () => {
+    setupDefaults()
+    let successCalls = 0
+    mockPoolExecute.mockImplementation(async (sql: string) => {
+      if (String(sql).includes("'success'")) {
+        successCalls++
+        if (successCalls === 1) throw new Error('network blip')
+        return [{ affectedRows: 1 }]
+      }
+      if (sql.startsWith('INSERT')) return [{ insertId: 1, affectedRows: 1 }]
+      return [[]]
+    })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Committed then record write fails.',
+      title: 'Test',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    // 提交后失败：仍视为成功，重试了一次 success 补写
+    expect(result.success).toBe(true)
+    expect(successCalls).toBe(2)
+    // 绝不清理 OSS / 禁用 media / 写 failed
+    expect(mockDeleteObject).not.toHaveBeenCalled()
+    expect(mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes("'failed'"))).toBe(false)
   })
 })
 
