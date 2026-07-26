@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useReviewAccessLogList } from '~/composables/admin'
+import { useReviewAccessLogList, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
 import {
   REVIEW_TARGET_TYPES,
@@ -27,6 +27,10 @@ const pageSize = ref(20)
 const total = ref(0)
 const list = ref<ReviewAccessLogItem[]>([])
 
+// 批量选择（reserve-selection 跨页保留；选中行导出上限对齐后端 export ids=200）
+const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect, removeRow, offPageCount } =
+  useTableSelection<ReviewAccessLogItem>({ limit: 200, pageRows: () => list.value })
+
 // 详情 Drawer
 const detailVisible = ref(false)
 const detailRow = ref<ReviewAccessLogItem | null>(null)
@@ -48,11 +52,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterTargetType.value = ''
   filterReasonCategory.value = ''
   filterKeyword.value = ''
@@ -77,6 +83,13 @@ function handleExport() {
   params.append('table', 'review_access_log')
   if (filterStartDate.value) params.append('startDate', filterStartDate.value)
   if (filterEndDate.value) params.append('endDate', filterEndDate.value)
+  window.open(`${adminLogsExportPath}?${params.toString()}`, '_blank')
+}
+
+function handleExportSelected() {
+  const params = new URLSearchParams()
+  params.append('table', 'review_access_log')
+  params.append('ids', selectedIds.value.join(','))
   window.open(`${adminLogsExportPath}?${params.toString()}`, '_blank')
 }
 
@@ -183,7 +196,26 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="isLoading" :data="list" stripe row-key="id">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => `${r.targetType} #${r.targetId}`"
+        @clear="clear"
+        @remove="removeRow"
+      >
+        <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
+      </AdminBatchBar>
+
+      <el-table
+        ref="tableRef"
+        v-loading="isLoading"
+        :data="list"
+        stripe
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="operatorAccount" label="操作者" width="130">
           <template #default="{ row }">{{ row.operatorAccount || '已删除' }}</template>

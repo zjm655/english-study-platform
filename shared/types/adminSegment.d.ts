@@ -69,6 +69,8 @@ export interface AdminSegmentUpdatePayload {
   questions?: Question[]
   vocabulary?: AdminVocabEditItem[]
   isPublic?: number // 0 | 1
+  /** 所属单元变更（可选；0=自定义单元合法） */
+  unitId?: number
 }
 
 /** 材料公开状态门禁变更载荷（需 REVIEW 权限 + 填理由，镜像音频试听留痕） */

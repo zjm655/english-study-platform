@@ -22,6 +22,8 @@ export interface CloudServiceCallEntry {
   completionTokens?: number | null
   /** DeepSeek 总 token 数（仅 deepseek 服务） */
   totalTokens?: number | null
+  /** 业务时长毫秒（nls filetrans=音频时长 BizDuration，区别于 durationMs 执行耗时） */
+  bizDurationMs?: number | null
 }
 
 // ─── 内存队列 ────────────────────────────────────────
@@ -48,7 +50,7 @@ async function flush(): Promise<void> {
   if (queue.length === 0) return
   const batch = queue.splice(0, BATCH_SIZE)
   try {
-    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
+    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
     const params = batch.flatMap((e) => [
       e.service,
       e.operation,
@@ -57,10 +59,11 @@ async function flush(): Promise<void> {
       e.promptTokens ?? null,
       e.completionTokens ?? null,
       e.totalTokens ?? null,
-      e.errorMessage ?? null,
+      e.bizDurationMs ?? null,
+      e.errorMessage || null, // 空串归一为 NULL，避免导出/统计出现空白 error_message
     ])
     await query(
-      `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, error_message)
+      `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, biz_duration_ms, error_message)
        VALUES ${values}`,
       params,
     )
@@ -75,6 +78,11 @@ async function flush(): Promise<void> {
  * 调用方以 fire-and-forget 方式调用：void logCloudServiceCall(...)
  */
 export function logCloudServiceCall(entry: CloudServiceCallEntry): void {
+  // 失败条目兜底：error_message 永不为空（上游偶有空 message 的异常，如 AggregateError），
+  // 保证 success=0 的行必有可诊断内容，不限于 TTS 服务
+  if (!entry.success && !entry.errorMessage?.trim()) {
+    entry.errorMessage = '(空错误信息)'
+  }
   // 软上限保护：超限丢弃最旧条目，避免 DB 写入慢时队列无界增长导致 OOM
   if (queue.length >= MAX_QUEUE_SIZE) {
     queue.shift()
@@ -102,4 +110,9 @@ export async function flushCloudServiceLog(): Promise<void> {
   while (queue.length > 0) {
     await flush()
   }
+}
+
+/** 只读探针：内存缓冲水位快照（供 GET /api/admin/monitor 观测，不暴露队列引用） */
+export function getCloudServiceLogStats(): { size: number; maxSize: number; dropped: number } {
+  return { size: queue.length, maxSize: MAX_QUEUE_SIZE, dropped: droppedCount }
 }

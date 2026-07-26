@@ -2,9 +2,11 @@
 import { ArrowLeft, Delete } from '@element-plus/icons-vue'
 import {
   useMaterialRecords,
+  useMaterialRecordStatuses,
   useUpdateMaterialRecord,
   useDeleteMaterialRecord,
 } from '~/composables/material/useUploadRecords'
+import { usePolling } from '~/composables/usePolling'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
 import { toastConfirm } from '~/utils/popup'
 
@@ -40,6 +42,47 @@ async function loadRecords() {
   }
 }
 
+// ─── 异步任务轮询（usePolling 指数衰减 3s→30s）：活跃项走批量状态轻接口增量合并，
+// 转终态时整刷一次列表（拿 segment_id/AI 标题），全部终态后自动停止 ───
+const { execute: fetchStatuses } = useMaterialRecordStatuses()
+
+const hasActiveRecord = computed(() =>
+  records.value.some((r) => r.status === 'queued' || r.status === 'processing'),
+)
+
+const { start: startPolling, stop: stopPolling } = usePolling(async () => {
+  const ids = records.value
+    .filter((r) => r.status === 'queued' || r.status === 'processing')
+    .map((r) => r.id)
+  if (!ids.length) return true
+  const res = await fetchStatuses(ids, { silent: true })
+  if (res?.code === 200 && res.data) {
+    let reachedTerminal = false
+    for (const item of res.data) {
+      const target = records.value.find((r) => r.id === item.id)
+      if (!target) continue
+      if (
+        target.status !== item.status &&
+        (item.status === 'success' || item.status === 'failed')
+      ) {
+        reachedTerminal = true
+      }
+      target.status = item.status
+      target.error_message = item.error_message
+      target.segment_id = item.segment_id
+      target.title = item.title
+      target.queuedAhead = item.queuedAhead
+    }
+    if (reachedTerminal) await loadRecords()
+  }
+  return !hasActiveRecord.value
+})
+
+watch(hasActiveRecord, (active) => {
+  if (active) startPolling()
+  else stopPolling()
+})
+
 onMounted(() => {
   loadRecords()
 })
@@ -50,6 +93,8 @@ function getStatusType(status: string) {
       return 'success'
     case 'failed':
       return 'danger'
+    case 'queued':
+      return 'warning'
     default:
       return 'info'
   }
@@ -63,6 +108,8 @@ function getStatusLabel(status: string) {
       return '失败'
     case 'processing':
       return '处理中'
+    case 'queued':
+      return '排队中'
     default:
       return status
   }
@@ -122,7 +169,7 @@ async function handleDelete(record: MaterialUploadRecordListItem) {
         :class="{
           'record-item--success': record.status === 'success',
           'record-item--failed': record.status === 'failed',
-          'record-item--processing': record.status === 'processing',
+          'record-item--processing': record.status === 'processing' || record.status === 'queued',
         }"
       >
         <div class="record-item__header">

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-import { checkDailyQuota, invalidateQuotaCache } from '../quotaChecker'
+import {
+  checkDailyQuota,
+  checkEvalGate,
+  getEvalGateSnapshot,
+  invalidateQuotaCache,
+} from '../quotaChecker'
 
 // 模块内部用 query 查 sys_config + recording 计数，mock 掉 db.query 即可隔离逻辑
 const { mockQuery } = vi.hoisted(() => ({
@@ -31,6 +36,107 @@ describe('quotaChecker - 管理员不受限', () => {
     const res = await checkDailyQuota(1, ROLE_ADMIN)
     expect(res).toEqual({ allowed: true, used: 0, limit: Infinity, windowSec: 0 })
     expect(mockQuery).not.toHaveBeenCalled()
+  })
+})
+
+// ============ 评测并发闸门（拒绝型） ============
+
+describe('quotaChecker - 评测并发闸门', () => {
+  const GATE_CONFIG_ROWS = [
+    { config_key: 'eval_gate_max', config_value: '3' },
+    { config_key: 'eval_gate_window', config_value: '300' },
+  ]
+
+  it('活跃数未达阈值 → allowed', async () => {
+    mockQuery
+      .mockResolvedValueOnce(GATE_CONFIG_ROWS) // sys_config
+      .mockResolvedValueOnce([{ cnt: 2 }]) // 近窗发放计数
+    const res = await checkEvalGate()
+    expect(res).toEqual({ allowed: true, active: 2, limit: 3 })
+  })
+
+  it('活跃数达到阈值 → 拒绝', async () => {
+    mockQuery.mockResolvedValueOnce(GATE_CONFIG_ROWS).mockResolvedValueOnce([{ cnt: 3 }])
+    const res = await checkEvalGate()
+    expect(res.allowed).toBe(false)
+    expect(res.active).toBe(3)
+  })
+
+  it('max=0 表示不限制：直接放行且不查计数', async () => {
+    mockQuery.mockResolvedValueOnce([
+      { config_key: 'eval_gate_max', config_value: '0' },
+      { config_key: 'eval_gate_window', config_value: '300' },
+    ])
+    const res = await checkEvalGate()
+    expect(res.allowed).toBe(true)
+    // 仅查了配置，未查 eval_auth_log 计数
+    expect(mockQuery).toHaveBeenCalledTimes(1)
+  })
+
+  it('配置查询失败时用默认值（max=20）不阻塞业务', async () => {
+    mockQuery
+      .mockRejectedValueOnce(new Error('db down')) // sys_config 失败
+      .mockResolvedValueOnce([{ cnt: 5 }])
+    const res = await checkEvalGate()
+    expect(res).toEqual({ allowed: true, active: 5, limit: 20 })
+  })
+
+  it('闸门配置与额度配置共用 invalidateQuotaCache 失效', async () => {
+    mockQuery.mockResolvedValueOnce(GATE_CONFIG_ROWS).mockResolvedValueOnce([{ cnt: 1 }])
+    await checkEvalGate()
+    invalidateQuotaCache()
+    mockQuery
+      .mockResolvedValueOnce([
+        { config_key: 'eval_gate_max', config_value: '10' },
+        { config_key: 'eval_gate_window', config_value: '300' },
+      ])
+      .mockResolvedValueOnce([{ cnt: 1 }])
+    const res = await checkEvalGate()
+    expect(res.limit).toBe(10) // 失效后读到新值
+  })
+})
+
+// ============ 评测闸门监控快照（getEvalGateSnapshot） ============
+
+describe('quotaChecker - 闸门监控快照', () => {
+  const GATE_CONFIG_ROWS = [
+    { config_key: 'eval_gate_max', config_value: '3' },
+    { config_key: 'eval_gate_window', config_value: '300' },
+  ]
+
+  it('正常计数：返回 active/limit/windowSec 三元组', async () => {
+    mockQuery
+      .mockResolvedValueOnce(GATE_CONFIG_ROWS) // sys_config
+      .mockResolvedValueOnce([{ cnt: '2' }]) // COUNT 返回字符串也归一
+    const res = await getEvalGateSnapshot()
+    expect(res).toEqual({ active: 2, limit: 3, windowSec: 300 })
+  })
+
+  it('max=0 时仍执行 COUNT 返回真实活跃数（与 checkEvalGate 短路的差异点）', async () => {
+    mockQuery
+      .mockResolvedValueOnce([
+        { config_key: 'eval_gate_max', config_value: '0' },
+        { config_key: 'eval_gate_window', config_value: '300' },
+      ])
+      .mockResolvedValueOnce([{ cnt: 7 }])
+    const res = await getEvalGateSnapshot()
+    expect(res).toEqual({ active: 7, limit: 0, windowSec: 300 })
+    // 配置 + 计数各查一次（监控不走短路）
+    expect(mockQuery).toHaveBeenCalledTimes(2)
+  })
+
+  it('复用 getGateConfig 缓存：连续两次快照 sys_config 只查一次', async () => {
+    mockQuery
+      .mockResolvedValueOnce(GATE_CONFIG_ROWS) // 1st: sys_config
+      .mockResolvedValueOnce([{ cnt: 1 }]) // 1st: count
+      .mockResolvedValueOnce([{ cnt: 2 }]) // 2nd: count（配置命中缓存）
+    await getEvalGateSnapshot()
+    const res = await getEvalGateSnapshot()
+    expect(res.active).toBe(2)
+    const sysConfigCalls = mockQuery.mock.calls.filter(
+      (c) => typeof c[0] === 'string' && (c[0] as string).includes('sys_config'),
+    )
+    expect(sysConfigCalls.length).toBe(1)
   })
 })
 

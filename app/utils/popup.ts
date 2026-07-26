@@ -124,6 +124,30 @@ export function toastLoading(message = '加载中...') {
 // ============== 通用弹窗（根据 code 自动判断类型） ==============
 
 /**
+ * 批量操作结果汇总提示（配套后端 BatchResult 部分成功语义）：
+ * 全部成功 → success；存在跳过 → warning 并按原因聚合展示（id 列表随原因带出）
+ */
+export function toastBatchResult(result: {
+  succeeded: number
+  skipped: { id: number; reason: string }[]
+}) {
+  const { succeeded, skipped } = result
+  if (skipped.length === 0) {
+    return toastSuccess(`操作成功 ${succeeded} 条`)
+  }
+  const grouped = new Map<string, number[]>()
+  for (const item of skipped) {
+    const ids = grouped.get(item.reason) ?? []
+    ids.push(item.id)
+    grouped.set(item.reason, ids)
+  }
+  const detail = [...grouped.entries()]
+    .map(([reason, ids]) => `${reason}（ID: ${ids.join('、')}）`)
+    .join('；')
+  return toastWarning(`成功 ${succeeded} 条，跳过 ${skipped.length} 条：${detail}`, 6000)
+}
+
+/**
  * 根据响应 code 自动弹出对应类型的提示
  * @param code 响应码
  * @param message 提示内容

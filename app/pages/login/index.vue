@@ -8,10 +8,22 @@
           <p class="brand-panel__slogan">盲听 · 学习 · 配音 · 影子跟读</p>
           <p class="brand-panel__desc">四阶段沉浸式训练，逐段攻克听、说、读，让开口成为习惯。</p>
           <ul class="brand-panel__features">
-            <li>🎧 精听盲听，磨练语感</li>
-            <li>📖 逐句学习，攻克重点词汇</li>
-            <li>🎤 配音评测，实时打分反馈</li>
-            <li>🗣️ 影子跟读，纠正地道发音</li>
+            <li>
+              <el-icon :size="18"><Headset /></el-icon>
+              <span>精听盲听，磨练语感</span>
+            </li>
+            <li>
+              <el-icon :size="18"><Reading /></el-icon>
+              <span>逐句学习，攻克重点词汇</span>
+            </li>
+            <li>
+              <el-icon :size="18"><Microphone /></el-icon>
+              <span>配音评测，实时打分反馈</span>
+            </li>
+            <li>
+              <el-icon :size="18"><ChatDotRound /></el-icon>
+              <span>影子跟读，纠正地道发音</span>
+            </li>
           </ul>
         </div>
       </aside>
@@ -133,6 +145,7 @@
 <script lang="ts" setup>
 import { reactive, ref, computed } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
+import { Headset, Reading, Microphone, ChatDotRound } from '@element-plus/icons-vue'
 import { useToLogin, useToRegister } from '~/composables/user'
 
 useSeoMeta({
@@ -145,6 +158,8 @@ useSeoMeta({
 definePageMeta({
   title: '登录',
   hideTabBar: true,
+  // PC 双栏（920px 品牌面板 + 表单）需要豁免 default 布局的 430px 限宽
+  fullWidth: true,
 })
 
 const activeName = ref('login')
@@ -388,8 +403,15 @@ function resetRegister() {
   gap: 12px;
 }
 .brand-panel__features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 14px;
   opacity: 0.95;
+}
+.brand-panel__features li .el-icon {
+  flex-shrink: 0;
+  opacity: 0.9;
 }
 
 /* 右：表单 */

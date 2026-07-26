@@ -63,6 +63,15 @@ export default defineEventHandler(
       )
     }
 
+    // 全局评测并发闸门（拒绝型）：评测由前端 SDK 直连阿里云，无法服务端排队，
+    // 超出并发估算阈值时直接拒绝，由用户稍后重试抢空闲名额（前端无自动重试，天然防惊群）
+    const { checkEvalGate } = await import('#server/utils/quotaChecker')
+    const gate = await checkEvalGate()
+    if (!gate.allowed) {
+      logger.warn(`[evaluation auth] 并发闸门拒绝：活跃估算 ${gate.active}/${gate.limit}`)
+      return validateError('当前评测人数较多，请稍后重试', 503)
+    }
+
     const { aiContent } = useRuntimeConfig()
     const { appId, appSecret, authUrl } = aiContent
 

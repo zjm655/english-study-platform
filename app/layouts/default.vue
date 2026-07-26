@@ -1,6 +1,6 @@
 <!-- app/layouts/default.vue -->
 <template>
-  <div class="app-wrapper">
+  <div class="app-wrapper" :class="{ 'app-wrapper--full': isFullWidth }">
     <!-- ===== Header ===== -->
     <header v-if="!hideHeader" class="header">
       <div class="header__inner">
@@ -61,6 +61,7 @@ const route = useRoute()
 const pageTitle = computed(() => (route.meta?.title as string) || '')
 const hideHeader = computed(() => !!route.meta?.hideHeader)
 const hideTabBar = computed(() => !!route.meta?.hideTabBar)
+const isFullWidth = computed(() => !!route.meta?.fullWidth)
 const isHome = computed(() => !!route.meta?.isHome)
 
 const tabs = [
@@ -86,13 +87,18 @@ onMounted(() => {
 
 <style>
 /* ===== Layout ===== */
-/* 移动端 430px 限宽从 body 下沉至此：仅约束 default 布局（学习/复习/首页/我的），admin 布局不受影响 */
+/* 移动端 430px 限宽从 body 下沉至此：仅约束 default 布局（学习/复习/首页/我的），admin 布局不受影响；
+   需要全宽的页面（如登录页 PC 双栏）用 definePageMeta({ fullWidth: true }) 豁免 */
 .app-wrapper {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  /* max-width: 430px; */
+  max-width: 430px;
   margin: 0 auto;
+}
+
+.app-wrapper--full {
+  max-width: none;
 }
 
 /* ===== Header ===== */

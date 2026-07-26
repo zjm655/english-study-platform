@@ -1,9 +1,10 @@
-import { adminUnitPath } from '../paths'
+import { adminUnitPath, adminUnitBatchPath } from '../paths'
 import type {
   AdminUnitListQuery,
   AdminUnitListResult,
   AdminUnitSavePayload,
 } from '#shared/types/adminUnit'
+import type { BatchResult } from '#shared/types/adminBatch'
 
 /**
  * 管理员单元列表（服务端分页 + 难度筛选 + 标题搜索）。
@@ -40,5 +41,13 @@ export const updateAdminUnit = (id: number, payload: AdminUnitSavePayload) => {
 export const deleteAdminUnit = (id: number) => {
   return request.json<null>(`${adminUnitPath}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+/** 管理员批量删除单元（软删除，部分成功语义；id=0 系统保留单元进 skipped） */
+export const batchDeleteAdminUnits = (ids: number[]) => {
+  return request.json<BatchResult>(adminUnitBatchPath, {
+    method: 'POST',
+    body: { action: 'delete', ids },
   })
 }

@@ -9,6 +9,7 @@
  */
 import { query } from '#server/utils/db'
 import { isAdminOrAbove } from '#shared/utils/role'
+import type { EvalGateSnapshot } from '#shared/types/adminMonitor'
 
 export interface QuotaResult {
   allowed: boolean
@@ -47,6 +48,7 @@ async function getEvalConfig(): Promise<{ limit: number; windowSec: number }> {
 /** 使缓存失效（管理员修改配置后调用） */
 export function invalidateQuotaCache(): void {
   cachedConfig = null
+  cachedGateConfig = null
 }
 
 /**
@@ -78,4 +80,74 @@ export async function checkDailyQuota(userId: number, role: number): Promise<Quo
     limit,
     windowSec,
   }
+}
+
+// ==================== 评测并发闸门（拒绝型） ====================
+//
+// 与上方「每用户额度」正交：闸门限制的是全局同时进行的评测数（阿里云智能科教并发配额保护）。
+// 评测由前端 SDK 直连阿里云执行，服务端无法排队等待，只能在 warrantId 发放前拒绝；
+// 活跃数用 eval_auth_log 近窗发放计数估算（窗口默认 = warrantId 有效期 300s），
+// 属近似值——阈值宜宽松，阿里云真实拒绝作最后兜底。
+
+export interface EvalGateResult {
+  allowed: boolean
+  active: number
+  limit: number
+}
+
+let cachedGateConfig: { max: number; windowSec: number; expireAt: number } | null = null
+
+async function getGateConfig(): Promise<{ max: number; windowSec: number }> {
+  if (cachedGateConfig && Date.now() < cachedGateConfig.expireAt) {
+    return { max: cachedGateConfig.max, windowSec: cachedGateConfig.windowSec }
+  }
+  try {
+    const rows = await query<{ config_key: string; config_value: string }>(
+      `SELECT config_key, config_value FROM sys_config WHERE config_key IN ('eval_gate_max', 'eval_gate_window')`,
+    )
+    const map = new Map(rows.map((r) => [r.config_key, r.config_value]))
+    const rawMax = parseInt(map.get('eval_gate_max') ?? '20', 10)
+    const rawWindow = parseInt(map.get('eval_gate_window') ?? '300', 10)
+    const max = isNaN(rawMax) || rawMax < 0 ? 20 : rawMax
+    const windowSec = isNaN(rawWindow) || rawWindow < 1 ? 300 : rawWindow
+    cachedGateConfig = { max, windowSec, expireAt: Date.now() + CACHE_TTL }
+    return { max, windowSec }
+  } catch {
+    // 查询失败不阻塞业务：按默认值处理
+    return { max: 20, windowSec: 300 }
+  }
+}
+
+/**
+ * 检查全局评测并发闸门（在 evaluation/auth 的每日额度检查之后调用）。
+ * max=0 表示不限制；管理员不豁免（保护的是云产品配额，与角色无关）。
+ */
+export async function checkEvalGate(): Promise<EvalGateResult> {
+  const { max, windowSec } = await getGateConfig()
+  if (max <= 0) {
+    return { allowed: true, active: 0, limit: 0 }
+  }
+
+  const rows = await query<{ cnt: number | string }>(
+    `SELECT COUNT(*) as cnt FROM eval_auth_log WHERE createdAt > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+    [windowSec],
+  )
+  const active = Number(rows[0]?.cnt ?? 0)
+
+  return { allowed: active < max, active, limit: max }
+}
+
+/**
+ * 评测闸门实时快照（监控专用，与 checkEvalGate 平行共存，类型契约在 #shared/types/adminMonitor）：
+ * 无论 max 是否为 0 都真实计数——监控要看真实活跃数；
+ * checkEvalGate 的 max<=0 短路不查库是评测鉴权热路径的快路径，不得合并。
+ * 配置复用 getGateConfig 的 5min 缓存，sys_config 查询不被监控轮询放大。
+ */
+export async function getEvalGateSnapshot(): Promise<EvalGateSnapshot> {
+  const { max, windowSec } = await getGateConfig()
+  const rows = await query<{ cnt: number | string }>(
+    `SELECT COUNT(*) as cnt FROM eval_auth_log WHERE createdAt > DATE_SUB(NOW(), INTERVAL ? SECOND)`,
+    [windowSec],
+  )
+  return { active: Number(rows[0]?.cnt ?? 0), limit: max, windowSec }
 }

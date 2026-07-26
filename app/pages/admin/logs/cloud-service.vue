@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useCloudServiceLogList, useCleanLogs } from '~/composables/admin'
+import { useCloudServiceLogList, useCleanLogs, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { CloudServiceLogItem } from '#shared/types/adminLogs'
@@ -22,6 +22,10 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const list = ref<CloudServiceLogItem[]>([])
+
+// 批量选择（reserve-selection 跨页保留；选中行导出上限对齐后端 export ids=200）
+const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect, removeRow, offPageCount } =
+  useTableSelection<CloudServiceLogItem>({ limit: 200, pageRows: () => list.value })
 
 // 详情 Drawer
 const detailVisible = ref(false)
@@ -48,11 +52,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterService.value = ''
   filterSuccess.value = ''
   filterOperationKeyword.value = ''
@@ -77,6 +83,13 @@ function handleExport() {
   params.append('table', 'cloud_service_call_log')
   if (filterStartDate.value) params.append('startDate', filterStartDate.value)
   if (filterEndDate.value) params.append('endDate', filterEndDate.value)
+  window.open(`${adminLogsExportPath}?${params.toString()}`, '_blank')
+}
+
+function handleExportSelected() {
+  const params = new URLSearchParams()
+  params.append('table', 'cloud_service_call_log')
+  params.append('ids', selectedIds.value.join(','))
   window.open(`${adminLogsExportPath}?${params.toString()}`, '_blank')
 }
 
@@ -215,7 +228,26 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="isLoading" :data="list" stripe row-key="id">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.operation"
+        @clear="clear"
+        @remove="removeRow"
+      >
+        <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
+      </AdminBatchBar>
+
+      <el-table
+        ref="tableRef"
+        v-loading="isLoading"
+        :data="list"
+        stripe
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="service" label="Service" width="120">
           <template #default="{ row }">

@@ -91,16 +91,16 @@
       </div>
     </el-card>
 
-    <!-- 结果展示 -->
+    <!-- 入队回执（异步任务：实际处理进度请到“上传记录”页查看） -->
     <el-card v-if="result" class="result-card">
       <template #header>
         <div class="result-summary">
-          <span>上传结果</span>
+          <span>入队回执</span>
           <span>
             共 {{ result.summary.total }} 条，
-            <span class="result-success">成功 {{ result.summary.success }}</span
+            <span class="result-success">已入队 {{ result.summary.success }}</span
             >，
-            <span class="result-failed">失败 {{ result.summary.failed }}</span>
+            <span class="result-failed">被拒 {{ result.summary.failed }}</span>
           </span>
         </div>
       </template>
@@ -111,13 +111,18 @@
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.success ? 'success' : 'danger'" size="small">
-              {{ row.success ? '成功' : '失败' }}
+              {{ row.success ? '已入队' : '被拒' }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="title" label="标题" />
         <el-table-column prop="error" label="错误信息" />
       </el-table>
+      <div class="result-footer">
+        材料已加入处理队列，请到
+        <NuxtLink to="/admin/material/records" class="result-link">上传记录</NuxtLink>
+        页查看处理进度。
+      </div>
     </el-card>
   </div>
 </template>
@@ -282,5 +287,16 @@ onMounted(() => {
 
 .result-failed {
   color: var(--el-color-danger, #f56c6c);
+}
+
+.result-footer {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.result-link {
+  color: var(--primary);
+  text-decoration: none;
 }
 </style>

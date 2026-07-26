@@ -288,3 +288,8 @@ function cleanup() {
 if (typeof setInterval !== 'undefined') {
   setInterval(cleanup, CLEANUP_INTERVAL_MS)
 }
+
+/** 只读探针：限流滑窗水位快照（键为 ip:path 组合键，命名 trackedKeys 防误读为在线 IP 数） */
+export function getRateLimiterStats(): { trackedKeys: number; maxEntries: number } {
+  return { trackedKeys: windowMap.size, maxEntries: MAX_ENTRIES }
+}

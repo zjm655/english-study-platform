@@ -1,7 +1,8 @@
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
+import { fetchQueuedSnapshot, countAheadInSnapshot } from '#server/utils/materialRecordStatus'
 import type { MaterialUploadRecordRow } from '#server/types/db'
-import type { MaterialUploadRecordListItem } from '#shared/types/material'
+import type { MaterialUploadRecordListItem, MaterialUploadStatus } from '#shared/types/material'
 
 /**
  * 查询当前用户的材料上传记录
@@ -28,12 +29,21 @@ export default defineEventHandler(
     const list: MaterialUploadRecordListItem[] = rows.map((r) => ({
       id: r.id,
       title: r.title,
-      status: r.status as 'processing' | 'success' | 'failed',
+      status: r.status as MaterialUploadStatus,
       error_message: r.error_message,
       segment_id: r.segment_id,
       is_public: r.is_public,
       createdAt: r.createdAt,
     }))
+
+    // 排队中的记录附加前方任务数（一次全局 queued 快照 JS 内算完，避免每条一次 COUNT 的 N+1）
+    const queuedItems = list.filter((r) => r.status === 'queued')
+    if (queuedItems.length > 0) {
+      const snapshot = await fetchQueuedSnapshot()
+      for (const item of queuedItems) {
+        item.queuedAhead = countAheadInSnapshot(snapshot, item.id)
+      }
+    }
 
     return validateSuccess(list)
   },

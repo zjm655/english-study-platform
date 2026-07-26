@@ -1,4 +1,4 @@
-import { adminSegmentPath } from '../paths'
+import { adminSegmentPath, adminSegmentBatchPath } from '../paths'
 import type {
   AdminSegmentListQuery,
   AdminSegmentListResult,
@@ -7,6 +7,7 @@ import type {
   AdminSegmentVisibilityPayload,
 } from '#shared/types/adminSegment'
 import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
+import type { AdminSegmentBatchPayload, BatchResult } from '#shared/types/adminBatch'
 
 /**
  * 管理员材料列表（服务端分页 + 筛选 + 搜索）。
@@ -41,6 +42,14 @@ export const updateAdminSegment = (id: number, payload: AdminSegmentUpdatePayloa
 export const deleteAdminSegment = (id: number) => {
   return request.json<null>(`${adminSegmentPath}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+/** 管理员批量操作材料（delete=批量软删 / move=批量修改所属单元，部分成功语义） */
+export const batchAdminSegments = (payload: AdminSegmentBatchPayload) => {
+  return request.json<BatchResult>(adminSegmentBatchPath, {
+    method: 'POST',
+    body: payload,
   })
 }
 

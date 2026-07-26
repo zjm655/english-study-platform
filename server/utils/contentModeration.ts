@@ -7,6 +7,7 @@
 
 import { serverFetch } from './request'
 import { logCloudServiceCall } from './cloudServiceLog'
+import { withQueue } from './serviceQueue'
 
 export interface ModerationResult {
   /** 是否合规 */
@@ -58,24 +59,27 @@ export async function moderateText(text: string): Promise<ModerationResult> {
 
   let callStart = 0
   try {
-    callStart = Date.now()
-    const resp = await serverFetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${ds.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: ds.model,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: text },
-        ],
-        temperature: 0,
-        max_tokens: 200,
-      }),
-      timeout: 15000,
-      tag: '[contentModeration]',
+    // deepseek 云产品并发闸门：callStart 在队列 acquire 后才赋值，duration_ms 只计执行不计排队
+    const resp = await withQueue('deepseek', () => {
+      callStart = Date.now()
+      return serverFetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${ds.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: ds.model,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: text },
+          ],
+          temperature: 0,
+          max_tokens: 200,
+        }),
+        timeout: 15000,
+        tag: '[contentModeration]',
+      })
     })
 
     if (!resp.ok) {

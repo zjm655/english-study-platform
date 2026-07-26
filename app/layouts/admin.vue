@@ -65,6 +65,10 @@
             >审核留痕</el-menu-item
           >
         </el-sub-menu>
+        <el-menu-item v-if="can(PERMISSIONS.CONFIG)" index="/admin/monitor">
+          <el-icon><Odometer /></el-icon>
+          <span>运行监控</span>
+        </el-menu-item>
         <el-menu-item v-if="can(PERMISSIONS.CONFIG)" index="/admin/config">
           <el-icon><Setting /></el-icon>
           <span>系统配置</span>
@@ -94,6 +98,7 @@ import {
   Document,
   DataAnalysis,
   Notebook,
+  Odometer,
   Setting,
   HomeFilled,
 } from '@element-plus/icons-vue'

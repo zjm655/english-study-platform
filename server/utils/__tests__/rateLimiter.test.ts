@@ -249,3 +249,19 @@ describe('checkUserRateLimit - 用户级独立计数', () => {
     }
   })
 })
+
+// ============ getRateLimiterStats 只读探针 ============
+
+describe('getRateLimiterStats - 滑窗水位探针', () => {
+  it('初始为 0；命中限流路径后 trackedKeys 增长，maxEntries 为常量上限', async () => {
+    const { checkRateLimit, getRateLimiterStats } = await loadLimiter()
+    expect(getRateLimiterStats()).toEqual({ trackedKeys: 0, maxEntries: 10_000 })
+
+    checkRateLimit('10.9.9.9', '/api/evaluation/auth', FULL_CFG)
+    checkRateLimit('10.9.9.9', '/api/units', FULL_CFG)
+    const stats = getRateLimiterStats()
+    // ip:path 组合键：同 IP 两条路径 = 2 个桶
+    expect(stats.trackedKeys).toBe(2)
+    expect(stats.maxEntries).toBe(10_000)
+  })
+})

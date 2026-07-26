@@ -38,7 +38,37 @@
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <el-table v-loading="isLoading" :data="list" stripe row-key="id">
+      <AdminBatchBar
+        :count="selectedRows.length"
+        :off-page-count="offPageCount"
+        :rows="selectedRows"
+        :row-label="(r) => r.nickname || r.account"
+        @clear="clear"
+        @remove="removeRow"
+      >
+        <el-button type="warning" size="small" @click="handleBatchStatus('ban')"
+          >批量封禁</el-button
+        >
+        <el-button type="success" size="small" @click="handleBatchStatus('unban')">
+          批量解封
+        </el-button>
+        <el-button type="danger" size="small" @click="handleBatchDelete">批量销号</el-button>
+      </AdminBatchBar>
+
+      <el-table
+        ref="tableRef"
+        v-loading="isLoading"
+        :data="list"
+        stripe
+        row-key="id"
+        @selection-change="onSelectionChange"
+      >
+        <el-table-column
+          type="selection"
+          width="46"
+          reserve-selection
+          :selectable="(row: any) => !isLocked(row) && canSelect(row)"
+        />
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="account" label="账号" min-width="120" />
         <el-table-column label="昵称" min-width="120">
@@ -160,8 +190,10 @@ import {
   useUpdateAdminUser,
   useUpdateAdminUserStatus,
   useDeleteAdminUser,
+  useBatchAdminUsers,
+  useTableSelection,
 } from '~/composables/admin'
-import { toastSuccess, toastConfirm } from '~/utils/popup'
+import { toastSuccess, toastConfirm, toastPrompt, toastBatchResult } from '~/utils/popup'
 import { ROLE_ADMIN, ROLE_SUPER_ADMIN, isAdminOrAbove } from '#shared/utils/role'
 import type { AdminUserListItem, AdminUserState } from '#shared/types/adminUser'
 
@@ -186,6 +218,19 @@ const { isLoading, execute: listExecute } = useAdminUserList()
 const { isLoading: isSaving, execute: updateExecute } = useUpdateAdminUser()
 const { execute: statusExecute } = useUpdateAdminUserStatus()
 const { execute: deleteExecute } = useDeleteAdminUser()
+const { execute: batchExecute } = useBatchAdminUsers()
+
+// 批量选择（reserve-selection 跨页保留；管理员/已注销经 :selectable 不可选，后端护栏双保险）
+const {
+  tableRef,
+  selectedRows,
+  selectedIds,
+  onSelectionChange,
+  clear,
+  canSelect,
+  removeRow,
+  offPageCount,
+} = useTableSelection<AdminUserListItem>({ limit: 100, pageRows: () => list.value })
 
 // 编辑对话框
 const editDialogVisible = ref(false)
@@ -205,11 +250,13 @@ async function loadList() {
 }
 
 function handleSearch() {
+  clear() // 筛选变更清空选择：被筛掉的选中行不可见，保留即幽灵选中
   page.value = 1
   loadList()
 }
 
 function handleReset() {
+  clear()
   filterKeyword.value = ''
   filterState.value = 'all'
   page.value = 1
@@ -308,6 +355,57 @@ async function handleDelete(row: AdminUserListItem) {
   if (res?.code === 200) {
     toastSuccess('销号成功')
     if (list.value.length === 1 && page.value > 1) page.value -= 1
+    loadList()
+  }
+}
+
+// ===== 批量封禁 / 解封 / 销号 =====
+async function handleBatchStatus(action: 'ban' | 'unban') {
+  const count = selectedRows.value.length
+  const actionText = action === 'ban' ? '封禁' : '解封'
+  try {
+    await toastConfirm(
+      `确定${actionText}选中的 ${count} 个用户吗？${action === 'ban' ? '封禁后将立即无法访问平台。' : ''}状态已一致的用户会被跳过。`,
+      `批量${actionText}确认`,
+      { confirmButtonText: actionText, cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return // 用户取消
+  }
+  const res = await batchExecute({ action, ids: selectedIds.value })
+  if (res?.code === 200 && res.data) {
+    toastBatchResult(res.data)
+    clear()
+    loadList()
+  }
+}
+
+async function handleBatchDelete() {
+  const count = selectedRows.value.length
+  // 最高危操作：输入式二次确认，精确匹配文本才放行（inputValidator 拦截，不匹配无法确认）
+  const confirmText = `销号${count}人`
+  try {
+    await toastPrompt(
+      `确定销号选中的 ${count} 个用户吗？销号后将无法登录，数据保留但对其不可见。请输入「${confirmText}」以确认操作。`,
+      '批量销号确认',
+      {
+        confirmButtonText: '销号',
+        cancelButtonText: '取消',
+        type: 'warning',
+        inputValidator: (v: string) =>
+          (v ?? '').trim() === confirmText || `请输入「${confirmText}」以确认`,
+      },
+    )
+  } catch {
+    return // 用户取消
+  }
+  const res = await batchExecute({ action: 'delete', ids: selectedIds.value })
+  if (res?.code === 200 && res.data) {
+    toastBatchResult(res.data)
+    // 页内选中数（跨页选中后 count 可能大于当前页行数，回退页码须按页内数判断）
+    const onPageCount = count - offPageCount.value
+    clear()
+    if (list.value.length === onPageCount && page.value > 1) page.value -= 1
     loadList()
   }
 }
