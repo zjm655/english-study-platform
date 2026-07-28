@@ -120,6 +120,15 @@ function actionTag(action: string) {
   return 'info'
 }
 
+// targetType → 详情页路由映射。实际落库取值：user / segment / unit / material_upload_record /
+// sys_config / 日志表名（logs.clean），后四类无独立详情页；批量操作 targetId=0 占位，均回退纯文本。
+function targetRoute(targetType: string, targetId: number): string | null {
+  if (!Number.isInteger(targetId) || targetId <= 0) return null
+  if (targetType === 'user') return `/admin/users/${targetId}`
+  if (targetType === 'segment') return `/admin/material/${targetId}`
+  return null
+}
+
 function formatDate(s: string) {
   if (!s) return '-'
   const d = new Date(s)
@@ -240,7 +249,18 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="targetType" label="对象类型" width="100" align="center" />
-        <el-table-column prop="targetId" label="对象ID" width="80" align="center" />
+        <el-table-column label="对象ID" width="80" align="center">
+          <template #default="{ row }">
+            <el-link
+              v-if="targetRoute(row.targetType, row.targetId)"
+              type="primary"
+              @click="navigateTo(targetRoute(row.targetType, row.targetId)!)"
+            >
+              {{ row.targetId }}
+            </el-link>
+            <span v-else>{{ row.targetId }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="时间" width="170">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
@@ -277,7 +297,16 @@ onMounted(() => {
           <el-tag :type="actionTag(detailRow.action)" size="small">{{ detailRow.action }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="对象类型">{{ detailRow.targetType }}</el-descriptions-item>
-        <el-descriptions-item label="对象ID">{{ detailRow.targetId }}</el-descriptions-item>
+        <el-descriptions-item label="对象ID">
+          <el-link
+            v-if="targetRoute(detailRow.targetType, detailRow.targetId)"
+            type="primary"
+            @click="navigateTo(targetRoute(detailRow.targetType, detailRow.targetId)!)"
+          >
+            {{ detailRow.targetId }}
+          </el-link>
+          <span v-else>{{ detailRow.targetId }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="时间">{{ formatDate(detailRow.createdAt) }}</el-descriptions-item>
         <el-descriptions-item label="详情">
           <pre v-if="detailRow.detail" class="json-detail">{{ JSON.stringify(detailRow.detail, null, 2) }}</pre>

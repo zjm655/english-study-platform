@@ -241,7 +241,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { BssStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudBss } from '~/composables/admin'
+import { useAdminCloudBss, useChartResize } from '~/composables/admin'
 
 use([
   PieChart,
@@ -269,6 +269,13 @@ const overviewBarRef = ref<HTMLElement | null>(null)
 let overviewBarChart: EChartsType | null = null
 const trendChartRef = ref<HTMLElement | null>(null)
 let trendChart: EChartsType | null = null
+
+// 容器尺寸变化时自适应（三图共用单个 ResizeObserver），卸载时统一 dispose
+useChartResize([
+  { getChart: () => overviewChart, containerRef: overviewChartRef },
+  { getChart: () => overviewBarChart, containerRef: overviewBarRef },
+  { getChart: () => trendChart, containerRef: trendChartRef },
+])
 
 const hasOverview = computed(() => (data.value?.billOverview.items?.length ?? 0) > 0)
 const hasTrend = computed(() => (data.value?.monthlyTrend.items?.length ?? 0) > 0)
@@ -397,11 +404,6 @@ function renderTrendChart() {
 }
 
 onMounted(() => fetchData())
-onUnmounted(() => {
-  overviewChart?.dispose()
-  overviewBarChart?.dispose()
-  trendChart?.dispose()
-})
 </script>
 
 <style scoped>

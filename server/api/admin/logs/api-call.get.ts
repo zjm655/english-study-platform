@@ -62,7 +62,8 @@ export default defineEventHandler(async (event) => {
 
   const list = await query<Record<string, unknown>>(
     `SELECT id, path, route_pattern AS routePattern, method, status_code AS statusCode,
-            duration_ms AS durationMs, user_id AS userId, ip, createdAt
+            duration_ms AS durationMs, user_id AS userId, ip, request_id AS requestId,
+            error_message AS errorMessage, error_stack AS errorStack, createdAt
      FROM api_call_log ${whereSql}
      ORDER BY createdAt DESC
      LIMIT ? OFFSET ?`,

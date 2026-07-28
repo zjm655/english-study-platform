@@ -243,3 +243,14 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* 管理后台长文本换行块（详情弹窗/Drawer 内错误信息等），观感对齐 logs/operation 的 .json-detail */
+.admin-pre-text {
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 0;
+}

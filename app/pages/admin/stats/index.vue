@@ -78,7 +78,13 @@
           >
             <span class="error-rank" :class="{ 'error-rank--hot': idx < 3 }">{{ idx + 1 }}</span>
             <span class="error-method">{{ item.method }}</span>
-            <span class="error-path" :title="item.path">{{ item.path }}</span>
+            <span
+              class="error-path error-path--link"
+              :title="`${item.path}（点击查看 API 调用日志）`"
+              @click="goApiCallLog(item.path)"
+            >
+              {{ item.path }}
+            </span>
             <div class="error-bar-track">
               <div
                 class="error-bar-fill"
@@ -123,7 +129,7 @@ import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { AdminStatsResult, DailyTrendItem } from '#shared/types/adminStats'
-import { useAdminStats } from '~/composables/admin'
+import { useAdminStats, useChartResize } from '~/composables/admin'
 
 use([LineChart, BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
@@ -194,7 +200,12 @@ const trendChartRef = ref<HTMLElement>()
 const topChartRef = ref<HTMLElement>()
 let trendChart: EChartsType | null = null
 let topChart: EChartsType | null = null
-let resizeObserver: ResizeObserver | null = null
+
+// 容器尺寸变化时自适应（侧边栏固定，主内容区随窗口变化），卸载时统一 dispose
+useChartResize([
+  { getChart: () => trendChart, containerRef: trendChartRef },
+  { getChart: () => topChart, containerRef: topChartRef },
+])
 
 const maxErrorCount = computed(() =>
   Math.max(1, ...(statsData.value?.errorPaths.map((i) => i.count) ?? [1])),
@@ -202,6 +213,11 @@ const maxErrorCount = computed(() =>
 
 function barWidth(count: number, max: number) {
   return `${Math.max(4, (count / max) * 100)}%`
+}
+
+/** 错误路径 → API 调用日志页（path 作为路径关键词预填筛选） */
+function goApiCallLog(path: string) {
+  navigateTo(`/admin/logs/api-call?path=${encodeURIComponent(path)}`)
 }
 
 /** 补齐无数据日期为 0，保证趋势轴连续 */
@@ -367,26 +383,11 @@ function initCharts() {
   if (topChartRef.value) {
     topChart = init(topChartRef.value)
   }
-  // 容器尺寸变化时自适应（侧边栏固定，主内容区随窗口变化）
-  resizeObserver = new ResizeObserver(() => {
-    trendChart?.resize()
-    topChart?.resize()
-  })
-  if (trendChartRef.value) resizeObserver.observe(trendChartRef.value)
-  if (topChartRef.value) resizeObserver.observe(topChartRef.value)
 }
 
 onMounted(() => {
   initCharts()
   fetchStats()
-})
-
-onUnmounted(() => {
-  resizeObserver?.disconnect()
-  trendChart?.dispose()
-  topChart?.dispose()
-  trendChart = null
-  topChart = null
 })
 </script>
 
@@ -690,6 +691,15 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   width: 180px;
   flex-shrink: 0;
+}
+
+.error-path--link {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.error-path--link:hover {
+  color: var(--primary);
+  text-decoration: underline;
 }
 
 .error-bar-track {

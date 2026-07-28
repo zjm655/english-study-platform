@@ -12,6 +12,8 @@ export interface AdminMaterialRecordListItem {
   segment_id: number | null
   is_public: number
   username: string
+  /** 上传者用户 ID（用户行已物理删除时为 null，前端降级纯文本） */
+  userId: number | null
   source: 'user' | 'admin'
   createdAt: string
 }

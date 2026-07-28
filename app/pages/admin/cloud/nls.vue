@@ -97,7 +97,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { NlsStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudNls, useCloudTrend } from '~/composables/admin'
+import { useAdminCloudNls, useCloudTrend, useChartResize } from '~/composables/admin'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -111,6 +111,9 @@ const data = ref<NlsStatResult | null>(null)
 // 趋势图
 const trendChartRef = ref<HTMLElement | null>(null)
 let trendChart: EChartsType | null = null
+
+// 容器尺寸变化时自适应，卸载时统一 dispose
+useChartResize([{ getChart: () => trendChart, containerRef: trendChartRef }])
 
 /** 估算识别时长（小时）：每次调用约 2 分钟 */
 const estimatedHours = computed(() => {
@@ -181,9 +184,6 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
 }
 
 onMounted(() => fetchData())
-onUnmounted(() => {
-  trendChart?.dispose()
-})
 </script>
 
 <style scoped>

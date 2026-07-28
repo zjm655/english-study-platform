@@ -102,7 +102,11 @@
             <span v-else class="text-muted">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="username" label="上传者" width="120" />
+        <el-table-column label="上传者" width="120">
+          <template #default="{ row }">
+            <AdminUserLink :user-id="row.userId" :label="row.username" />
+          </template>
+        </el-table-column>
         <el-table-column label="来源" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="sourceTagType(row.source)" size="small">
@@ -196,7 +200,7 @@
             label="失败原因"
             :span="2"
           >
-            <span class="error-msg">{{ detail.error_message }}</span>
+            <div class="admin-pre-text error-msg">{{ detail.error_message }}</div>
           </el-descriptions-item>
         </el-descriptions>
         <div class="detail-section">

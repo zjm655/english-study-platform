@@ -64,9 +64,11 @@ export default defineEventHandler(async (event) => {
   const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : ''
 
   // 列表查询
-  const rows = await query<AdminMaterialRecordListItem & { role: number | null }>(
+  const rows = await query<
+    AdminMaterialRecordListItem & { role: number | null; user_id: number | null }
+  >(
     `SELECT r.id, r.title, r.status, r.error_message, r.segment_id,
-            r.is_public, r.createdAt,
+            r.is_public, r.createdAt, r.user_id,
             COALESCE(u.account, '已注销用户') AS username,
             u.role
      FROM material_upload_record r
@@ -96,6 +98,7 @@ export default defineEventHandler(async (event) => {
     segment_id: row.segment_id,
     is_public: row.is_public,
     username: row.username,
+    userId: row.user_id,
     source: isAdminOrAbove(row.role) ? 'admin' : 'user',
     createdAt: row.createdAt,
   }))

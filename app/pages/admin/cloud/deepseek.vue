@@ -89,7 +89,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { DeepSeekStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudDeepseek, useCloudTrend } from '~/composables/admin'
+import { useAdminCloudDeepseek, useCloudTrend, useChartResize } from '~/composables/admin'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -103,6 +103,9 @@ const data = ref<DeepSeekStatResult | null>(null)
 const trendChartRef = ref<HTMLElement | null>(null)
 let trendChart: EChartsType | null = null
 const trendDays = ref(7)
+
+// 容器尺寸变化时自适应，卸载时统一 dispose
+useChartResize([{ getChart: () => trendChart, containerRef: trendChartRef }])
 
 async function fetchData() {
   const res = await execute(undefined)
@@ -170,9 +173,6 @@ function renderTrendChart(dates: string[], callCounts: number[], totalTokens: nu
 }
 
 onMounted(() => fetchData())
-onUnmounted(() => {
-  trendChart?.dispose()
-})
 </script>
 
 <style scoped>

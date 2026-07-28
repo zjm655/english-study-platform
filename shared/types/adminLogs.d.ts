@@ -10,6 +10,9 @@ export interface ApiCallLogItem {
   durationMs: number
   userId: number | null
   ip: string | null
+  requestId: string | null
+  errorMessage: string | null
+  errorStack: string | null
   createdAt: string
 }
 
