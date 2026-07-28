@@ -332,7 +332,7 @@ onMounted(() => {
         <el-descriptions-item label="CompletionTokens">{{ detailRow.completionTokens ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="TotalTokens">{{ detailRow.totalTokens ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="ErrorMessage">
-          <span v-if="detailRow.errorMessage" class="error-msg">{{ detailRow.errorMessage }}</span>
+          <div v-if="detailRow.errorMessage" class="admin-pre-text detail-error">{{ detailRow.errorMessage }}</div>
           <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item label="CreatedAt">{{ formatDate(detailRow.createdAt) }}</el-descriptions-item>
@@ -406,6 +406,7 @@ onMounted(() => {
   margin-top: 16px;
 }
 
+/* 表格列专用：tooltip + 单行省略 */
 .error-msg {
   color: var(--el-color-danger);
   white-space: nowrap;
@@ -413,6 +414,11 @@ onMounted(() => {
   text-overflow: ellipsis;
   display: inline-block;
   max-width: 100%;
+}
+
+/* 详情 Drawer 内错误信息（配合公共 .admin-pre-text 换行展示） */
+.detail-error {
+  color: var(--el-color-danger);
 }
 
 .text-muted {

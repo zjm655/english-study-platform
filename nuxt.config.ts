@@ -29,6 +29,8 @@ export default defineNuxtConfig({
     },
     jwtSecret: '',
     isOpenLog: true,
+    // 文件日志保留天数（logs/ 下超期 .log 启动时清理），env: NUXT_LOG_RETENTION_DAYS
+    logRetentionDays: 30,
     db: {
       host: '127.0.0.1',
       port: '3306',

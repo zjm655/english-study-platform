@@ -1,0 +1,3 @@
+# shell 脚本强制 LF 入库与检出：服务器 bash 不接受 CRLF shebang（\r 会导致 /bin/bash^M 报错）；
+# 本机 core.autocrlf=true 会把检出文件转 CRLF，必须用属性兜底
+*.sh text eol=lf

@@ -10,7 +10,7 @@
  *
  * 使用约定：在控制台 logger 打印之后调用——控制台输出简要，文件日志详细。
  */
-import { appendFile, mkdir } from 'node:fs/promises'
+import { appendFile, mkdir, readdir, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /** 日志来源白名单：作为路径子目录名的唯一合法取值，杜绝 join(LOG_DIR, source) 的路径穿越隐患 */
@@ -93,4 +93,43 @@ export async function fileLog(source: LogSource, level: string, ...args: unknown
 /** 便捷方法：错误日志（自动双写 error-*.log） */
 export function fileLogError(source: LogSource, ...args: unknown[]): Promise<void> {
   return fileLog(source, 'error', ...args)
+}
+
+/**
+ * 清理过期文件日志：遍历 logs/ 下各 source 子目录，删除 mtime 早于 N 天前的 .log 文件。
+ * 启动时由 apiCallLogger 插件 fire-and-forget 调用一次；全程吞错，绝不影响业务。
+ * @param days    保留天数（默认 30，可由 runtimeConfig.logRetentionDays 覆盖）
+ * @param baseDir 日志根目录（默认 logs/，测试注入用）
+ */
+export async function cleanupOldLogs(days = 30, baseDir = LOG_DIR): Promise<void> {
+  try {
+    // 非法/非正天数兜底为 30，防误配置（如负数）导致全量误删
+    const safeDays = Number.isFinite(days) && days > 0 ? days : 30
+    const cutoff = Date.now() - safeDays * 24 * 60 * 60 * 1000
+    const entries = await readdir(baseDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const sourceDir = join(baseDir, entry.name)
+      let files: string[]
+      try {
+        files = await readdir(sourceDir)
+      } catch {
+        continue // 单个子目录读取失败不影响其余目录
+      }
+      for (const file of files) {
+        if (!file.endsWith('.log')) continue
+        const filePath = join(sourceDir, file)
+        try {
+          const info = await stat(filePath)
+          if (info.mtimeMs < cutoff) {
+            await unlink(filePath)
+          }
+        } catch {
+          // 单文件 stat/删除失败跳过（可能被占用），下次启动再清
+        }
+      }
+    }
+  } catch {
+    // logs/ 不存在或遍历失败均静默：清理是旁路能力
+  }
 }

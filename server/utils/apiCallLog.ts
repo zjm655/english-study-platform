@@ -16,6 +16,31 @@ export interface ApiCallEntry {
   durationMs: number
   userId: number | null
   ip: string | null
+  /** 请求短 ID（与 logs/api 文件日志关联，实现 DB↔文件双向定位），未生成时为 null */
+  requestId?: string | null
+  /** 错误信息（error 钩子提取，截断 500），正常请求为 null */
+  errorMessage?: string | null
+  /** 错误堆栈（仅 5xx 记录，截断 4000，敏感路径跳过），其余为 null */
+  errorStack?: string | null
+}
+
+// ─── 诊断字段截断 ────────────────────────────────────
+
+/** error_message 列上限（与迁移 023 的 VARCHAR(500) 对齐） */
+export const DIAG_MESSAGE_MAX = 500
+/** error_stack 记录上限（列为 TEXT，此为写入约定上限） */
+export const DIAG_STACK_MAX = 4000
+
+const TRUNCATED_MARK = '...[truncated]'
+
+/**
+ * 截断诊断文本（纯函数）：超限截断并追加 '...[truncated]'，
+ * 截断后总长不超过 max（保证不超出 DB 列宽），空值归一为 null。
+ */
+export function truncateDiag(text: string | null | undefined, max: number): string | null {
+  if (!text) return null
+  if (text.length <= max) return text
+  return text.slice(0, max - TRUNCATED_MARK.length) + TRUNCATED_MARK
 }
 
 // ─── 内存队列 ────────────────────────────────────────
@@ -42,7 +67,7 @@ async function flush(): Promise<void> {
   if (queue.length === 0) return
   const batch = queue.splice(0, BATCH_SIZE)
   try {
-    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
+    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
     const params = batch.flatMap((e) => [
       e.path,
       e.routePattern,
@@ -52,9 +77,12 @@ async function flush(): Promise<void> {
       e.durationMs,
       e.userId,
       e.ip,
+      e.requestId ?? null,
+      e.errorMessage ?? null,
+      e.errorStack ?? null,
     ])
     await query(
-      `INSERT INTO api_call_log (path, route_pattern, method, status_code, business_code, duration_ms, user_id, ip)
+      `INSERT INTO api_call_log (path, route_pattern, method, status_code, business_code, duration_ms, user_id, ip, request_id, error_message, error_stack)
        VALUES ${values}`,
       params,
     )

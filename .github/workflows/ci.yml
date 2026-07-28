@@ -37,3 +37,8 @@ jobs:
 
       - name: Prettier check
         run: npm run format:check
+
+      # 构建验证：nuxt build 不依赖 .env / 数据库（Nitro 插件为运行时执行），
+      # 已本地核实无 .env 环境可成功构建，无需占位环境变量
+      - name: Build
+        run: npm run build

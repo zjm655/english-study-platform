@@ -150,6 +150,12 @@ function formatDate(s: string) {
 }
 
 onMounted(() => {
+  // 跨页导航预填：运营统计错误路径分布点击跳转携带 ?path=，复用路径关键词筛选模型
+  const route = useRoute()
+  const queryPath = route.query.path
+  if (typeof queryPath === 'string' && queryPath) {
+    filterPathKeyword.value = queryPath
+  }
   loadList()
 })
 </script>
@@ -286,6 +292,12 @@ onMounted(() => {
         <el-table-column prop="durationMs" label="Duration" width="100" align="center">
           <template #default="{ row }">{{ row.durationMs }}ms</template>
         </el-table-column>
+        <el-table-column label="错误" width="70" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.errorMessage" type="danger" size="small">错误</el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="userId" label="UserId" width="90" align="center">
           <template #default="{ row }">{{ row.userId ?? '-' }}</template>
         </el-table-column>
@@ -334,6 +346,15 @@ onMounted(() => {
         <el-descriptions-item label="DurationMs">{{ detailRow.durationMs }}ms</el-descriptions-item>
         <el-descriptions-item label="UserId">{{ detailRow.userId ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="IP">{{ detailRow.ip || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="RequestId">{{ detailRow.requestId || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="错误信息">
+          <pre v-if="detailRow.errorMessage" class="admin-pre-text">{{ detailRow.errorMessage }}</pre>
+          <span v-else>-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="错误堆栈">
+          <pre v-if="detailRow.errorStack" class="admin-pre-text">{{ detailRow.errorStack }}</pre>
+          <span v-else>-</span>
+        </el-descriptions-item>
         <el-descriptions-item label="CreatedAt">{{ formatDate(detailRow.createdAt) }}</el-descriptions-item>
       </el-descriptions>
     </el-drawer>

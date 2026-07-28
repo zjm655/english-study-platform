@@ -186,6 +186,18 @@ onMounted(() => {
 .admin-menu {
   flex: 1;
   border-right: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.admin-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.admin-menu::-webkit-scrollbar-thumb {
+  background: var(--border-ll);
+  border-radius: 3px;
 }
 
 .admin-menu__todo {

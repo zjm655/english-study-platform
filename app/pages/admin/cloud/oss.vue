@@ -183,7 +183,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { OssStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudOss, useCloudTrend } from '~/composables/admin'
+import { useAdminCloudOss, useCloudTrend, useChartResize } from '~/composables/admin'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -197,6 +197,9 @@ const data = ref<OssStatResult | null>(null)
 // 趋势图
 const trendChartRef = ref<HTMLElement | null>(null)
 let trendChart: EChartsType | null = null
+
+// 容器尺寸变化时自适应，卸载时统一 dispose
+useChartResize([{ getChart: () => trendChart, containerRef: trendChartRef }])
 
 async function fetchData() {
   const res = await execute({ days: days.value })
@@ -274,9 +277,6 @@ function formatTime(timestamp?: number): string {
 }
 
 onMounted(() => fetchData())
-onUnmounted(() => {
-  trendChart?.dispose()
-})
 </script>
 
 <style scoped>
