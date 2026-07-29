@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================================
-# 生产部署脚本（单机 pm2 部署，仓库根执行：bash scripts/deploy.sh [--yes]）
+# 生产部署脚本（单机 pm2 部署，仓库根执行：bash scripts/deploy.sh [--yes] [--clean]）
 #
 # 固定顺序（硬约束，禁止跳步/换序）：
 #   preflight 检查 → 变更预览确认 → git pull --ff-only
-#   → npm ci → npm run migrate → npm run build → pm2 startOrReload → 验活
+#   → 依赖安装（lock 哈希跳过/增量，详见步骤三） → npm run migrate → npm run build
+#   → pm2 startOrReload → 验活
 #
 # 设计原则：
 #   - 失败即停（set -e）：任何一步失败都中断并打印现场状态与手工恢复指引；
@@ -13,7 +14,8 @@
 #   - 先迁移后上流量：新代码可能依赖新表结构（如迁移 023 的埋点三列），
 #     顺序颠倒会导致写入静默失败；
 #   - 禁止裸 npm i：必须走 npm ci + package-lock（曾因误删 lock 后裸 npm i
-#     触发 npm 10.9.8 Arborist 空指针 bug，且裸装会漂移依赖版本）。
+#     触发 npm 10.9.8 Arborist 空指针 bug，且裸装会漂移依赖版本）；
+#     步骤三的增量 npm install 始终在 package-lock 存在的前提下执行，不属于裸装。
 # ============================================================================
 set -euo pipefail
 
@@ -37,12 +39,18 @@ info() { echo "${C_GREEN}[deploy]${C_RESET} $*"; }
 warn() { echo "${C_YELLOW}[deploy][警告]${C_RESET} $*"; }
 die()  { echo "${C_RED}[deploy][中止]${C_RESET} $*" >&2; exit 1; }
 
-# ----- 参数：仅支持 --yes（跳过交互确认，供无人值守场景） -----
+# ----- 参数：--yes 跳过交互确认（供无人值守场景）；--clean 强制全量 npm ci -----
 AUTO_YES=0
+CLEAN_INSTALL=0
 for arg in "$@"; do
   case "$arg" in
     --yes) AUTO_YES=1 ;;
-    *) die "未知参数：$arg（仅支持 --yes）" ;;
+    --clean) CLEAN_INSTALL=1 ;;
+    *) die "未知参数：$arg
+  用法：bash scripts/deploy.sh [--yes] [--clean]
+    --yes    跳过交互确认（无人值守场景）
+    --clean  删除依赖安装状态文件（node_modules/.deploy-lock-hash），
+             强制走全量 npm ci（跳过/增量逻辑异常时的兜底）" ;;
   esac
 done
 
@@ -105,6 +113,12 @@ NVMRC_VERSION="$(tr -d '[:space:]' < .nvmrc)"
 if [ "$NODE_MAJOR" != "$NVMRC_VERSION" ]; then
   warn "当前 node $(node -v) 与 .nvmrc/CI 基准（${NVMRC_VERSION}）不一致，建议另行安排对齐：nvm install ${NVMRC_VERSION}"
 fi
+
+# 1.5 步骤三的哈希对比依赖 sha256sum 与 awk（标配工具，裁剪系统可能缺失）
+for tool in sha256sum awk; do
+  command -v "$tool" >/dev/null 2>&1 \
+    || die "找不到 ${tool}（步骤三依赖安装的哈希对比需要）。安装：yum install -y coreutils gawk"
+done
 
 # 2. npm registry 白名单（曾被误配成 npmmirror 二进制 CDN 导致全部包 404）
 REGISTRY="$(npm config get registry)"
@@ -188,10 +202,55 @@ git pull --ff-only \
 # 三、安装与迁移
 # ============================================================================
 CURRENT_STEP="安装依赖"
-info "===== 三、安装依赖（npm ci，按 lock 精确安装） ====="
+info "===== 三、安装依赖（lock 哈希跳过 / 增量安装 / npm ci 兜底） ====="
+# 策略（省流量、降内存峰值、缩短部署时间）：
+#   1) 上次安装成功后把「package-lock.json 的 sha256:Node 主版本」记录到
+#      node_modules 内的状态文件（天然不入库；node_modules 被清空时状态自动失效）；
+#   2) 本次两段均一致且 node_modules 完整（.bin/nuxt 与 nuxt 目录存在）→ 跳过安装；
+#   3) lock 哈希变化，或 lock 未变但 Node 主版本变更（原生模块 ABI 需重装）、
+#      或状态文件为旧格式（无 Node 版本段）→ npm install 按 lock 增量安装（非裸装，
+#      lock 已在 preflight 确认存在）；峰值内存远低于 npm ci 的全量删装
+#      （小内存机曾因 npm ci 被 OOM 杀）；
+#   4) 无状态文件 / node_modules 不完整 / --clean → 全量 npm ci（原行为兜底）。
 # 不加 --omit=dev：构建需要 devDependencies，且 migrate 依赖 devDeps 里的 tsx；
 # postinstall 会自动执行 nuxt prepare
-npm ci --no-audit --no-fund
+LOCK_HASH_FILE="node_modules/.deploy-lock-hash"
+LOCK_HASH="$(sha256sum package-lock.json | awk '{print $1}')"
+LOCK_STATE="${LOCK_HASH}:${NODE_MAJOR}"
+if [ "$CLEAN_INSTALL" -eq 1 ]; then
+  info "--clean：删除状态文件 ${LOCK_HASH_FILE}，强制全量 npm ci"
+  rm -f "$LOCK_HASH_FILE"
+fi
+INSTALL_MODE="ci"
+if [ ! -e node_modules/.bin/nuxt ] || [ ! -d node_modules/nuxt ]; then
+  info "node_modules 缺失或不完整（.bin/nuxt 或 nuxt 目录不存在），执行全量 npm ci"
+elif [ -f "$LOCK_HASH_FILE" ] && [ "$(cat "$LOCK_HASH_FILE")" = "$LOCK_STATE" ]; then
+  info "package-lock.json 未变化（sha256 一致）、Node 主版本一致（${NODE_MAJOR}）且 node_modules 完整，跳过依赖安装"
+  INSTALL_MODE="skip"
+elif [ -f "$LOCK_HASH_FILE" ]; then
+  PREV_STATE="$(cat "$LOCK_HASH_FILE")"
+  case "$PREV_STATE" in
+    *:*) PREV_NODE="${PREV_STATE##*:}" ;;
+    *)   PREV_NODE="未知（旧格式状态文件，无 Node 版本段）" ;;
+  esac
+  if [ "${PREV_STATE%%:*}" = "$LOCK_HASH" ]; then
+    info "package-lock.json 未变化，但 Node 主版本不匹配（记录：${PREV_NODE} → 当前：${NODE_MAJOR}），需重装以匹配原生模块 ABI，按 lock 增量安装（npm install）"
+  else
+    info "package-lock.json 已变化，按 lock 增量安装（npm install）"
+  fi
+  INSTALL_MODE="install"
+else
+  info "无安装状态文件（首次运行或上次安装未成功），执行全量 npm ci"
+fi
+if [ "$INSTALL_MODE" != "skip" ]; then
+  if [ "$INSTALL_MODE" = "install" ]; then
+    npm install --no-audit --no-fund
+  else
+    npm ci --no-audit --no-fund
+  fi
+  # 安装成功才落状态；重新计算哈希（npm install 极端情况下可能同步 lock）
+  printf '%s:%s\n' "$(sha256sum package-lock.json | awk '{print $1}')" "$NODE_MAJOR" > "$LOCK_HASH_FILE"
+fi
 
 CURRENT_STEP="迁移"
 info "===== 四、数据库迁移（先迁移后上流量，硬约束） ====="

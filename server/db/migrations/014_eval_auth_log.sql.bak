@@ -12,4 +12,4 @@ CREATE TABLE `eval_auth_log` (
   `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发放时间',
   PRIMARY KEY (`id`),
   INDEX `idx_user_created` (`user_id`, `createdAt`)
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '评测鉴权发放日志';
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci COMMENT = '评测鉴权发放日志';

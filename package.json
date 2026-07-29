@@ -53,5 +53,8 @@
     "unplugin-auto-import": "^21.0.0",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.7"
+  },
+  "overrides": {
+    "rollup": "4.62.2"
   }
 }

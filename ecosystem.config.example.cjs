@@ -1,7 +1,7 @@
 // ============================================================================
 // pm2 生产配置样例（复刻 .env/.env.example 约定）
 //
-// 使用方式：在服务器上 `cp ecosystem.config.example.cjs ecosystem.config.cjs`，
+// 使用方式：在服务器上 `cd ecosystem.config.example.cjs ecosystem.config.cjs`，
 // 按本机情况修改后使用；真实文件 ecosystem.config.cjs 已被 .gitignore 忽略，不入库。
 // 启动/更新统一走：pm2 startOrReload ecosystem.config.cjs --update-env
 // （pm2 reload <应用名> 不会重读本文件，改配置后必须显式指到文件并带 --update-env）
