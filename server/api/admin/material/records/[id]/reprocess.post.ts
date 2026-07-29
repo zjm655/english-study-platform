@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   }
   const { unitId } = parsed.data
 
-  // 入队深度防御：与上传入口同口径（MAX_QUEUED），防止重处理绕过限制堆积任务
+  // 入队深度防御：与上传入口同口径（upload_queue_max 配置），防止重处理绕过限制堆积任务
   if (await isUploadQueueFull()) {
     return validateError('处理队列已满，请稍后再试', 400)
   }

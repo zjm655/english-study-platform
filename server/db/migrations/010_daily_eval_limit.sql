@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS sys_config (
   config_value VARCHAR(255) NOT NULL COMMENT '配置值',
   description VARCHAR(200) DEFAULT NULL COMMENT '配置说明',
   updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='系统配置表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=${COLLATION} COMMENT='系统配置表';
 
 -- 默认：普通用户每日评测次数上限 20 次
 INSERT INTO sys_config (config_key, config_value, description)

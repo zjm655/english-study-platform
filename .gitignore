@@ -39,3 +39,8 @@ AGENTS.md
 vitest.config.ts.timestamp-*.mjs
 auto-imports.d.ts
 public/uploads/
+
+# 迁移 SQL 本地备份（占位符化前的原始快照，仅本地留存不入库）
+*.sql.bak
+# 忽略所有备份文件
+*.bak

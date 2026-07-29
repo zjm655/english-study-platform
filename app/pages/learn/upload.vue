@@ -8,6 +8,7 @@ import {
   useDeleteMaterialRecord,
 } from '~/composables/material/useUploadRecords'
 import { usePolling } from '~/composables/usePolling'
+import { useUploadLimits, UPLOAD_LIMITS_FALLBACK } from '~/composables/useUploadLimits'
 import { toastSuccess, toastWarning, toastConfirm } from '~/utils/popup'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
 
@@ -40,7 +41,18 @@ const selectedVoice = ref<string>('en-US-AriaNeural')
 
 const MAX_TEXT_LENGTH = 5000
 const MIN_TEXT_LENGTH = 10
-const MAX_AUDIO_SIZE = 2 * 1024 * 1024
+
+// 上传限制来自 sys_config（管理端可调）：composable 未就绪/拉取失败时降级内置静态默认
+const { limits: uploadLimits } = useUploadLimits()
+const maxAudioSize = computed(
+  () => uploadLimits.value?.maxAudioSizeUser ?? UPLOAD_LIMITS_FALLBACK.maxAudioSizeUser,
+)
+
+/** 字节 → MB 展示文案（整数直显，非整数保留 1 位小数） */
+function formatSizeMB(bytes: number): string {
+  const mb = bytes / (1024 * 1024)
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)}MB`
+}
 
 const textTooLong = computed(() => textContent.value.length > MAX_TEXT_LENGTH)
 const canSubmit = computed(
@@ -48,7 +60,7 @@ const canSubmit = computed(
     !isLoading.value &&
     textContent.value.length >= MIN_TEXT_LENGTH &&
     !textTooLong.value &&
-    (!audioFile.value || audioFile.value.size <= MAX_AUDIO_SIZE),
+    (!audioFile.value || audioFile.value.size <= maxAudioSize.value),
 )
 
 const recentRecords = ref<MaterialUploadRecordListItem[]>([])
@@ -180,8 +192,8 @@ async function handleDeleteRecord(id: number) {
 function handleAudioChange(_uploadFile: UploadFile, uploadFiles: UploadFiles) {
   const file = uploadFiles[0]
   if (!file?.raw) return
-  if (file.raw.size > MAX_AUDIO_SIZE) {
-    toastWarning('音频文件不能超过 2MB')
+  if (file.raw.size > maxAudioSize.value) {
+    toastWarning(`音频文件不能超过 ${formatSizeMB(maxAudioSize.value)}`)
     return
   }
   audioFile.value = file.raw
@@ -277,7 +289,9 @@ async function handleSubmit() {
           <el-icon class="upload-icon"><Upload /></el-icon>
           <div class="el-upload__text">拖拽或点击上传</div>
           <template #tip>
-            <div class="el-upload__tip">支持 MP3/WAV/AAC/OPUS，最大 2MB</div>
+            <div class="el-upload__tip">
+              支持 MP3/WAV/AAC/OPUS，最大 {{ formatSizeMB(maxAudioSize) }}
+            </div>
           </template>
         </el-upload>
       </div>

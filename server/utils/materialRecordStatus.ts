@@ -1,7 +1,7 @@
 // server/utils/materialRecordStatus.ts
 // 材料上传任务状态批量查询（轮询轻接口共用）：
 // - 一次 IN 查询拿回多条记录状态（用户端强制 user_id 过滤防 IDOR）；
-// - queuedAhead 用一次全局 queued 快照在 JS 内算完（快照行数受 MAX_QUEUED 约束，
+// - queuedAhead 用一次全局 queued 快照在 JS 内算完（快照行数受 upload_queue_max 配置约束，
 //   消除 records/index.get.ts 时代的每条一次 COUNT 的 N+1 查询）。
 import { query } from './db'
 import type { MaterialRecordStatusItem, MaterialUploadStatus } from '#shared/types/material'
@@ -15,7 +15,7 @@ interface StatusRow {
   title: string
 }
 
-/** 全局 queued 快照：返回按 id 升序的排队记录 id 列表（行数 ≤ MAX_QUEUED） */
+/** 全局 queued 快照：返回按 id 升序的排队记录 id 列表（行数 ≤ upload_queue_max 配置值） */
 export async function fetchQueuedSnapshot(): Promise<number[]> {
   const rows = await query<{ id: number }>(
     `SELECT id FROM material_upload_record WHERE status = 'queued' ORDER BY id`,

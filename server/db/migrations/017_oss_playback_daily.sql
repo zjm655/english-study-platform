@@ -12,4 +12,4 @@ CREATE TABLE `oss_playback_daily` (
   `stat_date` date NOT NULL COMMENT '统计日期 (按天聚合, 一天一行)',
   `play_count` int UNSIGNED NOT NULL DEFAULT 0 COMMENT '当日 OSS 外网播放次数 (前端签名 URL 直连播放)',
   PRIMARY KEY (`stat_date`)
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = 'OSS 前端播放外网下行按天汇总';
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = ${COLLATION} COMMENT = 'OSS 前端播放外网下行按天汇总';

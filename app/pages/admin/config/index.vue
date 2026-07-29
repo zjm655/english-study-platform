@@ -51,6 +51,20 @@ const queueNls = ref(2)
 const queueDeepseek = ref(3)
 const queueUpload = ref(2)
 
+// ─── 上传限制（时长/大小/队列深度，前后端校验共用同一契约）──
+const uploadDurationUser = ref(180)
+const uploadDurationAdmin = ref(600)
+const uploadSizeUser = ref(2097152)
+const uploadSizeAdmin = ref(5242880)
+const uploadRecordingMaxSize = ref(52428800)
+const uploadQueueMax = ref(50)
+
+/** 字节 → MB 提示文案（整数直显，非整数保留 1 位小数） */
+function bytesToMB(bytes: number): string {
+  const mb = bytes / (1024 * 1024)
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`
+}
+
 // ─── 语音识别 STT ────────────────────────────────────────
 const sttBackend = ref<'filetrans' | 'flash'>('filetrans')
 const sttTrialStartDate = ref<string | null>(null)
@@ -85,6 +99,16 @@ async function fetchConfigs() {
       queueNls.value = parseInt(d['queue_nls_concurrency']?.value ?? '2', 10) || 0
       queueDeepseek.value = parseInt(d['queue_deepseek_concurrency']?.value ?? '3', 10) || 0
       queueUpload.value = parseInt(d['queue_upload_concurrency']?.value ?? '2', 10) || 0
+      // 上传限制（默认值与后端 uploadLimitChecker 一致）
+      uploadDurationUser.value = parseInt(d['upload_max_duration_user']?.value ?? '180', 10) || 180
+      uploadDurationAdmin.value =
+        parseInt(d['upload_max_duration_admin']?.value ?? '600', 10) || 600
+      uploadSizeUser.value = parseInt(d['upload_max_size_user']?.value ?? '2097152', 10) || 2097152
+      uploadSizeAdmin.value =
+        parseInt(d['upload_max_size_admin']?.value ?? '5242880', 10) || 5242880
+      uploadRecordingMaxSize.value =
+        parseInt(d['upload_recording_max_size']?.value ?? '52428800', 10) || 52428800
+      uploadQueueMax.value = parseInt(d['upload_queue_max']?.value ?? '50', 10) || 50
       // 语音识别 STT（试用日期 '-' 占位视为未填）
       sttBackend.value = d['stt_backend']?.value === 'flash' ? 'flash' : 'filetrans'
       const rawTrialDate = d['stt_trial_start_date']?.value ?? '-'
@@ -185,6 +209,44 @@ async function saveQueueConfig() {
     ])
     if (res.code === 200) {
       ElMessage.success('保存成功，新并发数对后续任务立即生效')
+    } else {
+      ElMessage.error(res.message ?? '保存失败')
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
+  } finally {
+    saving.value = false
+  }
+}
+
+// ─── 保存上传限制 ─────────────────────────────────────────
+async function saveUploadLimitsConfig() {
+  const vals = [
+    uploadDurationUser.value,
+    uploadDurationAdmin.value,
+    uploadSizeUser.value,
+    uploadSizeAdmin.value,
+    uploadRecordingMaxSize.value,
+    uploadQueueMax.value,
+  ]
+  if (vals.some((v) => v < 1 || !Number.isInteger(v))) {
+    ElMessage.warning('请输入有效的正整数')
+    return
+  }
+  saving.value = true
+  try {
+    const res = await updateConfigsExec([
+      { key: 'upload_max_duration_user', value: String(uploadDurationUser.value) },
+      { key: 'upload_max_duration_admin', value: String(uploadDurationAdmin.value) },
+      { key: 'upload_max_size_user', value: String(uploadSizeUser.value) },
+      { key: 'upload_max_size_admin', value: String(uploadSizeAdmin.value) },
+      { key: 'upload_recording_max_size', value: String(uploadRecordingMaxSize.value) },
+      { key: 'upload_queue_max', value: String(uploadQueueMax.value) },
+    ])
+    if (res.code === 200) {
+      ElMessage.success('保存成功，5 分钟内对上传校验生效')
     } else {
       ElMessage.error(res.message ?? '保存失败')
       await fetchConfigs()
@@ -431,6 +493,90 @@ async function saveSttConfig() {
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="saving" @click="saveQueueConfig">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
+      <!-- ═══ 上传限制 ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">上传限制</span>
+            <span class="card-sub">上传/录音的时长、大小与队列深度上限（保存后 5 分钟内生效）</span>
+          </div>
+        </template>
+        <el-form label-width="140px">
+          <el-form-item label="用户音频时长">
+            <el-input-number
+              v-model="uploadDurationUser"
+              :min="1"
+              :max="86400"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">普通用户上传/录制音频的最大时长（单位：秒）。</div>
+          </el-form-item>
+          <el-form-item label="管理员音频时长">
+            <el-input-number
+              v-model="uploadDurationAdmin"
+              :min="1"
+              :max="86400"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">管理员上传/录制音频的最大时长（单位：秒）。</div>
+          </el-form-item>
+          <el-form-item label="用户音频大小">
+            <el-input-number
+              v-model="uploadSizeUser"
+              :min="1"
+              :step="1048576"
+              controls-position="right"
+              style="width: 160px"
+            />
+            <div class="form-tip">
+              普通用户音频最大字节数（单位：字节），当前约 {{ bytesToMB(uploadSizeUser) }}。
+            </div>
+          </el-form-item>
+          <el-form-item label="管理员音频大小">
+            <el-input-number
+              v-model="uploadSizeAdmin"
+              :min="1"
+              :step="1048576"
+              controls-position="right"
+              style="width: 160px"
+            />
+            <div class="form-tip">
+              管理员音频最大字节数（单位：字节），当前约 {{ bytesToMB(uploadSizeAdmin) }}。
+            </div>
+          </el-form-item>
+          <el-form-item label="录音文件大小">
+            <el-input-number
+              v-model="uploadRecordingMaxSize"
+              :min="1"
+              :step="1048576"
+              controls-position="right"
+              style="width: 160px"
+            />
+            <div class="form-tip">
+              跟读/配音录音上传的大小上限（单位：字节），当前约
+              {{ bytesToMB(uploadRecordingMaxSize) }}。
+            </div>
+          </el-form-item>
+          <el-form-item label="队列深度上限">
+            <el-input-number
+              v-model="uploadQueueMax"
+              :min="1"
+              :max="999"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">材料上传队列的待处理任务数上限，超出时拒绝新任务入队。</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveUploadLimitsConfig">
+              保存
+            </el-button>
           </el-form-item>
         </el-form>
       </el-card>

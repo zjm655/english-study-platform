@@ -12,6 +12,12 @@ describe('isPublicReadPath - 公开只读路径判定', () => {
     expect(isPublicReadPath('GET', '/api/units/12/progress?page=2&pageSize=10')).toBe(true)
   })
 
+  it('GET /api/config/upload-limits 命中（含带 query）', () => {
+    expect(isPublicReadPath('GET', '/api/config/upload-limits')).toBe(true)
+    expect(isPublicReadPath('GET', '/api/config/upload-limits?t=1')).toBe(true)
+    expect(isPublicReadPath('POST', '/api/config/upload-limits')).toBe(false)
+  })
+
   it('非 GET 方法不命中', () => {
     expect(isPublicReadPath('POST', '/api/units')).toBe(false)
     expect(isPublicReadPath('DELETE', '/api/units/12/progress')).toBe(false)

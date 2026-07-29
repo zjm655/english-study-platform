@@ -2,13 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { withTransaction } from '#server/utils/db'
 import { uploadWithKey, signUrl, deleteObject, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
+import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 
 import type { RecordingRow } from '#server/types/db'
 import type { UploadRecordingResult } from '#shared/types/recording'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 
 // ============ 安全配置 ============
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+// 文件大小上限已抽入 sys_config（upload_recording_max_size）运营可调，handler 内动态读取
 
 // MIME 白名单 + 对应魔数签名（前 N 字节）
 const AUDIO_SIGNATURES: Record<string, number[]> = {
@@ -51,9 +52,12 @@ export default defineEventHandler(
       return validateError('未上传录音文件')
     }
 
-    // 4. 文件大小二次校验
+    // 4. 文件大小二次校验（上限运营可调，取自 sys_config）
     if (file.size === 0) return validateError('文件为空')
-    if (file.size > MAX_FILE_SIZE) return validateError('文件大小超过限制(50MB)')
+    const { recordingMaxSize } = await getUploadLimits()
+    if (file.size > recordingMaxSize) {
+      return validateError(`文件大小超过限制(${Math.round(recordingMaxSize / 1024 / 1024)}MB)`)
+    }
 
     // 5. MIME 类型白名单校验
     const mimeType = file.type

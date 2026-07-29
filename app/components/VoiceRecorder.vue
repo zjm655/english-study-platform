@@ -2,6 +2,7 @@
 import { useRecorder, RecorderError } from '~/composables/media/useRecorder'
 import { useUploadRecording } from '~/composables/recording'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
+import { useUploadLimits, UPLOAD_LIMITS_FALLBACK } from '~/composables/useUploadLimits'
 import { toastError } from '~/utils/popup'
 import type { UploadRecordingResult } from '#shared/types/recording'
 
@@ -26,6 +27,12 @@ const { isRecording, isPaused, duration, start, pause, resume, stop } = useRecor
 
 // 上传
 const { execute: uploadRecording, isLoading: isUploading } = useUploadRecording()
+
+// 录音文件大小上限来自 sys_config（管理端可调）：composable 未就绪/拉取失败时降级静态 50MB
+const { limits: uploadLimits } = useUploadLimits()
+const recordingMaxSize = computed(
+  () => uploadLimits.value?.recordingMaxSize ?? UPLOAD_LIMITS_FALLBACK.recordingMaxSize,
+)
 
 // === 录音权限/错误状态 ===
 const permissionError = ref('')
@@ -214,8 +221,8 @@ async function handleFileSelected(event: Event) {
     return
   }
 
-  if (file.size > 50 * 1024 * 1024) {
-    toastError('文件大小超过 50MB 限制')
+  if (file.size > recordingMaxSize.value) {
+    toastError(`文件大小超过 ${Math.round(recordingMaxSize.value / 1024 / 1024)}MB 限制`)
     input.value = ''
     return
   }

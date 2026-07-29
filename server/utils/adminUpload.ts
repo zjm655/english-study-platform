@@ -9,13 +9,12 @@ import { pool, withTransaction } from './db'
 import { mapWithConcurrency } from './concurrency'
 import { withQueue } from './serviceQueue'
 import { isUploadQueueFull } from './materialJob'
+import { getUploadLimits } from './uploadLimitChecker'
 import { logger } from '../../shared/utils/logger'
 import type { AdminUploadItemResult } from '../../shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
 
-// ============ 管理员音频限制 ============
-const ADMIN_MAX_DURATION = 600 // 10 分钟
-const ADMIN_MAX_SIZE = 5 * 1024 * 1024 // 5MB
+// 管理员音频时长/大小限制已抽入 sys_config 运营可调（见 uploadLimitChecker），使用处动态读取
 
 // ============ 记录追踪 ============
 
@@ -175,18 +174,19 @@ export async function processAdminMaterial(
     )
     segmentMediaId = mediaRes.insertId
 
-    // 5. 音频元数据校验
+    // 5. 音频元数据校验（限制值运营可调，取自 sys_config，5min 缓存）
+    const limits = await getUploadLimits()
     const meta = await extractAudioMeta(audioBuffer_)
     if (!meta) {
       await fail('无法解析音频信息')
       return { index: 0, success: false, error: '无法解析音频信息' }
     }
 
-    if (meta.duration > ADMIN_MAX_DURATION) {
+    if (meta.duration > limits.maxAudioDurationAdmin) {
       await fail(`音频时长超限: ${meta.duration.toFixed(1)}s`)
       return { index: 0, success: false, error: `音频时长超限` }
     }
-    if (meta.size > ADMIN_MAX_SIZE) {
+    if (meta.size > limits.maxAudioSizeAdmin) {
       await fail(`音频大小超限`)
       return { index: 0, success: false, error: '音频大小超限' }
     }

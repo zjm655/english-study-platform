@@ -21,23 +21,20 @@ import { ttsWithRetry } from './ttsRetry'
 import { uploadWithKey, deleteObject } from './oss'
 import { withTransaction, pool } from './db'
 import { mapWithConcurrency } from './concurrency'
+import { getUploadLimits } from './uploadLimitChecker'
 
-// ============ 音频限制（export 供上传 handler 入队前前置校验，避免大文件先烧 STT/OSS 云费） ============
-const USER_MAX_DURATION = 180 // 3 分钟
-const ADMIN_MAX_DURATION = 600 // 10 分钟
-export const USER_MAX_SIZE = 2 * 1024 * 1024 // 2MB
-export const ADMIN_MAX_SIZE = 5 * 1024 * 1024 // 5MB
+// 音频时长/大小限制已抽入 sys_config 运营可调（见 uploadLimitChecker），
+// 上传 handler 入队前的前置校验与本流水线内的后置兼校统一走 getUploadLimits()。
 
 // ============ 入队深度防御（用户/管理员入队共用） ============
-/** 排队任务超过该数直接拒绝，防止极端情况下内存中堆积过多音频 Buffer */
-export const MAX_QUEUED = 50
-
+/** 排队任务超过 upload_queue_max 配置直接拒绝，防止极端情况下内存中堆积过多音频 Buffer */
 export async function isUploadQueueFull(): Promise<boolean> {
+  const { uploadQueueMax } = await getUploadLimits()
   const [rows] = await pool.execute(
     `SELECT COUNT(*) as cnt FROM material_upload_record WHERE status = 'queued'`,
   )
   const cnt = (rows as Array<{ cnt: number | string }>)[0]?.cnt ?? 0
-  return Number(cnt) >= MAX_QUEUED
+  return Number(cnt) >= uploadQueueMax
 }
 
 // ============ 记录辅助（供 handler 与本任务共用） ============
@@ -152,8 +149,10 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     const ext = params.audioFileName ? getExt(params.audioFileName) : 'mp3'
     const ossKey = `audio/material/${randomUUID()}.${ext}`
     const bucket = useRuntimeConfig().oss.bucket
-    const maxDuration = isAdmin ? ADMIN_MAX_DURATION : USER_MAX_DURATION
-    const maxSize = isAdmin ? ADMIN_MAX_SIZE : USER_MAX_SIZE
+    // 限制值运营可调（sys_config），5min 缓存内不额外查库
+    const limits = await getUploadLimits()
+    const maxDuration = isAdmin ? limits.maxAudioDurationAdmin : limits.maxAudioDurationUser
+    const maxSize = isAdmin ? limits.maxAudioSizeAdmin : limits.maxAudioSizeUser
 
     /** 元数据校验：返回错误文案（null=通过），并记录时长供 media 入库 */
     const checkAudioMeta = async (buf: Buffer): Promise<string | null> => {

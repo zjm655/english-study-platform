@@ -25,4 +25,4 @@ CREATE TABLE `admin_operation_log` (
   INDEX `idx_action` (`action`),
   INDEX `idx_created` (`createdAt`),
   CONSTRAINT `fk_admin_log_user` FOREIGN KEY (`admin_id`) REFERENCES `user` (`id`) ON DELETE SET NULL
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '管理员操作日志';
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = ${COLLATION} COMMENT = '管理员操作日志';

@@ -4,9 +4,8 @@ import {
   createUploadRecord,
   updateRecordFailed,
   isUploadQueueFull,
-  USER_MAX_SIZE,
-  ADMIN_MAX_SIZE,
 } from '#server/utils/materialJob'
+import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { query } from '#server/utils/db'
 import {
   validateError,
@@ -64,7 +63,9 @@ export default defineEventHandler(
     let audioBuffer: Buffer | undefined
     let audioFileName: string | undefined
     if (audioFile && audioFile instanceof File && audioFile.size > 0) {
-      const maxSize = isAdmin ? ADMIN_MAX_SIZE : USER_MAX_SIZE
+      // 大小限制运营可调（sys_config），管理员/用户分档
+      const limits = await getUploadLimits()
+      const maxSize = isAdmin ? limits.maxAudioSizeAdmin : limits.maxAudioSizeUser
       if (audioFile.size > maxSize) {
         return validateError(`音频大小超过限制（${maxSize / 1024 / 1024}MB）`)
       }

@@ -56,6 +56,12 @@ export default defineEventHandler(async (event) => {
     invalidateServiceQueueCache()
   }
 
+  // 使上传限制缓存失效（时长/大小/录音上限/队列深度即时生效）
+  if (key.startsWith('upload_')) {
+    const { invalidateUploadLimitCache } = await import('#server/utils/uploadLimitChecker')
+    invalidateUploadLimitCache()
+  }
+
   // 审计留痕
   await logAdminOperation(user.id, 'config.update', 'sys_config', 0, { key, value })
 

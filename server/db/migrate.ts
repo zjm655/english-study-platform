@@ -2,6 +2,7 @@ import mysql from 'mysql2/promise'
 import { readdir, readFile, access } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { resolveCollation, applyCollation } from './collation'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -35,6 +36,11 @@ async function main() {
 
   await loadEnv()
 
+  // 解析迁移排序规则：直读 process.env（loadEnv 已注入 .env），不走 Nuxt runtimeConfig，
+  // 改 .env 即生效、无需运行或构建项目。非法值在此处直接抛错终止迁移。
+  const collation = resolveCollation()
+  console.log(`[INFO] 迁移 collation: ${collation}`)
+
   const config = {
     host: process.env.NUXT_DB_HOST || '127.0.0.1',
     port: Number(process.env.NUXT_DB_PORT) || 3306,
@@ -56,7 +62,7 @@ async function main() {
       "SET SESSION sql_mode = CONCAT(@@SESSION.sql_mode, ',NO_AUTO_VALUE_ON_ZERO')",
     )
 
-    await ensureMigrationsTable(connection)
+    await ensureMigrationsTable(connection, collation)
 
     const executedVersions = await getExecutedVersions(connection)
     console.log(
@@ -88,7 +94,7 @@ async function main() {
       }
 
       console.log('[EXEC]', filename)
-      await executeMigrationFile(connection, filename, version)
+      await executeMigrationFile(connection, filename, version, collation)
       executedCount++
       console.log('[DONE]', filename)
     }
@@ -108,7 +114,9 @@ async function main() {
   }
 }
 
-async function ensureMigrationsTable(connection: mysql.Connection) {
+async function ensureMigrationsTable(connection: mysql.Connection, collation: string) {
+  // collation 已经 resolveCollation 正则白名单校验，可安全插值；
+  // CREATE TABLE IF NOT EXISTS 对已存在的库无副作用（不会改动既有表的排序规则）。
   const createTableSQL = `
     CREATE TABLE IF NOT EXISTS migrations (
       id INT AUTO_INCREMENT PRIMARY KEY,
@@ -116,7 +124,7 @@ async function ensureMigrationsTable(connection: mysql.Connection) {
       filename VARCHAR(255) NOT NULL COMMENT '迁移文件名',
       executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE KEY uk_version (version)
-    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '数据库迁移版本记录表';
+    ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = ${collation} COMMENT = '数据库迁移版本记录表';
   `
   await connection.execute(createTableSQL)
 }
@@ -172,15 +180,19 @@ async function executeMigrationFile(
   connection: mysql.Connection,
   filename: string,
   version: string,
+  collation: string,
 ) {
   const filePath = join(__dirname, 'migrations', filename)
   const content = await readFile(filePath, 'utf-8')
+
+  // 把 .sql 中的 ${COLLATION} 占位符替换为实际排序规则（字面量替换，不误伤其它文本）
+  const replaced = applyCollation(content, collation)
 
   // 先按行剥离 `--` 单行注释与 `/* */` 块注释，再按 `;` 切分语句。
   // 旧实现按 `;` 切分后过滤 startsWith('--') 的块，会把「注释行 + 语句」整块丢弃
   // （如 002 种子数据 INSERT 紧跟注释行），导致语句被静默跳过、新库缺失数据。
   // 已知限制：不处理字符串字面量内的 `;`（现有迁移文件均为中文文本，无内嵌分号）。
-  const stripped = content
+  const stripped = replaced
     .split('\n')
     .filter((line) => !line.trim().startsWith('--'))
     .join('\n')

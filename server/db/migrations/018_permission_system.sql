@@ -14,7 +14,7 @@ CREATE TABLE `user_permission` (
   INDEX `idx_perm` (`permission_key`),
   CONSTRAINT `fk_user_perm_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_user_perm_granter` FOREIGN KEY (`granted_by`) REFERENCES `user` (`id`) ON DELETE SET NULL
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '用户细粒度权限授予表';
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = ${COLLATION} COMMENT = '用户细粒度权限授予表';
 
 -- 审核访问留痕：查看非公开用户材料/配音时同步写入(写成功才签名)。镜像 admin_operation_log。
 -- operator_id ON DELETE SET NULL：操作者账号删除后留痕仍保留(operator_id 置空)。
@@ -34,7 +34,7 @@ CREATE TABLE `review_access_log` (
   INDEX `idx_target` (`target_type`, `target_id`),
   INDEX `idx_created` (`createdAt`),
   CONSTRAINT `fk_review_log_user` FOREIGN KEY (`operator_id`) REFERENCES `user` (`id`) ON DELETE SET NULL
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '审核访问留痕';
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = ${COLLATION} COMMENT = '审核访问留痕';
 
 -- 存量平滑：升首位活跃管理员为超级管理员(唯一授权者)，确保上线即有可用超管。
 UPDATE `user` SET `role` = 2 WHERE `role` = 1 AND `deleted_at` IS NULL ORDER BY `id` ASC LIMIT 1;

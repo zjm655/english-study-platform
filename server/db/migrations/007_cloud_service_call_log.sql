@@ -20,4 +20,4 @@ CREATE TABLE `cloud_service_call_log` (
   PRIMARY KEY (`id`),
   INDEX `idx_service_created` (`service`, `createdAt`),
   INDEX `idx_created_at` (`createdAt`)
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_unicode_ci COMMENT = '云服务调用埋点日志';
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = ${COLLATION} COMMENT = '云服务调用埋点日志';

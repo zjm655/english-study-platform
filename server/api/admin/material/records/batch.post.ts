@@ -6,7 +6,7 @@ import {
   validateError,
 } from '#server/utils/validate'
 import { logAdminOperation } from '#server/utils/adminLog'
-import { MAX_QUEUED } from '#server/utils/materialJob'
+import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { reprocessRecord } from '#server/utils/materialReprocess'
 import { ensurePermission } from '#server/utils/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
@@ -17,7 +17,7 @@ import type { BatchResult, BatchSkippedItem } from '#shared/types/adminBatch'
  * POST /api/admin/material/records/batch
  *
  * - delete：批量删除（单事务：软删关联 segment + 硬删 record）；queued/processing 进 skipped
- * - reprocess：批量重试（ids ≤20）；按 MAX_QUEUED 剩余容量截断，逐条走 failed→queued
+ * - reprocess：批量重试（ids ≤20）；按 upload_queue_max 剩余容量截断，逐条走 failed→queued
  *   原子锁（需精确知道每个 id 抢锁成败，非 failed 自动进 skipped）
  */
 export default defineEventHandler(async (event) => {
@@ -88,12 +88,13 @@ export default defineEventHandler(async (event) => {
       skipped,
     })
   } else {
-    // reprocess：按剩余容量截断（MAX_QUEUED - 当前 queued 数），超出进 skipped
+    // reprocess：按剩余容量截断（upload_queue_max 配置 - 当前 queued 数），超出进 skipped
+    const { uploadQueueMax } = await getUploadLimits()
     const countRows = await query<{ cnt: number | string }>(
       `SELECT COUNT(*) AS cnt FROM material_upload_record WHERE status = 'queued'`,
     )
     const queuedCount = Number(countRows[0]?.cnt ?? 0)
-    const remaining = Math.max(0, MAX_QUEUED - queuedCount)
+    const remaining = Math.max(0, uploadQueueMax - queuedCount)
     const acceptedIds = ids.slice(0, remaining)
     for (const id of ids.slice(remaining)) {
       skipped.push({ id, reason: '处理队列已满，请稍后再试' })

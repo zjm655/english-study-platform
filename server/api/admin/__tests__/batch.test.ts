@@ -47,9 +47,19 @@ vi.mock('#server/utils/oss', () => ({ signUrl: vi.fn(), MATERIAL_EXPIRE: 2100 })
 vi.mock('#server/utils/adminLog', () => ({ logAdminOperation: mockLogAdminOperation }))
 vi.mock('#server/utils/materialReprocess', () => ({ reprocessRecord: mockReprocessRecord }))
 vi.mock('#server/utils/materialJob', () => ({
-  MAX_QUEUED: 50,
   isUploadQueueFull: mockIsUploadQueueFull,
   updateRecordFailed: vi.fn(),
+}))
+// 上传限制已抽入 sys_config（uploadLimitChecker），mock 掉避免真实查库；队列深度固定 50
+vi.mock('#server/utils/uploadLimitChecker', () => ({
+  getUploadLimits: vi.fn().mockResolvedValue({
+    maxAudioDurationUser: 180,
+    maxAudioDurationAdmin: 600,
+    maxAudioSizeUser: 2 * 1024 * 1024,
+    maxAudioSizeAdmin: 5 * 1024 * 1024,
+    recordingMaxSize: 50 * 1024 * 1024,
+    uploadQueueMax: 50,
+  }),
 }))
 
 const ADMIN = { id: 1, role: 1, permissions: [PERMISSIONS.MANAGE_MATERIALS] }
@@ -228,7 +238,7 @@ describe('上传记录批量操作', () => {
     expect(mockConnExecute.mock.calls[1]![1]).toEqual([1, 3])
   })
 
-  it('reprocess：按 MAX_QUEUED 剩余容量截断，超出进 skipped「队列已满」', async () => {
+  it('reprocess：按 upload_queue_max 剩余容量截断，超出进 skipped「队列已满」', async () => {
     mockQuery.mockResolvedValueOnce([{ cnt: 48 }]) // 当前 queued 48，剩余容量 2
     mockReprocessRecord.mockResolvedValue({ ok: true })
     const res = await recordBatchHandler(
