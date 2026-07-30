@@ -185,3 +185,41 @@ describe('auth 中间件 - 超级管理员/权限注入', () => {
     expect(mocks.mockGetUserPermissions).toHaveBeenCalledWith(7)
   })
 })
+
+describe('auth 中间件 - 游客写端点白名单与 payload.id 防线', () => {
+  it('无 token PUT /api/guest/study-time → 放行且不挂 user', async () => {
+    const event = makeEvent()
+    event.method = 'PUT'
+    event.path = '/api/guest/study-time'
+    const res = await authMiddleware(event)
+    expect(res).toBeUndefined()
+    expect(event.context.user).toBeUndefined()
+  })
+
+  it('无 token PUT /api/guest/study-time?x=1（带 query）→ 仍放行（剥 query 匹配）', async () => {
+    const event = makeEvent()
+    event.method = 'PUT'
+    event.path = '/api/guest/study-time?x=1'
+    const res = await authMiddleware(event)
+    expect(res).toBeUndefined()
+  })
+
+  it('无 token GET /api/guest/study-time → 仍 401（仅放行 PUT）', async () => {
+    const event = makeEvent()
+    event.method = 'GET'
+    event.path = '/api/guest/study-time'
+    const res = await authMiddleware(event)
+    expect(res!.code).toBe(401)
+  })
+
+  it('token 验签通过但 payload.id 非 number（游客 token 冒充）→ 401+清 cookie', async () => {
+    // 游客 token 无 id 字段；若被塞进 token cookie，不能以 undefined 绑参查库
+    mocks.mockVerifyToken.mockResolvedValue({ gk: 'abc', typ: 'guest' })
+    const event = makeEvent('guesttk')
+    const res = await authMiddleware(event)
+    expect(res!.code).toBe(401)
+    expect(mocks.mockDeleteCookie).toHaveBeenCalled()
+    // 未成功拦截时绝不查库（防 undefined 绑参）
+    expect(mocks.mockQuery).not.toHaveBeenCalled()
+  })
+})

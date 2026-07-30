@@ -45,6 +45,14 @@ export interface CheckinStats {
   totalStudySeconds: number
 }
 
+/** 游客学习时长上报结果（GUEST：PUT /api/guest/study-time） */
+export interface GuestStudyResult {
+  /** 展示用短 ID（guestKey 前 8 位），前端写 localStorage 仅作展示冗余 */
+  guestDisplayId: string
+  /** 已实体化并累计时返回最新统计；未落库（首访/0 秒基准/残留 cookie）为 null */
+  stats: CheckinStats | null
+}
+
 /** 编辑资料入参（昵称 1-25 字） */
 export interface UserProfileUpdatePayload {
   nickname: string

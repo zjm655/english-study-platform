@@ -29,6 +29,9 @@ vi.mock('~/composables/unit/useUnitProgress', () => ({
   }),
 }))
 
+// useGuestStudyTimer 为显式 import（非自动导入），mock 掉避免真实计时器副作用
+vi.mock('~/composables/user/useGuestStudyTimer', () => ({ useGuestStudyTimer: vi.fn() }))
+
 // Mock useFavorites（避免真实网络请求触发测试环境 logger 未定义）
 const mockFetchFavSegments = vi.fn()
 const mockIsSegmentFav = vi.fn(() => false)

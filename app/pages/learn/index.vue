@@ -2,6 +2,7 @@
 import { VideoPlay, Check, Upload } from '@element-plus/icons-vue'
 import { useUserProgress } from '~/composables/unit'
 import { useUserStats } from '~/composables/user/useUserStats'
+import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
 import { useUserStore } from '~/store/useUserStore'
 import { unitsPath } from '~/api/paths'
 import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
@@ -10,6 +11,9 @@ import type { UserStats } from '#shared/types/user'
 definePageMeta({
   title: '学习',
 })
+
+// 游客学习时长计时（仅游客生效，登录用户内部短路）
+useGuestStudyTimer()
 
 useSeoMeta({
   title: '学习',

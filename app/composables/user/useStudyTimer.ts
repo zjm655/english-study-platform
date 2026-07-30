@@ -5,13 +5,15 @@ const REPORT_INTERVAL = 30000 // 30s 上报间隔
 
 /**
  * 学习时长定时器 Hook（第二层）
- * - 自动启动 60s 定时器，定期上报学习时长
+ * - 自动启动 30s 定时器，定期上报学习时长
  * - 页面隐藏时暂停，恢复时继续
  * - 组件销毁时上报剩余时长并清理
  * - 返回 isTracking 表示是否正在计时
+ * @param reportFn 可选上报函数（默认走登录用户的 useStudyTime）；游客传入静默上报函数
  */
-export function useStudyTimer() {
-  const { execute: reportStudyTime } = useStudyTime()
+export function useStudyTimer(reportFn?: (seconds: number) => void) {
+  const { execute: defaultReport } = useStudyTime()
+  const reportStudyTime = reportFn ?? defaultReport
   const isTracking = ref(false)
 
   let startTime: number | null = null

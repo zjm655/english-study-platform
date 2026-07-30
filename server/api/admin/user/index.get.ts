@@ -21,7 +21,8 @@ export default defineEventHandler(async (event) => {
   const offset = (page - 1) * pageSize
 
   // state 映射 WHERE：all=未销号；normal=未销号且正常；banned=未销号且封禁；deleted=已销号
-  const where: string[] = []
+  // is_guest=0：游客行不进后台用户列表与总数（一期后台不适配游客，仅防统计污染）
+  const where: string[] = ['is_guest = 0']
   if (state === 'deleted') {
     where.push('deleted_at IS NOT NULL')
   } else {

@@ -49,14 +49,37 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   // 5. 密码加密
   const passwordHash = await bcrypt.hash(password1, 10)
 
-  // 6. 写入数据库
-  const [insertResult] = await pool.execute<ResultSetHeader>(
-    'INSERT INTO user (account, passwordHash, nickname, email) VALUES (?, ?, ?, ?)',
-    [account, passwordHash, nickname || null, email || null],
-  )
+  // 6. 写入数据库：若带未合并的游客 cookie → 同行转正（保留其已有学习数据，零迁移）；否则新建
+  const guestKey = await readGuestKey(event)
+  let promoted = false
+  if (guestKey) {
+    const guestRows = await query<{ id: number }>(
+      'SELECT id FROM user WHERE guest_key = ? AND is_guest = 1 AND merged_into_user_id IS NULL',
+      [guestKey],
+    )
+    const guestRow = guestRows[0]
+    if (guestRow) {
+      await pool.execute(
+        'UPDATE user SET account = ?, passwordHash = ?, nickname = ?, email = ?, is_guest = 0 WHERE id = ? AND is_guest = 1',
+        [account, passwordHash, nickname || null, email || null, guestRow.id],
+      )
+      // 游客实体化时已建 stats 行，用 IGNORE 兑底
+      await pool.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [guestRow.id])
+      clearGuestCookie(event)
+      promoted = true
+    }
+  }
 
-  // 7. 为新用户创建打卡统计记录
-  await pool.execute('INSERT INTO user_checkin_stats (user_id) VALUES (?)', [insertResult.insertId])
+  if (!promoted) {
+    const [insertResult] = await pool.execute<ResultSetHeader>(
+      'INSERT INTO user (account, passwordHash, nickname, email) VALUES (?, ?, ?, ?)',
+      [account, passwordHash, nickname || null, email || null],
+    )
+    // 为新用户创建打卡统计记录
+    await pool.execute('INSERT INTO user_checkin_stats (user_id) VALUES (?)', [
+      insertResult.insertId,
+    ])
+  }
 
   // 8. 返回成功
   return validateSuccess(null, '注册成功！')

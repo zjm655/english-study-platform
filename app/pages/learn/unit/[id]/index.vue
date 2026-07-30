@@ -2,6 +2,7 @@
 import { Check } from '@element-plus/icons-vue'
 import { useUnitProgress } from '~/composables/unit'
 import { useFavorites } from '~/composables/useFavorites'
+import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
 import { useUserStore } from '~/store/useUserStore'
 import { unitsPath } from '~/api/paths'
 import type { UnitProgressDetail } from '#shared/types/unit'
@@ -13,6 +14,9 @@ definePageMeta({
 const route = useRoute()
 const unitId = computed(() => Number(route.params.id))
 const userStore = useUserStore()
+
+// 游客学习时长计时（仅游客生效，登录用户内部短路）
+useGuestStudyTimer()
 
 // 首屏走 useAsyncRes（SSR 直出，游客可浏览裁剪版）；失败静默降级页内空态，不弹 toast
 const {

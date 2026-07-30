@@ -20,6 +20,9 @@ export default defineEventHandler(async (event) => {
     // handler 内据此返回裁剪版；持 token 的请求（含坏 token）仍走下方完整验证，
     // 登录用户数据形态不变、坏 token 仍 401+清 cookie
     if (isPublicReadPath(event.method, event.path)) return
+    // 游客写端点白名单：无 token 也放行，handler 内据 guest_token cookie 自行解析游客身份
+    // （剥 query 后精确匹配，复刻 publicRead.ts 手法）
+    if (event.method === 'PUT' && event.path.split('?')[0] === '/api/guest/study-time') return
     return validateError('未登录', 401)
   }
 
@@ -29,6 +32,13 @@ export default defineEventHandler(async (event) => {
     payload = await verifyToken(token)
   } catch {
     // token 无效时清除 Cookie，避免客户端一直带坏 token
+    deleteCookie(event, 'token')
+    return validateError('Token 无效或已过期!', 401)
+  }
+
+  // 防线：同密钥签发的非用户 token（如游客 token）若被塞进 token cookie，payload.id 可能缺失，
+  // 会导致下方以 undefined 绑参查库 500；此处显式拦截（既有隐患顺带加固，非游客模块引入）。
+  if (typeof payload.id !== 'number') {
     deleteCookie(event, 'token')
     return validateError('Token 无效或已过期!', 401)
   }

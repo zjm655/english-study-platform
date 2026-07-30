@@ -5,6 +5,7 @@ import type { UserRow } from '#server/types/db'
 
 import { query } from '#server/utils/db'
 import { signAvatarUrl } from '#server/utils/oss'
+import { mergeGuestData } from '#server/services/guestMerge'
 import bcrypt from 'bcrypt'
 
 /**
@@ -26,13 +27,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
 
   const { account, password, captchaToken, captchaCode } = result.data
 
-  // 3. 查数据库验证用户
+  // 3. 查数据库验证用户（is_guest=0：游客行 account 为 NULL 本不命中，此条件为防御）
   const rows = await query<UserRow>(
-    'SELECT id, account, nickname, email, role, status, deleted_at, passwordHash, avatarUrl, level FROM user WHERE account = ?',
+    'SELECT id, account, nickname, email, role, status, deleted_at, passwordHash, avatarUrl, level FROM user WHERE account = ? AND is_guest = 0',
     [account],
   )
   const user = rows[0]
-  if (!user) {
+  if (!user || !user.passwordHash) {
     return validateError('账号不存在', 401)
   }
 
@@ -73,6 +74,19 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
     maxAge: 60 * 60 * 24 * 7,
     path: '/',
   })
+
+  // 8b. 老用户登录：若带游客 cookie，合并游客数据进本账户。
+  //     合并失败不阻断登录且不清 cookie（幂等，下次登录自动重试）。
+  const guestKey = await readGuestKey(event)
+  if (guestKey) {
+    try {
+      await mergeGuestData(guestKey, user.id)
+      clearGuestCookie(event)
+    } catch (err) {
+      logger.error('[login] 游客数据合并失败:', err)
+      void fileLogError('auth', '游客数据合并失败', err)
+    }
+  }
 
   // 9. 返回用户信息（排除密码）；头像为私有对象，下发前签名为临时可访问 URL
   const { passwordHash, ...safeInfo } = user

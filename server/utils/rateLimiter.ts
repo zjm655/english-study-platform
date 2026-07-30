@@ -44,6 +44,7 @@ const ROUTE_CONFIGS: Record<string, RateLimitConfig> = {
   '/api/evaluation/auth': { windowMs: 60_000, maxRequests: 10 }, // 评测鉴权 10次/分钟
   '/api/admin': { windowMs: 60_000, maxRequests: 120 }, // 管理后台 120次/分钟
   '/api/oss/playback': { windowMs: 60_000, maxRequests: 300 }, // OSS 播放埋点：高频播放，宽松桶避免误伤
+  '/api/guest/study-time': { windowMs: 60_000, maxRequests: 10 }, // 游客时长上报：IP 级防刷（正常 30s/次）
 }
 
 /** 登录/注册专用严格限流路径：防暴力破解 / 灌水，独立于全局 enabled 开关 */
