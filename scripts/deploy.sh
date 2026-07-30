@@ -268,7 +268,9 @@ if [ -d .output ]; then
   mv .output .output.prev
   info "已备份上一版产物到 .output.prev（应急回滚用，下次部署自动清理）"
 fi
-npm run build
+# 小内存服务器（1.8G）构建 OOM 防护：限制 V8 堆上限使 GC 更积极、降低峰值 RSS
+#（配合 nuxt.config 关闭 sourcemap + 服务器 swap）；可用 NUXT_BUILD_NODE_OPTIONS 覆盖
+NODE_OPTIONS="${NUXT_BUILD_NODE_OPTIONS:---max-old-space-size=1536}" npm run build
 
 # ============================================================================
 # 五、重载与验活
