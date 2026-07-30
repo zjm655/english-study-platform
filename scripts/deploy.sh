@@ -268,9 +268,11 @@ if [ -d .output ]; then
   mv .output .output.prev
   info "已备份上一版产物到 .output.prev（应急回滚用，下次部署自动清理）"
 fi
-# 小内存服务器（1.8G）构建 OOM 防护：限制 V8 堆上限使 GC 更积极、降低峰值 RSS
-#（配合 nuxt.config 关闭 sourcemap + 服务器 swap）；可用 NUXT_BUILD_NODE_OPTIONS 覆盖
-NODE_OPTIONS="${NUXT_BUILD_NODE_OPTIONS:---max-old-space-size=1536}" npm run build
+# 小内存服务器（1.8G）构建 OOM 防护：限制 V8 堆上限使 GC 更积极、降低峰值 RSS。
+# 堆上限必须压到物理内存以内：实证加了 swap 仍被 OOM Kill（疑似 cgroup 限制 swap 不可用），
+# 1024 + Node 自身 native 开销(~300M) + 在线 pm2 旧进程(~130M) 才能塞进 1.8G；
+# 可用 NUXT_BUILD_NODE_OPTIONS 覆盖（配合 nuxt.config 关闭 sourcemap/minify）
+NODE_OPTIONS="${NUXT_BUILD_NODE_OPTIONS:---max-old-space-size=1024}" npm run build
 
 # ============================================================================
 # 五、重载与验活
