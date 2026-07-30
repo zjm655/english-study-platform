@@ -3,6 +3,19 @@ import { z } from 'zod'
 import type { ResPayload } from '#shared/types/request'
 import { REVIEW_TARGET_TYPES, REVIEW_REASON_CATEGORIES } from '#shared/utils/permission'
 
+/** 共享密码规则：8-25 位 + 必须包含数字、字母、特殊符号中的至少两类（登录/注册/修改密码复用） */
+export const passwordSchema = z
+  .string()
+  .min(8, '密码长度不能少于8位')
+  .max(25, '密码长度不能超过25位')
+  .refine((val) => {
+    let categories = 0
+    if (/[a-zA-Z]/.test(val)) categories++ // 包含字母
+    if (/\d/.test(val)) categories++ // 包含数字
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(val)) categories++ // 包含特殊符号
+    return categories >= 2
+  }, '密码必须包含数字、字母、特殊符号中的至少两类')
+
 // 登陆校验
 export const loginSchema = z.object({
   account: z
@@ -10,17 +23,7 @@ export const loginSchema = z.object({
     .min(8, '账号长度不能少于8位')
     .max(20, '账号长度不能超过20位')
     .regex(/^\d+$/, '账号必须是纯数字'),
-  password: z
-    .string()
-    .min(8, '密码长度不能少于8位')
-    .max(25, '密码长度不能超过25位')
-    .refine((val) => {
-      let categories = 0
-      if (/[a-zA-Z]/.test(val)) categories++ // 包含字母
-      if (/\d/.test(val)) categories++ // 包含数字
-      if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(val)) categories++ // 包含特殊符号
-      return categories >= 2
-    }, '密码必须包含数字、字母、特殊符号中的至少两类'),
+  password: passwordSchema,
   // 登录连错达阈值后必填（handler 内条件强制），常态可选，不影响正常登录
   captchaToken: z.string().optional(),
   captchaCode: z.string().optional(),
@@ -36,17 +39,7 @@ export const registerSchema = z
       .max(20, '账号长度不能超过20位')
       .regex(/^\d+$/, '账号必须是纯数字'),
     email: z.string().email('邮箱格式不正确').optional().or(z.literal('')),
-    password1: z
-      .string()
-      .min(8, '密码长度不能少于8位')
-      .max(25, '密码长度不能超过25位')
-      .refine((val) => {
-        let categories = 0
-        if (/[a-zA-Z]/.test(val)) categories++ // 包含字母
-        if (/\d/.test(val)) categories++ // 包含数字
-        if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(val)) categories++ // 包含特殊符号
-        return categories >= 2
-      }, '密码必须包含数字、字母、特殊符号中的至少两类'),
+    password1: passwordSchema,
     password2: z.string().min(8, '密码长度不能少于8位').max(25, '密码长度不能超过25位'),
     captchaToken: z.string().min(1, '请输入图形验证码'),
     captchaCode: z.string().min(1, '请输入图形验证码'),
@@ -54,6 +47,29 @@ export const registerSchema = z
   .refine((data) => data.password1 === data.password2, {
     message: '两次密码输入不一致',
     path: ['password2'],
+  })
+
+// ============== 用户个人资料 ==============
+
+/** 用户修改昵称校验（trim 后 1-25 字，max 与注册昵称规则对齐） */
+export const userProfileUpdateSchema = z.object({
+  nickname: z.string().trim().min(1, '昵称不能为空').max(25, '昵称最多25个字符'),
+})
+
+/** 用户修改密码校验（新密码走共享密码规则） */
+export const passwordChangeSchema = z
+  .object({
+    oldPassword: z.string().min(1, '请输入旧密码'),
+    newPassword: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: '两次密码输入不一致',
+    path: ['confirmPassword'],
+  })
+  .refine((data) => data.oldPassword !== data.newPassword, {
+    message: '新密码不能与旧密码相同',
+    path: ['newPassword'],
   })
 
 // 学习时长上报校验

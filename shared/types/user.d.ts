@@ -45,6 +45,23 @@ export interface CheckinStats {
   totalStudySeconds: number
 }
 
+/** 编辑资料入参（昵称 1-25 字） */
+export interface UserProfileUpdatePayload {
+  nickname: string
+}
+
+/** 修改密码入参（成功后后端会清除 token cookie） */
+export interface PasswordChangePayload {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
+/** 头像上传结果 */
+export interface AvatarUploadResult {
+  avatarUrl: string
+}
+
 /** 用户学习统计 */
 export interface UserStats {
   completedSegments: number

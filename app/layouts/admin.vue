@@ -1,13 +1,20 @@
 <!-- app/layouts/admin.vue：管理后台 PC 优先布局（左侧导航 + 右侧内容） -->
 <template>
   <div class="admin-layout">
-    <aside class="admin-sidebar">
+    <aside class="admin-sidebar" :class="{ 'admin-sidebar--collapsed': isCollapsed }">
       <div class="admin-brand">
         <span class="admin-brand__logo">S</span>
         <span class="admin-brand__text">Shadow 管理后台</span>
       </div>
 
-      <el-menu :default-active="activeMenu" router class="admin-menu">
+      <!-- collapse 态由 Element Plus 自动隐藏文字、只保留 title 中的 el-icon（子菜单转为悬浮弹出） -->
+      <el-menu
+        :default-active="activeMenu"
+        router
+        class="admin-menu"
+        :collapse="isCollapsed"
+        :collapse-transition="false"
+      >
         <el-menu-item index="/admin">
           <el-icon><HomeFilled /></el-icon>
           <span>首页</span>
@@ -76,14 +83,41 @@
       </el-menu>
 
       <div class="admin-sidebar__footer">
-        <NuxtLink to="/" class="admin-back">
+        <!-- 深色模式切换：展开态整行 switch，收起态退化为单图标按钮 -->
+        <div v-if="!isCollapsed" class="admin-theme">
+          <el-icon><Moon /></el-icon>
+          <span>深色模式</span>
+          <el-switch v-model="isDarkMode" class="admin-theme__switch" size="small" />
+        </div>
+        <button
+          v-else
+          type="button"
+          class="admin-back admin-footer-btn"
+          :title="isDarkMode ? '切换为浅色模式' : '切换为深色模式'"
+          @click="isDarkMode = !isDarkMode"
+        >
+          <el-icon><Sunny v-if="isDarkMode" /><Moon v-else /></el-icon>
+        </button>
+
+        <NuxtLink to="/" class="admin-back" :title="isCollapsed ? '返回前台' : undefined">
           <el-icon><Back /></el-icon>
-          <span>返回前台</span>
+          <span v-show="!isCollapsed">返回前台</span>
         </NuxtLink>
+
+        <!-- 侧边栏收起/展开切换 -->
+        <button
+          type="button"
+          class="admin-back admin-footer-btn"
+          :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
+          @click="isCollapsed = !isCollapsed"
+        >
+          <el-icon><Expand v-if="isCollapsed" /><Fold v-else /></el-icon>
+          <span v-show="!isCollapsed">收起侧边栏</span>
+        </button>
       </div>
     </aside>
 
-    <main class="admin-main">
+    <main class="admin-main" :class="{ 'admin-main--collapsed': isCollapsed }">
       <slot />
     </main>
   </div>
@@ -101,13 +135,31 @@ import {
   Odometer,
   Setting,
   HomeFilled,
+  Moon,
+  Sunny,
+  Fold,
+  Expand,
 } from '@element-plus/icons-vue'
 import { usePermission } from '~/composables/user'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 const { can } = usePermission()
 
-const { init: initTheme } = useTheme()
+const { theme, setTheme, init: initTheme } = useTheme()
+
+// 深色模式开关：读取当前主题，写入时在 dark/light 间切换
+const isDarkMode = computed({
+  get: () => theme.value === 'dark',
+  set: (v: boolean) => setTheme(v ? 'dark' : 'light'),
+})
+
+// 侧边栏收缩状态（localStorage 持久化，仅客户端读写，SSR 期不触碰）
+const COLLAPSE_KEY = 'admin-sidebar-collapsed'
+const isCollapsed = ref(false)
+
+watch(isCollapsed, (v) => {
+  localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0')
+})
 
 const route = useRoute()
 
@@ -133,6 +185,8 @@ const activeMenu = computed(() => {
 
 onMounted(() => {
   initTheme()
+  // 恢复侧边栏收缩状态（onMounted 只在客户端执行，SSR 安全）
+  isCollapsed.value = localStorage.getItem(COLLAPSE_KEY) === '1'
 })
 </script>
 
@@ -154,6 +208,26 @@ onMounted(() => {
   bottom: 0;
   left: 0;
   z-index: 10;
+  transition: width 0.3s ease;
+}
+
+/* 收起态：宽度对齐 el-menu collapse 默认的 64px */
+.admin-sidebar--collapsed {
+  width: 64px;
+}
+
+.admin-sidebar--collapsed .admin-brand {
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.admin-sidebar--collapsed .admin-brand__text {
+  display: none;
+}
+
+.admin-sidebar--collapsed .admin-sidebar__footer {
+  padding: 16px 0;
+  align-items: center;
 }
 
 .admin-brand {
@@ -207,6 +281,31 @@ onMounted(() => {
 .admin-sidebar__footer {
   padding: 16px;
   border-top: 1px solid var(--border-ll);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 深色模式整行（展开态） */
+.admin-theme {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.admin-theme__switch {
+  margin-left: auto;
+}
+
+/* footer 内按钮：复用 .admin-back 外观，仅重置原生 button 样式 */
+.admin-footer-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
 }
 
 .admin-back {
@@ -229,5 +328,10 @@ onMounted(() => {
   padding: 24px;
   background: var(--bg);
   min-width: 0;
+  transition: margin-left 0.3s ease;
+}
+
+.admin-main--collapsed {
+  margin-left: 64px;
 }
 </style>

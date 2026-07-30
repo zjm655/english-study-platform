@@ -95,6 +95,9 @@
       <div class="logout-section">
         <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
       </div>
+
+      <!-- 编辑资料弹窗（昵称/头像/密码修改） -->
+      <EditProfileDialog v-model="editProfileVisible" />
     </template>
   </div>
 </template>
@@ -184,8 +187,11 @@ async function initStats() {
 // 事件处理（后台入口落到 /admin 首页，由首页按权限展示模块入口）
 const goAdmin = () => navigateTo('/admin')
 
+// 编辑资料弹窗显隐
+const editProfileVisible = ref(false)
+
 const handleEditProfile = () => {
-  logger.log('编辑资料')
+  editProfileVisible.value = true
 }
 
 const handleLearningGoal = () => {
