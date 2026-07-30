@@ -84,12 +84,20 @@
         <el-table-column prop="description" label="描述" min-width="240" show-overflow-tooltip />
         <el-table-column prop="level" label="难度" width="80" align="center" />
         <el-table-column prop="sortOrder" label="排序" width="80" align="center" />
-        <el-table-column prop="segmentCount" label="材料数" width="90" align="center" />
+        <el-table-column prop="segmentCount" label="材料数" width="90" align="center">
+          <template #default="{ row }">
+            <!-- 数字即入口：跳材料列表并自动按本单元筛选（id=0 自定义单元同样可筛） -->
+            <el-link type="primary" @click="goMaterials(row.id)">{{ row.segmentCount }}</el-link>
+          </template>
+        </el-table-column>
         <el-table-column label="创建时间" width="170">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" align="center" fixed="right">
+        <el-table-column label="操作" width="210" align="center" fixed="right">
           <template #default="{ row }: any">
+            <el-button type="primary" link size="small" @click="goMaterials(row.id)">
+              查看材料
+            </el-button>
             <el-button
               type="primary"
               link
@@ -378,6 +386,11 @@ async function handleBatchDelete() {
     if (list.value.length === onPageCount && page.value > 1) page.value -= 1
     loadList()
   }
+}
+
+/** 跳材料列表并自动按本单元筛选（接收端在 material/index onMounted 读 query 预填） */
+function goMaterials(unitId: number) {
+  navigateTo(`/admin/material?unitId=${unitId}`)
 }
 
 function formatDate(s: string) {

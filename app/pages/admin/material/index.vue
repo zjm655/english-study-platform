@@ -314,6 +314,13 @@ async function loadUnits() {
 }
 
 onMounted(() => {
+  // 跨页导航预填：单元列表「查看材料」携带 ?unitId= 跳入，复用单元筛选模型
+  // （仿 logs/api-call 读 ?path= 的既有模式；unitId=0 自定义单元合法，不可真值判断）
+  const route = useRoute()
+  const queryUnitId = Number(route.query.unitId)
+  if (route.query.unitId !== undefined && Number.isInteger(queryUnitId) && queryUnitId >= 0) {
+    filterUnitId.value = queryUnitId
+  }
   loadUnits()
   loadList()
 })

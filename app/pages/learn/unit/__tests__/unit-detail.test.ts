@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { ref } from 'vue'
 import UnitDetail from '../[id]/index.vue'
@@ -65,11 +65,15 @@ vi.stubGlobal(
 vi.stubGlobal(
   'IntersectionObserver',
   class {
-    observe = vi.fn()
-    unobserve = vi.fn()
+    observe = observeSpy
+    unobserve = unobserveSpy
     disconnect = vi.fn()
   },
 )
+const { observeSpy, unobserveSpy } = vi.hoisted(() => ({
+  observeSpy: vi.fn(),
+  unobserveSpy: vi.fn(),
+}))
 
 const mockSuccessData = {
   code: 200,
@@ -122,7 +126,7 @@ const mockSuccessData = {
 }
 
 function createWrapper() {
-  return mount(UnitDetail, {
+  const wrapper = mount(UnitDetail, {
     global: {
       directives: {
         'infinite-scroll': {},
@@ -141,7 +145,12 @@ function createWrapper() {
       },
     },
   })
+  mountedWrappers.push(wrapper)
+  return wrapper
 }
+
+// 共享响应式 mock 下残留组件的 watcher 会污染 observe spy，用例间统一卸载隔离
+const mountedWrappers: Array<ReturnType<typeof createWrapper>> = []
 
 describe('UnitDetail Page', () => {
   beforeEach(() => {
@@ -153,6 +162,12 @@ describe('UnitDetail Page', () => {
     mockLoadMore.mockReset()
     mockFetchFavSegments.mockReset()
     mockNavigateTo.mockReset()
+    observeSpy.mockClear()
+    unobserveSpy.mockClear()
+  })
+
+  afterEach(() => {
+    while (mountedWrappers.length) mountedWrappers.pop()!.unmount()
   })
 
   it('renders loading state when pending without data', () => {
@@ -274,6 +289,25 @@ describe('UnitDetail Page', () => {
     expect(wrapper.text()).toContain('加载失败，请检查网络')
     await wrapper.find('.retry-btn').trigger('click')
     expect(mockRefresh).toHaveBeenCalled()
+  })
+
+  it('client navigation: observer binds sentinel after async data arrives (bugfix)', async () => {
+    // 复现客户端导航时序：挂载时 pending，sentinel 不在 DOM，onMounted 无法绑定
+    mockDetailRes.value = undefined
+    mockPending.value = true
+    const wrapper = createWrapper()
+    expect(wrapper.find('.sentinel').exists()).toBe(false)
+    expect(observeSpy).not.toHaveBeenCalled()
+
+    // 数据到达 → 内容分支渲染 → watch(sentinelRef) 补绑 observer
+    mockDetailRes.value = mockSuccessData
+    mockPending.value = false
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.sentinel').exists()).toBe(true)
+    expect(observeSpy).toHaveBeenCalled()
+    const observed = observeSpy.mock.calls[0]![0] as HTMLElement
+    expect(observed.className).toContain('sentinel')
   })
 
   it('links to correct segment pages', () => {

@@ -115,6 +115,14 @@ onMounted(() => {
   }
 })
 
+// 哨兵补绑：客户端导航进入时首帧处于 loading 分支，sentinel 尚未渲染，
+// onMounted 的一次性 observe 永不生效（刷新走 SSR 直出才正常）。watch 覆盖
+// loading→content、error→retry 恢复、跨单元导航分支重建三条路径；重复 observe 幂等无害。
+watch(sentinelRef, (el, prev) => {
+  if (prev) scrollObserver?.unobserve(prev)
+  if (el) scrollObserver?.observe(el)
+})
+
 onBeforeUnmount(() => {
   scrollObserver?.disconnect()
 })
@@ -331,6 +339,10 @@ function goLeaderboard(segId: number) {
   transition:
     transform 0.2s,
     box-shadow 0.2s;
+  /* 离屏卡片跳过渲染/布局（渐进增强，旧 Safari 不支持时回退现状）；
+     intrinsic-size 估高避免滚动条跳动 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 210px;
 }
 
 /* PC hover 反馈（仅 hover 能力设备，避免移动端点击残留悬浮态） */

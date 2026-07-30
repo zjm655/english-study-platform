@@ -91,11 +91,14 @@ function actionTag(action: string) {
 }
 
 // targetType → 详情页路由映射。实际落库取值：user / segment / unit / material_upload_record /
-// sys_config / 日志表名（logs.clean），后四类无独立详情页；批量操作 targetId=0 占位，均回退纯文本。
+// sys_config / 日志表名（logs.clean），后三类无独立详情页；批量操作 targetId=0 占位（含
+// unit 批量，与自定义单元 id=0 无关——该单元禁改禁删不产生单条日志），均回退纯文本。
 function targetRoute(targetType: string, targetId: number): string | null {
   if (!Number.isInteger(targetId) || targetId <= 0) return null
   if (targetType === 'user') return `/admin/users/${targetId}`
   if (targetType === 'segment') return `/admin/material/${targetId}`
+  // 单元无独立详情页，跳材料列表自动按该单元筛选
+  if (targetType === 'unit') return `/admin/material?unitId=${targetId}`
   return null
 }
 

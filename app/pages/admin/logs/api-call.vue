@@ -266,7 +266,12 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="userId" label="UserId" width="90" align="center">
-          <template #default="{ row }">{{ row.userId ?? '-' }}</template>
+          <template #default="{ row }">
+            <AdminUserLink
+              :user-id="row.userId"
+              :label="row.userId != null ? String(row.userId) : '-'"
+            />
+          </template>
         </el-table-column>
         <el-table-column prop="ip" label="IP" width="130">
           <template #default="{ row }">{{ row.ip || '-' }}</template>
@@ -311,7 +316,12 @@ onMounted(() => {
           <el-tag :type="statusTagType(detailRow.statusCode)" size="small">{{ detailRow.statusCode }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="DurationMs">{{ detailRow.durationMs }}ms</el-descriptions-item>
-        <el-descriptions-item label="UserId">{{ detailRow.userId ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="UserId">
+          <AdminUserLink
+            :user-id="detailRow.userId"
+            :label="detailRow.userId != null ? String(detailRow.userId) : '-'"
+          />
+        </el-descriptions-item>
         <el-descriptions-item label="IP">{{ detailRow.ip || '-' }}</el-descriptions-item>
         <el-descriptions-item label="RequestId">{{ detailRow.requestId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="错误信息">

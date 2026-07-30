@@ -171,10 +171,23 @@
           >
             <template #header>
               <span class="unit-title">Unit: {{ unit.unitTitle }}</span>
+              <el-link
+                type="primary"
+                class="unit-materials-link"
+                @click="navigateTo(`/admin/material?unitId=${unit.unitId}`)"
+              >
+                查看材料
+              </el-link>
             </template>
             <div class="segment-list">
-              <div v-for="seg in unit.segments" :key="seg.segmentId" class="segment-row">
-                <span class="segment-name">{{ seg.segmentTitle }}</span>
+              <div v-for="seg in visibleSegments(unit)" :key="seg.segmentId" class="segment-row">
+                <el-link
+                  type="primary"
+                  class="segment-name"
+                  @click="navigateTo(`/admin/material/${seg.segmentId}`)"
+                >
+                  {{ seg.segmentTitle }}
+                </el-link>
                 <span class="segment-phases">
                   <el-tag :type="seg.phase1Done ? 'success' : 'info'" size="small" effect="plain"
                     >盲听</el-tag
@@ -189,6 +202,11 @@
                     跟读 {{ seg.phase4Score != null ? seg.phase4Score : '' }}
                   </el-tag>
                 </span>
+              </div>
+              <div v-if="remainingSegments(unit) > 0" class="segment-more">
+                <el-button type="primary" link size="small" @click="showMoreProgress(unit.unitId)">
+                  加载更多（剩余 {{ remainingSegments(unit) }} 条）
+                </el-button>
               </div>
             </div>
           </el-card>
@@ -269,7 +287,7 @@ import { toastConfirm, toastSuccess } from '~/utils/popup'
 import { ROLE_ADMIN, ROLE_USER, ROLE_SUPER_ADMIN } from '#shared/utils/role'
 import { GRANTABLE_PERMISSIONS, PERMISSION_LABELS } from '#shared/utils/permission'
 import type { PermissionKey } from '#shared/utils/permission'
-import type { AdminUserDetail } from '#shared/types/adminUser'
+import type { AdminUserDetail, AdminUserUnitProgress } from '#shared/types/adminUser'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
 
 definePageMeta({
@@ -305,7 +323,27 @@ async function loadDetail() {
   if (res?.code === 200 && res.data) {
     detail.value = res.data
     editRole.value = res.data.user.role
+    // 重新拉取后重置各单元展开数，避免旧状态指向不存在的单元
+    unitVisibleCounts.value = {}
   }
+}
+
+// ===== 学习进度渐进加载 =====
+// 全量下发但分批渲染：卡顿主因是数千 el-tag 组件实例一次性创建，非 JSON 传输；
+// 每单元初始只渲染前 10 条，「加载更多」每次 +10（纯前端切片，零契约变更）
+const PROGRESS_PAGE = 10
+const unitVisibleCounts = ref<Record<number, number>>({})
+
+function visibleSegments(unit: AdminUserUnitProgress) {
+  return unit.segments.slice(0, unitVisibleCounts.value[unit.unitId] ?? PROGRESS_PAGE)
+}
+
+function remainingSegments(unit: AdminUserUnitProgress) {
+  return unit.segments.length - (unitVisibleCounts.value[unit.unitId] ?? PROGRESS_PAGE)
+}
+
+function showMoreProgress(unitId: number) {
+  unitVisibleCounts.value[unitId] = (unitVisibleCounts.value[unitId] ?? PROGRESS_PAGE) + PROGRESS_PAGE
 }
 
 // 授权数据（超管专属）：加载目标用户当前权限键
@@ -558,6 +596,11 @@ onMounted(() => {
   font-size: 15px;
 }
 
+.unit-materials-link {
+  float: right;
+  font-size: 13px;
+}
+
 .segment-list {
   display: flex;
   flex-direction: column;
@@ -578,8 +621,14 @@ onMounted(() => {
 
 .segment-name {
   font-size: 14px;
-  color: var(--text-1);
   flex: 1;
+  justify-content: flex-start;
+}
+
+.segment-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
 }
 
 .segment-phases {

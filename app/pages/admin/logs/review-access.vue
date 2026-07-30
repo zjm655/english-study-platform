@@ -289,7 +289,11 @@ onMounted(() => {
         </el-descriptions-item>
         <el-descriptions-item label="对象ID">{{ detailRow.targetId }}</el-descriptions-item>
         <el-descriptions-item label="归属用户">
-          {{ detailRow.targetUserAccount || '-' }}（ID: {{ detailRow.targetUserId ?? '-' }}）
+          <AdminUserLink
+            :user-id="detailRow.targetUserId"
+            :label="detailRow.targetUserAccount || '-'"
+          />
+          （ID: {{ detailRow.targetUserId ?? '-' }}）
         </el-descriptions-item>
         <el-descriptions-item label="理由类别">{{ detailRow.reasonCategory }}</el-descriptions-item>
         <el-descriptions-item label="详细理由">

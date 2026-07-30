@@ -187,7 +187,14 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="片段ID">
-            {{ detail.segment_id ?? '-' }}
+            <el-link
+              v-if="detail.segment_id != null"
+              type="primary"
+              @click="navigateTo(`/admin/material/${detail.segment_id}`)"
+            >
+              {{ detail.segment_id }}
+            </el-link>
+            <span v-else>-</span>
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{
             formatDate(detail.createdAt)
