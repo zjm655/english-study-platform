@@ -12,6 +12,7 @@ interface UserRow {
   id: number
   account: string
   nickname: string | null
+  avatarUrl: string | null
   email: string | null
   role: number
   level: number
@@ -60,7 +61,7 @@ export default defineEventHandler(async (event) => {
 
   // 1. 用户基本信息
   const userRows = await query<UserRow>(
-    'SELECT id, account, nickname, email, role, level, status, deleted_at AS deletedAt, createdAt FROM user WHERE id = ?',
+    'SELECT id, account, nickname, avatarUrl, email, role, level, status, deleted_at AS deletedAt, createdAt FROM user WHERE id = ?',
     [userId],
   )
   if (userRows.length === 0) {

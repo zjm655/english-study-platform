@@ -35,6 +35,11 @@
       <!-- 用户信息卡 -->
       <el-card class="info-card" shadow="never">
         <div class="info-row">
+          <div class="info-avatar">
+            <el-avatar :size="64" :src="detail.user.avatarUrl ?? undefined">
+              <el-icon :size="32"><UserFilled /></el-icon>
+            </el-avatar>
+          </div>
           <div class="info-main">
             <span class="info-nickname">{{ detail.user.nickname || detail.user.account }}</span>
             <span class="info-account">账号: {{ detail.user.account }}</span>
@@ -249,6 +254,7 @@
 </template>
 
 <script setup lang="ts">
+import { UserFilled } from '@element-plus/icons-vue'
 import {
   useAdminUserDetail,
   useUpdateAdminUserRole,
@@ -426,10 +432,18 @@ onMounted(() => {
   margin-bottom: 10px;
 }
 
+/* 头像块：固定尺寸不被压缩，与右侧信息同排 */
+.info-avatar {
+  flex-shrink: 0;
+  margin-right: 16px;
+}
+
 .info-main {
   display: flex;
   align-items: baseline;
   gap: 12px;
+  /* 占满剩余空间，避免 space-between 把信息挤到行中间 */
+  flex: 1;
 }
 
 .info-nickname {

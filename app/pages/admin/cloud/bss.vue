@@ -591,4 +591,39 @@ onMounted(() => fetchData())
     grid-template-columns: 1fr;
   }
 }
+
+/* 平板/窄屏：头部与概览改纵向堆叠，面板内边距收紧 */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+  }
+  .overview-summary {
+    flex-direction: column;
+  }
+  .panel {
+    padding: 16px 14px;
+  }
+  .page-title {
+    font-size: 18px;
+  }
+}
+
+/* 手机端：图表高度与余额大字号适当缩减 */
+@media (max-width: 480px) {
+  .overview-chart,
+  .overview-bar {
+    height: 220px;
+  }
+  .trend-chart {
+    height: 220px;
+  }
+  .balance-number {
+    font-size: 28px;
+  }
+}
 </style>

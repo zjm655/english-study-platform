@@ -9,6 +9,7 @@
 
       <!-- collapse 态由 Element Plus 自动隐藏文字、只保留 title 中的 el-icon（子菜单转为悬浮弹出） -->
       <el-menu
+        ref="menuRef"
         :default-active="activeMenu"
         router
         class="admin-menu"
@@ -140,6 +141,7 @@ import {
   Fold,
   Expand,
 } from '@element-plus/icons-vue'
+import type { MenuInstance } from 'element-plus'
 import { usePermission } from '~/composables/user'
 import { PERMISSIONS } from '#shared/utils/permission'
 
@@ -162,6 +164,20 @@ watch(isCollapsed, (v) => {
 })
 
 const route = useRoute()
+
+const menuRef = ref<MenuInstance | null>(null)
+
+// 与模板中三个 el-sub-menu 的 index 保持同步维护
+const SUB_MENU_INDEXES = ['/admin/material', '/admin/cloud', '/admin/logs']
+
+// 收起态子菜单 popper 依赖 mouseleave 关闭，触屏设备没有 mouseleave 事件，
+// 点击子项跳转后 popper 会残留并再次浮现；这里在路由变化时主动关闭所有子菜单
+watch(
+  () => route.path,
+  () => {
+    if (isCollapsed.value) SUB_MENU_INDEXES.forEach((i) => menuRef.value?.close(i))
+  },
+)
 
 // 侧边栏高亮：default-active 必须精确匹配 el-menu-item 的 index（叶子节点）。
 // el-sub-menu 的展开由 Element Plus 根据 active item 的父链自动处理，无需手动映射。

@@ -159,22 +159,30 @@ export async function uploadImage(fileBuffer: Buffer, fileName: string): Promise
 /**
  * 上传文件到 OSS（按 useInternal 配置选择公网/内网客户端，返回公网 URL）
  *
+ * bucket 整体私有：头像等需要长期公开访问的资源通过对象级 public-read ACL 开放，
+ * 避免签名 URL 35 分钟过期导致落库地址失效；materials/records 仍走签名防盗链，不受影响。
+ *
  * @param fileBuffer - 文件 Buffer
  * @param fileName   - 原始文件名
  * @param keyPrefix  - 对象 key 前缀（默认 'records/' 保持既有调用方行为，头像等场景可传 'avatars/'）
+ * @param publicRead - 是否为该对象设置 public-read ACL（默认 false，既有调用方行为零变化）
  * @returns 公网 URL、对象名、文件大小
  */
 export async function uploadImagePublic(
   fileBuffer: Buffer,
   fileName: string,
   keyPrefix: string = 'records/',
+  publicRead: boolean = false,
 ): Promise<UploadResult> {
   const safeName = sanitizeFileName(fileName)
   const ext = safeName.includes('.') ? '' : '.png'
   const key = `${keyPrefix}${Date.now()}_${safeName}${ext}`
 
   const client = getUploadClient()
-  const result = await client.put(key, fileBuffer)
+  // publicRead 为 true 时设置对象级 public-read ACL，使裸公网 URL 可直接访问
+  const result = publicRead
+    ? await client.put(key, fileBuffer, { headers: { 'x-oss-object-acl': 'public-read' } })
+    : await client.put(key, fileBuffer)
 
   // 公网归一化：useInternal=true 时走内网 endpoint 上传省流量费，但返回的 url 是
   // *-internal.aliyuncs.com 内网域名，落库后浏览器无法访问，必须替换为公网域名（无 -internal 时不变）

@@ -133,6 +133,7 @@ export interface AdminUserDetail {
     id: number
     account: string
     nickname: string | null
+    avatarUrl: string | null
     email: string | null
     role: number
     level: number

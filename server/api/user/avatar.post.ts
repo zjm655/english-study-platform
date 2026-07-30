@@ -48,11 +48,12 @@ export default defineEventHandler(
       return validateError('文件内容与声明类型不匹配')
     }
 
-    // 5. 上传 OSS（avatars/ 前缀，key 含 userId 与时间戳；文件名带扩展名避免默认 .png 兜底失真）
+    // 5. 上传 OSS（avatars/ 前缀，key 含 userId 与时间戳；文件名带扩展名避免默认 .png 兜底失真；
+    //    传 publicRead=true 设置对象级 public-read ACL，私有 bucket 下裸公网 URL 才能被浏览器访问）
     const ext = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/png' ? 'png' : 'webp'
     let avatarUrl: string
     try {
-      const result = await uploadImagePublic(file.data, `${userId}.${ext}`, 'avatars/')
+      const result = await uploadImagePublic(file.data, `${userId}.${ext}`, 'avatars/', true)
       avatarUrl = result.url
     } catch (err) {
       logger.error('[avatar upload] OSS 上传失败:', err)
