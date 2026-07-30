@@ -17,9 +17,13 @@
         </NuxtLink>
         <!-- 中间：当前页面标题（从 definePageMeta({ title }) 读取） -->
         <h1 v-if="pageTitle" class="header__title">{{ pageTitle }}</h1>
-        <!-- 右侧：返回首页 -->
+        <!-- 右侧：首页显示消息中心铃铛（登录且有未读时叠加红点），其余页面保持返回首页 -->
         <div class="header__actions">
-          <NuxtLink to="/" class="header__icon-btn">
+          <NuxtLink v-if="isHome" to="/notice" class="header__icon-btn" aria-label="消息中心">
+            <el-icon :size="24"><Bell /></el-icon>
+            <span v-if="unreadCount > 0" class="header__dot"></span>
+          </NuxtLink>
+          <NuxtLink v-else to="/" class="header__icon-btn">
             <el-icon :size="26"><HomeFilled /></el-icon>
           </NuxtLink>
         </div>
@@ -53,7 +57,9 @@
 </template>
 
 <script setup lang="ts">
-import { HomeFilled, List, RefreshRight, UserFilled, Back } from '@element-plus/icons-vue'
+import { HomeFilled, List, RefreshRight, UserFilled, Back, Bell } from '@element-plus/icons-vue'
+import { useNoticeUnread } from '~/composables/notice'
+import { useUserStore } from '~/store/useUserStore'
 
 const { init: initTheme } = useTheme()
 
@@ -80,9 +86,27 @@ function goBack() {
   router.back()
 }
 
+// 未读公告红点：严格客户端拉取（onMounted 且登录态才请求，游客恒不显示）
+const userStore = useUserStore()
+const { unreadCount, refresh: refreshUnread } = useNoticeUnread()
+
 onMounted(() => {
   initTheme()
+  refreshUnread()
 })
+
+// 会话内登录后（布局不重挂载）补拉一次未读数
+watch(
+  () => userStore.isLogin,
+  (v) => {
+    if (v) {
+      refreshUnread()
+    } else {
+      // 登出时清零红点（refresh 对游客直接跳过请求，不会清零，需手动归零）
+      unreadCount.value = 0
+    }
+  },
+)
 </script>
 
 <style>

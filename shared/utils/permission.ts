@@ -19,6 +19,8 @@ export const PERMISSIONS = {
   REVIEW: 'review',
   /** 审计查看：审核留痕查询导出（监督 REVIEW 持有者，不默认下放） */
   VIEW_AUDIT: 'view_audit',
+  /** 公告管理：系统公告的增删改查与发布/撤回 */
+  MANAGE_NOTICES: 'manage_notices',
   /** 授权管理：改角色 + 授予权限（超管隐式持有，不通过权限表下放） */
   GRANT_PERMISSIONS: 'grant_permissions',
 } as const
@@ -37,6 +39,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   [PERMISSIONS.CONFIG]: '系统配置',
   [PERMISSIONS.REVIEW]: '审核门禁',
   [PERMISSIONS.VIEW_AUDIT]: '审计查看',
+  [PERMISSIONS.MANAGE_NOTICES]: '公告管理',
   [PERMISSIONS.GRANT_PERMISSIONS]: '授权管理',
 }
 

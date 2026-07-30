@@ -73,6 +73,10 @@
             >审核留痕</el-menu-item
           >
         </el-sub-menu>
+        <el-menu-item v-if="can(PERMISSIONS.MANAGE_NOTICES)" index="/admin/notice">
+          <el-icon><Bell /></el-icon>
+          <span>公告管理</span>
+        </el-menu-item>
         <el-menu-item v-if="can(PERMISSIONS.CONFIG)" index="/admin/monitor">
           <el-icon><Odometer /></el-icon>
           <span>运行监控</span>
@@ -136,6 +140,7 @@ import {
   Odometer,
   Setting,
   HomeFilled,
+  Bell,
   Moon,
   Sunny,
   Fold,

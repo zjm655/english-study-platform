@@ -10,6 +10,7 @@ const ADMIN_PAGE_PERMISSIONS: [prefix: string, permission: PermissionKey][] = [
   ['/admin/material', PERMISSIONS.MANAGE_MATERIALS],
   ['/admin/unit', PERMISSIONS.MANAGE_MATERIALS],
   ['/admin/users', PERMISSIONS.MANAGE_USERS],
+  ['/admin/notice', PERMISSIONS.MANAGE_NOTICES],
   ['/admin/stats', PERMISSIONS.VIEW_STATS],
   ['/admin/cloud', PERMISSIONS.VIEW_STATS],
   ['/admin/logs/review-access', PERMISSIONS.VIEW_AUDIT],

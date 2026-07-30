@@ -54,6 +54,7 @@ import {
   Notebook,
   Setting,
   Lock,
+  Bell,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 import { usePermission } from '~/composables/user'
@@ -127,6 +128,13 @@ const MODULE_CATALOG: {
     desc: 'REVIEW 敏感操作留痕查询导出',
     icon: Lock,
     permission: PERMISSIONS.VIEW_AUDIT,
+  },
+  {
+    path: '/admin/notice',
+    title: '公告管理',
+    desc: '系统公告发布 / 撤回 / 阅读统计',
+    icon: Bell,
+    permission: PERMISSIONS.MANAGE_NOTICES,
   },
   {
     path: '/admin/config',

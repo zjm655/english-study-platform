@@ -159,3 +159,24 @@ export interface AdminOperationLogRow {
   detail: Record<string, unknown> | string | null // json 列
   createdAt: string
 }
+
+export interface NoticeRow {
+  id: number
+  title: string
+  content: string
+  status: string // draft | published | revoked
+  publish_at: string
+  expire_at: string | null // NULL = 永不过期
+  is_pinned: number // 0否 1是
+  created_by: number
+  createdAt: string
+  updatedAt: string
+  deleted_at: string | null // 软删除时间（NULL 未删除）
+}
+
+export interface NoticeReadRow {
+  id: number
+  user_id: number
+  notice_id: number
+  read_at: string
+}
