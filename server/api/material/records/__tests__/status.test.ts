@@ -14,7 +14,7 @@ vi.hoisted(() => {
 })
 
 const { mockFetchRecordStatuses } = vi.hoisted(() => ({ mockFetchRecordStatuses: vi.fn() }))
-vi.mock('#server/utils/materialRecordStatus', () => ({
+vi.mock('#server/services/materialRecordStatus', () => ({
   fetchRecordStatuses: mockFetchRecordStatuses,
 }))
 // 端点经 validate/permission 间接触达 db/oss（模块顶层读 useRuntimeConfig），node 测试需 mock

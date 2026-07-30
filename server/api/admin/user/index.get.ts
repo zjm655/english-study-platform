@@ -1,6 +1,6 @@
 import { query } from '#server/utils/db'
 import { adminUserListSchema, validateSuccess, validateError } from '#server/utils/validate'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { AdminUserListItem, AdminUserListResult } from '#shared/types/adminUser'
 

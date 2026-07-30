@@ -8,9 +8,9 @@
  */
 
 import RPCClient from '@alicloud/pop-core'
-import { fileLog, fileLogError } from './fileLogger'
-import { logCloudServiceCall } from './cloudServiceLog'
-import { serverFetch } from './request'
+import { fileLog, fileLogError } from '#server/utils/fileLogger'
+import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
+import { serverFetch } from '#server/utils/request'
 import { withQueue } from './serviceQueue'
 import { logger } from '../../shared/utils/logger'
 

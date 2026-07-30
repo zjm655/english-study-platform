@@ -1,9 +1,9 @@
 import { readBody } from 'h3'
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
-import { logAdminOperation } from '#server/utils/adminLog'
+import { logAdminOperation } from '#server/services/adminLog'
 import { invalidateQuotaCache } from '#server/utils/quotaChecker'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import { z } from 'zod'
 
@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
 
   // 使服务队列并发配置缓存失效（下次入队即读新值并热更 p-queue concurrency）
   if (key.startsWith('queue_')) {
-    const { invalidateServiceQueueCache } = await import('#server/utils/serviceQueue')
+    const { invalidateServiceQueueCache } = await import('#server/services/serviceQueue')
     invalidateServiceQueueCache()
   }
 

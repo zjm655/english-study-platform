@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('#server/utils/db', () => ({ query: mocks.mockQuery }))
 // 直接 mock 权限模块：控制 getUserPermissions 返回值，并避免真实 permission.ts 透传引入 oss.ts（顶层 useRuntimeConfig 崩溃）
-vi.mock('#server/utils/permission', () => ({ getUserPermissions: mocks.mockGetUserPermissions }))
+vi.mock('#server/services/permission', () => ({ getUserPermissions: mocks.mockGetUserPermissions }))
 
 // 完全 mock 掉 rateLimiter：限流默认关闭（enabled: false），不干扰 auth 中间件核心逻辑测试
 vi.mock('#server/utils/rateLimiter', () => ({

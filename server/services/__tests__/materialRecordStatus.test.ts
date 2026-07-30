@@ -11,7 +11,7 @@ import {
 // 覆盖：IN 批量查询 / 用户过滤（防 IDOR） / queuedAhead 快照计算 / 无排队项不拉快照
 
 const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }))
-vi.mock('../db', () => ({ query: mockQuery }))
+vi.mock('#server/utils/db', () => ({ query: mockQuery }))
 
 beforeEach(() => {
   vi.clearAllMocks()

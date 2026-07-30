@@ -25,7 +25,7 @@ const { mockQuery, mockReadBody, mockLogAdminOperation } = vi.hoisted(() => ({
 }))
 
 vi.mock('#server/utils/db', () => ({ query: mockQuery }))
-vi.mock('#server/utils/adminLog', () => ({ logAdminOperation: mockLogAdminOperation }))
+vi.mock('#server/services/adminLog', () => ({ logAdminOperation: mockLogAdminOperation }))
 vi.mock('h3', () => ({ readBody: mockReadBody }))
 // permission.ts 透传引入 oss.ts（其模块顶层读 useRuntimeConfig），node 测试环境需 mock 避免崩溃
 vi.mock('#server/utils/oss', () => ({ signUrl: vi.fn(), MATERIAL_EXPIRE: 2100 }))

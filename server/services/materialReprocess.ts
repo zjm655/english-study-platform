@@ -1,9 +1,9 @@
-// server/utils/materialReprocess.ts
+// server/services/materialReprocess.ts
 // 重处理失败上传记录的核心逻辑（单条端点与批量端点共用）：
 // 原子锁 failed→queued 防重入 → 查记录详情 → fire-and-forget 入 upload 队列 → 排队被拒兜底回写 failed。
 // 容量检查（isUploadQueueFull / 剩余容量截断）由调用方在入队前自行完成，本模块只负责状态机与入队。
 import type { ResultSetHeader } from 'mysql2'
-import { query } from './db'
+import { query } from '#server/utils/db'
 import { processAdminMaterial } from './adminUpload'
 import { updateRecordFailed } from './materialJob'
 
@@ -52,7 +52,7 @@ export async function reprocessRecord(id: number, unitId: number): Promise<Repro
   const config = useRuntimeConfig()
 
   // fire-and-forget：入 upload 队列异步处理（管理员低优先级），失败时 processAdminMaterial 内部会将 status 改回 failed
-  const { withQueue } = await import('./serviceQueue')
+  const { withQueue } = await import('#server/services/serviceQueue')
   withQueue(
     'upload',
     () =>

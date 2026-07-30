@@ -1,8 +1,8 @@
 import { readBody, getRequestIP } from 'h3'
 import { query } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { logAdminOperation } from '#server/utils/adminLog'
-import { ensurePermission, writeReviewAccessLog } from '#server/utils/permission'
+import { logAdminOperation } from '#server/services/adminLog'
+import { ensurePermission, writeReviewAccessLog } from '#server/services/permission'
 import {
   PERMISSIONS,
   REVIEW_REASON_CATEGORIES,

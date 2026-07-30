@@ -1,10 +1,10 @@
 import { readFormData } from 'h3'
 import { adminUploadSchema, validateSuccess, validateError } from '#server/utils/validate'
-import { enqueueAdminMaterial, processAdminBatch } from '#server/utils/adminUpload'
+import { enqueueAdminMaterial, processAdminBatch } from '#server/services/adminUpload'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 export default defineEventHandler(async (event) => {

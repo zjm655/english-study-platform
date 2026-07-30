@@ -1,6 +1,6 @@
-import { getDeepSeekBalance } from '#server/utils/deepseek'
+import { getDeepSeekBalance } from '#server/services/deepseek'
 import { validateSuccess } from '#server/utils/validate'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 /**

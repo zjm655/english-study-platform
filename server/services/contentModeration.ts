@@ -5,8 +5,8 @@
  * 纯工具函数，零耦合，仅依赖 Nuxt runtimeConfig 中的 DeepSeek 配置。
  */
 
-import { serverFetch } from './request'
-import { logCloudServiceCall } from './cloudServiceLog'
+import { serverFetch } from '#server/utils/request'
+import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { withQueue } from './serviceQueue'
 
 export interface ModerationResult {

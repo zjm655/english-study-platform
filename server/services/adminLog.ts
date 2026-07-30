@@ -1,4 +1,4 @@
-// server/utils/adminLog.ts
+// server/services/adminLog.ts
 // 管理员操作日志：记录敏感操作（封禁/销号/改资料/材料编辑删除），便于追溯。
 import { query } from '#server/utils/db'
 

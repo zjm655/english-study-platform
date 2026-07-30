@@ -1,4 +1,4 @@
-// server/utils/seedSuperAdmin.ts
+// server/services/seedSuperAdmin.ts
 // 启动期「按环境变量自举全局唯一超级管理员」的核心逻辑。
 // 与插件（server/plugins/01.seedSuperAdmin.ts）分离，便于 mock db 做单元测试。
 //

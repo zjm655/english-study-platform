@@ -1,10 +1,10 @@
-import { withQueue } from '#server/utils/serviceQueue'
+import { withQueue } from '#server/services/serviceQueue'
 import {
   runMaterialJob,
   createUploadRecord,
   updateRecordFailed,
   isUploadQueueFull,
-} from '#server/utils/materialJob'
+} from '#server/services/materialJob'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { query } from '#server/utils/db'
 import {

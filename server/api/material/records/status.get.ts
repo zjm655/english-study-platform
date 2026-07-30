@@ -1,5 +1,5 @@
 import { validateError, validateSuccess, recordStatusQuerySchema } from '#server/utils/validate'
-import { fetchRecordStatuses } from '#server/utils/materialRecordStatus'
+import { fetchRecordStatuses } from '#server/services/materialRecordStatus'
 import type { MaterialRecordStatusItem } from '#shared/types/material'
 
 /**

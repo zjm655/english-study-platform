@@ -44,9 +44,9 @@ vi.mock('#server/utils/db', () => ({
 }))
 vi.mock('h3', () => ({ readBody: mockReadBody }))
 vi.mock('#server/utils/oss', () => ({ signUrl: vi.fn(), MATERIAL_EXPIRE: 2100 }))
-vi.mock('#server/utils/adminLog', () => ({ logAdminOperation: mockLogAdminOperation }))
-vi.mock('#server/utils/materialReprocess', () => ({ reprocessRecord: mockReprocessRecord }))
-vi.mock('#server/utils/materialJob', () => ({
+vi.mock('#server/services/adminLog', () => ({ logAdminOperation: mockLogAdminOperation }))
+vi.mock('#server/services/materialReprocess', () => ({ reprocessRecord: mockReprocessRecord }))
+vi.mock('#server/services/materialJob', () => ({
   isUploadQueueFull: mockIsUploadQueueFull,
   updateRecordFailed: vi.fn(),
 }))

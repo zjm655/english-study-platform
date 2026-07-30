@@ -4,7 +4,7 @@ import {
   validateSuccess,
   validateError,
 } from '#server/utils/validate'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 /**

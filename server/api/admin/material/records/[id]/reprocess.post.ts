@@ -4,9 +4,9 @@ import {
   validateError,
   validateSuccess,
 } from '#server/utils/validate'
-import { isUploadQueueFull } from '#server/utils/materialJob'
-import { reprocessRecord } from '#server/utils/materialReprocess'
-import { ensurePermission } from '#server/utils/permission'
+import { isUploadQueueFull } from '#server/services/materialJob'
+import { reprocessRecord } from '#server/services/materialReprocess'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 /**

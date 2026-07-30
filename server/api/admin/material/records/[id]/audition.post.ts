@@ -1,6 +1,6 @@
 import { query } from '#server/utils/db'
 import { validateError } from '#server/utils/validate'
-import { ensurePermission, auditionUnlock } from '#server/utils/permission'
+import { ensurePermission, auditionUnlock } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 /**

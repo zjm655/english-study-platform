@@ -5,7 +5,7 @@ import { estimateServiceUsage } from '../cloudEstimate'
 // cloudEstimate 内部用 query 聚合 api_call_log，mock 掉 db.query 隔离逻辑。
 // vi.hoisted / vi.mock 会被 vitest 提升到 import 之上，故功能不受书写顺序影响。
 const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }))
-vi.mock('../db', () => ({ query: mockQuery }))
+vi.mock('#server/utils/db', () => ({ query: mockQuery }))
 
 beforeEach(() => {
   vi.clearAllMocks()

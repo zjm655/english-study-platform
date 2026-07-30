@@ -1,4 +1,4 @@
-// server/utils/serviceQueue.ts
+// server/services/serviceQueue.ts
 // 云产品级内存并发队列框架（单机进程内存态）。
 //
 // 三层流量治理职责链（各管各的，勿混淆）：
@@ -19,7 +19,7 @@
 // - 水平扩展约束：与限流滑窗/埋点队列同属模块级进程内存态，多实例部署时实际并发 ≈ N × 配置
 //  （见 AGENTS.md 单机内存态条款）；将来外置为 Redis/BullMQ 时仅需替换本模块内部实现。
 import PQueue from 'p-queue'
-import { fileLog } from './fileLogger'
+import { fileLog } from '#server/utils/fileLogger'
 
 /** 已注册的队列名（新增服务 = 此处加名字 + 迁移插 sys_config key + config 页加输入框） */
 export type ServiceQueueName = 'tts' | 'nls' | 'deepseek' | 'upload'

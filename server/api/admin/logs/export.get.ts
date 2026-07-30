@@ -1,6 +1,6 @@
 import { query } from '#server/utils/db'
 import { validateError } from '#server/utils/validate'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { PermissionKey } from '#shared/utils/permission'
 import { z } from 'zod'

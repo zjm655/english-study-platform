@@ -1,9 +1,9 @@
 import { readBody } from 'h3'
 import { query } from '#server/utils/db'
 import { adminUserRoleSchema, validateSuccess, validateError } from '#server/utils/validate'
-import { logAdminOperation } from '#server/utils/adminLog'
+import { logAdminOperation } from '#server/services/adminLog'
 import { ROLE_ADMIN, ROLE_SUPER_ADMIN, isAdminOrAbove } from '#shared/utils/role'
-import { ensurePermission, invalidateUserPermissions } from '#server/utils/permission'
+import { ensurePermission, invalidateUserPermissions } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 /**

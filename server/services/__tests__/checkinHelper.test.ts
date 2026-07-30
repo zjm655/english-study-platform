@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isStreakBroken, formatDatetime } from './checkinHelper'
+import { isStreakBroken, formatDatetime } from '../checkinHelper'
 
 describe('isStreakBroken', () => {
   const now = new Date('2024-07-05T09:00:00')

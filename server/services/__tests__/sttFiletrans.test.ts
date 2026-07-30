@@ -33,9 +33,9 @@ const { mockSpeechToText, mockSignUrl, mockLogCloudServiceCall, mockQuery } = vi
 }))
 
 vi.mock('../speechToText', () => ({ speechToText: mockSpeechToText }))
-vi.mock('../oss', () => ({ signUrl: mockSignUrl }))
-vi.mock('../cloudServiceLog', () => ({ logCloudServiceCall: mockLogCloudServiceCall }))
-vi.mock('../fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
+vi.mock('#server/utils/oss', () => ({ signUrl: mockSignUrl }))
+vi.mock('#server/utils/cloudServiceLog', () => ({ logCloudServiceCall: mockLogCloudServiceCall }))
+vi.mock('#server/utils/fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
 vi.mock('#server/utils/db', () => ({ query: mockQuery }))
 
 // ===== mock useRuntimeConfig =====

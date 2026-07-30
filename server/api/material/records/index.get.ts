@@ -1,6 +1,6 @@
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
-import { fetchQueuedSnapshot, countAheadInSnapshot } from '#server/utils/materialRecordStatus'
+import { fetchQueuedSnapshot, countAheadInSnapshot } from '#server/services/materialRecordStatus'
 import type { MaterialUploadRecordRow } from '#server/types/db'
 import type { MaterialUploadRecordListItem, MaterialUploadStatus } from '#shared/types/material'
 

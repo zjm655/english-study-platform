@@ -1,6 +1,7 @@
 import { query } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
+import { signAvatarUrl } from '#server/utils/oss'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type {
   AdminUserDetail,
@@ -140,7 +141,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const result: AdminUserDetail = {
-    user: targetUser,
+    // 头像为私有对象，下发前签名为临时可访问 URL
+    user: { ...targetUser, avatarUrl: await signAvatarUrl(targetUser.avatarUrl) },
     stats,
     unitProgress: Array.from(unitMap.values()),
   }

@@ -14,7 +14,7 @@ import {
 const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }))
 
 vi.mock('#server/utils/db', () => ({ query: mockQuery }))
-vi.mock('../fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
+vi.mock('#server/utils/fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
 
 /** 配置 mock：返回各队列并发数 */
 function setConcurrency(values: Record<string, number>) {

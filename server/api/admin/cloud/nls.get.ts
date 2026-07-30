@@ -1,6 +1,6 @@
-import { estimateServiceUsage } from '#server/utils/cloudEstimate'
+import { estimateServiceUsage } from '#server/services/cloudEstimate'
 import { adminStatsQuerySchema, validateSuccess, validateError } from '#server/utils/validate'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 /**

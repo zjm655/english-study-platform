@@ -2,7 +2,7 @@ import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
 import { isAdminOrAbove } from '#shared/utils/role'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { AdminMaterialRecordDetail } from '#shared/types/adminMaterialRecord'
 

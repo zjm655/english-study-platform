@@ -42,15 +42,18 @@ const {
 
 // Mock 外部依赖
 vi.mock('../tts', () => ({ textToSpeech: mockTextToSpeech }))
-vi.mock('../oss', () => ({ uploadWithKey: mockUploadWithKey, deleteObject: mockDeleteObject }))
+vi.mock('#server/utils/oss', () => ({
+  uploadWithKey: mockUploadWithKey,
+  deleteObject: mockDeleteObject,
+}))
 // materialJob 仅提供队列深度检查，mock 掉避免拉入其完整依赖链（STT/审核等）
 vi.mock('../materialJob', () => ({ isUploadQueueFull: mockIsUploadQueueFull }))
-vi.mock('../audioMeta', () => ({ extractAudioMeta: mockExtractAudioMeta }))
+vi.mock('#server/utils/audioMeta', () => ({ extractAudioMeta: mockExtractAudioMeta }))
 vi.mock('../aiContent', () => ({
   generateLearningContent: mockGenerateLearningContent,
   generateTitle: mockGenerateTitle,
 }))
-vi.mock('../db', () => ({
+vi.mock('#server/utils/db', () => ({
   pool: { execute: mockPoolExecute },
   withTransaction: mockWithTransaction,
 }))

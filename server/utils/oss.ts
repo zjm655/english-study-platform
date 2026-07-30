@@ -159,30 +159,26 @@ export async function uploadImage(fileBuffer: Buffer, fileName: string): Promise
 /**
  * 上传文件到 OSS（按 useInternal 配置选择公网/内网客户端，返回公网 URL）
  *
- * bucket 整体私有：头像等需要长期公开访问的资源通过对象级 public-read ACL 开放，
- * 避免签名 URL 35 分钟过期导致落库地址失效；materials/records 仍走签名防盗链，不受影响。
+ * bucket 开启「阻止公共访问」：对象级 public-read ACL 会被服务端拒绝
+ * （"Put public object acl is not allowed"），因此头像与材料/录音统一走签名 URL 访问，
+ * 上传恒定私有写入，不再设置任何 ACL。
  *
  * @param fileBuffer - 文件 Buffer
  * @param fileName   - 原始文件名
  * @param keyPrefix  - 对象 key 前缀（默认 'records/' 保持既有调用方行为，头像等场景可传 'avatars/'）
- * @param publicRead - 是否为该对象设置 public-read ACL（默认 false，既有调用方行为零变化）
  * @returns 公网 URL、对象名、文件大小
  */
 export async function uploadImagePublic(
   fileBuffer: Buffer,
   fileName: string,
   keyPrefix: string = 'records/',
-  publicRead: boolean = false,
 ): Promise<UploadResult> {
   const safeName = sanitizeFileName(fileName)
   const ext = safeName.includes('.') ? '' : '.png'
   const key = `${keyPrefix}${Date.now()}_${safeName}${ext}`
 
   const client = getUploadClient()
-  // publicRead 为 true 时设置对象级 public-read ACL，使裸公网 URL 可直接访问
-  const result = publicRead
-    ? await client.put(key, fileBuffer, { headers: { 'x-oss-object-acl': 'public-read' } })
-    : await client.put(key, fileBuffer)
+  const result = await client.put(key, fileBuffer)
 
   // 公网归一化：useInternal=true 时走内网 endpoint 上传省流量费，但返回的 url 是
   // *-internal.aliyuncs.com 内网域名，落库后浏览器无法访问，必须替换为公网域名（无 -internal 时不变）
@@ -199,6 +195,9 @@ export async function uploadImagePublic(
 
 /** 材料音频签名有效期（秒）= 35 分钟 */
 export const MATERIAL_EXPIRE = 2100
+
+/** 头像签名有效期（秒）= 35 分钟，与材料音频一致 */
+export const AVATAR_EXPIRE = 2100
 
 /** 单词音频签名有效期（秒）= 35 分钟 */
 export const WORD_EXPIRE = 2100
@@ -217,6 +216,15 @@ export async function signAudioUrl(
   if (!url) return null
   if (!url.startsWith('https://')) return url
   return signUrl(url, expires)
+}
+
+/**
+ * 头像签名包装：null 安全。DB 中 avatarUrl 存完整公网 URL（存量）或裸 key（未来），
+ * signUrl 两种入参均兼容且失败时降级返回原串。
+ */
+export async function signAvatarUrl(avatarUrl: string | null): Promise<string | null> {
+  if (!avatarUrl) return null
+  return signUrl(avatarUrl, AVATAR_EXPIRE)
 }
 
 // ---------- 自定义 key 上传 ----------

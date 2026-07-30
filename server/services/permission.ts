@@ -1,4 +1,4 @@
-// server/utils/permission.ts
+// server/services/permission.ts
 // 细粒度权限运行时：每用户权限缓存 + 端点守卫 + 审核访问留痕 + 门禁试听解锁。
 import type { H3Event } from 'h3'
 import { readBody, getRequestIP } from 'h3'

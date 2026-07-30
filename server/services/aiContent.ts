@@ -10,8 +10,8 @@
  * 音标由 LLM 生成（Edge TTS 只输出音频，无法生成音标文本）。
  */
 
-import { fileLog, fileLogError } from './fileLogger'
-import { logCloudServiceCall } from './cloudServiceLog'
+import { fileLog, fileLogError } from '#server/utils/fileLogger'
+import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { withQueue } from './serviceQueue'
 
 // ==================== 导出类型 ====================

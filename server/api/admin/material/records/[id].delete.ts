@@ -1,7 +1,7 @@
 import { query, withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
-import { logAdminOperation } from '#server/utils/adminLog'
-import { ensurePermission } from '#server/utils/permission'
+import { logAdminOperation } from '#server/services/adminLog'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 
 /**

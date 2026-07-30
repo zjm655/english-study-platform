@@ -12,7 +12,7 @@ const { mockTextToSpeech, mockFileLog } = vi.hoisted(() => ({
 }))
 
 vi.mock('../tts', () => ({ textToSpeech: mockTextToSpeech }))
-vi.mock('../fileLogger', () => ({ fileLog: mockFileLog, fileLogError: vi.fn() }))
+vi.mock('#server/utils/fileLogger', () => ({ fileLog: mockFileLog, fileLogError: vi.fn() }))
 
 const OK = { success: true, audio: Buffer.from('mp3') }
 const fail = (errorKind?: string) => ({ success: false, error: '模拟失败', errorKind })

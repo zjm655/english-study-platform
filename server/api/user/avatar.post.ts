@@ -1,6 +1,6 @@
 // server/api/user/avatar.post.ts
 import { query } from '#server/utils/db'
-import { uploadImagePublic } from '#server/utils/oss'
+import { uploadImagePublic, signAvatarUrl } from '#server/utils/oss'
 import type { ResPayload } from '#shared/types/request'
 
 // ============ 安全配置 ============
@@ -49,21 +49,22 @@ export default defineEventHandler(
     }
 
     // 5. 上传 OSS（avatars/ 前缀，key 含 userId 与时间戳；文件名带扩展名避免默认 .png 兜底失真；
-    //    传 publicRead=true 设置对象级 public-read ACL，私有 bucket 下裸公网 URL 才能被浏览器访问）
+    //    bucket 阻止公共访问，对象恒定私有，访问时统一走 signAvatarUrl 临时签名）
     const ext = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/png' ? 'png' : 'webp'
     let avatarUrl: string
     try {
-      const result = await uploadImagePublic(file.data, `${userId}.${ext}`, 'avatars/', true)
+      const result = await uploadImagePublic(file.data, `${userId}.${ext}`, 'avatars/')
       avatarUrl = result.url
     } catch (err) {
       logger.error('[avatar upload] OSS 上传失败:', err)
       return validateError('头像上传失败，请稍后重试', 500)
     }
 
-    // 6. 更新用户头像 URL（旧头像对象不做清理，孤儿文件已知残留）
+    // 6. 更新用户头像 URL（落库存完整公网 URL；旧头像对象不做清理，孤儿文件已知残留）
     await query('UPDATE user SET avatarUrl = ? WHERE id = ?', [avatarUrl, userId])
 
-    return validateSuccess({ avatarUrl }, '头像更新成功')
+    // 响应返回签名 URL，保证上传后前端立即可展示
+    return validateSuccess({ avatarUrl: await signAvatarUrl(avatarUrl) }, '头像更新成功')
   },
 )
 

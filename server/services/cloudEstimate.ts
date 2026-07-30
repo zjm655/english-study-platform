@@ -1,4 +1,4 @@
-// server/utils/cloudEstimate.ts
+// server/services/cloudEstimate.ts
 // 云产品本地埋点估算引擎。
 //
 // 基于 api_call_log 的调用记录，按产品关联路径统计调用次数 × 单价得出估算费用。
@@ -13,7 +13,7 @@
 //
 // 【产品注册表】新增云产品只需在 PRODUCT_REGISTRY 追加一条配置。
 
-import { query } from './db'
+import { query } from '#server/utils/db'
 import type { CloudEstimateSummary, CloudPathEstimate } from '#shared/types/adminCloud'
 
 /** 计费口径 */

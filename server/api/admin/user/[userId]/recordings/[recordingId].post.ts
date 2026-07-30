@@ -1,7 +1,7 @@
 import { readBody, getRequestIP } from 'h3'
 import { query } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { ensurePermission, writeReviewAccessLog } from '#server/utils/permission'
+import { ensurePermission, writeReviewAccessLog } from '#server/services/permission'
 import { PERMISSIONS, REVIEW_REASON_CATEGORIES } from '#shared/utils/permission'
 import type { ReviewReasonCategory } from '#shared/utils/permission'
 import { signUrl, RECORDING_EXPIRE } from '#server/utils/oss'

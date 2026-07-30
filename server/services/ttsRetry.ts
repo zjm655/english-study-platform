@@ -1,4 +1,4 @@
-// server/utils/ttsRetry.ts
+// server/services/ttsRetry.ts
 // 词汇 TTS 带自动重试的薄封装。
 //
 // 背景：TTS 经 Cloudflare Worker 代理后偶发单次抖动失败，词汇发音失败会被
@@ -14,7 +14,7 @@
 // 额度消耗与失败率口径真实，重试不额外记录、不改 schema。
 import { textToSpeech } from './tts'
 import type { TtsResult, TtsErrorKind } from './tts'
-import { fileLog } from './fileLogger'
+import { fileLog } from '#server/utils/fileLogger'
 
 /** 各失败类别的最大重试次数（不含首次尝试）；未列出的类别不重试 */
 const MAX_RETRIES: Partial<Record<TtsErrorKind, number>> = {

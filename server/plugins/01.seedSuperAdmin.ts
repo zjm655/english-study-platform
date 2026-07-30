@@ -4,7 +4,7 @@
 // 为什么用 01. 前缀：排在 00.assertConfig（配置断言）之后，确保关键运行时配置已校验。
 // opt-in：account/password 任一为空则跳过（纯前端开发者不配 env 即无感）。
 // fail-fast：DB 未就绪 / 配置非法 / 账号占用 → seedSuperAdmin 抛错，此处不捕获，冒泡中止启动。
-import { seedSuperAdmin } from '#server/utils/seedSuperAdmin'
+import { seedSuperAdmin } from '#server/services/seedSuperAdmin'
 
 export default defineNitroPlugin(async () => {
   const sa = useRuntimeConfig().superAdmin as

@@ -5,7 +5,7 @@ import {
   validateError,
 } from '#server/utils/validate'
 import { ROLE_ADMIN, isAdminOrAbove } from '#shared/utils/role'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type {
   AdminMaterialRecordListItem,

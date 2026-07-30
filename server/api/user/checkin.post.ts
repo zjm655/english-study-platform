@@ -1,5 +1,5 @@
 import { withTransaction, pool } from '#server/utils/db'
-import { formatDate, formatDatetime, getStats } from '#server/utils/checkinHelper'
+import { formatDate, formatDatetime, getStats } from '#server/services/checkinHelper'
 import type { CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
 import type { ResultSetHeader } from 'mysql2'

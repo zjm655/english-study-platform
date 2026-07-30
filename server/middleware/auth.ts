@@ -2,7 +2,7 @@ import type { JwtPayload } from '#server/types/jwtPayload'
 import { query } from '#server/utils/db'
 import { isAdminOrAbove, isSuperAdmin } from '#shared/utils/role'
 import { ALL_PERMISSIONS } from '#shared/utils/permission'
-import { getUserPermissions } from '#server/utils/permission'
+import { getUserPermissions } from '#server/services/permission'
 import { getRateLimitConfig, checkUserRateLimit } from '#server/utils/rateLimiter'
 
 // 全局服务端中间件：每次请求自动解析 Cookie 中的 JWT

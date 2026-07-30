@@ -5,10 +5,10 @@ import {
   validateSuccess,
   validateError,
 } from '#server/utils/validate'
-import { logAdminOperation } from '#server/utils/adminLog'
+import { logAdminOperation } from '#server/services/adminLog'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
-import { reprocessRecord } from '#server/utils/materialReprocess'
-import { ensurePermission } from '#server/utils/permission'
+import { reprocessRecord } from '#server/services/materialReprocess'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { BatchResult, BatchSkippedItem } from '#shared/types/adminBatch'
 

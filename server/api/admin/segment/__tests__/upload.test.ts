@@ -19,7 +19,7 @@ const { mockReadFormData, mockEnqueueAdminMaterial, mockProcessAdminBatch } = vi
 }))
 
 vi.mock('h3', () => ({ readFormData: mockReadFormData }))
-vi.mock('#server/utils/adminUpload', () => ({
+vi.mock('#server/services/adminUpload', () => ({
   enqueueAdminMaterial: mockEnqueueAdminMaterial,
   processAdminBatch: mockProcessAdminBatch,
 }))

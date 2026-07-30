@@ -1,8 +1,8 @@
 import { readBody } from 'h3'
 import { query, withTransaction } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { logAdminOperation } from '#server/utils/adminLog'
-import { ensurePermission, invalidateUserPermissions } from '#server/utils/permission'
+import { logAdminOperation } from '#server/services/adminLog'
+import { ensurePermission, invalidateUserPermissions } from '#server/services/permission'
 import { PERMISSIONS, GRANTABLE_PERMISSIONS } from '#shared/utils/permission'
 import { ROLE_ADMIN } from '#shared/utils/role'
 

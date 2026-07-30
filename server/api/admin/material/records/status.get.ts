@@ -1,6 +1,6 @@
 import { validateError, validateSuccess, recordStatusQuerySchema } from '#server/utils/validate'
-import { fetchRecordStatuses } from '#server/utils/materialRecordStatus'
-import { ensurePermission } from '#server/utils/permission'
+import { fetchRecordStatuses } from '#server/services/materialRecordStatus'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { MaterialRecordStatusItem } from '#shared/types/material'
 

@@ -1,4 +1,4 @@
-// server/utils/bss.ts
+// server/services/bss.ts
 // 阿里云 BSS（费用中心）用量查询工具。
 //
 // 【探索性质】阿里云官方文档/示例不全，本封装以 QueryAccountBalance（账户余额）为切入点，
@@ -6,7 +6,7 @@
 // 后续如需账单明细（QueryBill / DescribeInstanceBill）可按同模式扩展。
 
 import RPCClient from '@alicloud/pop-core'
-import { logCloudServiceCall } from './cloudServiceLog'
+import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 
 /** BSS 配置结构（runtimeConfig.bss） */
 interface BssConfig {

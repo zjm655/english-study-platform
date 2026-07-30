@@ -1,13 +1,13 @@
-// server/utils/deepseek.ts
+// server/services/deepseek.ts
 // DeepSeek 账户余额查询工具。
 //
 // 复用 runtimeConfig.deepseek（apiKey + baseUrl），通过 Bearer Token 认证调用
 // GET /user/balance 接口。带 5 分钟内存缓存（余额变化极低频，跨洋 API 延迟高）。
 // 失败时返回结构化错误而非抛异常，保证管理后台可优雅降级展示。
 
-import { serverFetch } from './request'
-import { fileLog, fileLogError } from './fileLogger'
-import { logCloudServiceCall } from './cloudServiceLog'
+import { serverFetch } from '#server/utils/request'
+import { fileLog, fileLogError } from '#server/utils/fileLogger'
+import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import type { DeepSeekBalanceResult, DeepSeekBalanceInfo } from '#shared/types/adminCloud'
 
 /** DeepSeek 配置结构 */

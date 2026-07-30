@@ -6,8 +6,8 @@ import { describeError } from '../tts'
 // 目标：任意异常形态都必须产出「非空、可诊断」的错误描述 + 正确的结构化分类
 
 // tts.ts 依赖链：cloudServiceLog → db（模块级 useRuntimeConfig，node 测试环境不存在）→ 必须 mock 掉
-vi.mock('../cloudServiceLog', () => ({ logCloudServiceCall: vi.fn() }))
-vi.mock('../fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
+vi.mock('#server/utils/cloudServiceLog', () => ({ logCloudServiceCall: vi.fn() }))
+vi.mock('#server/utils/fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
 
 describe('describeError', () => {
   it('AggregateError（空 message）：展开 errors[] 的 code，永不为空', () => {

@@ -1,4 +1,4 @@
-// server/utils/sttFiletrans.ts
+// server/services/sttFiletrans.ts
 // STT 双后端调度：标准版录音文件识别（filetrans，免费试用每日 2h）优先 + 极速版（flash）自动回退。
 //
 // 设计要点：
@@ -11,10 +11,10 @@
 //   回退次数用独立埋点行（operation='sttFallback'）按天 COUNT——重启安全，自然日口径不丢数。
 import RPCClient from '@alicloud/pop-core'
 import { speechToText, type SpeechToTextResult } from './speechToText'
-import { signUrl } from './oss'
+import { signUrl } from '#server/utils/oss'
 import { withQueue } from './serviceQueue'
-import { logCloudServiceCall } from './cloudServiceLog'
-import { fileLog, fileLogError } from './fileLogger'
+import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
+import { fileLog, fileLogError } from '#server/utils/fileLogger'
 import { logger } from '../../shared/utils/logger'
 
 // ==================== 常量 ====================

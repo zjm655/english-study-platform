@@ -1,4 +1,4 @@
-// server/utils/materialJob.ts
+// server/services/materialJob.ts
 // 材料上传异步任务体：从 segment/upload.post.ts 的同步 handler 中抽出的完整流水线。
 //
 // 设计约定：
@@ -13,15 +13,15 @@ import { randomUUID } from 'node:crypto'
 import type { ResultSetHeader } from 'mysql2'
 import { moderateText } from './contentModeration'
 import { recognizeSpeech } from './sttFiletrans'
-import { compareTextSimilarity } from './textSimilarity'
-import { extractAudioMeta } from './audioMeta'
+import { compareTextSimilarity } from '#server/utils/textSimilarity'
+import { extractAudioMeta } from '#server/utils/audioMeta'
 import { generateLearningContent, generateTitle } from './aiContent'
 import { textToSpeech } from './tts'
 import { ttsWithRetry } from './ttsRetry'
-import { uploadWithKey, deleteObject } from './oss'
-import { withTransaction, pool } from './db'
-import { mapWithConcurrency } from './concurrency'
-import { getUploadLimits } from './uploadLimitChecker'
+import { uploadWithKey, deleteObject } from '#server/utils/oss'
+import { withTransaction, pool } from '#server/utils/db'
+import { mapWithConcurrency } from '#server/utils/concurrency'
+import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 
 // 音频时长/大小限制已抽入 sys_config 运营可调（见 uploadLimitChecker），
 // 上传 handler 入队前的前置校验与本流水线内的后置兼校统一走 getUploadLimits()。

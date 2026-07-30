@@ -1,8 +1,8 @@
 import { query } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { logAdminOperation } from '#server/utils/adminLog'
+import { logAdminOperation } from '#server/services/adminLog'
 import { isAdminOrAbove } from '#shared/utils/role'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { ResultSetHeader } from 'mysql2'
 

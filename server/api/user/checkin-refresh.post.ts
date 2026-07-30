@@ -1,5 +1,5 @@
 import { withTransaction } from '#server/utils/db'
-import { getStats, isStreakBroken } from '#server/utils/checkinHelper'
+import { getStats, isStreakBroken } from '#server/services/checkinHelper'
 import type { CheckinStats } from '#shared/types/user'
 import type { ResultSetHeader } from 'mysql2'
 

@@ -5,9 +5,9 @@ import {
   queryCashCoupons,
   queryPrepaidCards,
   queryMonthlySpendTrend,
-} from '#server/utils/bss'
+} from '#server/services/bss'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { ensurePermission } from '#server/utils/permission'
+import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import { z } from 'zod'
 

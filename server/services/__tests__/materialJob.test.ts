@@ -36,13 +36,16 @@ vi.mock('../contentModeration', () => ({ moderateText: mockModerateText }))
 vi.mock('../sttFiletrans', () => ({ recognizeSpeech: mockRecognizeSpeech }))
 vi.mock('../tts', () => ({ textToSpeech: mockTextToSpeech }))
 vi.mock('../ttsRetry', () => ({ ttsWithRetry: mockTtsWithRetry }))
-vi.mock('../oss', () => ({ uploadWithKey: mockUploadWithKey, deleteObject: mockDeleteObject }))
-vi.mock('../audioMeta', () => ({ extractAudioMeta: mockExtractAudioMeta }))
+vi.mock('#server/utils/oss', () => ({
+  uploadWithKey: mockUploadWithKey,
+  deleteObject: mockDeleteObject,
+}))
+vi.mock('#server/utils/audioMeta', () => ({ extractAudioMeta: mockExtractAudioMeta }))
 vi.mock('../aiContent', () => ({
   generateLearningContent: mockGenerateLearningContent,
   generateTitle: mockGenerateTitle,
 }))
-vi.mock('../db', () => ({
+vi.mock('#server/utils/db', () => ({
   pool: { execute: mockPoolExecute },
   withTransaction: mockWithTransaction,
 }))
