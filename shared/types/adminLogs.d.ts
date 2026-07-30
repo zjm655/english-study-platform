@@ -103,3 +103,16 @@ export type ApiCallLogListResult = LogListResult<ApiCallLogItem>
 export type CloudServiceLogListResult = LogListResult<CloudServiceLogItem>
 export type ReviewAccessLogListResult = LogListResult<ReviewAccessLogItem>
 // 操作日志复用现有 AdminOperationLogListResult（来自 adminOperationLog.d.ts）
+
+/** 单张归档表统计（GET /api/admin/logs/archive-stats） */
+export interface LogArchiveStatsItem {
+  table: string // 原表名（api_call_log / cloud_service_call_log / admin_operation_log）
+  rows: number // 归档表行数
+  oldest: string | null // 归档中最早的原始日志时间
+  newest: string | null // 归档中最晚的原始日志时间
+}
+
+/** 归档统计响应 */
+export interface LogArchiveStatsResult {
+  items: LogArchiveStatsItem[]
+}

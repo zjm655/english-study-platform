@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { useOperationLogListV2, useCleanLogs, useTableSelection } from '~/composables/admin'
+import { useOperationLogListV2, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'
 
 definePageMeta({ layout: 'admin', title: '操作日志' })
 useSeoMeta({ title: '操作日志 - 管理后台' })
 
 const { isLoading, execute } = useOperationLogListV2()
-const { execute: cleanLogsExec } = useCleanLogs()
 
 // 筛选
 const filterAction = ref('')
@@ -29,10 +27,6 @@ const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect
 // 详情 Drawer
 const detailVisible = ref(false)
 const detailRow = ref<AdminOperationLogItem | null>(null)
-
-// 清理
-const cleaning = ref(false)
-const cleanDays = ref(90)
 
 async function loadList() {
   const res = await execute({
@@ -90,30 +84,6 @@ function handleExportSelected() {
   window.open(`${adminLogsExportPath}?${params.toString()}`, '_blank')
 }
 
-async function handleClean() {
-  try {
-    await ElMessageBox.confirm(
-      `确定要清理 ${cleanDays.value} 天前的「管理员操作日志」吗？此操作不可恢复。`,
-      '清理确认',
-      { type: 'warning', confirmButtonText: '确定清理', cancelButtonText: '取消' },
-    )
-  } catch {
-    return
-  }
-  cleaning.value = true
-  try {
-    const res = await cleanLogsExec({ table: 'admin_operation_log', days: cleanDays.value })
-    if (res.code === 200) {
-      ElMessage.success(res.message ?? `已清理 ${res.data?.deletedRows ?? 0} 条记录`)
-      loadList()
-    } else {
-      ElMessage.error(res.message ?? '清理失败')
-    }
-  } finally {
-    cleaning.value = false
-  }
-}
-
 function actionTag(action: string) {
   if (action.includes('.ban') || action.includes('.delete')) return 'danger'
   if (action.includes('.unban') || action.includes('role')) return 'warning'
@@ -156,16 +126,13 @@ onMounted(() => {
       <div class="action-bar">
         <el-button type="primary" @click="handleExport">导出 CSV（最近 5 万条）</el-button>
         <el-divider direction="vertical" />
-        <span class="clean-label">清理</span>
-        <el-input-number
-          v-model="cleanDays"
-          :min="7"
-          :max="365"
-          :step="30"
-          style="width: 120px"
+        <AdminLogArchiveBar
+          table="admin_operation_log"
+          table-label="管理员操作日志"
+          :start-date="filterStartDate"
+          :end-date="filterEndDate"
+          @archived="loadList"
         />
-        <span class="clean-label">天前的数据</span>
-        <el-button type="danger" :loading="cleaning" @click="handleClean">执行清理</el-button>
       </div>
     </el-card>
 
@@ -347,14 +314,9 @@ onMounted(() => {
 
 .action-bar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-.clean-label {
-  font-size: 14px;
-  color: var(--el-text-color-regular);
 }
 
 .filter-card {

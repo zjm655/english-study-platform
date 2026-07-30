@@ -131,6 +131,15 @@ function getSegmentPhases(segment: UnitProgressDetail['segments'][number]) {
 function getCurrentPhaseIndex(phases: { done: boolean }[]) {
   return phases.findIndex((p) => !p.done)
 }
+
+/** 最高分 chip 展示：整数省略小数位，其余保留 1 位 */
+function formatScore(score: number) {
+  return Number.isInteger(score) ? String(score) : score.toFixed(1)
+}
+
+function goLeaderboard(segId: number) {
+  navigateTo(`/learn/unit/${unitId.value}/segment/${segId}/leaderboard`)
+}
 </script>
 
 <template>
@@ -169,24 +178,45 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
               <div class="segment-card__title">{{ segment.title }}</div>
             </div>
             <div class="segment-card__phases">
-              <div
-                v-for="(item, idx) in getSegmentPhases(segment)"
-                :key="item.phase"
-                class="phase-dot"
-                :class="{
-                  'phase-dot--done': item.done,
-                  'phase-dot--current':
-                    !item.done && getCurrentPhaseIndex(getSegmentPhases(segment)) === idx,
-                }"
-              >
-                <div class="phase-dot__icon">
-                  <el-icon v-if="item.done"><Check /></el-icon>
-                  <span v-else>{{ item.phase }}</span>
+              <template v-for="(item, idx) in getSegmentPhases(segment)" :key="item.phase">
+                <div v-if="idx > 0" class="phase-line" :class="{ 'phase-line--done': item.done }" />
+                <div
+                  class="phase-dot"
+                  :class="{
+                    'phase-dot--done': item.done,
+                    'phase-dot--current':
+                      !item.done && getCurrentPhaseIndex(getSegmentPhases(segment)) === idx,
+                  }"
+                >
+                  <div class="phase-dot__icon">
+                    <el-icon v-if="item.done"><Check /></el-icon>
+                    <span v-else>{{ item.phase }}</span>
+                  </div>
+                  <div class="phase-dot__name">{{ item.name }}</div>
                 </div>
-                <div class="phase-dot__name">{{ item.name }}</div>
-              </div>
+              </template>
             </div>
           </NuxtLink>
+
+          <!-- 底部操作行：最高分 chips + 排行榜入口（在 NuxtLink 外，避免嵌套跳转） -->
+          <div class="segment-card__footer">
+            <div class="segment-card__scores">
+              <span v-if="segment.progress.phase3_score !== null" class="score-chip">
+                配音 {{ formatScore(segment.progress.phase3_score) }} 分
+              </span>
+              <span v-if="segment.progress.phase4_score !== null" class="score-chip">
+                跟读 {{ formatScore(segment.progress.phase4_score) }} 分
+              </span>
+            </div>
+            <button class="segment-lb-btn" @click="goLeaderboard(segment.id)">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path
+                  d="M6 2h12v2h4v3a5 5 0 0 1-5 5h-.35A7 7 0 0 1 13 15.6V18h3a1 1 0 0 1 1 1v3H7v-3a1 1 0 0 1 1-1h3v-2.4A7 7 0 0 1 7.35 12H7a5 5 0 0 1-5-5V4h4V2zm0 4H4v1a3 3 0 0 0 2 2.83V6zm14 0h-2v3.83A3 3 0 0 0 20 7V6z"
+                />
+              </svg>
+              排行榜
+            </button>
+          </div>
 
           <button
             v-if="userStore.isLogin"
@@ -298,7 +328,17 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
   background: var(--card);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow);
-  transition: transform 0.2s;
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+
+/* PC hover 反馈（仅 hover 能力设备，避免移动端点击残留悬浮态） */
+@media (hover: hover) {
+  .segment-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  }
 }
 
 .segment-card:active {
@@ -326,10 +366,9 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
   gap: 8px;
 }
 
-/* 自己的材料：淡背景高亮 + 「我的」角标 */
+/* 自己的材料：淡背景高亮 + 「我的」角标（color-mix 随主题变量自适应深浅色） */
 .segment-card--mine {
-  /* background: var(--primary-light); */
-  background: #f6f6f70d;
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
   border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
@@ -353,8 +392,8 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 
 .segment-fav-btn {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 12px;
+  right: 12px;
   width: 28px;
   height: 28px;
   display: flex;
@@ -400,8 +439,23 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 .segment-card__phases {
   display: flex;
   justify-content: center;
-  gap: 24px;
+  align-items: flex-start;
+  gap: 10px;
   padding: 0 8px;
+}
+
+/* 阶段间连接线：对齐圆点中心（28px 图标的一半），右侧阶段完成则着 success 色 */
+.phase-line {
+  flex: 0 1 28px;
+  height: 2px;
+  margin-top: 13px;
+  border-radius: 1px;
+  background: var(--border-ll);
+  transition: background 0.3s;
+}
+
+.phase-line--done {
+  background: var(--success);
 }
 
 .phase-dot {
@@ -445,6 +499,65 @@ function getCurrentPhaseIndex(phases: { done: boolean }[]) {
 .phase-dot--current .phase-dot__name {
   color: var(--text-1);
   font-weight: 500;
+}
+
+/* ===== 卡片底部操作行：最高分 chips + 排行榜入口 ===== */
+.segment-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-ll);
+}
+
+.segment-card__scores {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-height: 22px;
+}
+
+.score-chip {
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--success) 12%, var(--card));
+  color: var(--success);
+  font-weight: 500;
+}
+
+.segment-lb-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.segment-lb-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+@media (hover: hover) {
+  .segment-lb-btn:hover {
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+}
+
+.segment-lb-btn:active {
+  transform: scale(0.95);
 }
 
 /* 无限滚动哨兵 */

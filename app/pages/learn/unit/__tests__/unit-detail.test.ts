@@ -56,6 +56,8 @@ vi.stubGlobal('useAsyncRes', () => ({
 }))
 vi.stubGlobal('useSeoMeta', vi.fn())
 vi.stubGlobal('useJsonLd', vi.fn())
+const mockNavigateTo = vi.fn()
+vi.stubGlobal('navigateTo', mockNavigateTo)
 vi.stubGlobal(
   'learningResourceSchema',
   vi.fn(() => ({})),
@@ -150,6 +152,7 @@ describe('UnitDetail Page', () => {
     mockIsLoadingMore.value = false
     mockLoadMore.mockReset()
     mockFetchFavSegments.mockReset()
+    mockNavigateTo.mockReset()
   })
 
   it('renders loading state when pending without data', () => {
@@ -194,6 +197,44 @@ describe('UnitDetail Page', () => {
     secondCardPhases.forEach((dot) => {
       expect(dot.classes()).toContain('phase-dot--done')
     })
+  })
+
+  it('renders phase connector lines with done states', () => {
+    const wrapper = createWrapper()
+    const cards = wrapper.findAll('.segment-card')
+    // 每卡 4 个圆点之间 3 条连接线
+    const firstLines = cards[0]!.findAll('.phase-line')
+    expect(firstLines.length).toBe(3)
+    // 片段一仅 phase1 完成 → 所有连接线右侧阶段均未完成，无 done 态
+    firstLines.forEach((line) => {
+      expect(line.classes()).not.toContain('phase-line--done')
+    })
+    // 片段二全完成 → 连接线全部 done
+    const secondLines = cards[1]!.findAll('.phase-line')
+    secondLines.forEach((line) => {
+      expect(line.classes()).toContain('phase-line--done')
+    })
+  })
+
+  it('renders best score chips only when scores exist', () => {
+    const wrapper = createWrapper()
+    const cards = wrapper.findAll('.segment-card')
+    // 片段一无成绩 → 无 chip
+    expect(cards[0]!.findAll('.score-chip').length).toBe(0)
+    // 片段二有双阶段成绩 → 两个 chip
+    const chips = cards[1]!.findAll('.score-chip')
+    expect(chips.length).toBe(2)
+    expect(chips[0]!.text()).toContain('配音 85 分')
+    expect(chips[1]!.text()).toContain('跟读 90 分')
+  })
+
+  it('leaderboard button navigates to leaderboard page', async () => {
+    const wrapper = createWrapper()
+    const cards = wrapper.findAll('.segment-card')
+    const btn = cards[0]!.find('.segment-lb-btn')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    expect(mockNavigateTo).toHaveBeenCalledWith('/learn/unit/1/segment/1/leaderboard')
   })
 
   it('shows empty state when no segments', () => {

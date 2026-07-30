@@ -5,11 +5,14 @@ import { PERMISSIONS } from '#shared/utils/permission'
 import type { PermissionKey } from '#shared/utils/permission'
 import { z } from 'zod'
 
-/** 表名白名单（防注入）→ 导出所需权限：常规日志表 VIEW_LOGS；审核留痕为审计数据，需 VIEW_AUDIT */
+/** 表名白名单（防注入）→ 导出所需权限：常规日志表与其归档表 VIEW_LOGS；审核留痕为审计数据，需 VIEW_AUDIT */
 const TABLE_WHITELIST: Record<string, PermissionKey> = {
   api_call_log: PERMISSIONS.VIEW_LOGS,
   cloud_service_call_log: PERMISSIONS.VIEW_LOGS,
   admin_operation_log: PERMISSIONS.VIEW_LOGS,
+  api_call_log_archive: PERMISSIONS.VIEW_LOGS,
+  cloud_service_call_log_archive: PERMISSIONS.VIEW_LOGS,
+  admin_operation_log_archive: PERMISSIONS.VIEW_LOGS,
   review_access_log: PERMISSIONS.VIEW_AUDIT,
 }
 
@@ -42,7 +45,7 @@ export default defineEventHandler(async (event) => {
   const requiredPermission = TABLE_WHITELIST[table]
   if (!requiredPermission) {
     return validateError(
-      '不支持的表名，可选：api_call_log / cloud_service_call_log / admin_operation_log / review_access_log',
+      '不支持的表名，可选：api_call_log / cloud_service_call_log / admin_operation_log（及对应 _archive 归档表）/ review_access_log',
       400,
     )
   }

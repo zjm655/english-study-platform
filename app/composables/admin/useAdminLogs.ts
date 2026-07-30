@@ -4,6 +4,8 @@ import {
   getOperationLogListV2,
   getReviewAccessLogList,
   cleanLogs,
+  getLogArchiveStats,
+  purgeLogArchive,
 } from '~/api/admin/logs'
 import type {
   ApiCallLogListQuery,
@@ -13,6 +15,7 @@ import type {
   OperationLogListQueryV2,
   ReviewAccessLogListQuery,
   ReviewAccessLogListResult,
+  LogArchiveStatsResult,
 } from '#shared/types/adminLogs'
 import type { AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
@@ -64,13 +67,37 @@ export const useReviewAccessLogList = () => {
   return useHandleRes(cfg)
 }
 
-/** 清理日志表（页面自行提示删除行数，故 success 留空不重复日志） */
+/** 归档清理日志表（迁入归档表；页面自行提示归档行数，故 success 留空不重复弹提示） */
 export const useCleanLogs = () => {
-  const cfg = createResCfg<{ table: string; days: number }, { deletedRows: number }>({
+  const cfg = createResCfg<{ table: string; days: number }, { archivedRows: number }>({
     handle: (payload) => cleanLogs(payload),
     success: '',
-    clientFail: '清理失败',
-    serverFail: '服务器异常，清理失败',
+    clientFail: '归档失败',
+    serverFail: '服务器异常，归档失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 归档表统计（静默加载，失败不打断页面主流程） */
+export const useLogArchiveStats = () => {
+  const cfg = createResCfg<null, LogArchiveStatsResult>({
+    handle: () => getLogArchiveStats(),
+    success: '',
+    clientFail: '获取归档统计失败',
+    serverFail: '服务器异常，获取归档统计失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 彻底删除归档（物理删除；页面自行提示删除行数） */
+export const usePurgeLogArchive = () => {
+  const cfg = createResCfg<{ table: string; days: number }, { deletedRows: number }>({
+    handle: (payload) => purgeLogArchive(payload),
+    success: '',
+    clientFail: '删除归档失败',
+    serverFail: '服务器异常，删除归档失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

@@ -4,6 +4,8 @@ import {
   adminLogsOperationListPath,
   adminLogsReviewAccessListPath,
   adminLogsCleanPath,
+  adminLogsArchiveStatsPath,
+  adminLogsArchivePurgePath,
 } from '../paths'
 import { request } from '~/utils/request'
 import type {
@@ -14,6 +16,7 @@ import type {
   OperationLogListQueryV2,
   ReviewAccessLogListQuery,
   ReviewAccessLogListResult,
+  LogArchiveStatsResult,
 } from '#shared/types/adminLogs'
 import type { AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
@@ -77,9 +80,20 @@ export const getReviewAccessLogList = (options: ReviewAccessLogListQuery = {}) =
   )
 }
 
-/** 按时间范围清理指定日志表 */
+/** 按时间范围归档清理指定日志表（迁入归档表后从原表删除） */
 export const cleanLogs = (payload: { table: string; days: number }) =>
-  request.json<{ deletedRows: number }>(adminLogsCleanPath, {
+  request.json<{ archivedRows: number }>(adminLogsCleanPath, {
+    method: 'POST',
+    body: payload,
+  })
+
+/** 三张归档表统计（行数 + 原始日志时间范围） */
+export const getLogArchiveStats = () =>
+  request.json<LogArchiveStatsResult>(adminLogsArchiveStatsPath)
+
+/** 彻底删除归档表中超期数据（物理删除，不可恢复） */
+export const purgeLogArchive = (payload: { table: string; days: number }) =>
+  request.json<{ deletedRows: number }>(adminLogsArchivePurgePath, {
     method: 'POST',
     body: payload,
   })
