@@ -95,7 +95,7 @@ export async function checkGuestEvalLimit(
     const countRows = await query<{ cnt: number } & RowDataPacket>(
       `SELECT COUNT(*) AS cnt FROM recording
        WHERE user_id = ? AND phase = ? AND analyze_status = 'success'
-         AND created_at >= CURDATE() AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)`,
+         AND createdAt >= CURDATE() AND createdAt < DATE_ADD(CURDATE(), INTERVAL 1 DAY)`,
       [userId, phaseNum],
     )
     const used = countRows[0]?.cnt ?? 0
@@ -129,7 +129,7 @@ export async function getGuestEvalQuota(
     const countRows = await query<{ phase: number; cnt: number } & RowDataPacket>(
       `SELECT phase, COUNT(*) AS cnt FROM recording
        WHERE user_id = ? AND phase IN (?, ?) AND analyze_status = 'success'
-         AND created_at >= CURDATE() AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
+         AND createdAt >= CURDATE() AND createdAt < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
        GROUP BY phase`,
       [userId, PHASE_MAP.dubbing, PHASE_MAP.shadow],
     )

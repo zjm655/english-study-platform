@@ -2,9 +2,8 @@
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useFavorites } from '~/composables/useFavorites'
-import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
+import WordCard from '~/components/WordCard.vue'
 import type { SegmentDetail, VocabularyItem } from '~~/shared/types/unit'
-import { toastError } from '~/utils/popup'
 
 interface Props {
   segment: SegmentDetail
@@ -90,17 +89,6 @@ function handleVocabClick(vocab: VocabularyItem) {
   })
 }
 
-async function playVocabAudio(url: string | null, objectKey?: string | null) {
-  // 游客：通过 objectKey 动态获取签名 URL
-  const resolvedUrl = await resolveGuestAudioUrl(url, objectKey, 'word')
-  if (!resolvedUrl) {
-    toastError('今日音频播放次数已用完，登录后可无限使用')
-    return
-  }
-  await load(resolvedUrl)
-  play()
-}
-
 async function playMaterialAudio() {
   // 游客：通过 audioObjectKey 动态获取签名 URL
   const resolvedUrl = await resolveGuestAudioUrl(
@@ -114,11 +102,6 @@ async function playMaterialAudio() {
   }
   await load(resolvedUrl)
   play()
-}
-
-/** 收藏单词（登录用户 + 游客均支持） */
-function handleToggleWord(wordId: number) {
-  toggleWord(wordId)
 }
 
 async function completePhase() {
@@ -170,54 +153,19 @@ async function completePhase() {
     <div ref="vocabCardRef" class="card vocab-card">
       <div class="card__header">
         <span>词汇详情</span>
-        <button
-          v-if="selectedVocab"
-          class="fav-btn"
-          :class="{ 'fav-btn--active': isWordFav(selectedVocab.id) }"
-          :disabled="togglingWord === selectedVocab.id"
-          @click.stop="handleToggleWord(selectedVocab.id)"
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path
-              d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-            />
-          </svg>
-        </button>
       </div>
 
       <!-- 未选中状态 -->
       <div v-if="!selectedVocab" class="vocab-placeholder">点击上方高亮词汇查看详情</div>
 
-      <!-- 选中状态 -->
-      <div v-else class="vocab-detail">
-        <div class="vocab-word-row">
-          <span class="vocab-word">{{ selectedVocab.word }}</span>
-          <button
-            v-if="selectedVocab.audioUrl || selectedVocab.audioObjectKey"
-            class="audio-btn"
-            @click="playVocabAudio(selectedVocab.audioUrl, selectedVocab.audioObjectKey)"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path
-                d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
-              />
-            </svg>
-          </button>
-        </div>
-
-        <div v-if="selectedVocab.phonetic" class="vocab-phonetic">
-          {{ selectedVocab.phonetic }}
-        </div>
-
-        <div class="vocab-meaning">
-          {{ selectedVocab.meaning }}
-        </div>
-
-        <div v-if="selectedVocab.forms" class="vocab-forms">
-          <span class="forms-label">变形：</span>
-          <span class="forms-value">{{ selectedVocab.forms }}</span>
-        </div>
-      </div>
+      <!-- 选中状态：复用 WordCard（含音频 + 收藏） -->
+      <WordCard
+        v-else
+        :vocab="selectedVocab"
+        :fav-active="isWordFav(selectedVocab.id)"
+        :fav-disabled="togglingWord === selectedVocab.id"
+        @toggle-fav="toggleWord(selectedVocab.id)"
+      />
     </div>
 
     <!-- 卡片 c：翻译卡片 -->
@@ -339,111 +287,6 @@ async function completePhase() {
   font-size: 14px;
   background: var(--bg);
   border-radius: var(--r);
-}
-
-.vocab-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.vocab-word-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.vocab-word {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-1);
-}
-
-.audio-btn {
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--primary-light);
-  border: none;
-  border-radius: 50%;
-  color: var(--primary);
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.audio-btn:active {
-  background: var(--primary);
-  color: #fff;
-}
-
-.audio-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.vocab-phonetic {
-  font-size: 14px;
-  color: var(--text-2);
-  font-family: 'Times New Roman', serif;
-}
-
-.vocab-meaning {
-  font-size: 15px;
-  color: var(--text-1);
-  line-height: 1.5;
-}
-
-.vocab-forms {
-  font-size: 13px;
-  color: var(--text-2);
-}
-
-.forms-label {
-  color: var(--text-3);
-}
-
-.forms-value {
-  color: var(--text-2);
-}
-
-/* ===== 收藏按钮 ===== */
-.fav-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--text-3);
-  cursor: pointer;
-  transition: all 0.2s;
-  padding: 0;
-}
-
-.fav-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.fav-btn:active:not(:disabled) {
-  color: var(--warning);
-  transform: scale(1.1);
-}
-
-.fav-btn:hover:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.fav-btn--active {
-  color: var(--warning);
-}
-
-.fav-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ===== 翻译卡片 ===== */

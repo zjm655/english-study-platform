@@ -328,16 +328,41 @@ describe('UnitDetail Page', () => {
     expect(wrapper.findAll('.segment-fav-btn').length).toBe(2)
   })
 
-  it('guest: no favorites request but fav buttons still visible (dimmed)', async () => {
+  it('guest: fetches favorites (backend supports guests) and fav buttons visible', async () => {
     mockUserStore.isLogin = false
     const wrapper = await createWrapper()
-    // 游客不发收藏请求（避免 401）
-    expect(mockFetchFavSegments).not.toHaveBeenCalled()
-    // 收藏按钮仍可见（带 guest 淡化类），点击时温和提示登录
+    // 游客也请求收藏列表（后端 resolveEffectiveUserId 支持，返回空数组而非 401）
+    expect(mockFetchFavSegments).toHaveBeenCalled()
+    // 收藏按钮仍可见（带 guest 淡化类）
     const favBtns = wrapper.findAll('.segment-fav-btn')
     expect(favBtns.length).toBe(2)
     expect(favBtns[0]!.classes()).toContain('segment-fav-btn--guest')
     // 内容仍可浏览
     expect(wrapper.text()).toContain('测试单元')
+  })
+
+  it('favorites filter: toggling shows only favorited segments', async () => {
+    // 片段一收藏、片段二未收藏
+    mockIsSegmentFav.mockImplementation((id: number) => id === 1)
+    const wrapper = await createWrapper()
+    expect(wrapper.findAll('.segment-card').length).toBe(2)
+    // 点击「收藏材料」过滤开关
+    await wrapper.find('.unit-fav-btn').trigger('click')
+    const cards = wrapper.findAll('.segment-card')
+    expect(cards.length).toBe(1)
+    expect(cards[0]!.text()).toContain('片段一')
+    // 按钮文案切换为「全部材料」
+    expect(wrapper.find('.unit-fav-btn').text()).toContain('全部材料')
+    // 再次点击恢复全部
+    await wrapper.find('.unit-fav-btn').trigger('click')
+    expect(wrapper.findAll('.segment-card').length).toBe(2)
+  })
+
+  it('favorites filter: empty state when no favorited segments', async () => {
+    mockIsSegmentFav.mockReturnValue(false)
+    const wrapper = await createWrapper()
+    await wrapper.find('.unit-fav-btn').trigger('click')
+    expect(wrapper.findAll('.segment-card').length).toBe(0)
+    expect(wrapper.text()).toContain('暂无收藏材料')
   })
 })

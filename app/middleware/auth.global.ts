@@ -26,6 +26,7 @@ const GUEST_PAGES: RegExp[] = [
   /^\/learn$/,
   /^\/learn\/unit\/\d+$/,
   /^\/learn\/unit\/\d+\/segment\/\d+$/,
+  /^\/learn\/unit\/\d+\/segment\/\d+\/words$/,
   /^\/review$/,
   /^\/center$/,
 ]
