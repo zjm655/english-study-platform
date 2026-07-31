@@ -38,9 +38,10 @@ export async function mergeGuestData(guestKey: string, targetUserId: number, fin
       }
     }
 
-    // 2. latch：置合并标志 + 软删游客行（affectedRows=0 表示并发已抢占，幂等 return）
+    // 2. latch：置合并标志 + 软删游客行 + 清 guest_key（affectedRows=0 表示并发已抢占，幂等 return）
+    //    清 guest_key 与注册转正对齐：防已合并行被 guest_key 裸查命中（如 guestEvalLimit 的 WHERE guest_key = ?）
     const [upd] = await conn.execute<ResultSetHeader>(
-      'UPDATE user SET merged_into_user_id = ?, deleted_at = NOW() WHERE id = ? AND merged_into_user_id IS NULL',
+      'UPDATE user SET merged_into_user_id = ?, deleted_at = NOW(), guest_key = NULL WHERE id = ? AND merged_into_user_id IS NULL',
       [targetUserId, guestId],
     )
     if (upd.affectedRows === 0) return

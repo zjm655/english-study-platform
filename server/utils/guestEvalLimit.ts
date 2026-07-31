@@ -78,9 +78,9 @@ export async function checkGuestEvalLimit(
   }
 
   try {
-    // 通过 guest_key 查到 user.id
+    // 通过 guest_key 查到 user.id（排除已合并/已销号行，堵残留 token 绕过）
     const userRows = await query<{ id: number }>(
-      'SELECT id FROM user WHERE guest_key = ? LIMIT 1',
+      'SELECT id FROM user WHERE guest_key = ? AND is_guest = 1 AND merged_into_user_id IS NULL AND deleted_at IS NULL LIMIT 1',
       [guestKey],
     )
     if (userRows.length === 0) {
@@ -91,9 +91,11 @@ export async function checkGuestEvalLimit(
     }
     const userId = userRows[0]!.id
 
-    // 统计当日该 phase 的录音数
+    // 统计当日该 phase 的成功评测数（analyze_status='success'，sargable 范围查询）
     const countRows = await query<{ cnt: number } & RowDataPacket>(
-      'SELECT COUNT(*) AS cnt FROM recording WHERE user_id = ? AND phase = ? AND DATE(created_at) = CURDATE()',
+      `SELECT COUNT(*) AS cnt FROM recording
+       WHERE user_id = ? AND phase = ? AND analyze_status = 'success'
+         AND created_at >= CURDATE() AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)`,
       [userId, phaseNum],
     )
     const used = countRows[0]?.cnt ?? 0
@@ -116,7 +118,7 @@ export async function getGuestEvalQuota(
 
   try {
     const userRows = await query<{ id: number }>(
-      'SELECT id FROM user WHERE guest_key = ? LIMIT 1',
+      'SELECT id FROM user WHERE guest_key = ? AND is_guest = 1 AND merged_into_user_id IS NULL AND deleted_at IS NULL LIMIT 1',
       [guestKey],
     )
     if (userRows.length === 0) {
@@ -126,7 +128,8 @@ export async function getGuestEvalQuota(
 
     const countRows = await query<{ phase: number; cnt: number } & RowDataPacket>(
       `SELECT phase, COUNT(*) AS cnt FROM recording
-       WHERE user_id = ? AND phase IN (?, ?) AND DATE(created_at) = CURDATE()
+       WHERE user_id = ? AND phase IN (?, ?) AND analyze_status = 'success'
+         AND created_at >= CURDATE() AND created_at < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
        GROUP BY phase`,
       [userId, PHASE_MAP.dubbing, PHASE_MAP.shadow],
     )

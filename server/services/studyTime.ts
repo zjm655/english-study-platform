@@ -75,19 +75,25 @@ export async function accumulateStudyTime(
 
   // 5. 更新 log + stats。stats 累加取「实际增量」：
   //    - 无 cap（登录用户）：原子自增，增量 = addSeconds（与原逻辑逐字节等价）
-  //    - 有 cap（游客）：按预读值算封顶后的确定新值，实际增量可能小于 addSeconds（已达上限时为 0）
+  //    - 有 cap（游客）：LEAST 原子封顶更新（防并发丢失更新），回读实际新值计算增量
   let realDelta = addSeconds
   if (cap != null) {
     const current = todayLog.study_seconds
-    const newVal = Math.min(current + addSeconds, cap)
+    // 原子封顶：并发上报时 MySQL 保证 LEAST 在行锁内求值，不会出现后写覆盖前写
+    await conn.execute(
+      'UPDATE user_checkin_log SET study_seconds = LEAST(study_seconds + ?, ?) WHERE id = ?',
+      [addSeconds, cap, todayLog.id],
+    )
+    // 回读实际新值（同事务内已更新行可见新版本），计算真实增量
+    const [afterRows] = await conn.execute<RowDataPacket[]>(
+      'SELECT study_seconds FROM user_checkin_log WHERE id = ?',
+      [todayLog.id],
+    )
+    const newVal = Number((afterRows[0] as { study_seconds: number | string }).study_seconds)
     realDelta = Math.max(0, newVal - current)
     if (realDelta <= 0) {
       return getStats(conn, userId) // 已达单日上限，不再累计
     }
-    await conn.execute('UPDATE user_checkin_log SET study_seconds = ? WHERE id = ?', [
-      newVal,
-      todayLog.id,
-    ])
   } else {
     await conn.execute('UPDATE user_checkin_log SET study_seconds = study_seconds + ? WHERE id = ?', [
       addSeconds,

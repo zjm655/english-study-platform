@@ -64,15 +64,14 @@ export default defineEventHandler(
 
       // 通过 guest_key 查到游客 user.id（评测引擎签名需要 userId）
       const userRows = await query<{ id: number }>(
-        'SELECT id FROM user WHERE guest_key = ? LIMIT 1',
+        'SELECT id FROM user WHERE guest_key = ? AND is_guest = 1 AND merged_into_user_id IS NULL AND deleted_at IS NULL LIMIT 1',
         [guestKey],
       )
       if (userRows.length === 0) {
-        // 游客尚未实体化，不可能走到评测（需先有录音才能评测），兜底放行用虚拟 ID
-        userId = 0
-      } else {
-        userId = userRows[0]!.id
+        // 游客未实体化（无 user 行），不可能走到评测（需先有录音才能评测），直接拒绝
+        return validateError('游客身份无效，请先开始学习', 401)
       }
+      userId = userRows[0]!.id
 
       // 游客评测配额检查（独立于登录用户的 eval_auth_log 额度体系）
       const evalLimit = await checkGuestEvalLimit(guestKey, guestPhase)

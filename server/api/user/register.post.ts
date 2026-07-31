@@ -59,13 +59,22 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     )
     const guestRow = guestRows[0]
     if (guestRow) {
-      // 转正时同步清除 guest_key，避免残留游客标识；AND is_guest = 1 防止并发竞争
+      // 转正时同步清除 guest_key，避免残留游客标识；AND is_guest = 1 + merged/deleted 守卫防止并发竞争
       const [updateResult] = await pool.execute<ResultSetHeader>(
-        'UPDATE user SET account = ?, passwordHash = ?, nickname = ?, email = ?, is_guest = 0, guest_key = NULL WHERE id = ? AND is_guest = 1',
+        'UPDATE user SET account = ?, passwordHash = ?, nickname = ?, email = ?, is_guest = 0, guest_key = NULL WHERE id = ? AND is_guest = 1 AND merged_into_user_id IS NULL AND deleted_at IS NULL',
         [account, passwordHash, nickname || null, email || null, guestRow.id],
       )
-      // affectedRows 为 0 说明被并发请求抢先转正，跳过转正走正常新建流程
+      // affectedRows 为 0 说明被并发请求抢先转正/合并，跳过转正走正常新建流程
       if (updateResult.affectedRows > 0) {
+        // 纵深防御：回读确认未被并发合并标记（防御性，理论上 affectedRows>0 已保证）
+        const verifyRows = await pool.execute(
+          'SELECT deleted_at FROM user WHERE id = ?',
+          [guestRow.id],
+        )
+        const verifyRow = (verifyRows[0] as Array<{ deleted_at: string | null }>)[0]
+        if (verifyRow?.deleted_at) {
+          throw new Error('GUEST_PROMOTION_CONFLICT')
+        }
         // 游客实体化时已建 stats 行，用 IGNORE 兑底
         await pool.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [guestRow.id])
         clearGuestCookie(event)

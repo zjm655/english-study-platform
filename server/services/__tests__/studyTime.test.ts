@@ -71,25 +71,39 @@ describe('accumulateStudyTime 累计与封顶', () => {
     expect(conn.execute.mock.calls[2][1]).toEqual([30, 10])
   })
 
-  it('有 cap 未触顶 → 写确定新值，stats 加实际增量', async () => {
-    const conn = makeConn([logRow(50, 60)])
+  it('有 cap 未触顶 → LEAST 原子更新，stats 加实际增量', async () => {
+    const execute = vi.fn()
+    execute.mockResolvedValueOnce([[logRow(50, 60)]]) // SELECT log（50s）
+    execute.mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE LEAST
+    execute.mockResolvedValueOnce([[{ study_seconds: 80 }]]) // 回读新值
+    execute.mockResolvedValue([{ affectedRows: 1 }]) // stats
+    const conn = { execute } as any
     await accumulateStudyTime(conn, 10, 30, { dailyCapSeconds: 100 })
     const logSql = String(conn.execute.mock.calls[1][0])
-    expect(logSql).toContain('study_seconds = ?')
-    expect(conn.execute.mock.calls[1][1]).toEqual([80, 1]) // 50+30=80 未触顶
-    expect(conn.execute.mock.calls[2][1]).toEqual([30, 10]) // 实际增量 30
+    expect(logSql).toContain('LEAST(study_seconds + ?, ?)')
+    expect(conn.execute.mock.calls[1][1]).toEqual([30, 100, 1]) // +30 封顶 100
+    expect(conn.execute.mock.calls[3][1]).toEqual([30, 10]) // 实际增量 30
   })
 
-  it('有 cap 部分触顶 → 封顶到 cap，stats 只加差额', async () => {
-    const conn = makeConn([logRow(90, 60)])
+  it('有 cap 部分触顶 → LEAST 封顶到 cap，stats 只加差额', async () => {
+    const execute = vi.fn()
+    execute.mockResolvedValueOnce([[logRow(90, 60)]]) // SELECT log（90s）
+    execute.mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE LEAST
+    execute.mockResolvedValueOnce([[{ study_seconds: 100 }]]) // 回读新值（封顶）
+    execute.mockResolvedValue([{ affectedRows: 1 }]) // stats
+    const conn = { execute } as any
     await accumulateStudyTime(conn, 10, 30, { dailyCapSeconds: 100 })
-    expect(conn.execute.mock.calls[1][1]).toEqual([100, 1]) // min(90+30,100)=100
-    expect(conn.execute.mock.calls[2][1]).toEqual([10, 10]) // 实际增量 10
+    expect(conn.execute.mock.calls[1][1]).toEqual([30, 100, 1]) // LEAST(90+30, 100)
+    expect(conn.execute.mock.calls[3][1]).toEqual([10, 10]) // 实际增量 10
   })
 
-  it('有 cap 已达上限 → 不 UPDATE', async () => {
-    const conn = makeConn([logRow(100, 60)])
+  it('有 cap 已达上限 → 回读后 realDelta=0 短路，不再累计', async () => {
+    const execute = vi.fn()
+    execute.mockResolvedValueOnce([[logRow(100, 60)]]) // SELECT log（100s=cap）
+    execute.mockResolvedValueOnce([{ affectedRows: 1 }]) // UPDATE LEAST
+    execute.mockResolvedValueOnce([[{ study_seconds: 100 }]]) // 回读仍 100
+    const conn = { execute } as any
     await accumulateStudyTime(conn, 10, 30, { dailyCapSeconds: 100 })
-    expect(conn.execute).toHaveBeenCalledTimes(1) // 仅 SELECT，realDelta=0 短路
+    expect(conn.execute).toHaveBeenCalledTimes(3) // SELECT + UPDATE + 回读，无 stats
   })
 })

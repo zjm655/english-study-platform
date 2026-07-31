@@ -2,6 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mergeGuestData } from '../guestMerge'
 
+// Nitro 自动导入的 logger 在测试环境不存在，补全局桩
+;(globalThis as any).logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), log: vi.fn() }
+
 const { mockConnExecute } = vi.hoisted(() => ({ mockConnExecute: vi.fn() }))
 
 // withTransaction 以假连接执行回调
@@ -40,9 +43,9 @@ describe('mergeGuestData 合并', () => {
       .mockResolvedValueOnce([{ affectedRows: 5 }]) // 迁移 recording
     await mergeGuestData('gk', 100)
     expect(mockConnExecute).toHaveBeenCalledTimes(8)
-    // latch：置 merged_into_user_id + 软删，带幂等条件
+    // latch：置 merged_into_user_id + 软删 + 清 guest_key，带幂等条件
     const latchSql = String(mockConnExecute.mock.calls[1][0])
-    expect(latchSql).toContain('SET merged_into_user_id = ?, deleted_at = NOW()')
+    expect(latchSql).toContain('SET merged_into_user_id = ?, deleted_at = NOW(), guest_key = NULL')
     expect(latchSql).toContain('merged_into_user_id IS NULL')
     // log 合并：同日累加时长
     const logSql = String(mockConnExecute.mock.calls[2][0])
@@ -113,7 +116,7 @@ describe('mergeGuestData 合并', () => {
   })
 
   it('合并完成后输出统计日志', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logSpy = vi.spyOn((globalThis as any).logger, 'info').mockImplementation(() => {})
     mockConnExecute
       .mockResolvedValueOnce([[{ id: 50 }]]) // SELECT
       .mockResolvedValueOnce([{ affectedRows: 1 }]) // latch
@@ -132,5 +135,24 @@ describe('mergeGuestData 合并', () => {
     expect(logMsg).toContain('fav_word=4')
     expect(logMsg).toContain('recording=5')
     logSpy.mockRestore()
+  })
+
+  it('指纹关联孤儿行：guest 行带 fingerprint_hash → 额外查指纹行并合并', async () => {
+    mockConnExecute
+      .mockResolvedValueOnce([[{ id: 50, fingerprint_hash: 'fp-abc' }]]) // SELECT 定位游客行（带指纹）
+      .mockResolvedValueOnce([[]]) // 1b. 指纹孤儿行查询无结果
+      .mockResolvedValueOnce([{ affectedRows: 1 }]) // latch
+      .mockResolvedValueOnce([{ affectedRows: 3 }]) // log
+      .mockResolvedValueOnce([{ affectedRows: 1 }]) // stats
+      .mockResolvedValueOnce([{ affectedRows: 2 }]) // progress
+      .mockResolvedValueOnce([{ affectedRows: 1 }]) // fav_segment
+      .mockResolvedValueOnce([{ affectedRows: 1 }]) // fav_word
+      .mockResolvedValueOnce([{ affectedRows: 5 }]) // recording
+    await mergeGuestData('gk', 100)
+    expect(mockConnExecute).toHaveBeenCalledTimes(9)
+    // 指纹孤儿行查询使用 fingerprint_hash
+    const fpSql = String(mockConnExecute.mock.calls[1][0])
+    expect(fpSql).toContain('fingerprint_hash = ?')
+    expect(fpSql).toContain('FOR UPDATE')
   })
 })
