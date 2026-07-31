@@ -53,9 +53,48 @@ export async function mergeGuestData(guestKey: string, targetUserId: number): Pr
       [guestId, targetUserId],
     )
 
-    // 二期（开放盲听/学习后）在此同事务追加：
-    // - user_progress：同 segment ON DUPLICATE KEY 取优（phaseN_done OR / phaseN_score GREATEST）
-    // - 收藏（user_fav_segment/user_fav_word）：INSERT IGNORE ... SELECT 并集
-    // - recording：UPDATE user_id 迁移
+    // 5. 合并学习进度：同 (user_id, segment_id) 取优，done 字段取 OR，score 字段取 GREATEST
+    const [progRes] = await conn.execute<ResultSetHeader>(
+      `INSERT INTO user_progress (user_id, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score)
+       SELECT ?, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score
+       FROM user_progress WHERE user_id = ? AND deleted_at IS NULL
+       ON DUPLICATE KEY UPDATE
+         phase1_done = phase1_done OR VALUES(phase1_done),
+         phase2_done = phase2_done OR VALUES(phase2_done),
+         phase3_done = phase3_done OR VALUES(phase3_done),
+         phase3_score = IFNULL(GREATEST(IFNULL(phase3_score, 0), IFNULL(VALUES(phase3_score), 0)), phase3_score),
+         phase4_done = phase4_done OR VALUES(phase4_done),
+         phase4_score = IFNULL(GREATEST(IFNULL(phase4_score, 0), IFNULL(VALUES(phase4_score), 0)), phase4_score)`,
+      [targetUserId, guestId],
+    )
+
+    // 6. 合并片段收藏：并集，已存在则跳过（唯一索引 uk_user_segment 保证不重复）
+    const [favSegRes] = await conn.execute<ResultSetHeader>(
+      `INSERT IGNORE INTO user_fav_segment (user_id, segment_id, createdAt)
+       SELECT ?, segment_id, createdAt
+       FROM user_fav_segment WHERE user_id = ? AND deleted_at IS NULL`,
+      [targetUserId, guestId],
+    )
+
+    // 7. 合并单词收藏：并集，已存在则跳过（唯一索引 uk_user_vocab 保证不重复）
+    const [favWordRes] = await conn.execute<ResultSetHeader>(
+      `INSERT IGNORE INTO user_fav_word (user_id, vocabulary_id, createdAt)
+       SELECT ?, vocabulary_id, createdAt
+       FROM user_fav_word WHERE user_id = ? AND deleted_at IS NULL`,
+      [targetUserId, guestId],
+    )
+
+    // 8. 迁移录音：直接将游客录音的 user_id 改为目标用户
+    const [recRes] = await conn.execute<ResultSetHeader>(
+      'UPDATE recording SET user_id = ? WHERE user_id = ? AND deleted_at IS NULL',
+      [targetUserId, guestId],
+    )
+
+    // 9. 合并统计日志
+    console.log(
+      `[guestMerge] 游客 ${guestId} → 用户 ${targetUserId} 合并完成: ` +
+      `progress=${progRes.affectedRows}, fav_segment=${favSegRes.affectedRows}, ` +
+      `fav_word=${favWordRes.affectedRows}, recording=${recRes.affectedRows}`,
+    )
   })
 }

@@ -65,6 +65,11 @@ function bytesToMB(bytes: number): string {
   return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} MB`
 }
 
+// ─── 游客管理 ─────────────────────────────────────────────
+const guestDailyAudioLimit = ref(20)
+const guestDailyEvalLimit = ref(1)
+const guestRetentionDays = ref(180)
+
 // ─── 语音识别 STT ────────────────────────────────────────
 const sttBackend = ref<'filetrans' | 'flash'>('filetrans')
 const sttTrialStartDate = ref<string | null>(null)
@@ -109,6 +114,10 @@ async function fetchConfigs() {
       uploadRecordingMaxSize.value =
         parseInt(d['upload_recording_max_size']?.value ?? '52428800', 10) || 52428800
       uploadQueueMax.value = parseInt(d['upload_queue_max']?.value ?? '50', 10) || 50
+      // 游客管理
+      guestDailyAudioLimit.value = parseInt(d['guest_daily_audio_limit']?.value ?? '20', 10) || 20
+      guestDailyEvalLimit.value = parseInt(d['guest_daily_eval_limit']?.value ?? '1', 10) || 0
+      guestRetentionDays.value = parseInt(d['guest_retention_days']?.value ?? '180', 10) || 180
       // 语音识别 STT（试用日期 '-' 占位视为未填）
       sttBackend.value = d['stt_backend']?.value === 'flash' ? 'flash' : 'filetrans'
       const rawTrialDate = d['stt_trial_start_date']?.value ?? '-'
@@ -247,6 +256,37 @@ async function saveUploadLimitsConfig() {
     ])
     if (res.code === 200) {
       ElMessage.success('保存成功，5 分钟内对上传校验生效')
+    } else {
+      ElMessage.error(res.message ?? '保存失败')
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
+  } finally {
+    saving.value = false
+  }
+}
+
+// ─── 保存游客管理配置 ───────────────────────────────────────
+async function saveGuestConfig() {
+  if (
+    guestDailyAudioLimit.value < 1 ||
+    guestDailyEvalLimit.value < 0 ||
+    guestRetentionDays.value < 30
+  ) {
+    ElMessage.warning('请输入有效的限制值')
+    return
+  }
+  saving.value = true
+  try {
+    const res = await updateConfigsExec([
+      { key: 'guest_daily_audio_limit', value: String(guestDailyAudioLimit.value) },
+      { key: 'guest_daily_eval_limit', value: String(guestDailyEvalLimit.value) },
+      { key: 'guest_retention_days', value: String(guestRetentionDays.value) },
+    ])
+    if (res.code === 200) {
+      ElMessage.success('保存成功，对游客立即生效')
     } else {
       ElMessage.error(res.message ?? '保存失败')
       await fetchConfigs()
@@ -577,6 +617,58 @@ async function saveSttConfig() {
             <el-button type="primary" :loading="saving" @click="saveUploadLimitsConfig">
               保存
             </el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
+      <!-- ═══ 游客管理 ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">游客管理</span>
+            <span class="card-sub">游客访问频率限制与数据保留策略</span>
+          </div>
+        </template>
+        <el-form label-width="140px">
+          <el-form-item label="每日音频下载次数">
+            <el-input-number
+              v-model="guestDailyAudioLimit"
+              :min="1"
+              :max="9999"
+              :step="1"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">游客每天可获取音频签名 URL 的次数上限，控制 OSS 流量成本。</div>
+          </el-form-item>
+          <el-form-item label="每日评测次数限制">
+            <el-input-number
+              v-model="guestDailyEvalLimit"
+              :min="0"
+              :max="9999"
+              :step="1"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">
+              游客每天可使用配音评测和影子跟读评测的次数（各自独立计数），0 表示完全禁用。
+            </div>
+          </el-form-item>
+          <el-form-item label="数据保留天数">
+            <el-input-number
+              v-model="guestRetentionDays"
+              :min="30"
+              :max="3650"
+              :step="1"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">
+              过期游客数据（未转正的游客账户及其学习记录）的保留天数，超过后自动清理。
+            </div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveGuestConfig">保存</el-button>
           </el-form-item>
         </el-form>
       </el-card>

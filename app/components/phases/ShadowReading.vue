@@ -9,6 +9,8 @@ import { toastError } from '~/utils/popup'
 import { useUserStore } from '~/store/useUserStore'
 import { useSpeechEvaluation } from '~/composables/evaluation/useSpeechEvaluation'
 import { useEvaluationPipeline } from '~/composables/evaluation/useEvaluationPipeline'
+import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
+import { getGuestEvalQuota } from '~/api/guest'
 
 interface Props {
   segment: SegmentDetail
@@ -67,6 +69,24 @@ const { start: startRecorder, stop: stopRecorder, isRecording: isRecorderActive 
 let recorderStopPromise: Promise<Blob | null> | null = null
 
 const userStore = useUserStore()
+
+// 游客配额状态（仅游客身份时有效）
+const isGuest = computed(() => !userStore.user)
+const guestQuotaExhausted = ref(false)
+
+// 游客身份时查询影子跟读配额
+async function fetchGuestQuota() {
+  if (!isGuest.value) return
+  try {
+    const res = await getGuestEvalQuota()
+    if (res?.code === 200 && res.data) {
+      const { used, limit } = res.data.shadow
+      guestQuotaExhausted.value = limit > 0 && used >= limit
+    }
+  } catch {
+    // 静默处理，不影响正常使用
+  }
+}
 
 // ── 跟读控制状态机：idle → running（播放+跟读）→ evaluating（评测/入库）→ idle ──
 type Stage = 'idle' | 'running' | 'evaluating'
@@ -134,13 +154,31 @@ async function waitForRecordedAudio(timeoutMs = 1500): Promise<Blob | null> {
 async function start() {
   if (stage.value === 'running' || stage.value === 'evaluating') return
 
-  const userId = userStore.user?.id
-  if (!userId) {
+  // 游客配额检查：超限则拦截
+  if (isGuest.value && guestQuotaExhausted.value) {
+    toastError('今日体验次数已用完，登录后可无限使用')
+    return
+  }
+
+  // 登录用户需要有效 userId；游客用 0 占位（服务端从 guest_token 解析真实 id）
+  const userId = userStore.user?.id ?? (isGuest.value ? 0 : null)
+  if (userId === null) {
     toastError('用户信息异常，请重新登录')
     return
   }
-  if (!props.segment.audioUrl) {
+  if (!props.segment.audioUrl && !props.segment.audioObjectKey) {
     toastError('该片段暂无音频，无法跟读')
+    return
+  }
+
+  // 解析音频 URL：登录用户直接使用，游客通过 objectKey 动态获取
+  const audioUrl = await resolveGuestAudioUrl(
+    props.segment.audioUrl,
+    props.segment.audioObjectKey,
+    'material',
+  )
+  if (!audioUrl) {
+    toastError('今日音频播放次数已用完，登录后可无限使用')
     return
   }
 
@@ -159,7 +197,7 @@ async function start() {
   let uploadedRecording: UploadRecordingResult | null = null
 
   try {
-    const { warrantId, applicationId } = await pipeline.resolveAuth()
+    const { warrantId, applicationId } = await pipeline.resolveAuth(4)
 
     await initEngine(applicationId, String(userId), warrantId)
 
@@ -171,7 +209,7 @@ async function start() {
     const resultPromise = startRealtime(refText, 'en.pred.score', warrantId)
 
     // 并行播放材料音频；播放结束 +5s 停止
-    await loadAudio(props.segment.audioUrl, { onEnded: onMaterialEnded })
+    await loadAudio(audioUrl, { onEnded: onMaterialEnded })
     playAudio()
     // 录音与播放均已启动，开放手动结束
     canStop.value = true
@@ -222,6 +260,7 @@ async function start() {
     })
     if (outcome.recording) addRecording(outcome.recording)
     if (!outcome.success) toastError(`${outcome.errorMessage}，已加入历史列表，可点击重试`)
+    else if (isGuest.value) fetchGuestQuota() // 评测成功后刷新配额
 
     // 回到 idle，可再次跟读或完成
     stage.value = 'idle'
@@ -273,6 +312,8 @@ async function completePhase() {
 
 onMounted(() => {
   loadRecordings()
+  // 游客身份时查询配额（决定是否显示"已用完"提示）
+  if (isGuest.value) fetchGuestQuota()
 })
 
 onBeforeUnmount(() => {
@@ -291,6 +332,14 @@ onBeforeUnmount(() => {
         />
       </svg>
       <span>请佩戴耳机，点击开始后跟随音频朗读（不展示原文）</span>
+    </div>
+
+    <!-- 游客配额用完提示 -->
+    <div v-if="isGuest && guestQuotaExhausted" class="quota-exhausted-banner">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </svg>
+      <span>今日体验次数已用完，<a href="/login">登录</a>后可无限使用</span>
     </div>
 
     <!-- 卡片：历史跟读列表 -->
@@ -388,6 +437,32 @@ onBeforeUnmount(() => {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+}
+
+/* ===== 游客配额用完提示 ===== */
+.quota-exhausted-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(245, 108, 108, 0.08);
+  border: 1px solid rgba(245, 108, 108, 0.2);
+  border-radius: var(--r);
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.quota-exhausted-banner svg {
+  flex-shrink: 0;
+}
+
+.quota-exhausted-banner a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.quota-exhausted-banner a:active {
+  opacity: 0.7;
 }
 
 /* ===== 卡片通用样式 ===== */

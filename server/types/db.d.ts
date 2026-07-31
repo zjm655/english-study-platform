@@ -13,6 +13,7 @@ export interface UserRow {
   is_guest: number // 0正式 1游客
   guest_key: string | null // 游客 JWT 随机键（游客行非空，UNIQUE）
   merged_into_user_id: number | null // 游客行已合并去向（非空即已合并，兼作幂等 latch）
+  fingerprint_hash: string | null // 浏览器指纹SHA-256（游客行非空，UNIQUE）
   deleted_at: string | null // 软删除时间(销号)
   passwordHash: string | null // 游客行为 NULL（见迁移 027）
   avatarUrl: string | null

@@ -14,6 +14,8 @@ import crypto from 'node:crypto'
 import { serverFetch } from '#server/utils/request'
 import { query } from '#server/utils/db'
 import { networkInterfaces } from 'node:os'
+import { readGuestKey } from '#server/utils/guest'
+import { checkGuestEvalLimit, invalidateGuestEvalQuotaEntry } from '#server/utils/guestEvalLimit'
 
 /**
  * 获取本机非回环 IPv4 地址
@@ -43,24 +45,58 @@ export default defineEventHandler(
       expireAt: number
     }>
   > => {
-    const userId = event.context.user?.id
+    let userId = event.context.user?.id
     const userRole = event.context.user?.role ?? 0
-    if (!userId) return validateError('未登录', 401)
+    let isGuest = false
+    // 游客身份变量，用于成功后清除配额缓存
+    let guestKey: string | null = null
+    let guestPhase: 'dubbing' | 'shadow' = 'dubbing'
 
-    // 每日评测额度检查（在阿里云调用之前拦截，避免无效外部请求）
-    const { checkDailyQuota } = await import('#server/utils/quotaChecker')
-    const quota = await checkDailyQuota(userId, userRole)
-    if (!quota.allowed) {
-      const windowDesc =
-        quota.windowSec >= 86400
-          ? `${Math.round(quota.windowSec / 86400)} 天`
-          : quota.windowSec >= 3600
-            ? `${Math.round(quota.windowSec / 3600)} 小时`
-            : `${Math.round(quota.windowSec / 60)} 分钟`
-      return validateError(
-        `每 ${windowDesc}评测次数已达上限（${quota.used}/${quota.limit}），请稍后再试`,
-        403,
+    // 游客身份：无登录态时尝试从 guest_token 解析游客身份并检查配额
+    if (!userId) {
+      guestKey = await readGuestKey(event)
+      if (!guestKey) return validateError('未登录', 401)
+
+      // 从请求 body 读取 phase（前端传入 'dubbing' | 'shadow'）
+      const body = await readBody(event).catch(() => ({})) as { phase?: string }
+      guestPhase = body.phase === 'shadow' ? 'shadow' : 'dubbing'
+
+      // 通过 guest_key 查到游客 user.id（评测引擎签名需要 userId）
+      const userRows = await query<{ id: number }>(
+        'SELECT id FROM user WHERE guest_key = ? LIMIT 1',
+        [guestKey],
       )
+      if (userRows.length === 0) {
+        // 游客尚未实体化，不可能走到评测（需先有录音才能评测），兜底放行用虚拟 ID
+        userId = 0
+      } else {
+        userId = userRows[0]!.id
+      }
+
+      // 游客评测配额检查（独立于登录用户的 eval_auth_log 额度体系）
+      const evalLimit = await checkGuestEvalLimit(guestKey, guestPhase)
+      if (!evalLimit.allowed) {
+        return validateError('今日评测次数已用完，登录后可无限使用', 429)
+      }
+      isGuest = true
+    }
+
+    // 每日评测额度检查（仅登录用户，游客已在上方用 checkGuestEvalLimit 独立检查）
+    if (!isGuest) {
+      const { checkDailyQuota } = await import('#server/utils/quotaChecker')
+      const quota = await checkDailyQuota(userId, userRole)
+      if (!quota.allowed) {
+        const windowDesc =
+          quota.windowSec >= 86400
+            ? `${Math.round(quota.windowSec / 86400)} 天`
+            : quota.windowSec >= 3600
+              ? `${Math.round(quota.windowSec / 3600)} 小时`
+              : `${Math.round(quota.windowSec / 60)} 分钟`
+        return validateError(
+          `每 ${windowDesc}评测次数已达上限（${quota.used}/${quota.limit}），请稍后再试`,
+          403,
+        )
+      }
     }
 
     // 全局评测并发闸门（拒绝型）：评测由前端 SDK 直连阿里云，无法服务端排队，
@@ -161,6 +197,11 @@ export default defineEventHandler(
       query('INSERT INTO eval_auth_log (user_id) VALUES (?)', [userId]).catch((err) => {
         logger.error('[evaluation auth] 记录鉴权发放失败:', err)
       })
+
+      // 清除游客评测配额缓存，防止限流绕过
+      if (guestKey) {
+        invalidateGuestEvalQuotaEntry(guestKey, guestPhase)
+      }
 
       return validateSuccess({
         warrantId: respData.data.warrant_id,

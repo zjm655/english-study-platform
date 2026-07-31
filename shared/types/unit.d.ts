@@ -85,6 +85,8 @@ export interface VocabularyItem {
   phonetic: string | null
   meaning: string
   audioUrl: string | null
+  /** 音频对象键（游客用于动态获取签名 URL，登录用户为 undefined） */
+  audioObjectKey?: string | null
   duration: number | null
 }
 
@@ -100,6 +102,8 @@ export interface SegmentDetail {
   id: number
   title: string
   audioUrl: string | null
+  /** 音频对象键（游客用于动态获取签名 URL，登录用户为 undefined） */
+  audioObjectKey?: string | null
   duration: number | null
   textContent: string
   translation: string | null

@@ -62,6 +62,18 @@ export default defineEventHandler(async (event) => {
     invalidateUploadLimitCache()
   }
 
+  // 使游客音频限流配置缓存失效
+  if (key === 'guest_daily_audio_limit') {
+    const { invalidateGuestAudioLimitCache } = await import('#server/utils/guestOssLimit')
+    invalidateGuestAudioLimitCache()
+  }
+
+  // 使游客评测配额配置缓存失效
+  if (key === 'guest_daily_eval_limit') {
+    const { invalidateGuestEvalLimitCache } = await import('#server/utils/guestEvalLimit')
+    invalidateGuestEvalLimitCache()
+  }
+
   // 审计留痕
   await logAdminOperation(user.id, 'config.update', 'sys_config', 0, { key, value })
 

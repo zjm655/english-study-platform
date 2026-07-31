@@ -59,14 +59,18 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     )
     const guestRow = guestRows[0]
     if (guestRow) {
-      await pool.execute(
-        'UPDATE user SET account = ?, passwordHash = ?, nickname = ?, email = ?, is_guest = 0 WHERE id = ? AND is_guest = 1',
+      // 转正时同步清除 guest_key，避免残留游客标识；AND is_guest = 1 防止并发竞争
+      const [updateResult] = await pool.execute<ResultSetHeader>(
+        'UPDATE user SET account = ?, passwordHash = ?, nickname = ?, email = ?, is_guest = 0, guest_key = NULL WHERE id = ? AND is_guest = 1',
         [account, passwordHash, nickname || null, email || null, guestRow.id],
       )
-      // 游客实体化时已建 stats 行，用 IGNORE 兑底
-      await pool.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [guestRow.id])
-      clearGuestCookie(event)
-      promoted = true
+      // affectedRows 为 0 说明被并发请求抢先转正，跳过转正走正常新建流程
+      if (updateResult.affectedRows > 0) {
+        // 游客实体化时已建 stats 行，用 IGNORE 兑底
+        await pool.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [guestRow.id])
+        clearGuestCookie(event)
+        promoted = true
+      }
     }
   }
 
@@ -79,6 +83,14 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     await pool.execute('INSERT INTO user_checkin_stats (user_id) VALUES (?)', [
       insertResult.insertId,
     ])
+  }
+
+  // 转正成功后，清理游客限流内存缓存中的残留条目（防止内存泄漏）
+  if (promoted) {
+    const { invalidateGuestAudioLimitCache } = await import('#server/utils/guestOssLimit')
+    const { invalidateGuestEvalLimitCache } = await import('#server/utils/guestEvalLimit')
+    invalidateGuestAudioLimitCache()
+    invalidateGuestEvalLimitCache()
   }
 
   // 8. 返回成功

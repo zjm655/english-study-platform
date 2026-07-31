@@ -65,9 +65,14 @@ export const useEvaluationPipeline = () => {
 
   const isLoading = ref(false)
 
-  /** 评测鉴权：调用 getEvaluationAuth 并校验，失败抛错。 */
-  async function resolveAuth(): Promise<EvaluationAuth> {
-    const authRes = await getEvaluationAuth()
+  /** phase 编号 → 字符串标识（游客配额检查用） */
+  function phaseToString(phase: 3 | 4): 'dubbing' | 'shadow' {
+    return phase === 4 ? 'shadow' : 'dubbing'
+  }
+
+  /** 评测鉴权：调用 getEvaluationAuth 并校验，失败抛错。phase 供游客配额检查。 */
+  async function resolveAuth(phase?: 3 | 4): Promise<EvaluationAuth> {
+    const authRes = await getEvaluationAuth(phase ? phaseToString(phase) : undefined)
     if (authRes?.code !== 200 || !authRes.data) {
       throw new Error(authRes?.message || '获取评测授权失败')
     }
@@ -141,7 +146,7 @@ export const useEvaluationPipeline = () => {
     destroyEngine()
     try {
       const blob = await params.getBlob()
-      const { warrantId, applicationId } = await resolveAuth()
+      const { warrantId, applicationId } = await resolveAuth(params.phase)
       await initEngine(applicationId, String(params.userId), warrantId)
       const result = await evalAnalyzeRecording(blob, params.refText)
       return await saveEvaluation({ ...params, result })

@@ -7,6 +7,8 @@ import type { Recording, UploadRecordingResult } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
 import { useUserStore } from '~/store/useUserStore'
 import { useEvaluationPipeline } from '~/composables/evaluation/useEvaluationPipeline'
+import { getGuestEvalQuota } from '~/api/guest'
+import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
 
 interface Props {
   segment: SegmentDetail
@@ -52,6 +54,28 @@ const pipeline = useEvaluationPipeline()
 // 用户信息
 const userStore = useUserStore()
 
+// 游客配额状态（仅游客身份时有效）
+const isGuest = computed(() => !userStore.user)
+const guestQuotaExhausted = ref(false)
+const guestQuotaLoading = ref(false)
+
+// 游客身份时查询配音配额
+async function fetchGuestQuota() {
+  if (!isGuest.value) return
+  guestQuotaLoading.value = true
+  try {
+    const res = await getGuestEvalQuota()
+    if (res?.code === 200 && res.data) {
+      const { used, limit } = res.data.dubbing
+      guestQuotaExhausted.value = limit > 0 && used >= limit
+    }
+  } catch {
+    // 静默处理，不影响正常使用
+  } finally {
+    guestQuotaLoading.value = false
+  }
+}
+
 // 本次录音（未保存，来自 VoiceRecorder）
 const pendingRecording = ref<{ blob: Blob; duration: number } | null>(null)
 
@@ -68,8 +92,15 @@ async function handleRecordingAnalyze(data: {
 }) {
   if (pipeline.isLoading.value) return
 
-  const userId = userStore.user?.id
-  if (!userId) {
+  // 游客配额检查：超限则拦截（前端二次防护，服务端也有检查）
+  if (isGuest.value && guestQuotaExhausted.value) {
+    toastError('今日体验次数已用完，登录后可无限使用')
+    return
+  }
+
+  // 登录用户需要有效 userId；游客用 0 占位（服务端从 guest_token 解析真实 id）
+  const userId = userStore.user?.id ?? (isGuest.value ? 0 : null)
+  if (userId === null) {
     toastError('用户信息异常，请重新登录')
     return
   }
@@ -97,6 +128,9 @@ async function handleRecordingAnalyze(data: {
 
   if (!outcome.success) {
     toastError(`${outcome.errorMessage}，已加入历史列表，可点击重试`)
+  } else if (isGuest.value) {
+    // 评测成功后刷新配额（可能已用完）
+    fetchGuestQuota()
   }
 }
 
@@ -128,8 +162,17 @@ async function handleRetryAnalyze(recording: Recording) {
 
 // 播放材料音频
 async function playMaterialAudio() {
-  if (!props.segment.audioUrl) return
-  await loadAudio(props.segment.audioUrl)
+  // 游客：通过 audioObjectKey 动态获取签名 URL
+  const resolvedUrl = await resolveGuestAudioUrl(
+    props.segment.audioUrl,
+    props.segment.audioObjectKey,
+    'material',
+  )
+  if (!resolvedUrl) {
+    toastError('今日音频播放次数已用完，登录后可无限使用')
+    return
+  }
+  await loadAudio(resolvedUrl)
   playAudio()
 }
 
@@ -149,16 +192,26 @@ async function completePhase() {
 
 onMounted(() => {
   loadRecordings()
+  // 游客身份时查询配额（决定是否显示"已用完"提示）
+  if (isGuest.value) fetchGuestQuota()
 })
 </script>
 
 <template>
   <div class="dubbing-practice">
+    <!-- 游客配额用完提示 -->
+    <div v-if="isGuest && guestQuotaExhausted" class="quota-exhausted-banner">
+      <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+      </svg>
+      <span>今日体验次数已用完，<a href="/login">登录</a>后可无限使用</span>
+    </div>
+
     <!-- 卡片 1：原文 -->
     <div class="card">
       <div class="card__header">
         <span>原文</span>
-        <button v-if="segment.audioUrl" class="material-play-btn" @click="playMaterialAudio">
+        <button v-if="segment.audioUrl || segment.audioObjectKey" class="material-play-btn" @click="playMaterialAudio">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z" />
           </svg>
@@ -279,6 +332,32 @@ onMounted(() => {
   gap: 12px;
   max-height: 100%;
   overflow-y: auto;
+}
+
+/* ===== 游客配额用完提示 ===== */
+.quota-exhausted-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(245, 108, 108, 0.08);
+  border: 1px solid rgba(245, 108, 108, 0.2);
+  border-radius: var(--r);
+  font-size: 13px;
+  color: var(--danger);
+}
+
+.quota-exhausted-banner svg {
+  flex-shrink: 0;
+}
+
+.quota-exhausted-banner a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.quota-exhausted-banner a:active {
+  opacity: 0.7;
 }
 
 /* ===== 卡片通用样式 ===== */

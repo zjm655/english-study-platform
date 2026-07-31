@@ -18,9 +18,11 @@ async function signFromMedia(
 /**
  * 获取片段详情
  * 请求：GET /api/segment/[segId]
+ * 游客（无 event.context.user）：返回片段数据但音频 URL 全部为 null，进度用默认值
  */
 export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetail | null>> => {
-  const userId: number = event.context.user.id
+  const userId: number | undefined = event.context.user?.id
+  const isGuest = !userId
   const segId = Number(getRouterParam(event, 'segId'))
 
   if (!segId || isNaN(segId)) {
@@ -62,42 +64,66 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
      ORDER BY v.sort_order`,
     [segId],
   )
-  const vocabulary: VocabularyItem[] = await Promise.all(
-    vocabRows.map(async (v) => ({
-      id: v.id,
-      word: v.word,
-      forms: v.forms,
-      phonetic: v.phonetic,
-      meaning: v.meaning,
-      audioUrl: await signFromMedia(v.vocab_media_key, WORD_EXPIRE),
-      duration: v.vocab_media_duration ? Number(v.vocab_media_duration) : null,
-    })),
-  )
+  // 游客：音频 URL 全部返回 null，但暴露 object_key 供游客限流签名接口使用
+  const vocabulary: VocabularyItem[] = isGuest
+    ? vocabRows.map((v) => ({
+        id: v.id,
+        word: v.word,
+        forms: v.forms,
+        phonetic: v.phonetic,
+        meaning: v.meaning,
+        audioUrl: null,
+        audioObjectKey: v.vocab_media_key,
+        duration: v.vocab_media_duration ? Number(v.vocab_media_duration) : null,
+      }))
+    : await Promise.all(
+        vocabRows.map(async (v) => ({
+          id: v.id,
+          word: v.word,
+          forms: v.forms,
+          phonetic: v.phonetic,
+          meaning: v.meaning,
+          audioUrl: await signFromMedia(v.vocab_media_key, WORD_EXPIRE),
+          duration: v.vocab_media_duration ? Number(v.vocab_media_duration) : null,
+        })),
+      )
 
-  // 4. 查用户进度
-  const progressRows = await query<UserProgressRow>(
-    'SELECT * FROM user_progress WHERE user_id = ? AND segment_id = ?',
-    [userId, segId],
-  )
-  const progressRow = progressRows[0]
-
-  const progress = progressRow ? mapProgressRow(progressRow) : { ...DEFAULT_PROGRESS }
-
-  // mapProgressRow 的 updatedAt 可能是 Date（MySQL 驱动返回），
-  // SegmentPhaseProgress 要求 string | null | undefined
-  const progressConverted: SegmentPhaseProgress = {
-    ...progress,
-    updatedAt:
-      progress.updatedAt instanceof Date
-        ? progress.updatedAt.toISOString()
-        : (progress.updatedAt ?? undefined),
+  // 4. 查用户进度（游客无进度，使用默认值）
+  const defaultProgress = { ...DEFAULT_PROGRESS }
+  let progressConverted: SegmentPhaseProgress
+  if (isGuest) {
+    progressConverted = {
+      ...defaultProgress,
+      updatedAt:
+        defaultProgress.updatedAt instanceof Date
+          ? defaultProgress.updatedAt.toISOString()
+          : (defaultProgress.updatedAt ?? undefined),
+    }
+  } else {
+    const progressRows = await query<UserProgressRow>(
+      'SELECT * FROM user_progress WHERE user_id = ? AND segment_id = ?',
+      [userId, segId],
+    )
+    const progressRow = progressRows[0]
+    const progress = progressRow ? mapProgressRow(progressRow) : { ...DEFAULT_PROGRESS }
+    // mapProgressRow 的 updatedAt 可能是 Date（MySQL 驱动返回），
+    // SegmentPhaseProgress 要求 string | null | undefined
+    progressConverted = {
+      ...progress,
+      updatedAt:
+        progress.updatedAt instanceof Date
+          ? progress.updatedAt.toISOString()
+          : (progress.updatedAt ?? undefined),
+    }
   }
 
   // 5. 组合返回
   const result: SegmentDetail = {
     id: segment.id,
     title: segment.title,
-    audioUrl: await signFromMedia(segment.seg_media_key, MATERIAL_EXPIRE),
+    // 游客：片段音频 URL 返回 null，但暴露 object_key 供游客限流签名接口使用
+    audioUrl: isGuest ? null : await signFromMedia(segment.seg_media_key, MATERIAL_EXPIRE),
+    audioObjectKey: isGuest ? segment.seg_media_key : undefined,
     duration: segment.seg_media_duration ? Number(segment.seg_media_duration) : null,
     textContent: segment.textContent,
     translation: segment.translation,

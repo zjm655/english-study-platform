@@ -3,6 +3,7 @@ import { withTransaction } from '#server/utils/db'
 import { uploadWithKey, signUrl, deleteObject, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { ensureGuestUserByFingerprint } from '#server/services/guestUser'
 
 import type { RecordingRow } from '#server/types/db'
 import type { UploadRecordingResult } from '#shared/types/recording'
@@ -32,8 +33,14 @@ const MP3_SIGNATURES = [
  */
 export default defineEventHandler(
   async (event): Promise<ResPayload<UploadRecordingResult | null>> => {
-    const userId = event.context.user?.id
-    if (!userId) return validateError('未登录', 401)
+    // 身份解析：登录用户走 event.context.user（auth 中间件已设置），游客走浏览器指纹
+    const loggedInUserId = event.context.user?.id
+    const fingerprint = !loggedInUserId ? getRequestHeader(event, 'x-guest-fingerprint') : null
+    if (!loggedInUserId && !fingerprint) return validateError('未登录', 401)
+    // 指纹格式校验：SHA-256 为 64 位十六进制
+    if (fingerprint && !/^[a-f0-9]{64}$/.test(fingerprint)) {
+      return validateError('指纹格式无效')
+    }
 
     // 1. 解析 multipart/form-data
     const formData = await readFormData(event)
@@ -79,7 +86,7 @@ export default defineEventHandler(
     }
 
     logger.info(
-      `[recording upload] 收到录音上传 user=${userId} segment=${segmentId} phase=${phase} ${mimeType} ${file.size}B`,
+      `[recording upload] 收到录音上传 ${loggedInUserId ? `user=${loggedInUserId}` : `guest=${fingerprint!.slice(0, 8)}`} segment=${segmentId} phase=${phase} ${mimeType} ${file.size}B`,
     )
 
     // 8. 上传到 OSS
@@ -105,6 +112,18 @@ export default defineEventHandler(
 
     try {
       result = await withTransaction(async (conn) => {
+        // 游客身份懒实体化：在事务内确保 user 行存在
+        let userId: number
+        if (loggedInUserId) {
+          userId = loggedInUserId
+        } else {
+          const ensured = await ensureGuestUserByFingerprint(conn, fingerprint!)
+          if (ensured.conflict) {
+            throw new Error('GUEST_CONFLICT')
+          }
+          userId = ensured.userId
+        }
+
         // 9a. 插入 media 表
         const [mediaRes] = await conn.execute<ResultSetHeader>(
           `INSERT INTO media (uploader_id, type, storage_type, bucket, object_key, original_name, mime_type, size_bytes, duration, status)
@@ -148,6 +167,10 @@ export default defineEventHandler(
         } satisfies UploadRecordingResult
       })
     } catch (err) {
+      // 游客行已被合并（残留指纹），需客户端重新生成指纹
+      if (err instanceof Error && err.message === 'GUEST_CONFLICT') {
+        return validateError('游客身份已失效，请刷新页面', 401)
+      }
       logger.error('[recording upload] 事务失败:', err)
       // 先传 OSS 后写库，事务失败则删除已上传对象，避免 OSS 孤儿文件（best-effort）
       void deleteObject(ossKey)

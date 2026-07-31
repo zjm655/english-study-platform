@@ -19,9 +19,14 @@ const ADMIN_PAGE_PERMISSIONS: [prefix: string, permission: PermissionKey][] = [
   ['/admin/config', PERMISSIONS.CONFIG],
 ]
 
-// 游客可浏览页面（精确正则，不用前缀匹配）：片段学习页 /learn/unit/:id/segment/:segId 不含，
-// 游客点击片段仍走 verify → 401 → /login 链路（行为与现状一致）
-const GUEST_PAGES: RegExp[] = [/^\/$/, /^\/login/, /^\/learn$/, /^\/learn\/unit\/\d+$/]
+// 游客可浏览页面（精确正则，不用前缀匹配）：片段学习页已开放，游客可浏览但无音频签名
+const GUEST_PAGES: RegExp[] = [
+  /^\/$/,
+  /^\/login/,
+  /^\/learn$/,
+  /^\/learn\/unit\/\d+$/,
+  /^\/learn\/unit\/\d+\/segment\/\d+$/,
+]
 
 // 签到刷新每客户端会话仅一次，与 isVerify 解耦（SSR 已验证时 client 不再进 !isVerify 块）
 let checkinRequested = false

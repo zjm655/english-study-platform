@@ -2,7 +2,9 @@
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useFavorites } from '~/composables/useFavorites'
+import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
 import type { SegmentDetail, VocabularyItem } from '~~/shared/types/unit'
+import { toastError } from '~/utils/popup'
 
 interface Props {
   segment: SegmentDetail
@@ -88,15 +90,29 @@ function handleVocabClick(vocab: VocabularyItem) {
   })
 }
 
-async function playVocabAudio(url: string | null) {
-  if (!url) return
-  await load(url)
+async function playVocabAudio(url: string | null, objectKey?: string | null) {
+  // 游客：通过 objectKey 动态获取签名 URL
+  const resolvedUrl = await resolveGuestAudioUrl(url, objectKey, 'word')
+  if (!resolvedUrl) {
+    toastError('今日音频播放次数已用完，登录后可无限使用')
+    return
+  }
+  await load(resolvedUrl)
   play()
 }
 
 async function playMaterialAudio() {
-  if (!props.segment.audioUrl) return
-  await load(props.segment.audioUrl)
+  // 游客：通过 audioObjectKey 动态获取签名 URL
+  const resolvedUrl = await resolveGuestAudioUrl(
+    props.segment.audioUrl,
+    props.segment.audioObjectKey,
+    'material',
+  )
+  if (!resolvedUrl) {
+    toastError('今日音频播放次数已用完，登录后可无限使用')
+    return
+  }
+  await load(resolvedUrl)
   play()
 }
 
@@ -118,7 +134,7 @@ async function completePhase() {
     <div class="card text-card">
       <div class="card__header">
         <span>原文</span>
-        <button v-if="segment.audioUrl" class="material-play-btn" @click="playMaterialAudio">
+        <button v-if="segment.audioUrl || segment.audioObjectKey" class="material-play-btn" @click="playMaterialAudio">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z" />
           </svg>
@@ -172,9 +188,9 @@ async function completePhase() {
         <div class="vocab-word-row">
           <span class="vocab-word">{{ selectedVocab.word }}</span>
           <button
-            v-if="selectedVocab.audioUrl"
+            v-if="selectedVocab.audioUrl || selectedVocab.audioObjectKey"
             class="audio-btn"
-            @click="playVocabAudio(selectedVocab.audioUrl)"
+            @click="playVocabAudio(selectedVocab.audioUrl, selectedVocab.audioObjectKey)"
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path

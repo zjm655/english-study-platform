@@ -66,3 +66,36 @@ export async function ensureGuestUser(
   await conn.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [userId])
   return { conflict: false, userId }
 }
+
+/**
+ * 确保游客 user 行存在并返回其 id（事务内调用），按浏览器指纹定位。
+ * 逻辑与 ensureGuestUser 对称：
+ * - 已存在且未合并 → 返回该行 id
+ * - 已存在但已合并 → { conflict: true }
+ * - 不存在 → INSERT（ON DUPLICATE KEY 依 uk_fingerprint 收敛并发）+ 建 checkin_stats
+ */
+export async function ensureGuestUserByFingerprint(
+  conn: PoolConnection,
+  fingerprint: string,
+): Promise<EnsureGuestResult> {
+  const [rows] = await conn.execute<RowDataPacket[]>(
+    'SELECT id, merged_into_user_id FROM user WHERE fingerprint_hash = ?',
+    [fingerprint],
+  )
+  const existing = rows[0] as { id: number; merged_into_user_id: number | null } | undefined
+  if (existing) {
+    if (existing.merged_into_user_id != null) return { conflict: true, userId: 0 }
+    return { conflict: false, userId: existing.id }
+  }
+
+  // 懒实体化：ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id) 使并发双 INSERT 收敛到同一行
+  const [ins] = await conn.execute<ResultSetHeader>(
+    `INSERT INTO user (account, passwordHash, nickname, is_guest, fingerprint_hash)
+     VALUES (NULL, NULL, '游客', 1, ?)
+     ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)`,
+    [fingerprint],
+  )
+  const userId = ins.insertId
+  await conn.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [userId])
+  return { conflict: false, userId }
+}
