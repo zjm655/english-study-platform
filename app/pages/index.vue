@@ -3,7 +3,7 @@ import { Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
 import { useCheckin } from '~/composables/user'
 import { userCheckinStatsPath } from '~/api/paths'
-import { toastError, toastInfo } from '~/utils/popup'
+import { toastError } from '~/utils/popup'
 import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
@@ -32,13 +32,12 @@ const greeting = computed(() => {
   return '晚上好'
 })
 
-// 打卡统计：useAsyncRes（登录用户 SSR 直出；游客 immediate:false 零请求，
-// SSR 期 isLogin 由 authVerify 插件先于页面 setup 写入，SSR/CSR 一致）
+// 打卡统计：useAsyncRes（登录用户 + 游客均请求，后端对游客也返回真实数据）
 const { data: statsRes, pending: statsLoading } = useAsyncRes<CheckinStats>(
   'checkin-stats',
   userCheckinStatsPath,
   undefined,
-  { immediate: userStore.isLogin },
+  { immediate: true },
 )
 const checkinStats = computed(() => statsRes.value?.data ?? null)
 const { isLoading: checkinLoading, execute: doCheckin } = useCheckin()
@@ -55,7 +54,7 @@ const isCheckedIn = computed(() => {
   )
 })
 
-// 总loading状态（游客 immediate:false 时 pending 不置 true，直出内容）
+// 总 loading状态
 const isLoading = computed(() => statsLoading.value && !statsRes.value)
 
 // 格式化学习时长（秒 → 可读格式）
@@ -66,11 +65,6 @@ const formatStudyTime = (seconds: number) => {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
   return mins > 0 ? `${hours}h${mins}min` : `${hours}h`
-}
-
-// 游客点击签到卡片：弹出提示引导登录
-function handleGuestCheckinClick() {
-  toastInfo('登录后即可签到打卡，记录学习进度', 2500)
 }
 
 async function handleCheckin() {
@@ -111,20 +105,17 @@ async function handleCheckin() {
         </div>
       </div>
 
-      <!-- 签到卡片：登录用户可签到，游客展示空态引导 -->
+      <!-- 签到卡片：登录用户和游客均可签到 -->
       <div
         class="checkin-card"
-        :class="{ 'checked-in': isCheckedIn, 'checkin-card--guest': !isLogin }"
-        @click="isLogin ? handleCheckin() : handleGuestCheckinClick()"
+        :class="{ 'checked-in': isCheckedIn }"
+        @click="handleCheckin()"
       >
         <div class="checkin-icon">
           <el-icon :size="32"><Sunny /></el-icon>
         </div>
         <div class="checkin-text">
-          <!-- 游客空态 -->
-          <template v-if="!isLogin">登录后签到打卡</template>
-          <!-- 登录态 -->
-          <template v-else-if="checkinLoading">签到中...</template>
+          <template v-if="checkinLoading">签到中...</template>
           <template v-else-if="isCheckedIn">今日已签到</template>
           <template v-else>今日签到</template>
         </div>
@@ -139,28 +130,23 @@ async function handleCheckin() {
         </div>
       </div>
 
-      <!-- 统计卡片：登录用户显示真实数据，游客显示空态占位 -->
+      <!-- 统计卡片：登录用户和游客均显示真实数据 -->
       <div class="stats-section">
         <div class="stat-card">
           <div class="stat-label">累计学习</div>
           <div class="stat-value">
-            {{ isLogin ? formatStudyTime(checkinStats?.totalStudySeconds ?? 0) : '--' }}
+            {{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}
           </div>
         </div>
         <div class="stat-card">
           <div class="stat-label">已学习</div>
-          <div class="stat-value">{{ isLogin ? (checkinStats?.totalCheckinDays ?? 0) + '天' : '--' }}</div>
+          <div class="stat-value">{{ (checkinStats?.totalCheckinDays ?? 0) + '天' }}</div>
         </div>
-      </div>
-
-      <!-- 游客空态提示：统计卡片下方小字 -->
-      <div v-if="!isLogin" class="guest-empty-hint">
-        开始学习后这里会记录你的进度
       </div>
 
       <!-- 底部登录引导（降级为小字链接） -->
       <div v-if="!isLogin" class="guest-login-hint">
-        登录后可签到打卡、收藏单词
+        登录后可同步数据到正式账户、收藏单词
         <NuxtLink to="/login" class="guest-login-link">去登录</NuxtLink>
       </div>
     </template>
@@ -283,11 +269,6 @@ async function handleCheckin() {
   padding-bottom: 50px;
 }
 
-/* 游客模式下统计卡片减少底部间距，为下方提示文字留空间 */
-.home-page:has(.guest-empty-hint) .stats-section {
-  padding-bottom: 16px;
-}
-
 .stat-card {
   flex: 1;
   display: flex;
@@ -310,19 +291,6 @@ async function handleCheckin() {
   font-size: 20px;
   font-weight: 700;
   color: var(--text-1);
-}
-
-/* 游客签到卡片半透明 */
-.checkin-card--guest {
-  opacity: 0.75;
-}
-
-/* 游客空态提示 */
-.guest-empty-hint {
-  text-align: center;
-  font-size: 13px;
-  color: var(--text-3);
-  margin-top: 12px;
 }
 
 /* 底部登录引导（降级为小字链接） */

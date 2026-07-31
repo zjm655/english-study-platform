@@ -1,12 +1,13 @@
 // server/api/user/stats.get.ts
-// 用户学习统计：已完成片段数、配音平均分、最近学习时间
-import { validateSuccess, validateError } from '#server/utils/validate'
+// 用户学习统计（登录用户 + 游客）：已完成片段数、配音平均分、最近学习时间
+import { validateSuccess } from '#server/utils/validate'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import { query } from '#server/utils/db'
 
 export default defineEventHandler(async (event) => {
-  const userId = event.context.user?.id
+  const userId = await resolveEffectiveUserId(event)
   if (!userId) {
-    return validateError('未登录')
+    return validateSuccess({ completedSegments: 0, avgDubbingScore: null, lastStudyTime: null }, '获取成功')
   }
 
   const completedRows = await query<{ cnt: number | string }>(

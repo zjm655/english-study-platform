@@ -1,6 +1,7 @@
 import { query } from '#server/utils/db'
 import { signUrl, WORD_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess, reviewQuerySchema } from '#server/utils/validate'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { ReviewVocabItem } from '#shared/types/review'
 import type { VocabularyRow, UserProgressRow } from '#server/types/db'
 
@@ -27,9 +28,9 @@ export function rowsToReviewVocab(
  * GET /api/review/vocab?limit=10
  */
 export default defineEventHandler(async (event) => {
-  const userId = event.context.user?.id
+  const userId = await resolveEffectiveUserId(event)
 
-  // 游客无学习记录，直接返回空列表
+  // 游客未实体化或无学习记录，直接返回空列表
   if (!userId) {
     return validateSuccess({ items: [], total: 0 }, '获取成功')
   }

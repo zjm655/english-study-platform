@@ -4,6 +4,8 @@ import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
+import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
+import { useUserStore } from '~/store/useUserStore'
 import BlindListening from '~/components/phases/BlindListening.vue'
 import TextLearning from '~/components/phases/TextLearning.vue'
 import DubbingPractice from '~/components/phases/DubbingPractice.vue'
@@ -24,6 +26,10 @@ const unitId = computed(() => Number(route.params.id))
 
 const { isLoading, fetchSegmentDetail } = useSegmentDetail()
 const { play: _play, pause } = useAudioPlayer()
+const userStore = useUserStore()
+
+// 游客身份标识（无登录态）
+const isGuest = computed(() => !userStore.isLogin)
 
 // 自动管理音频生命周期
 useAudioLifecycle()
@@ -33,6 +39,9 @@ useGuestStudyTimer()
 
 const segment = ref<SegmentDetail | null>(null)
 const error = ref<string | null>(null)
+
+// 游客音频解析：后端对游客返回 audioUrl=null + audioObjectKey，需动态获取签名 URL
+const resolvedAudioUrl = ref<string | null>(null)
 
 // 当前阶段（1-4）
 const currentPhase = ref(1)
@@ -78,8 +87,13 @@ async function loadData() {
   const res = await fetchSegmentDetail(segId.value)
   if (res?.code === 200 && res.data) {
     segment.value = res.data
-    // 不自动 load()，等用户点击播放时再加载（浏览器要求用户手势）
-    // 根据进度设置当前阶段
+    // 游客：通过 audioObjectKey 动态获取签名 URL（后端对游客 audioUrl=null）
+    if (isGuest.value && res.data.audioObjectKey) {
+      resolvedAudioUrl.value = await resolveGuestAudioUrl(null, res.data.audioObjectKey, 'material')
+    } else {
+      resolvedAudioUrl.value = res.data.audioUrl ?? null
+    }
+    // 根据进度设置当前阶段（后端现在对游客也返回真实进度）
     const progress = res.data.progress
     if (progress.phase1_done && progress.phase2_done && progress.phase3_done) {
       currentPhase.value = 4
@@ -108,9 +122,9 @@ function canNavigateTo(phase: number): boolean {
   if (phase === currentPhase.value) return true
   // 下一个待完成阶段可以进入
   const nextPhase = (() => {
-    if (!segment.value!.progress.phase1_done) return 1
-    if (!segment.value!.progress.phase2_done) return 2
-    if (!segment.value!.progress.phase3_done) return 3
+    if (!isPhaseDone(1)) return 1
+    if (!isPhaseDone(2)) return 2
+    if (!isPhaseDone(3)) return 3
     return 4
   })()
   return phase === nextPhase
@@ -143,7 +157,7 @@ function isPhaseDone(phase: number): boolean {
 
 // 阶段完成回调
 function onPhaseComplete() {
-  loadData() // 重新加载数据以更新进度状态
+  loadData() // 重新加载数据以更新进度状态（后端对游客也已持久化进度）
 }
 </script>
 
@@ -203,8 +217,8 @@ function onPhaseComplete() {
         </div>
       </div>
 
-      <!-- 音频播放器 -->
-      <AudioPlayer :src="segment?.audioUrl" class="audio-player" />
+      <!-- 音频播放器（游客通过 audioObjectKey 动态解析签名 URL） -->
+      <AudioPlayer :src="resolvedAudioUrl" class="audio-player" />
 
       <!-- 阶段内容区 -->
       <div class="phase-content">

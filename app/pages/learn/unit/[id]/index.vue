@@ -4,7 +4,6 @@ import { useUnitProgress } from '~/composables/unit'
 import { useFavorites } from '~/composables/useFavorites'
 import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
 import { useUserStore } from '~/store/useUserStore'
-import { toastInfo } from '~/utils/popup'
 import type { UnitProgressDetail } from '#shared/types/unit'
 import type { ResPayload } from '#shared/types/request'
 
@@ -107,8 +106,8 @@ async function loadMoreSegments() {
 onMounted(() => {
   // 首屏加载单元进度
   loadData()
-  // 收藏是登录态数据：游客不发（避免 401 → resolveCode 弹 /login）
-  if (userStore.isLogin) fetchFavSegments()
+  // 收藏列表（登录用户 + 游客均支持）
+  fetchFavSegments()
 
   scrollObserver = new IntersectionObserver(
     (entries) => {
@@ -161,10 +160,6 @@ function goLeaderboard(segId: number) {
 
 /** 收藏片段：游客温和提示，不跳转 */
 function handleToggleSegment(segId: number) {
-  if (!userStore.isLogin) {
-    toastInfo('登录后即可收藏')
-    return
-  }
   toggleSegment(segId)
 }
 </script>

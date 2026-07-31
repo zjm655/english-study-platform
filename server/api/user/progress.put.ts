@@ -1,16 +1,17 @@
 import { withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess, progressSchema } from '#server/utils/validate'
+import { resolveAndEnsureGuestUserId } from '#server/utils/guestEnsure'
 import type { UserProgressRow } from '#server/types/db'
 import type { ResultSetHeader } from 'mysql2'
 import type { ZodSafeParseResult } from 'zod'
 import { mapProgressRow } from '#shared/utils/progress'
 
 /**
- * 更新用户学习进度
+ * 更新用户学习进度（登录用户 + 游客）
  * PUT /api/user/progress
  */
 export default defineEventHandler(async (event) => {
-  const userId = event.context.user?.id
+  const userId = event.context.user?.id ?? await resolveAndEnsureGuestUserId(event)
   if (!userId) {
     return validateError('未登录', 401)
   }

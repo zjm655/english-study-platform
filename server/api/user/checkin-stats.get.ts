@@ -1,13 +1,15 @@
 import { query } from '#server/utils/db'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { CheckinStatsRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
 
 /**
- * 获取用户打卡统计数据
+ * 获取用户打卡统计数据（登录用户 + 游客）
  * 请求：GET /api/user/checkin-stats
  */
 export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats | null>> => {
-  const userId = event.context.user.id
+  const userId = await resolveEffectiveUserId(event)
+  if (!userId) return validateSuccess(null, '暂无打卡数据', 200)
 
   const rows = await query<CheckinStatsRow>('SELECT * FROM user_checkin_stats WHERE user_id = ?', [
     userId,

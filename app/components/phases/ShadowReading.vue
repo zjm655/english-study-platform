@@ -197,9 +197,9 @@ async function start() {
   let uploadedRecording: UploadRecordingResult | null = null
 
   try {
-    const { warrantId, applicationId } = await pipeline.resolveAuth(4)
+    const { warrantId, applicationId, userId: authUserId } = await pipeline.resolveAuth(4)
 
-    await initEngine(applicationId, String(userId), warrantId)
+    await initEngine(applicationId, String(authUserId), warrantId)
 
     // 启动浏览器端录音（webm，可播放），与 SDK 评测并行
     await startRecorder()
@@ -311,8 +311,9 @@ async function completePhase() {
 }
 
 onMounted(() => {
+  // 录音历史加载（登录用户 + 游客均支持）
   loadRecordings()
-  // 游客身份时查询配额（决定是否显示"已用完"提示）
+  // 游客身份时查询配额（决定是否显示“已用完”提示）
   if (isGuest.value) fetchGuestQuota()
 })
 

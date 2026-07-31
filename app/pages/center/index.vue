@@ -19,8 +19,8 @@
           </div>
         </div>
       </div>
-      <!-- 学习统计仅登录用户可见，游客无数据 -->
-      <div v-if="isLogin" class="user-stats">
+      <!-- 学习统计：登录用户和游客均可见（后端对游客也返回真实数据） -->
+      <div class="user-stats">
         <div class="stat-item">
           <div class="stat-value">{{ checkinStats?.currentStreakDays ?? 0 }}</div>
           <div class="stat-label">连续学习</div>
@@ -230,9 +230,7 @@ const handleLogout = async () => {
 }
 
 onMounted(() => {
-  if (isLogin.value) {
-    initStats()
-  }
+  initStats()
 })
 
 watch(isLogin, (newVal) => {

@@ -1,13 +1,14 @@
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 
 /**
- * 检查单个片段是否已收藏
+ * 检查单个片段是否已收藏（登录用户 + 游客）
  * GET /api/user/fav-segment/:segId/status
  */
 export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boolean }>> => {
-  const userId = event.context.user?.id
-  if (!userId) return validateError('未登录', 401)
+  const userId = await resolveEffectiveUserId(event)
+  if (!userId) return validateSuccess({ isFav: false }, '获取成功')
 
   const segId = Number(getRouterParam(event, 'segId'))
   if (!segId || isNaN(segId)) {

@@ -27,6 +27,17 @@ interface CacheEntry {
 }
 const cache = new Map<string, CacheEntry>()
 
+/** 最大缓存条目数（防止内存无限增长，仿 guestOssLimit 的 MAX_ENTRIES 模式） */
+const MAX_CACHE_ENTRIES = 50_000
+
+/** 达到容量上限时淘汰最旧插入的键（FIFO 近似 LRU） */
+function evictIfFull(): void {
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+}
+
 /** 读取 sys_config 中的游客每日评测上限（带缓存） */
 async function getGuestEvalLimit(): Promise<number> {
   // 复用全局缓存键，避免每次 check 都查 sys_config
@@ -74,6 +85,7 @@ export async function checkGuestEvalLimit(
     )
     if (userRows.length === 0) {
       // 游客尚未实体化（无 user 行），视为 0 次使用
+      evictIfFull()
       cache.set(cacheKey, { used: 0, expireAt: Date.now() + CACHE_TTL })
       return { allowed: true, remaining: limit, used: 0, limit }
     }
@@ -85,6 +97,7 @@ export async function checkGuestEvalLimit(
       [userId, phaseNum],
     )
     const used = countRows[0]?.cnt ?? 0
+    evictIfFull()
     cache.set(cacheKey, { used, expireAt: Date.now() + CACHE_TTL })
     return { allowed: used < limit, remaining: Math.max(0, limit - used), used, limit }
   } catch {
@@ -123,7 +136,9 @@ export async function getGuestEvalQuota(
     const shadowUsed = phaseCountMap.get(PHASE_MAP.shadow) ?? 0
 
     // 写入缓存
+    evictIfFull()
     cache.set(`${guestKey}:dubbing`, { used: dubbingUsed, expireAt: Date.now() + CACHE_TTL })
+    evictIfFull()
     cache.set(`${guestKey}:shadow`, { used: shadowUsed, expireAt: Date.now() + CACHE_TTL })
 
     return { dubbing: { used: dubbingUsed, limit }, shadow: { used: shadowUsed, limit } }

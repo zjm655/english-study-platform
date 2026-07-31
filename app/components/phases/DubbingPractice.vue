@@ -191,8 +191,9 @@ async function completePhase() {
 }
 
 onMounted(() => {
+  // 录音历史加载（登录用户 + 游客均支持）
   loadRecordings()
-  // 游客身份时查询配额（决定是否显示"已用完"提示）
+  // 游客身份时查询配额（决定是否显示“已用完”提示）
   if (isGuest.value) fetchGuestQuota()
 })
 </script>

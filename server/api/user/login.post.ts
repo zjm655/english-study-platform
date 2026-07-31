@@ -80,7 +80,8 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
   const guestKey = await readGuestKey(event)
   if (guestKey) {
     try {
-      await mergeGuestData(guestKey, user.id)
+      const fingerprint = getRequestHeader(event, 'x-guest-fingerprint') ?? null
+      await mergeGuestData(guestKey, user.id, fingerprint)
       clearGuestCookie(event)
     } catch (err) {
       logger.error('[login] 游客数据合并失败:', err)

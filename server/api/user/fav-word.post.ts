@@ -1,17 +1,18 @@
 import { withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess, favWordSchema } from '#server/utils/validate'
+import { resolveAndEnsureGuestUserId } from '#server/utils/guestEnsure'
 import type { RowDataPacket } from 'mysql2'
 
 type IdRow = RowDataPacket & { id: number }
 type FavRow = RowDataPacket & { id: number; deleted_at: string | null }
 
 /**
- * 收藏/取消收藏单词（toggle）
+ * 收藏/取消收藏单词（toggle，登录用户 + 游客）
  * POST /api/user/fav-word
  * body: { vocabularyId: number }
  */
 export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boolean }>> => {
-  const userId = event.context.user?.id
+  const userId = event.context.user?.id ?? await resolveAndEnsureGuestUserId(event)
   if (!userId) return validateError('未登录', 401)
 
   const body = await readBody(event)

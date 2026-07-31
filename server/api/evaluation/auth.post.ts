@@ -43,6 +43,7 @@ export default defineEventHandler(
       warrantId: string
       applicationId: string
       expireAt: number
+      userId: number
     }>
   > => {
     let userId = event.context.user?.id
@@ -207,6 +208,7 @@ export default defineEventHandler(
         warrantId: respData.data.warrant_id,
         applicationId: appId,
         expireAt: respData.data.expire_at,
+        userId,
       })
     } catch (err) {
       logger.error('[evaluation auth] 请求阿里云鉴权接口失败:', err)

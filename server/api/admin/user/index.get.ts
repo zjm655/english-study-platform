@@ -20,15 +20,20 @@ export default defineEventHandler(async (event) => {
   const { page, pageSize, keyword, state } = parsed.data
   const offset = (page - 1) * pageSize
 
-  // state 映射 WHERE：all=未销号；normal=未销号且正常；banned=未销号且封禁；deleted=已销号
-  // is_guest=0：游客行不进后台用户列表与总数（一期后台不适配游客，仅防统计污染）
-  const where: string[] = ['is_guest = 0']
-  if (state === 'deleted') {
-    where.push('deleted_at IS NOT NULL')
+  // state 映射 WHERE：all=未销号正式用户；normal=未销号且正常；banned=未销号且封禁；deleted=已销号；guest=游客
+  const where: string[] = []
+  if (state === 'guest') {
+    where.push('is_guest = 1')
+    where.push('merged_into_user_id IS NULL') // 已合并的游客不显示
   } else {
-    where.push('deleted_at IS NULL')
-    if (state === 'normal') where.push('status = 1')
-    else if (state === 'banned') where.push('status = 0')
+    where.push('is_guest = 0')
+    if (state === 'deleted') {
+      where.push('deleted_at IS NOT NULL')
+    } else {
+      where.push('deleted_at IS NULL')
+      if (state === 'normal') where.push('status = 1')
+      else if (state === 'banned') where.push('status = 0')
+    }
   }
 
   const params: (number | string)[] = []
@@ -41,7 +46,7 @@ export default defineEventHandler(async (event) => {
   // 只 SELECT 必要字段，严禁 SELECT *（避免泄露 passwordHash）
   const list = await query<AdminUserListItem>(
     `SELECT id, account, nickname, email, role, level, status,
-            deleted_at AS deletedAt, createdAt
+            is_guest AS isGuest, deleted_at AS deletedAt, createdAt
      FROM user
      WHERE ${whereSql}
      ORDER BY createdAt DESC, id DESC

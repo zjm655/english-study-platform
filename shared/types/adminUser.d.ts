@@ -11,12 +11,13 @@ export interface AdminUserListItem {
   role: number // 0 普通用户 1 管理员
   level: number // 0 未测试 1 初级 2 中级 3 高级
   status: number // 0 封禁 1 正常
+  isGuest: number // 0 正式用户 1 游客
   deletedAt: string | null // 销号（软删除）时间
   createdAt: string
 }
 
 /** 用户状态筛选枚举 */
-export type AdminUserState = 'all' | 'normal' | 'banned' | 'deleted'
+export type AdminUserState = 'all' | 'normal' | 'banned' | 'deleted' | 'guest'
 
 /** 用户列表查询参数（query string，后端 zod coerce） */
 export interface AdminUserListQuery {

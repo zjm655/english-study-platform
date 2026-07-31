@@ -6,7 +6,7 @@
 //   （JWT payload 仅 base64 编码、客户端可读），校验时重算 hash 比对。
 // - 无状态：不依赖 DB / 内存存储，天然支持水平扩展；有效期由 JWT exp 控制。
 import { SignJWT, jwtVerify } from 'jose'
-import { createHash } from 'node:crypto'
+import { createHash, randomInt } from 'node:crypto'
 import { getSecret } from './auth'
 
 /** 验证码字符集：排除易混字符 0/O/1/l/I */
@@ -18,18 +18,18 @@ const CAPTCHA_TTL_SEC = 5 * 60
 /** 干扰线颜色池 */
 const COLORS = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#909399']
 
-/** 生成随机验证码字符串 */
+/** 生成随机验证码字符串（密码学安全随机源） */
 function randomCode(): string {
   let code = ''
   for (let i = 0; i < CODE_LENGTH; i++) {
-    code += CHARSET[Math.floor(Math.random() * CHARSET.length)]
+    code += CHARSET[randomInt(0, CHARSET.length)]
   }
   return code
 }
 
-/** 随机整数 [min, max] */
+/** 随机整数 [min, max]（密码学安全） */
 function randInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  return randomInt(min, max + 1)
 }
 
 /** 计算验证码答案哈希（小写归一化 + jwtSecret 盐） */

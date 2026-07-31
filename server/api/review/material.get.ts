@@ -1,6 +1,7 @@
 import { query } from '#server/utils/db'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess, reviewQuerySchema } from '#server/utils/validate'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { SegmentRow } from '#server/types/db'
 import type { ReviewMaterialItem } from '#shared/types/review'
 import type { Question } from '#shared/types/unit'
@@ -36,9 +37,9 @@ export function rowsToReviewMaterial(
  * 请求：GET /api/review/material?limit=5
  */
 export default defineEventHandler(async (event) => {
-  const userId = event.context.user?.id
+  const userId = await resolveEffectiveUserId(event)
 
-  // 游客无学习记录，直接返回空列表
+  // 游客未实体化或无学习记录，直接返回空列表
   if (!userId) {
     return validateSuccess({ items: [], total: 0 }, '获取材料复习列表成功')
   }

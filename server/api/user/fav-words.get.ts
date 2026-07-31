@@ -1,13 +1,14 @@
 import { query } from '#server/utils/db'
-import { validateError, validateSuccess } from '#server/utils/validate'
+import { validateSuccess } from '#server/utils/validate'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 
 /**
- * 获取当前用户收藏的单词 ID 列表
+ * 获取当前用户收藏的单词 ID 列表（登录用户 + 游客）
  * GET /api/user/fav-words
  */
 export default defineEventHandler(async (event): Promise<ResPayload<number[]>> => {
-  const userId = event.context.user?.id
-  if (!userId) return validateError('未登录', 401)
+  const userId = await resolveEffectiveUserId(event)
+  if (!userId) return validateSuccess([], '获取成功')
 
   const rows = await query<{ vocabulary_id: number }>(
     'SELECT vocabulary_id FROM user_fav_word WHERE user_id = ? AND deleted_at IS NULL',

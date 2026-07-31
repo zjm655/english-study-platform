@@ -4,6 +4,7 @@ import { uploadWithKey, signUrl, deleteObject, RECORDING_EXPIRE } from '#server/
 import { validateError, validateSuccess, uploadRecordingSchema } from '#server/utils/validate'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { ensureGuestUserByFingerprint } from '#server/services/guestUser'
+import { readGuestKey } from '#server/utils/guest'
 
 import type { RecordingRow } from '#server/types/db'
 import type { UploadRecordingResult } from '#shared/types/recording'
@@ -112,16 +113,39 @@ export default defineEventHandler(
 
     try {
       result = await withTransaction(async (conn) => {
-        // 游客身份懒实体化：在事务内确保 user 行存在
+        // 游客身份懒实体化：优先用 guest_token（guest_key）解析，保证与评测限流查同一 user 行；
+        // 指纹仅作兜底（无 guest_token 时）
         let userId: number
         if (loggedInUserId) {
           userId = loggedInUserId
         } else {
-          const ensured = await ensureGuestUserByFingerprint(conn, fingerprint!)
-          if (ensured.conflict) {
-            throw new Error('GUEST_CONFLICT')
+          // 优先通过 guest_token 查找已实体化的游客行
+          const guestKey = await readGuestKey(event)
+          let resolvedByGuestKey = false
+          if (guestKey) {
+            const [rows] = await conn.execute<RowDataPacket[]>(
+              'SELECT id FROM user WHERE guest_key = ? AND is_guest = 1 AND merged_into_user_id IS NULL LIMIT 1 FOR UPDATE',
+              [guestKey],
+            )
+            if (rows.length > 0) {
+              userId = (rows[0] as { id: number }).id
+              resolvedByGuestKey = true
+              // 顺便把指纹关联到同一行（best-effort，指纹已被其他行占用时跳过）
+              try {
+                await conn.execute(
+                  'UPDATE IGNORE user SET fingerprint_hash = ? WHERE id = ? AND fingerprint_hash IS NULL',
+                  [fingerprint, userId],
+                )
+              } catch { /* 指纹关联失败不影响录音归属 */ }
+            }
           }
-          userId = ensured.userId
+          if (!resolvedByGuestKey) {
+            const ensured = await ensureGuestUserByFingerprint(conn, fingerprint!)
+            if (ensured.conflict) {
+              throw new Error('GUEST_CONFLICT')
+            }
+            userId = ensured.userId
+          }
         }
 
         // 9a. 插入 media 表

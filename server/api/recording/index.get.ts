@@ -1,16 +1,32 @@
 import { query } from '#server/utils/db'
 import { signUrl, RECORDING_EXPIRE } from '#server/utils/oss'
 import { rowToRecording } from '#server/utils/recording'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { RecordingRow, CountRow } from '#server/types/db'
 import type { Recording, PaginatedRecordings } from '#shared/types/recording'
 
 /**
- * 查询录音列表
+ * 查询录音列表（登录用户 + 游客）
  * 请求：GET /api/recording?segmentId=1&phase=3&page=1&pageSize=3
  * 兼容：过渡期仍接受旧参数名 size（前后端统一为 pageSize 后可移除该回退）。
  */
 export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRecordings>> => {
-  const userId: number = event.context.user.id
+  // 身份解析：登录用户走 context，游客优先 guest_token 再指纹兜底
+  let userId: number | null = event.context.user?.id ?? null
+  if (!userId) {
+    userId = await resolveEffectiveUserId(event)
+  }
+  if (!userId) {
+    const fingerprint = getRequestHeader(event, 'x-guest-fingerprint')
+    if (fingerprint && /^[a-f0-9]{64}$/.test(fingerprint)) {
+      const rows = await query<{ id: number }>(
+        'SELECT id FROM user WHERE fingerprint_hash = ? AND is_guest = 1 AND merged_into_user_id IS NULL LIMIT 1',
+        [fingerprint],
+      )
+      if (rows.length > 0) userId = rows[0]!.id
+    }
+  }
+  if (!userId) return validateSuccess<PaginatedRecordings>({ items: [], total: 0, page: 1, pageSize: 3 }, '获取成功')
   const queryParams = getQuery(event)
   const segmentId = Number(queryParams.segmentId)
   const phase = Number(queryParams.phase)

@@ -4,8 +4,7 @@ import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useFavorites } from '~/composables/useFavorites'
 import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
 import type { SegmentDetail, VocabularyItem } from '~~/shared/types/unit'
-import { useUserStore } from '~/store/useUserStore'
-import { toastError, toastInfo } from '~/utils/popup'
+import { toastError } from '~/utils/popup'
 
 interface Props {
   segment: SegmentDetail
@@ -19,11 +18,10 @@ const emit = defineEmits<{
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 const { load, play } = useAudioPlayer()
 const { fetchFavWords, isWordFav, toggleWord, togglingWord } = useFavorites()
-const userStore = useUserStore()
 
-// 页面加载时拉取收藏列表（仅登录用户，游客跳过避免 401）
+// 页面加载时拉取收藏列表（登录用户 + 游客均支持）
 onMounted(() => {
-  if (userStore.isLogin) fetchFavWords()
+  fetchFavWords()
 })
 
 // ===== 状态 =====
@@ -118,12 +116,8 @@ async function playMaterialAudio() {
   play()
 }
 
-/** 收藏单词：游客温和提示，不跳转 */
+/** 收藏单词（登录用户 + 游客均支持） */
 function handleToggleWord(wordId: number) {
-  if (!userStore.isLogin) {
-    toastInfo('登录后即可收藏单词')
-    return
-  }
   toggleWord(wordId)
 }
 

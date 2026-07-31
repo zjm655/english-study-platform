@@ -2,6 +2,7 @@ import { query, withTransaction } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import { processEvaluationResult } from '#server/utils/evaluationResult'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { RecordingRow } from '#server/types/db'
 import type { RowDataPacket } from 'mysql2'
 import type { Recording } from '#shared/types/recording'
@@ -12,8 +13,11 @@ import type { Recording } from '#shared/types/recording'
  * Body: { result: { score, wordScores, rawResult? } }
  */
 export default defineEventHandler(async (event): Promise<ResPayload<Recording | null>> => {
-  const userId = event.context.user?.id
-  if (!userId) return validateError('未登录', 401)
+  // 身份解析：登录用户走 event.context.user，游客优先 guest_token 再指纹兜底
+  const loggedInUserId = event.context.user?.id
+  const fingerprint = !loggedInUserId ? getRequestHeader(event, 'x-guest-fingerprint') : null
+  if (!loggedInUserId && !fingerprint) return validateError('未登录', 401)
+  if (fingerprint && !/^[a-f0-9]{64}$/.test(fingerprint)) return validateError('指纹格式无效')
 
   const id = Number(getRouterParam(event, 'id'))
 
@@ -30,6 +34,26 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
 
   if (!recording) {
     return validateError('录音不存在', 404)
+  }
+
+  // 归属校验：登录用户直接比对；游客优先 guest_token 解析，指纹兜底
+  let userId: number
+  if (loggedInUserId) {
+    userId = loggedInUserId
+  } else {
+    // 优先通过 guest_token 解析（与录音上传同一身份通道）
+    const resolved = await resolveEffectiveUserId(event)
+    if (resolved) {
+      userId = resolved
+    } else {
+      // 指纹兜底
+      const userRows = await query<{ id: number }>(
+        'SELECT id FROM user WHERE fingerprint_hash = ? AND is_guest = 1 AND merged_into_user_id IS NULL LIMIT 1',
+        [fingerprint],
+      )
+      if (userRows.length === 0) return validateError('游客身份无效', 401)
+      userId = userRows[0]!.id
+    }
   }
 
   if (recording.user_id !== userId) {

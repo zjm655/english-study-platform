@@ -1,16 +1,18 @@
 import { withTransaction, pool } from '#server/utils/db'
 import { formatDate, formatDatetime, getStats } from '#server/services/checkinHelper'
+import { resolveAndEnsureGuestUserId } from '#server/utils/guestEnsure'
 import type { CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
 import type { ResultSetHeader } from 'mysql2'
 
 /**
- * 签到接口
+ * 签到接口（登录用户 + 游客）
  * 请求：POST /api/user/checkin
  * 流程：查 log → 已签到则返回 / 未签到则更新 → 计算连续性 → UPDATE stats
  */
 export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats | null>> => {
-  const userId: number = event.context.user.id
+  const userId = event.context.user?.id ?? await resolveAndEnsureGuestUserId(event)
+  if (!userId) return validateError('未登录', 401)
   const now = new Date()
   const todayStr = formatDate(now)
   const nowStr = formatDatetime(now)

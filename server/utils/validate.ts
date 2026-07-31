@@ -274,8 +274,8 @@ export const adminUserListSchema = z.object({
     .default(10),
   keyword: z.string().max(50, '搜索关键词不能超过 50 个字符').optional(),
   state: z
-    .enum(['all', 'normal', 'banned', 'deleted'], {
-      message: 'state 必须为 all/normal/banned/deleted',
+    .enum(['all', 'normal', 'banned', 'deleted', 'guest'], {
+      message: 'state 必须为 all/normal/banned/deleted/guest',
     })
     .optional()
     .default('all'),

@@ -91,6 +91,17 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     const { invalidateGuestEvalLimitCache } = await import('#server/utils/guestEvalLimit')
     invalidateGuestAudioLimitCache()
     invalidateGuestEvalLimitCache()
+
+    // 转正后合并指纹孤儿行数据（历史双通道产生的另一个游客行）
+    const fingerprint = getRequestHeader(event, 'x-guest-fingerprint')
+    if (fingerprint && /^[a-f0-9]{64}$/.test(fingerprint)) {
+      try {
+        const { mergeFingerprintOrphan } = await import('#server/services/guestMerge')
+        await mergeFingerprintOrphan(fingerprint, guestRow!.id)
+      } catch (err) {
+        logger.error('[register] 指纹孤儿行合并失败:', err)
+      }
+    }
   }
 
   // 8. 返回成功

@@ -26,10 +26,11 @@
           class="filter-item filter-item--narrow"
           @change="handleSearch"
         >
-          <el-option label="全部" value="all" />
+          <el-option label="正式用户" value="all" />
           <el-option label="正常" value="normal" />
           <el-option label="封禁" value="banned" />
           <el-option label="已注销" value="deleted" />
+          <el-option label="游客" value="guest" />
         </el-select>
         <el-button type="primary" @click="handleSearch">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
@@ -70,7 +71,12 @@
           :selectable="(row: any) => !isLocked(row) && canSelect(row)"
         />
         <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="account" label="账号" min-width="120" />
+        <el-table-column prop="account" label="账号" min-width="120">
+          <template #default="{ row }">
+            {{ row.account || '-' }}
+            <el-tag v-if="row.isGuest" type="info" size="small" style="margin-left: 4px">游客</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="昵称" min-width="120">
           <template #default="{ row }">{{ row.nickname || '-' }}</template>
         </el-table-column>

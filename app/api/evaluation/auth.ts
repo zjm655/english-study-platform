@@ -4,6 +4,8 @@ export interface EvaluationAuthResult {
   warrantId: string
   applicationId: string
   expireAt: number
+  /** 服务端签名用的 userId（游客为实体化后的 user.id，登录用户为自身 id），SDK initEngine 必须用此值 */
+  userId: number
 }
 
 /**

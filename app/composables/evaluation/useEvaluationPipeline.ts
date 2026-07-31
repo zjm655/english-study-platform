@@ -8,6 +8,8 @@ import { useAnalyzeRecording, useMarkAnalyzeFail } from '~/composables/recording
 export interface EvaluationAuth {
   warrantId: string
   applicationId: string
+  /** 服务端签名用的 userId，SDK initEngine 必须用此值（游客为实体化后的 user.id） */
+  userId: number
 }
 
 /** 已上传录音的上下文（保存评测结果 / 构造回退记录共用） */
@@ -76,7 +78,7 @@ export const useEvaluationPipeline = () => {
     if (authRes?.code !== 200 || !authRes.data) {
       throw new Error(authRes?.message || '获取评测授权失败')
     }
-    return { warrantId: authRes.data.warrantId, applicationId: authRes.data.applicationId }
+    return { warrantId: authRes.data.warrantId, applicationId: authRes.data.applicationId, userId: authRes.data.userId }
   }
 
   /** 本地构造「分析失败」的回退 Recording（后端 markAnalyzeFail 不可用时兜底）。 */
@@ -146,8 +148,8 @@ export const useEvaluationPipeline = () => {
     destroyEngine()
     try {
       const blob = await params.getBlob()
-      const { warrantId, applicationId } = await resolveAuth(params.phase)
-      await initEngine(applicationId, String(params.userId), warrantId)
+      const { warrantId, applicationId, userId: authUserId } = await resolveAuth(params.phase)
+      await initEngine(applicationId, String(authUserId), warrantId)
       const result = await evalAnalyzeRecording(blob, params.refText)
       return await saveEvaluation({ ...params, result })
     } catch (err) {

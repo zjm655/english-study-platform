@@ -1,5 +1,6 @@
 import { query } from '#server/utils/db'
 import { signUrl, MATERIAL_EXPIRE, WORD_EXPIRE } from '#server/utils/oss'
+import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { SegmentRow, UnitRow, VocabularyRow, UserProgressRow } from '#server/types/db'
 import type { SegmentDetail, SegmentPhaseProgress, VocabularyItem } from '#shared/types/unit'
 import { mapProgressRow, DEFAULT_PROGRESS } from '#shared/utils/progress'
@@ -88,32 +89,31 @@ export default defineEventHandler(async (event): Promise<ResPayload<SegmentDetai
         })),
       )
 
-  // 4. 查用户进度（游客无进度，使用默认值）
-  const defaultProgress = { ...DEFAULT_PROGRESS }
+  // 4. 查用户进度（游客通过 guest_token 解析 user_id，查真实进度；未实体化则默认值）
+  const effectiveUserId = isGuest ? await resolveEffectiveUserId(event) : userId
   let progressConverted: SegmentPhaseProgress
-  if (isGuest) {
-    progressConverted = {
-      ...defaultProgress,
-      updatedAt:
-        defaultProgress.updatedAt instanceof Date
-          ? defaultProgress.updatedAt.toISOString()
-          : (defaultProgress.updatedAt ?? undefined),
-    }
-  } else {
+  if (effectiveUserId) {
     const progressRows = await query<UserProgressRow>(
       'SELECT * FROM user_progress WHERE user_id = ? AND segment_id = ?',
-      [userId, segId],
+      [effectiveUserId, segId],
     )
     const progressRow = progressRows[0]
     const progress = progressRow ? mapProgressRow(progressRow) : { ...DEFAULT_PROGRESS }
-    // mapProgressRow 的 updatedAt 可能是 Date（MySQL 驱动返回），
-    // SegmentPhaseProgress 要求 string | null | undefined
     progressConverted = {
       ...progress,
       updatedAt:
         progress.updatedAt instanceof Date
           ? progress.updatedAt.toISOString()
           : (progress.updatedAt ?? undefined),
+    }
+  } else {
+    const defaultProgress = { ...DEFAULT_PROGRESS }
+    progressConverted = {
+      ...defaultProgress,
+      updatedAt:
+        defaultProgress.updatedAt instanceof Date
+          ? defaultProgress.updatedAt.toISOString()
+          : (defaultProgress.updatedAt ?? undefined),
     }
   }
 
