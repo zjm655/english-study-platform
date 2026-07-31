@@ -1,68 +1,64 @@
 <template>
   <div class="profile-page">
-    <!-- 登录态由 authVerify.server 插件在 SSR 期写入 store，本页可直接 SSR 直出，无需 ClientOnly -->
-    <!-- 未登录状态 -->
-    <div v-if="!isLogin" class="not-login">
-      <el-icon :size="64" class="not-login__icon"><UserFilled /></el-icon>
-      <p class="not-login__text">登录后查看更多功能</p>
-      <NuxtLink to="/login">
-        <el-button type="primary">去登录</el-button>
-      </NuxtLink>
-    </div>
-
-    <!-- 已登录状态 -->
-    <template v-else>
-      <!-- 用户信息卡片 -->
-      <div class="user-card">
-        <div class="user-info">
-          <div class="avatar">
-            <el-avatar :size="64" :src="user?.avatarUrl ?? undefined">
-              <el-icon :size="32"><UserFilled /></el-icon>
-            </el-avatar>
-          </div>
-          <div class="user-details">
-            <div class="nickname">{{ user?.nickname || '未设置昵称' }}</div>
-            <div class="level-badge">
-              <el-tag :type="levelType" size="small">{{ levelText }}</el-tag>
-            </div>
-          </div>
+    <!-- 用户信息卡片：登录用户显示真实数据，游客显示默认头像 -->
+    <div class="user-card">
+      <div class="user-info">
+        <div class="avatar">
+          <el-avatar :size="64" :src="isLogin ? user?.avatarUrl : undefined">
+            <el-icon :size="32"><UserFilled /></el-icon>
+          </el-avatar>
         </div>
-        <div class="user-stats">
-          <div class="stat-item">
-            <div class="stat-value">{{ checkinStats?.currentStreakDays ?? 0 }}</div>
-            <div class="stat-label">连续学习</div>
+        <div class="user-details">
+          <!-- 登录用户显示昵称，游客显示"游客" -->
+          <div class="nickname">{{ isLogin ? (user?.nickname || '未设置昵称') : '游客' }}</div>
+          <div v-if="isLogin" class="level-badge">
+            <el-tag :type="levelType" size="small">{{ levelText }}</el-tag>
           </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <div class="stat-value">
-              {{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}
-            </div>
-            <div class="stat-label">累计学习</div>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <div class="stat-value">{{ userStats?.completedSegments ?? 0 }}</div>
-            <div class="stat-label">已完成片段</div>
-          </div>
-          <div class="stat-divider"></div>
-          <div class="stat-item">
-            <div class="stat-value">
-              {{ userStats?.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--' }}
-            </div>
-            <div class="stat-label">配音平均分</div>
+          <div v-else class="level-badge">
+            <el-tag type="info" size="small">未登录</el-tag>
           </div>
         </div>
       </div>
-
-      <!-- 设置菜单 -->
-      <div class="settings-section">
-        <div class="section-title">设置</div>
-        <div class="menu-list">
-          <div v-if="isAdmin" class="menu-item" @click="goAdmin">
-            <el-icon><Platform /></el-icon>
-            <span>管理员后台</span>
-            <el-icon class="arrow"><ArrowRight /></el-icon>
+      <!-- 学习统计仅登录用户可见，游客无数据 -->
+      <div v-if="isLogin" class="user-stats">
+        <div class="stat-item">
+          <div class="stat-value">{{ checkinStats?.currentStreakDays ?? 0 }}</div>
+          <div class="stat-label">连续学习</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-value">
+            {{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}
           </div>
+          <div class="stat-label">累计学习</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-value">{{ userStats?.completedSegments ?? 0 }}</div>
+          <div class="stat-label">已完成片段</div>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat-item">
+          <div class="stat-value">
+            {{ userStats?.avgDubbingScore != null ? userStats.avgDubbingScore + '分' : '--' }}
+          </div>
+          <div class="stat-label">配音平均分</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 设置菜单：所有用户共享，按登录态控制可见性 -->
+    <div class="settings-section">
+      <div class="section-title">设置</div>
+      <div class="menu-list">
+        <!-- 管理员入口：仅登录且为管理员可见 -->
+        <div v-if="isAdmin" class="menu-item" @click="goAdmin">
+          <el-icon><Platform /></el-icon>
+          <span>管理员后台</span>
+          <el-icon class="arrow"><ArrowRight /></el-icon>
+        </div>
+        <!-- 以下菜单项需要登录才能使用 -->
+        <template v-if="isLogin">
           <div class="menu-item" @click="handleEditProfile">
             <el-icon><Edit /></el-icon>
             <span>编辑资料</span>
@@ -78,27 +74,31 @@
             <span>提醒设置</span>
             <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
-          <div class="menu-item">
-            <el-icon><Moon /></el-icon>
-            <span>深色模式</span>
-            <el-switch v-model="isDarkMode" class="switch" />
-          </div>
-          <div class="menu-item" @click="handleAbout">
-            <el-icon><InfoFilled /></el-icon>
-            <span>关于我们</span>
-            <el-icon class="arrow"><ArrowRight /></el-icon>
-          </div>
+        </template>
+        <!-- 深色模式：不依赖登录态，所有用户可用 -->
+        <div class="menu-item">
+          <el-icon><Moon /></el-icon>
+          <span>深色模式</span>
+          <el-switch v-model="isDarkMode" class="switch" />
+        </div>
+        <div class="menu-item" @click="handleAbout">
+          <el-icon><InfoFilled /></el-icon>
+          <span>关于我们</span>
+          <el-icon class="arrow"><ArrowRight /></el-icon>
         </div>
       </div>
+    </div>
 
-      <!-- 退出登录按钮 -->
-      <div class="logout-section">
-        <el-button type="danger" plain @click="handleLogout">退出登录</el-button>
-      </div>
+    <!-- 底部按钮：登录用户→退出登录，游客→去登录 -->
+    <div class="logout-section">
+      <el-button v-if="isLogin" type="danger" plain @click="handleLogout">退出登录</el-button>
+      <NuxtLink v-else to="/login" class="login-link">
+        <el-button type="primary">登录 / 注册</el-button>
+      </NuxtLink>
+    </div>
 
-      <!-- 编辑资料弹窗（昵称/头像/密码修改） -->
-      <EditProfileDialog v-model="editProfileVisible" />
-    </template>
+    <!-- 编辑资料弹窗（昵称/头像/密码修改） -->
+    <EditProfileDialog v-model="editProfileVisible" />
   </div>
 </template>
 
@@ -246,27 +246,6 @@ watch(isLogin, (newVal) => {
 .profile-page {
   padding: 16px;
   min-height: 100%;
-}
-
-/* 未登录状态 */
-.not-login {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
-  text-align: center;
-}
-
-.not-login__icon {
-  color: var(--text-3);
-  margin-bottom: 16px;
-}
-
-.not-login__text {
-  font-size: 15px;
-  color: var(--text-2);
-  margin-bottom: 24px;
 }
 
 /* 用户信息卡片 */

@@ -3,7 +3,7 @@ import { Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
 import { useCheckin } from '~/composables/user'
 import { userCheckinStatsPath } from '~/api/paths'
-import { toastError } from '~/utils/popup'
+import { toastError, toastInfo } from '~/utils/popup'
 import type { CheckinStats } from '~~/shared/types/user'
 
 definePageMeta({
@@ -68,6 +68,11 @@ const formatStudyTime = (seconds: number) => {
   return mins > 0 ? `${hours}h${mins}min` : `${hours}h`
 }
 
+// 游客点击签到卡片：弹出提示引导登录
+function handleGuestCheckinClick() {
+  toastInfo('登录后即可签到打卡，记录学习进度', 2500)
+}
+
 async function handleCheckin() {
   if (isCheckedIn.value) return
   const res = await doCheckin()
@@ -89,12 +94,16 @@ async function handleCheckin() {
     </div>
 
     <template v-else>
-      <!-- 顶部问候 -->
+      <!-- 顶部问候：游客显示欢迎体验 -->
       <div class="greeting-section">
         <div class="greeting-text">
-          <!-- greeting 依赖浏览器本地时间保留 ClientOnly（fallback 占位防跳动）；nickname 已由 SSR verify 直出 -->
-          <ClientOnly>{{ greeting }}<template #fallback>你好</template></ClientOnly
-          >，{{ user?.nickname || '学习者' }}
+          <template v-if="!isLogin">
+            欢迎体验
+          </template>
+          <template v-else>
+            <!-- greeting 依赖浏览器本地时间保留 ClientOnly（fallback 占位防跳动）；nickname 已由 SSR verify 直出 -->
+            <ClientOnly>{{ greeting }}<template #fallback>你好</template></ClientOnly>，{{ user?.nickname || '学习者' }}
+          </template>
         </div>
         <div v-if="checkinStats?.currentStreakDays" class="streak-badge">
           <el-icon><Sunny /></el-icon>
@@ -102,53 +111,57 @@ async function handleCheckin() {
         </div>
       </div>
 
-      <!-- 登录态：签到/学习/统计（均依赖登录态数据） -->
-      <template v-if="isLogin">
-        <!-- 签到卡片 -->
-        <div class="checkin-card" :class="{ 'checked-in': isCheckedIn }" @click="handleCheckin">
-          <div class="checkin-icon">
-            <el-icon :size="32"><Sunny /></el-icon>
-          </div>
-          <div class="checkin-text">
-            <template v-if="checkinLoading">签到中...</template>
-            <template v-else-if="isCheckedIn">今日已签到</template>
-            <template v-else>今日签到</template>
-            <!-- <template v-else>开始签到</template> -->
-          </div>
+      <!-- 签到卡片：登录用户可签到，游客展示空态引导 -->
+      <div
+        class="checkin-card"
+        :class="{ 'checked-in': isCheckedIn, 'checkin-card--guest': !isLogin }"
+        @click="isLogin ? handleCheckin() : handleGuestCheckinClick()"
+      >
+        <div class="checkin-icon">
+          <el-icon :size="32"><Sunny /></el-icon>
         </div>
+        <div class="checkin-text">
+          <!-- 游客空态 -->
+          <template v-if="!isLogin">登录后签到打卡</template>
+          <!-- 登录态 -->
+          <template v-else-if="checkinLoading">签到中...</template>
+          <template v-else-if="isCheckedIn">今日已签到</template>
+          <template v-else>今日签到</template>
+        </div>
+      </div>
 
-        <!-- 开始学习按钮 -->
-        <div class="learn-section">
-          <NuxtLink v-if="isCheckedIn" to="/learn" class="learn-btn"> 开始学习 </NuxtLink>
-          <div v-else class="learn-btn" style="cursor: pointer" @click="handleCheckin">
-            点击签到
-          </div>
+      <!-- 开始学习按钮：游客也可直接进入学习页 -->
+      <div class="learn-section">
+        <NuxtLink v-if="isLogin && isCheckedIn" to="/learn" class="learn-btn">开始学习</NuxtLink>
+        <NuxtLink v-else-if="!isLogin" to="/learn" class="learn-btn">开始学习</NuxtLink>
+        <div v-else class="learn-btn" style="cursor: pointer" @click="handleCheckin">
+          点击签到
         </div>
+      </div>
 
-        <!-- 统计卡片 -->
-        <div class="stats-section">
-          <div class="stat-card">
-            <div class="stat-label">累计学习</div>
-            <div class="stat-value">
-              {{ formatStudyTime(checkinStats?.totalStudySeconds ?? 0) }}
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">已学习</div>
-            <div class="stat-value">{{ checkinStats?.totalCheckinDays ?? 0 }}天</div>
+      <!-- 统计卡片：登录用户显示真实数据，游客显示空态占位 -->
+      <div class="stats-section">
+        <div class="stat-card">
+          <div class="stat-label">累计学习</div>
+          <div class="stat-value">
+            {{ isLogin ? formatStudyTime(checkinStats?.totalStudySeconds ?? 0) : '--' }}
           </div>
         </div>
-      </template>
+        <div class="stat-card">
+          <div class="stat-label">已学习</div>
+          <div class="stat-value">{{ isLogin ? (checkinStats?.totalCheckinDays ?? 0) + '天' : '--' }}</div>
+        </div>
+      </div>
 
-      <!-- 游客：登录引导（签到/统计是登录态功能，展示零值会误导） -->
-      <div v-else class="guest-section">
-        <p class="guest-tip">登录后即可签到打卡、记录学习进度</p>
-        <div class="learn-section">
-          <NuxtLink to="/login" class="learn-btn">立即登录</NuxtLink>
-        </div>
-        <div class="learn-section" style="margin-top: 0">
-          <NuxtLink to="/learn" class="guest-browse-link">先随便看看学习内容 →</NuxtLink>
-        </div>
+      <!-- 游客空态提示：统计卡片下方小字 -->
+      <div v-if="!isLogin" class="guest-empty-hint">
+        开始学习后这里会记录你的进度
+      </div>
+
+      <!-- 底部登录引导（降级为小字链接） -->
+      <div v-if="!isLogin" class="guest-login-hint">
+        登录后可签到打卡、收藏单词
+        <NuxtLink to="/login" class="guest-login-link">去登录</NuxtLink>
       </div>
     </template>
   </div>
@@ -270,6 +283,11 @@ async function handleCheckin() {
   padding-bottom: 50px;
 }
 
+/* 游客模式下统计卡片减少底部间距，为下方提示文字留空间 */
+.home-page:has(.guest-empty-hint) .stats-section {
+  padding-bottom: 16px;
+}
+
 .stat-card {
   flex: 1;
   display: flex;
@@ -294,24 +312,32 @@ async function handleCheckin() {
   color: var(--text-1);
 }
 
-/* 游客登录引导 */
-.guest-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-top: 200px;
-  gap: 16px;
+/* 游客签到卡片半透明 */
+.checkin-card--guest {
+  opacity: 0.75;
 }
 
-.guest-tip {
-  font-size: 14px;
+/* 游客空态提示 */
+.guest-empty-hint {
+  text-align: center;
+  font-size: 13px;
   color: var(--text-3);
+  margin-top: 12px;
 }
 
-.guest-browse-link {
-  font-size: 14px;
+/* 底部登录引导（降级为小字链接） */
+.guest-login-hint {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-3);
+  margin-top: 8px;
+  padding-bottom: 24px;
+}
+
+.guest-login-link {
   color: var(--primary);
   text-decoration: none;
+  margin-left: 4px;
 }
 
 /* Loading */

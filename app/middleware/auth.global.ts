@@ -19,13 +19,15 @@ const ADMIN_PAGE_PERMISSIONS: [prefix: string, permission: PermissionKey][] = [
   ['/admin/config', PERMISSIONS.CONFIG],
 ]
 
-// 游客可浏览页面（精确正则，不用前缀匹配）：片段学习页已开放，游客可浏览但无音频签名
+// 游客可浏览页面（精确正则，不用前缀匹配）：学习/复习/个人中心已开放，游客可浏览但部分功能受限
 const GUEST_PAGES: RegExp[] = [
   /^\/$/,
   /^\/login/,
   /^\/learn$/,
   /^\/learn\/unit\/\d+$/,
   /^\/learn\/unit\/\d+\/segment\/\d+$/,
+  /^\/review$/,
+  /^\/center$/,
 ]
 
 // 签到刷新每客户端会话仅一次，与 isVerify 解耦（SSR 已验证时 client 不再进 !isVerify 块）

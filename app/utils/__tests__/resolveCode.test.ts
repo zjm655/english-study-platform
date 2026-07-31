@@ -117,16 +117,18 @@ describe('resolveCode 401/403 登录引导', () => {
     expect(mockNavigateTo).toHaveBeenCalledWith('/login')
   })
 
-  it('401 无 token（游客触碰登录态功能）：弹「请先登录」', async () => {
+  it('401 无 token（游客触碰登录态功能）：弹「此功能需要登录」，不跳转', async () => {
     tokenCookie.value = null
     await resolveCode(makeCfg({ code: 401 }))
-    expect(mockToastWarning).toHaveBeenCalledWith('请先登录')
-    expect(mockNavigateTo).toHaveBeenCalledWith('/login')
+    expect(mockToastWarning).toHaveBeenCalledWith('此功能需要登录')
+    expect(mockClearUser).not.toHaveBeenCalled()
+    expect(mockNavigateTo).not.toHaveBeenCalled()
   })
 
-  it('401 引导提示不受 silent 影响（跳转语义一致）', async () => {
+  it('401 游客提示不受 silent 影响（toast 仍执行）', async () => {
     await resolveCode(makeCfg({ code: 401 }), true)
-    expect(mockToastWarning).toHaveBeenCalledWith('请先登录')
+    expect(mockToastWarning).toHaveBeenCalledWith('此功能需要登录')
+    expect(mockNavigateTo).not.toHaveBeenCalled()
   })
 
   it('并发 401 节流：3s 窗口内只弹一次，窗口过后可再弹', async () => {

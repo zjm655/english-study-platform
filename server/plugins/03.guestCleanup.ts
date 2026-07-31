@@ -58,7 +58,7 @@ async function cleanupMergedGuests(startedAt: Date): Promise<number> {
       // 取一批待清理的已合并游客行 id（只取启动前创建的，避免误删窗口期新行）
       const [guests] = await conn.execute<RowDataPacket[]>(
         `SELECT id FROM user
-         WHERE is_guest = 1 AND merged_into_user_id IS NOT NULL AND created_at < ?
+         WHERE is_guest = 1 AND merged_into_user_id IS NOT NULL AND createdAt < ?
          LIMIT ?`,
         [startedAt, BATCH_SIZE],
       )
@@ -108,8 +108,8 @@ async function cleanupMergedGuests(startedAt: Date): Promise<number> {
 
 /**
  * 阶段二：批量删除过期未合并的游客行及全部关联数据。
- * 过期判断：优先取 user_checkin_stats.updated_at 作为最后活跃时间；
- * 无 stats 记录时回退到 user.created_at。
+ * 过期判断：优先取 user_checkin_stats.updatedAt 作为最后活跃时间；
+ * 无 stats 记录时回退到 user.createdAt。
  */
 async function cleanupExpiredGuests(startedAt: Date, retentionDays: number): Promise<number> {
   let total = 0
@@ -117,8 +117,8 @@ async function cleanupExpiredGuests(startedAt: Date, retentionDays: number): Pro
     const cleaned = await withTransaction(async (conn) => {
       // 取一批过期未合并游客行 id
       // 过期条件：
-      //   - 有 stats 行：stats.updated_at < 截止时间
-      //   - 无 stats 行：user.created_at < 截止时间
+      //   - 有 stats 行：stats.updatedAt < 截止时间
+      //   - 无 stats 行：user.createdAt < 截止时间
       // 截止时间 = NOW() - retentionDays 天，同时必须 < startedAt（保护启动窗口期新行）
       const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
       const safeCutoff = cutoff < startedAt ? cutoff : startedAt
@@ -129,10 +129,10 @@ async function cleanupExpiredGuests(startedAt: Date, retentionDays: number): Pro
          LEFT JOIN user_checkin_stats s ON s.user_id = u.id
          WHERE u.is_guest = 1
            AND u.merged_into_user_id IS NULL
-           AND u.created_at < ?
+           AND u.createdAt < ?
            AND (
-             (s.updated_at IS NOT NULL AND s.updated_at < ?)
-             OR (s.updated_at IS NULL AND u.created_at < ?)
+             (s.updatedAt IS NOT NULL AND s.updatedAt < ?)
+             OR (s.updatedAt IS NULL AND u.createdAt < ?)
            )
          LIMIT ?`,
         [startedAt, safeCutoff, safeCutoff, BATCH_SIZE],

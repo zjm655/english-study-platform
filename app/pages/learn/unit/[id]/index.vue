@@ -4,8 +4,9 @@ import { useUnitProgress } from '~/composables/unit'
 import { useFavorites } from '~/composables/useFavorites'
 import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
 import { useUserStore } from '~/store/useUserStore'
-import { unitsPath } from '~/api/paths'
+import { toastInfo } from '~/utils/popup'
 import type { UnitProgressDetail } from '#shared/types/unit'
+import type { ResPayload } from '#shared/types/request'
 
 definePageMeta({
   title: '单元详情',
@@ -18,21 +19,16 @@ const userStore = useUserStore()
 // 游客学习时长计时（仅游客生效，登录用户内部短路）
 useGuestStudyTimer()
 
-// 首屏走 useAsyncRes（SSR 直出，游客可浏览裁剪版）；失败静默降级页内空态，不弹 toast
+// 首屏数据：走 useHandleRes 链路（客户端加载，骨架屏兜底）
 const {
-  data: detailRes,
-  pending,
-  error: fetchError,
-  refresh,
-} = useAsyncRes<UnitProgressDetail | null>(
-  () => `unit-progress-${unitId.value}`,
-  () => `${unitsPath}/${unitId.value}/progress`,
-)
-
-// 分页追加保留 useHandleRes silent 链路（无 SEO 价值不必 SSR）
-const { isLoadingMore, loadMore } = useUnitProgress()
+  isLoading: detailLoading,
+  execute: fetchUnitProgress,
+  isLoadingMore,
+  loadMore,
+} = useUnitProgress()
 const { fetchFavSegments, isSegmentFav, toggleSegment, togglingSegment } = useFavorites()
 
+const detailRes = ref<ResPayload<UnitProgressDetail> | null>(null)
 const unitData = computed(() => detailRes.value?.data?.unit ?? null)
 
 // SEO：数据 SSR 期就绪，title/JSON-LD 直出真实单元信息（getter 兜底静态文案）
@@ -50,7 +46,7 @@ useJsonLd(() =>
   }),
 )
 
-// 分页状态：首屏来自 useAsyncRes，loadMore 追加页存本地（跨单元导航时重置）
+// 分页状态：首屏来自 useHandleRes，loadMore 追加页存本地（跨单元导航时重置）
 const extraSegments = ref<UnitProgressDetail['segments']>([])
 const page = ref(1)
 const extraHasMore = ref<boolean | null>(null)
@@ -64,30 +60,38 @@ const hasMore = computed(
   () => extraHasMore.value ?? detailRes.value?.data?.pagination.hasMore ?? false,
 )
 
-// 错误归一：网络/超时（error ref）与业务失败（code!==200，如 404）统一页内展示
+// 错误归一：业务失败（code!==200，如 404）页内展示；网络异常由 useHandleRes toast 兜底
 const error = computed(() => {
-  if (fetchError.value) return '加载失败，请检查网络'
   const payload = detailRes.value
   if (payload && payload.code !== 200) return payload.message || '加载失败'
   return null
 })
 
-const isLoading = computed(() => pending.value && !detailRes.value)
+const isLoading = computed(() => (detailLoading.value || isLoadingMore.value) && !detailRes.value)
 
 let scrollObserver: IntersectionObserver | null = null
 
-// 跨单元导航（组件复用不重挂）：重置本地分页状态，响应式 key 自动重取首屏
+// 跨单元导航（组件复用不重挂）：重置本地分页状态，重新拉取首屏
 watch(unitId, () => {
   extraSegments.value = []
   page.value = 1
   extraHasMore.value = null
+  loadData()
 })
+
+async function loadData() {
+  detailRes.value = null
+  const res = await fetchUnitProgress(unitId.value)
+  if (res) {
+    detailRes.value = res
+  }
+}
 
 async function retry() {
   extraSegments.value = []
   page.value = 1
   extraHasMore.value = null
-  await refresh()
+  await loadData()
 }
 
 async function loadMoreSegments() {
@@ -101,6 +105,8 @@ async function loadMoreSegments() {
 }
 
 onMounted(() => {
+  // 首屏加载单元进度
+  loadData()
   // 收藏是登录态数据：游客不发（避免 401 → resolveCode 弹 /login）
   if (userStore.isLogin) fetchFavSegments()
 
@@ -151,6 +157,15 @@ function formatScore(score: number) {
 
 function goLeaderboard(segId: number) {
   navigateTo(`/learn/unit/${unitId.value}/segment/${segId}/leaderboard`)
+}
+
+/** 收藏片段：游客温和提示，不跳转 */
+function handleToggleSegment(segId: number) {
+  if (!userStore.isLogin) {
+    toastInfo('登录后即可收藏')
+    return
+  }
+  toggleSegment(segId)
 }
 </script>
 
@@ -231,11 +246,13 @@ function goLeaderboard(segId: number) {
           </div>
 
           <button
-            v-if="userStore.isLogin"
             class="segment-fav-btn"
-            :class="{ 'segment-fav-btn--active': isSegmentFav(segment.id) }"
+            :class="{
+              'segment-fav-btn--active': isSegmentFav(segment.id),
+              'segment-fav-btn--guest': !userStore.isLogin,
+            }"
             :disabled="togglingSegment === segment.id"
-            @click="toggleSegment(segment.id)"
+            @click="handleToggleSegment(segment.id)"
           >
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path
@@ -449,6 +466,11 @@ function goLeaderboard(segId: number) {
 .segment-fav-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 游客可见但淡化，点击时温和提示登录 */
+.segment-fav-btn--guest {
+  opacity: 0.6;
 }
 
 /* ===== 四阶段进度圆点 ===== */

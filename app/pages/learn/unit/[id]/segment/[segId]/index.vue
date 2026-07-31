@@ -3,7 +3,7 @@ import { useSegmentDetail } from '~/composables/unit'
 import type { SegmentDetail } from '~~/shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
-import { useStudyTimer } from '~/composables/user/useStudyTimer'
+import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
 import BlindListening from '~/components/phases/BlindListening.vue'
 import TextLearning from '~/components/phases/TextLearning.vue'
 import DubbingPractice from '~/components/phases/DubbingPractice.vue'
@@ -28,8 +28,8 @@ const { play: _play, pause } = useAudioPlayer()
 // 自动管理音频生命周期
 useAudioLifecycle()
 
-// 自动上报学习时长
-useStudyTimer()
+// 自动上报学习时长（登录走 useStudyTimer，游客走静默上报）
+useGuestStudyTimer()
 
 const segment = ref<SegmentDetail | null>(null)
 const error = ref<string | null>(null)

@@ -20,12 +20,13 @@ function canToastAuth() {
 
 /**
  * 状态码处理工具：根据后端返回的 code 进行日志记录、toast 提示、鉴权失效处理
- * 注意：401/403 会异步清除 Cookie 并跳转，调用方不应依赖其返回值
+ * 注意：401 登录过期会异步清除 Cookie 并跳转；游客无 token 时仅 toast 提示不跳转
+ *       403 会异步清除 Cookie 并跳转，调用方不应依赖其返回值
  *
  * toast 规则（写弹读静默）：
  * - logCfg.notify === 'all'：成功+失败都弹；'fail'：仅失败弹；缺省：不弹（只写控制台日志）
  * - silent = true 时常规 toast 与日志一并抑制（分页等场景），但 401/403 的
- *   Cookie 清理、跳转与登录引导提示**不受 notify/silent 影响**，始终执行
+ *   鉴权处理（Cookie 清理、跳转或游客提示）**不受 notify/silent 影响**，始终执行
  * - 428 为业务流转码（如登录需图形验证码），由页面 UI 承接，不弹提示
  * @param silent 静默模式：跳过常规日志与 toast，但 401/403 的处理仍会执行
  */
@@ -48,16 +49,20 @@ export async function resolveCode(logCfg: LogCfg, silent = false) {
       if (notify) toastError(logCfg.tips.serverFail || logCfg.message || '服务器内部错误')
       break
     case 401: {
-      if (!silent) logger.warn(logCfg.message || '登录已过期，请重新登录')
       const tokenCookie = useCookie('token')
-      // 清 cookie 前判断：有 token 是登录过期，无 token 是游客触碰登录态功能
+      const hasToken = !!tokenCookie.value
+      if (!silent) logger.warn(logCfg.message || (hasToken ? '登录已过期，请重新登录' : '需要登录'))
       if (isClient && canToastAuth()) {
-        toastWarning(tokenCookie.value ? '登录已过期，请重新登录' : '请先登录')
+        // 区分游客与登录过期：游客仅温和提示，不跳转；登录过期走原有清 cookie + 跳转流程
+        toastWarning(hasToken ? '登录已过期，请重新登录' : '此功能需要登录')
       }
-      tokenCookie.value = null
-      const userStore = useUserStore()
-      userStore.clearUser()
-      await navigateTo('/login')
+      if (hasToken) {
+        // 登录用户 token 失效：清 cookie、清用户状态、跳转登录页
+        tokenCookie.value = null
+        const userStore = useUserStore()
+        userStore.clearUser()
+        await navigateTo('/login')
+      }
       break
     }
     case 403: {

@@ -28,8 +28,10 @@ export function rowsToReviewVocab(
  */
 export default defineEventHandler(async (event) => {
   const userId = event.context.user?.id
+
+  // 游客无学习记录，直接返回空列表
   if (!userId) {
-    return validateError('未登录', 401)
+    return validateSuccess({ items: [], total: 0 }, '获取成功')
   }
 
   const result = reviewQuerySchema.safeParse(getQuery(event))

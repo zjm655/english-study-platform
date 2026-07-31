@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import UnitDetail from '../[id]/index.vue'
 
@@ -17,14 +17,15 @@ vi.mock('~/store/useUserStore', () => ({
   useUserStore: () => mockUserStore,
 }))
 
-// Mock useUnitProgress（页面仅使用 loadMore 分支；首屏已迁 useAsyncRes）
+// Mock useUnitProgress（首屏 + 分页均来自同一 composable）
 const mockIsLoadingMore = ref(false)
 const mockLoadMore = vi.fn()
+const mockExecute = vi.fn()
 vi.mock('~/composables/unit/useUnitProgress', () => ({
   useUnitProgress: () => ({
     isLoading: ref(false),
     isLoadingMore: mockIsLoadingMore,
-    fetchUnitProgress: vi.fn(),
+    execute: mockExecute,
     loadMore: mockLoadMore,
   }),
 }))
@@ -47,16 +48,6 @@ vi.mock('~/composables/useFavorites', () => ({
 }))
 
 // Stub Nuxt auto-imports（vitest 环境无 Nuxt runtime，页面内为裸全局引用）
-const mockDetailRes = ref<Record<string, unknown> | undefined>(undefined)
-const mockPending = ref(false)
-const mockFetchError = ref<Error | null>(null)
-const mockRefresh = vi.fn()
-vi.stubGlobal('useAsyncRes', () => ({
-  data: mockDetailRes,
-  pending: mockPending,
-  error: mockFetchError,
-  refresh: mockRefresh,
-}))
 vi.stubGlobal('useSeoMeta', vi.fn())
 vi.stubGlobal('useJsonLd', vi.fn())
 const mockNavigateTo = vi.fn()
@@ -128,7 +119,7 @@ const mockSuccessData = {
   },
 }
 
-function createWrapper() {
+async function createWrapper() {
   const wrapper = mount(UnitDetail, {
     global: {
       directives: {
@@ -148,19 +139,19 @@ function createWrapper() {
       },
     },
   })
+  // 等待 onMounted 中的 loadData 异步完成
+  await flushPromises()
   mountedWrappers.push(wrapper)
   return wrapper
 }
 
 // 共享响应式 mock 下残留组件的 watcher 会污染 observe spy，用例间统一卸载隔离
-const mountedWrappers: Array<ReturnType<typeof createWrapper>> = []
+const mountedWrappers: Array<Awaited<ReturnType<typeof createWrapper>>> = []
 
 describe('UnitDetail Page', () => {
   beforeEach(() => {
     mockUserStore.isLogin = true
-    mockDetailRes.value = mockSuccessData
-    mockPending.value = false
-    mockFetchError.value = null
+    mockExecute.mockImplementation(() => Promise.resolve(mockSuccessData))
     mockIsLoadingMore.value = false
     mockLoadMore.mockReset()
     mockFetchFavSegments.mockReset()
@@ -173,28 +164,38 @@ describe('UnitDetail Page', () => {
     while (mountedWrappers.length) mountedWrappers.pop()!.unmount()
   })
 
-  it('renders loading state when pending without data', () => {
-    mockDetailRes.value = undefined
-    mockPending.value = true
-    const wrapper = createWrapper()
+  it('renders loading state when data not yet available', async () => {
+    // 模拟加载中：execute 返回永不 resolve 的 Promise，isLoadingMore 撑住骨架屏
+    mockExecute.mockImplementation(() => new Promise(() => {}))
+    mockIsLoadingMore.value = true
+    const wrapper = mount(UnitDetail, {
+      global: {
+        stubs: {
+          NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+          'el-icon': { template: '<span class="el-icon-stub"><slot /></span>' },
+          DotPulse: { template: '<div class="dot-pulse-mock">Loading...</div>' },
+        },
+      },
+    })
     expect(wrapper.find('.loading-container').exists()).toBe(true)
     expect(wrapper.find('.dot-pulse-mock').exists()).toBe(true)
+    wrapper.unmount()
   })
 
-  it('renders unit title and description from async data', () => {
-    const wrapper = createWrapper()
+  it('renders unit title and description from async data', async () => {
+    const wrapper = await createWrapper()
     expect(wrapper.text()).toContain('测试单元')
     expect(wrapper.text()).toContain('这是一个测试单元的描述')
   })
 
-  it('renders segment cards with correct titles', () => {
-    const wrapper = createWrapper()
+  it('renders segment cards with correct titles', async () => {
+    const wrapper = await createWrapper()
     expect(wrapper.text()).toContain('片段一')
     expect(wrapper.text()).toContain('片段二')
   })
 
-  it('renders phase dots with correct states', () => {
-    const wrapper = createWrapper()
+  it('renders phase dots with correct states', async () => {
+    const wrapper = await createWrapper()
     const cards = wrapper.findAll('.segment-card')
     expect(cards.length).toBe(2)
     const firstCardPhases = cards[0]!.findAll('.phase-dot')
@@ -208,8 +209,8 @@ describe('UnitDetail Page', () => {
     expect(firstCardPhases[2]!.classes()).not.toContain('phase-dot--current')
   })
 
-  it('renders all done for fully completed segment', () => {
-    const wrapper = createWrapper()
+  it('renders all done for fully completed segment', async () => {
+    const wrapper = await createWrapper()
     const cards = wrapper.findAll('.segment-card')
     const secondCardPhases = cards[1]!.findAll('.phase-dot')
     secondCardPhases.forEach((dot) => {
@@ -217,8 +218,8 @@ describe('UnitDetail Page', () => {
     })
   })
 
-  it('renders phase connector lines with done states', () => {
-    const wrapper = createWrapper()
+  it('renders phase connector lines with done states', async () => {
+    const wrapper = await createWrapper()
     const cards = wrapper.findAll('.segment-card')
     // 每卡 4 个圆点之间 3 条连接线
     const firstLines = cards[0]!.findAll('.phase-line')
@@ -234,8 +235,8 @@ describe('UnitDetail Page', () => {
     })
   })
 
-  it('renders best score chips only when scores exist', () => {
-    const wrapper = createWrapper()
+  it('renders best score chips only when scores exist', async () => {
+    const wrapper = await createWrapper()
     const cards = wrapper.findAll('.segment-card')
     // 片段一无成绩 → 无 chip
     expect(cards[0]!.findAll('.score-chip').length).toBe(0)
@@ -247,7 +248,7 @@ describe('UnitDetail Page', () => {
   })
 
   it('leaderboard button navigates to leaderboard page', async () => {
-    const wrapper = createWrapper()
+    const wrapper = await createWrapper()
     const cards = wrapper.findAll('.segment-card')
     const btn = cards[0]!.find('.segment-lb-btn')
     expect(btn.exists()).toBe(true)
@@ -255,73 +256,62 @@ describe('UnitDetail Page', () => {
     expect(mockNavigateTo).toHaveBeenCalledWith('/learn/unit/1/segment/1/leaderboard')
   })
 
-  it('shows empty state when no segments', () => {
-    mockDetailRes.value = {
+  it('shows empty state when no segments', async () => {
+    const emptyData = {
       code: 200,
       message: 'ok',
       data: {
-        unit: {
-          id: 1,
-          title: '测试单元',
-          description: null,
-          level: 1,
-          sortOrder: 1,
-          audioUrl: null,
-        },
+        unit: { id: 1, title: '测试单元', description: null, level: 1, sortOrder: 1, audioUrl: null },
         segments: [],
         pagination: { page: 1, pageSize: 10, total: 0, hasMore: false },
       },
     }
-    const wrapper = createWrapper()
+    mockExecute.mockImplementation(() => Promise.resolve(emptyData))
+    const wrapper = await createWrapper()
     expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.text()).toContain('暂无片段数据')
   })
 
-  it('shows error state when API returns non-200 (page-level, no toast)', () => {
-    mockDetailRes.value = { code: 500, message: '服务器错误', data: null }
-    const wrapper = createWrapper()
+  it('shows error state when API returns non-200 (page-level, no toast)', async () => {
+    const errorRes = { code: 500, message: '服务器错误', data: null }
+    mockExecute.mockImplementation(() => Promise.resolve(errorRes))
+    const wrapper = await createWrapper()
     expect(wrapper.find('.error-container').exists()).toBe(true)
     expect(wrapper.text()).toContain('服务器错误')
     expect(wrapper.find('.retry-btn').exists()).toBe(true)
   })
 
-  it('shows network error and retry calls refresh', async () => {
-    mockDetailRes.value = undefined
-    mockFetchError.value = new Error('timeout')
-    const wrapper = createWrapper()
-    expect(wrapper.text()).toContain('加载失败，请检查网络')
+  it('retry button calls loadData again', async () => {
+    const errorRes = { code: 500, message: '服务器错误', data: null }
+    mockExecute.mockImplementation(() => Promise.resolve(errorRes))
+    const wrapper = await createWrapper()
+    expect(wrapper.find('.error-container').exists()).toBe(true)
+    // 重置 mock 改为成功返回
+    mockExecute.mockImplementation(() => Promise.resolve(mockSuccessData))
     await wrapper.find('.retry-btn').trigger('click')
-    expect(mockRefresh).toHaveBeenCalled()
+    await flushPromises()
+    expect(wrapper.find('.error-container').exists()).toBe(false)
+    expect(wrapper.text()).toContain('测试单元')
   })
 
-  it('client navigation: observer binds sentinel after async data arrives (bugfix)', async () => {
-    // 复现客户端导航时序：挂载时 pending，sentinel 不在 DOM，onMounted 无法绑定
-    mockDetailRes.value = undefined
-    mockPending.value = true
-    const wrapper = createWrapper()
-    expect(wrapper.find('.sentinel').exists()).toBe(false)
-    expect(observeSpy).not.toHaveBeenCalled()
-
-    // 数据到达 → 内容分支渲染 → watch(sentinelRef) 补绑 observer
-    mockDetailRes.value = mockSuccessData
-    mockPending.value = false
-    await wrapper.vm.$nextTick()
-    await wrapper.vm.$nextTick()
+  it('observer binds sentinel after data arrives (client navigation)', async () => {
+    // 客户端导航：onMounted 触发 loadData，flushPromises 后数据到达，sentinel 渲染
+    const wrapper = await createWrapper()
     expect(wrapper.find('.sentinel').exists()).toBe(true)
     expect(observeSpy).toHaveBeenCalled()
     const observed = observeSpy.mock.calls[0]![0] as HTMLElement
     expect(observed.className).toContain('sentinel')
   })
 
-  it('links to correct segment pages', () => {
-    const wrapper = createWrapper()
+  it('links to correct segment pages', async () => {
+    const wrapper = await createWrapper()
     const cards = wrapper.findAll('.segment-card')
     expect(cards[0]!.find('.segment-card__link').attributes('href')).toBe('/learn/unit/1/segment/1')
     expect(cards[1]!.find('.segment-card__link').attributes('href')).toBe('/learn/unit/1/segment/2')
   })
 
-  it('marks own segments with badge and highlight', () => {
-    const wrapper = createWrapper()
+  it('marks own segments with badge and highlight', async () => {
+    const wrapper = await createWrapper()
     const cards = wrapper.findAll('.segment-card')
     // 片段一 isMine=true → 高亮类 + 「我的」角标
     expect(cards[0]!.classes()).toContain('segment-card--mine')
@@ -332,18 +322,22 @@ describe('UnitDetail Page', () => {
     expect(cards[1]!.find('.segment-card__badge').exists()).toBe(false)
   })
 
-  it('logged-in user: fetches favorites and shows fav buttons', () => {
-    const wrapper = createWrapper()
+  it('logged-in user: fetches favorites and shows fav buttons', async () => {
+    const wrapper = await createWrapper()
     expect(mockFetchFavSegments).toHaveBeenCalled()
     expect(wrapper.findAll('.segment-fav-btn').length).toBe(2)
   })
 
-  it('guest: no favorites request and no fav buttons', () => {
+  it('guest: no favorites request but fav buttons still visible (dimmed)', async () => {
     mockUserStore.isLogin = false
-    const wrapper = createWrapper()
+    const wrapper = await createWrapper()
+    // 游客不发收藏请求（避免 401）
     expect(mockFetchFavSegments).not.toHaveBeenCalled()
-    expect(wrapper.findAll('.segment-fav-btn').length).toBe(0)
-    // 内容仍可浏览（裁剪版）
+    // 收藏按钮仍可见（带 guest 淡化类），点击时温和提示登录
+    const favBtns = wrapper.findAll('.segment-fav-btn')
+    expect(favBtns.length).toBe(2)
+    expect(favBtns[0]!.classes()).toContain('segment-fav-btn--guest')
+    // 内容仍可浏览
     expect(wrapper.text()).toContain('测试单元')
   })
 })

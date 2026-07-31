@@ -3,7 +3,7 @@ import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioStore } from '~/store/useAudioStore'
 import { useVocabCardState } from '~/composables/review/useVocabCardState'
 import { useMaterialNavState } from '~/composables/review/useMaterialNavState'
-import { useStudyTimer } from '~/composables/user/useStudyTimer'
+import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
 import { getReviewVocab, getReviewMaterial } from '~/api/review'
 import type { ReviewVocabItem, ReviewMaterialItem } from '#shared/types/review'
 import type { Question } from '~~/shared/types/unit'
@@ -20,8 +20,8 @@ useSeoMeta({
 const { load, play, pause: _pause, togglePlay, seek, stop } = useAudioPlayer()
 const audioStore = useAudioStore()
 
-// 自动上报学习时长
-useStudyTimer()
+// 自动上报学习时长（登录走 useStudyTimer，游客走静默上报）
+useGuestStudyTimer()
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)

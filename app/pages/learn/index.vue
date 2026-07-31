@@ -12,6 +12,9 @@ definePageMeta({
   title: '学习',
 })
 
+// 用户状态：模板中用于控制游客可见性
+const userStore = useUserStore()
+
 // 游客学习时长计时（仅游客生效，登录用户内部短路）
 useGuestStudyTimer()
 
@@ -20,22 +23,26 @@ useSeoMeta({
   description: '按单元逐片段完成盲听、学习、配音、跟读四阶段训练，实时追踪学习进度与配音平均分。',
 })
 
-// 单元列表：useAsyncRes 示范点（SSR 直出 + cookie 透传，只读 GET 无写操作纠缠）
+// 单元列表：SSR 直出（所有身份都加载，游客也可浏览）
 const { data: unitsRes, pending: unitsLoading } = useAsyncRes<UnitWithProgress[]>(
   'units',
   unitsPath,
 )
 const units = computed(() => unitsRes.value?.data ?? [])
 
+// 进度/统计是登录态接口：游客 immediate:false 零请求，避免 401 → resolveCode 弹 /login
 const { isLoading: progressLoading, execute: fetchUserProgress } = useUserProgress()
 const userProgress = ref<UserProgress | null>(null)
 
 const { isLoading: statsLoading, execute: fetchUserStats } = useUserStats()
 const userStats = ref<UserStats | null>(null)
 
-const dataReady = ref(false)
-
 const isLoading = computed(() => unitsLoading.value || progressLoading.value || statsLoading.value)
+// SSR 直出单元列表后，登录用户还需等待进度/统计；游客仅等单元
+const dataReady = computed(() => {
+  if (unitsLoading.value) return false
+  return !userStore.isLogin || (!progressLoading.value && !statsLoading.value)
+})
 
 const currentProgress = computed(() => {
   if (!userProgress.value?.details?.length) {
@@ -131,31 +138,19 @@ function formatLastStudy(dateStr: string): string {
   return `${date.getMonth() + 1}月${date.getDate()}日`
 }
 
-async function initProgress() {
-  const progressRes = await fetchUserProgress(null)
-  if (progressRes?.code === 200) {
-    userProgress.value = progressRes.data
-  }
+// 登录用户：setup 期命令式拉取进度和统计（游客跳过，避免 401）
+if (userStore.isLogin) {
+  ;(async () => {
+    const progressRes = await fetchUserProgress(null)
+    if (progressRes?.code === 200) {
+      userProgress.value = progressRes.data
+    }
+    const statsRes = await fetchUserStats(undefined)
+    if (statsRes?.code === 200) {
+      userStats.value = statsRes.data
+    }
+  })()
 }
-
-async function initUser() {
-  // 进度/统计是登录态接口：游客不发（避免 401 → resolveCode 弹 /login），直接空态展示
-  if (!useUserStore().isLogin) {
-    dataReady.value = true
-    return
-  }
-  await initProgress()
-  const statsRes = await fetchUserStats(undefined)
-  if (statsRes?.code === 200) {
-    userStats.value = statsRes.data
-  }
-  // 用户维度数据就绪；单元列表若仍在加载，isLoading 会继续撑住骨架屏
-  dataReady.value = true
-}
-
-onMounted(() => {
-  initUser()
-})
 </script>
 
 <template>
@@ -288,7 +283,8 @@ onMounted(() => {
         <div v-else class="empty-state">暂无单元数据</div>
       </div>
 
-      <NuxtLink to="/learn/upload" class="upload-entry">
+      <!-- 上传自定义材料：仅登录用户可见 -->
+      <NuxtLink v-if="userStore.isLogin" to="/learn/upload" class="upload-entry">
         <el-icon><Upload /></el-icon>
         <span>上传自定义材料</span>
       </NuxtLink>

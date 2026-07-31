@@ -4,7 +4,8 @@ import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useFavorites } from '~/composables/useFavorites'
 import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
 import type { SegmentDetail, VocabularyItem } from '~~/shared/types/unit'
-import { toastError } from '~/utils/popup'
+import { useUserStore } from '~/store/useUserStore'
+import { toastError, toastInfo } from '~/utils/popup'
 
 interface Props {
   segment: SegmentDetail
@@ -18,10 +19,11 @@ const emit = defineEmits<{
 const { execute: updateProgress, isLoading: isUpdating } = useUpdateProgress()
 const { load, play } = useAudioPlayer()
 const { fetchFavWords, isWordFav, toggleWord, togglingWord } = useFavorites()
+const userStore = useUserStore()
 
-// 页面加载时拉取收藏列表
+// 页面加载时拉取收藏列表（仅登录用户，游客跳过避免 401）
 onMounted(() => {
-  fetchFavWords()
+  if (userStore.isLogin) fetchFavWords()
 })
 
 // ===== 状态 =====
@@ -116,6 +118,15 @@ async function playMaterialAudio() {
   play()
 }
 
+/** 收藏单词：游客温和提示，不跳转 */
+function handleToggleWord(wordId: number) {
+  if (!userStore.isLogin) {
+    toastInfo('登录后即可收藏单词')
+    return
+  }
+  toggleWord(wordId)
+}
+
 async function completePhase() {
   const res = await updateProgress({
     segmentId: props.segment.id,
@@ -170,7 +181,7 @@ async function completePhase() {
           class="fav-btn"
           :class="{ 'fav-btn--active': isWordFav(selectedVocab.id) }"
           :disabled="togglingWord === selectedVocab.id"
-          @click.stop="toggleWord(selectedVocab.id)"
+          @click.stop="handleToggleWord(selectedVocab.id)"
         >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path
