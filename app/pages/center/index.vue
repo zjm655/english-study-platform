@@ -4,13 +4,13 @@
     <div class="user-card">
       <div class="user-info">
         <div class="avatar">
-          <el-avatar :size="64" :src="isLogin ? user?.avatarUrl : undefined">
+          <el-avatar :size="64" :src="isLogin ? (user?.avatarUrl ?? undefined) : undefined">
             <el-icon :size="32"><UserFilled /></el-icon>
           </el-avatar>
         </div>
         <div class="user-details">
           <!-- 登录用户显示昵称，游客显示"游客" -->
-          <div class="nickname">{{ isLogin ? (user?.nickname || '未设置昵称') : '游客' }}</div>
+          <div class="nickname">{{ isLogin ? user?.nickname || '未设置昵称' : '游客' }}</div>
           <div v-if="isLogin" class="level-badge">
             <el-tag :type="levelType" size="small">{{ levelText }}</el-tag>
           </div>

@@ -24,15 +24,35 @@ export default defineEventHandler(async (event) => {
     // （剥 query 后精确匹配，复刻 publicRead.ts 手法）
     if (event.method === 'PUT' && event.path.split('?')[0] === '/api/guest/study-time') return
     // 游客录音：携带浏览器指纹 header 时放行，handler 内自行解析游客身份并关联 user_id
-    if (event.method === 'POST' && event.path.split('?')[0] === '/api/recording' && getRequestHeader(event, 'x-guest-fingerprint')) return
+    if (
+      event.method === 'POST' &&
+      event.path.split('?')[0] === '/api/recording' &&
+      getRequestHeader(event, 'x-guest-fingerprint')
+    )
+      return
     // 游客评测鉴权：携带 guest_token 时放行，handler 内检查配额后决定是否发放凭证
-    if (event.method === 'POST' && event.path.split('?')[0] === '/api/evaluation/auth' && getCookie(event, 'guest_token')) return
+    if (
+      event.method === 'POST' &&
+      event.path.split('?')[0] === '/api/evaluation/auth' &&
+      getCookie(event, 'guest_token')
+    )
+      return
     // 游客配额查询：携带 guest_token 时放行
-    if (event.method === 'GET' && event.path.split('?')[0] === '/api/guest/eval-quota' && getCookie(event, 'guest_token')) return
+    if (
+      event.method === 'GET' &&
+      event.path.split('?')[0] === '/api/guest/eval-quota' &&
+      getCookie(event, 'guest_token')
+    )
+      return
     // 游客音频签名 URL：handler 内自行验证 guest_token
     if (event.method === 'GET' && event.path.split('?')[0] === '/api/guest/audio-url') return
     // 游客评测结果保存：携带 x-guest-fingerprint 时放行，handler 内自行解析游客身份并校验录音归属
-    if (event.method === 'POST' && /^\/api\/recording\/\d+\/analyze(-fail)?$/.test(event.path.split('?')[0] ?? '') && getRequestHeader(event, 'x-guest-fingerprint')) return
+    if (
+      event.method === 'POST' &&
+      /^\/api\/recording\/\d+\/analyze(-fail)?$/.test(event.path.split('?')[0] ?? '') &&
+      getRequestHeader(event, 'x-guest-fingerprint')
+    )
+      return
     // 游客进度/签到/统计/收藏/复习/通知：携带 guest_token 时放行，handler 内通过 resolveEffectiveUserId/resolveAndEnsureGuestUserId 解析游客身份
     if (getCookie(event, 'guest_token')) {
       const pathname = event.path.split('?')[0] ?? ''
@@ -42,17 +62,25 @@ export default defineEventHandler(async (event) => {
         (event.method === 'GET' && pathname === '/api/user/checkin-stats') ||
         (event.method === 'GET' && pathname === '/api/user/stats') ||
         // 收藏（单词/片段）
-        (event.method === 'POST' && (pathname === '/api/user/fav-word' || pathname === '/api/user/fav-segment')) ||
-        (event.method === 'GET' && (pathname === '/api/user/fav-words' || pathname === '/api/user/fav-segments')) ||
-        (event.method === 'GET' && /^\/api\/user\/fav-(word|segment)\/\d+\/status$/.test(pathname)) ||
+        (event.method === 'POST' &&
+          (pathname === '/api/user/fav-word' || pathname === '/api/user/fav-segment')) ||
+        (event.method === 'GET' &&
+          (pathname === '/api/user/fav-words' || pathname === '/api/user/fav-segments')) ||
+        (event.method === 'GET' &&
+          /^\/api\/user\/fav-(word|segment)\/\d+\/status$/.test(pathname)) ||
         // 复习
-        (event.method === 'GET' && (pathname === '/api/review/vocab' || pathname === '/api/review/material')) ||
+        (event.method === 'GET' &&
+          (pathname === '/api/review/vocab' || pathname === '/api/review/material')) ||
         // 录音历史列表
         (event.method === 'GET' && pathname === '/api/recording') ||
         // 通知
-        (event.method === 'GET' && (pathname === '/api/notice' || pathname === '/api/notice/unread-count' || /^\/api\/notice\/\d+$/.test(pathname))) ||
+        (event.method === 'GET' &&
+          (pathname === '/api/notice' ||
+            pathname === '/api/notice/unread-count' ||
+            /^\/api\/notice\/\d+$/.test(pathname))) ||
         (event.method === 'POST' && pathname === '/api/notice/read-all')
-      ) return
+      )
+        return
     }
     return validateError('未登录', 401)
   }

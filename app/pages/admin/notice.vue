@@ -49,8 +49,8 @@
         </el-table-column>
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag :type="displayStatus(row).type" size="small">{{
-              displayStatus(row).label
+            <el-tag :type="displayStatus(row as AdminNoticeListItem).type" size="small">{{
+              displayStatus(row as AdminNoticeListItem).label
             }}</el-tag>
           </template>
         </el-table-column>
@@ -71,7 +71,7 @@
               link
               size="small"
               :disabled="row.status === 'revoked'"
-              @click="openEdit(row)"
+              @click="openEdit(row as AdminNoticeListItem)"
             >
               编辑
             </el-button>
@@ -80,11 +80,17 @@
               type="warning"
               link
               size="small"
-              @click="handleRevoke(row)"
+              @click="handleRevoke(row as AdminNoticeListItem)"
             >
               撤回
             </el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button
+              type="danger"
+              link
+              size="small"
+              @click="handleDelete(row as AdminNoticeListItem)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
         <template #empty>

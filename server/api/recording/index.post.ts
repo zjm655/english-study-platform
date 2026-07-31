@@ -36,7 +36,9 @@ export default defineEventHandler(
   async (event): Promise<ResPayload<UploadRecordingResult | null>> => {
     // 身份解析：登录用户走 event.context.user（auth 中间件已设置），游客走浏览器指纹
     const loggedInUserId = event.context.user?.id
-    const fingerprint = !loggedInUserId ? getRequestHeader(event, 'x-guest-fingerprint') : null
+    const fingerprint = !loggedInUserId
+      ? (getRequestHeader(event, 'x-guest-fingerprint') ?? null)
+      : null
     if (!loggedInUserId && !fingerprint) return validateError('未登录', 401)
     // 指纹格式校验：SHA-256 为 64 位十六进制
     if (fingerprint && !/^[a-f0-9]{64}$/.test(fingerprint)) {
@@ -87,7 +89,7 @@ export default defineEventHandler(
     }
 
     logger.info(
-      `[recording upload] 收到录音上传 ${loggedInUserId ? `user=${loggedInUserId}` : `guest=${fingerprint!.slice(0, 8)}`} segment=${segmentId} phase=${phase} ${mimeType} ${file.size}B`,
+      `[recording upload] 收到录音上传 ${loggedInUserId ? `user=${loggedInUserId}` : `guest=${fingerprint?.slice(0, 8)}`} segment=${segmentId} phase=${phase} ${mimeType} ${file.size}B`,
     )
 
     // 8. 上传到 OSS
@@ -121,25 +123,29 @@ export default defineEventHandler(
         } else {
           // 优先通过 guest_token 查找已实体化的游客行
           const guestKey = await readGuestKey(event)
-          let resolvedByGuestKey = false
+          let guestUserId: number | null = null
           if (guestKey) {
-            const [rows] = await conn.execute<RowDataPacket[]>(
+            const [rows] = await conn.execute<(RowDataPacket & { id: number })[]>(
               'SELECT id FROM user WHERE guest_key = ? AND is_guest = 1 AND merged_into_user_id IS NULL LIMIT 1 FOR UPDATE',
               [guestKey],
             )
-            if (rows.length > 0) {
-              userId = (rows[0] as { id: number }).id
-              resolvedByGuestKey = true
+            const guestRow = rows[0]
+            if (guestRow) {
+              guestUserId = guestRow.id
               // 顺便把指纹关联到同一行（best-effort，指纹已被其他行占用时跳过）
               try {
                 await conn.execute(
                   'UPDATE IGNORE user SET fingerprint_hash = ? WHERE id = ? AND fingerprint_hash IS NULL',
-                  [fingerprint, userId],
+                  [fingerprint, guestUserId],
                 )
-              } catch { /* 指纹关联失败不影响录音归属 */ }
+              } catch {
+                /* 指纹关联失败不影响录音归属 */
+              }
             }
           }
-          if (!resolvedByGuestKey) {
+          if (guestUserId != null) {
+            userId = guestUserId
+          } else {
             const ensured = await ensureGuestUserByFingerprint(conn, fingerprint!)
             if (ensured.conflict) {
               throw new Error('GUEST_CONFLICT')

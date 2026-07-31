@@ -15,20 +15,16 @@ async function loadModule() {
 }
 
 /** 配置 mockQuery 按调用顺序返回不同结果 */
-function setupEvalQuery(opts: {
-  limit?: string
-  userId?: number | null
-  recordingCount?: number
-}) {
+function setupEvalQuery(opts: { limit?: string; userId?: number | null; recordingCount?: number }) {
   const { limit = '3', userId = 42, recordingCount = 0 } = opts
   const calls: any[] = [
-    [{ config_value: limit }],          // sys_config 查询
+    [{ config_value: limit }], // sys_config 查询
   ]
   if (userId !== null) {
-    calls.push([{ id: userId }])         // user 表查 guestKey → userId
+    calls.push([{ id: userId }]) // user 表查 guestKey → userId
     calls.push([{ cnt: recordingCount }]) // recording 计数
   } else {
-    calls.push([[]])                     // user 表无行
+    calls.push([[]]) // user 表无行
   }
   let idx = 0
   mockQuery.mockImplementation(() => Promise.resolve(calls[idx++] ?? []))
@@ -58,7 +54,7 @@ describe('checkGuestEvalLimit 游客评测限流', () => {
   it('游客尚未实体化（无 user 行）→ 视为 0 次使用，放行', async () => {
     mockQuery
       .mockResolvedValueOnce([{ config_value: '3' }]) // sys_config
-      .mockResolvedValueOnce([[]])                      // user 表无行
+      .mockResolvedValueOnce([[]]) // user 表无行
     const { checkGuestEvalLimit } = await loadModule()
     const res = await checkGuestEvalLimit('gk-new', 'shadow')
     expect(res.allowed).toBe(true)
@@ -69,9 +65,9 @@ describe('checkGuestEvalLimit 游客评测限流', () => {
   it('dubbing 和 shadow 独立计数', async () => {
     // 第一次查 dubbing：recording count = 2
     mockQuery
-      .mockResolvedValueOnce([{ config_value: '3' }])  // sys_config（首次）
-      .mockResolvedValueOnce([{ id: 42 }])              // user 表
-      .mockResolvedValueOnce([{ cnt: 2 }])              // dubbing 录音数
+      .mockResolvedValueOnce([{ config_value: '3' }]) // sys_config（首次）
+      .mockResolvedValueOnce([{ id: 42 }]) // user 表
+      .mockResolvedValueOnce([{ cnt: 2 }]) // dubbing 录音数
     const { checkGuestEvalLimit } = await loadModule()
     const dubRes = await checkGuestEvalLimit('gk-1', 'dubbing')
     expect(dubRes.used).toBe(2)
@@ -80,8 +76,8 @@ describe('checkGuestEvalLimit 游客评测限流', () => {
     // 第二次查 shadow：recording count = 0
     // sys_config 命中缓存，只需 user + recording
     mockQuery
-      .mockResolvedValueOnce([{ id: 42 }])              // user 表
-      .mockResolvedValueOnce([{ cnt: 0 }])              // shadow 录音数
+      .mockResolvedValueOnce([{ id: 42 }]) // user 表
+      .mockResolvedValueOnce([{ cnt: 0 }]) // shadow 录音数
     const shaRes = await checkGuestEvalLimit('gk-1', 'shadow')
     expect(shaRes.used).toBe(0)
     expect(shaRes.remaining).toBe(3)
@@ -115,7 +111,7 @@ describe('checkGuestEvalLimit 游客评测限流', () => {
   it('查库失败兜底放行 → allowed=true', async () => {
     mockQuery
       .mockResolvedValueOnce([{ config_value: '3' }]) // sys_config 成功
-      .mockRejectedValueOnce(new Error('db down'))       // user 表查询失败
+      .mockRejectedValueOnce(new Error('db down')) // user 表查询失败
     const { checkGuestEvalLimit } = await loadModule()
     const res = await checkGuestEvalLimit('gk-err', 'dubbing')
     expect(res.allowed).toBe(true)
@@ -125,9 +121,9 @@ describe('checkGuestEvalLimit 游客评测限流', () => {
 
   it('sys_config 查询失败 → 使用默认限次 1', async () => {
     mockQuery
-      .mockRejectedValueOnce(new Error('db down'))       // sys_config 失败
-      .mockResolvedValueOnce([{ id: 42 }])               // user 表
-      .mockResolvedValueOnce([{ cnt: 0 }])               // recording 计数
+      .mockRejectedValueOnce(new Error('db down')) // sys_config 失败
+      .mockResolvedValueOnce([{ id: 42 }]) // user 表
+      .mockResolvedValueOnce([{ cnt: 0 }]) // recording 计数
     const { checkGuestEvalLimit } = await loadModule()
     const res = await checkGuestEvalLimit('gk-fail', 'shadow')
     expect(res.allowed).toBe(true)
@@ -138,11 +134,12 @@ describe('checkGuestEvalLimit 游客评测限流', () => {
 describe('getGuestEvalQuota 配额查询', () => {
   it('返回两种 phase 的配额状态', async () => {
     mockQuery
-      .mockResolvedValueOnce([{ config_value: '5' }])    // sys_config
-      .mockResolvedValueOnce([{ id: 42 }])                // user 表
-      .mockResolvedValueOnce([                            // recording GROUP BY phase
-        { phase: 3, cnt: 2 },  // dubbing
-        { phase: 4, cnt: 1 },  // shadow
+      .mockResolvedValueOnce([{ config_value: '5' }]) // sys_config
+      .mockResolvedValueOnce([{ id: 42 }]) // user 表
+      .mockResolvedValueOnce([
+        // recording GROUP BY phase
+        { phase: 3, cnt: 2 }, // dubbing
+        { phase: 4, cnt: 1 }, // shadow
       ])
     const { getGuestEvalQuota } = await loadModule()
     const quota = await getGuestEvalQuota('gk-1')
@@ -151,9 +148,7 @@ describe('getGuestEvalQuota 配额查询', () => {
   })
 
   it('游客未实体化 → 两种 phase 均为 0', async () => {
-    mockQuery
-      .mockResolvedValueOnce([{ config_value: '3' }])
-      .mockResolvedValueOnce([[]]) // 无 user 行
+    mockQuery.mockResolvedValueOnce([{ config_value: '3' }]).mockResolvedValueOnce([[]]) // 无 user 行
     const { getGuestEvalQuota } = await loadModule()
     const quota = await getGuestEvalQuota('gk-new')
     expect(quota.dubbing).toEqual({ used: 0, limit: 3 })

@@ -12,7 +12,7 @@ type FavRow = RowDataPacket & { id: number; deleted_at: string | null }
  * body: { vocabularyId: number }
  */
 export default defineEventHandler(async (event): Promise<ResPayload<{ isFav: boolean }>> => {
-  const userId = event.context.user?.id ?? await resolveAndEnsureGuestUserId(event)
+  const userId = event.context.user?.id ?? (await resolveAndEnsureGuestUserId(event))
   if (!userId) return validateError('未登录', 401)
 
   const body = await readBody(event)

@@ -12,6 +12,10 @@ vi.mock('#server/utils/db', () => ({
   withTransaction: (fn: (conn: any) => Promise<unknown>) => fn({ execute: mockConnExecute }),
 }))
 
+// 索引安全访问 SQL/参数（noUncheckedIndexedAccess 下 mock.calls[i] 可能 undefined）
+const sqlAt = (i: number) => String(mockConnExecute.mock.calls[i]?.[0] ?? '')
+const argsAt = (i: number) => mockConnExecute.mock.calls[i]?.[1]
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -44,26 +48,28 @@ describe('mergeGuestData 合并', () => {
     await mergeGuestData('gk', 100)
     expect(mockConnExecute).toHaveBeenCalledTimes(8)
     // latch：置 merged_into_user_id + 软删 + 清 guest_key，带幂等条件
-    const latchSql = String(mockConnExecute.mock.calls[1][0])
+    const latchSql = sqlAt(1)
     expect(latchSql).toContain('SET merged_into_user_id = ?, deleted_at = NOW(), guest_key = NULL')
     expect(latchSql).toContain('merged_into_user_id IS NULL')
     // log 合并：同日累加时长
-    const logSql = String(mockConnExecute.mock.calls[2][0])
+    const logSql = sqlAt(2)
     expect(logSql).toContain('study_seconds = study_seconds + VALUES(study_seconds)')
     // stats 累加
-    expect(String(mockConnExecute.mock.calls[3][0])).toContain('total_study_seconds = t.total_study_seconds + g.total_study_seconds')
+    expect(sqlAt(3)).toContain(
+      'total_study_seconds = t.total_study_seconds + g.total_study_seconds',
+    )
     // progress 合并：取优策略
-    const progSql = String(mockConnExecute.mock.calls[4][0])
+    const progSql = sqlAt(4)
     expect(progSql).toContain('INSERT INTO user_progress')
     expect(progSql).toContain('ON DUPLICATE KEY UPDATE')
     expect(progSql).toContain('phase3_score')
     // 收藏合并：INSERT IGNORE
-    const favSegSql = String(mockConnExecute.mock.calls[5][0])
+    const favSegSql = sqlAt(5)
     expect(favSegSql).toContain('INSERT IGNORE INTO user_fav_segment')
-    const favWordSql = String(mockConnExecute.mock.calls[6][0])
+    const favWordSql = sqlAt(6)
     expect(favWordSql).toContain('INSERT IGNORE INTO user_fav_word')
     // 录音迁移：UPDATE user_id
-    const recSql = String(mockConnExecute.mock.calls[7][0])
+    const recSql = sqlAt(7)
     expect(recSql).toContain('UPDATE recording SET user_id = ?')
   })
 
@@ -106,13 +112,13 @@ describe('mergeGuestData 合并', () => {
     await mergeGuestData('test-guest-key', 999)
 
     // progress: 参数 [targetUserId, guestId]
-    expect(mockConnExecute.mock.calls[4][1]).toEqual([999, 50])
+    expect(argsAt(4)).toEqual([999, 50])
     // fav_segment: 参数 [targetUserId, guestId]
-    expect(mockConnExecute.mock.calls[5][1]).toEqual([999, 50])
+    expect(argsAt(5)).toEqual([999, 50])
     // fav_word: 参数 [targetUserId, guestId]
-    expect(mockConnExecute.mock.calls[6][1]).toEqual([999, 50])
+    expect(argsAt(6)).toEqual([999, 50])
     // recording: 参数 [targetUserId, guestId]
-    expect(mockConnExecute.mock.calls[7][1]).toEqual([999, 50])
+    expect(argsAt(7)).toEqual([999, 50])
   })
 
   it('合并完成后输出统计日志', async () => {
@@ -128,7 +134,7 @@ describe('mergeGuestData 合并', () => {
       .mockResolvedValueOnce([{ affectedRows: 5 }]) // recording
     await mergeGuestData('gk', 100)
     expect(logSpy).toHaveBeenCalledTimes(1)
-    const logMsg = logSpy.mock.calls[0][0] as string
+    const logMsg = String(logSpy.mock.calls[0]?.[0] ?? '')
     expect(logMsg).toContain('[guestMerge]')
     expect(logMsg).toContain('progress=2')
     expect(logMsg).toContain('fav_segment=1')
@@ -151,7 +157,7 @@ describe('mergeGuestData 合并', () => {
     await mergeGuestData('gk', 100)
     expect(mockConnExecute).toHaveBeenCalledTimes(9)
     // 指纹孤儿行查询使用 fingerprint_hash
-    const fpSql = String(mockConnExecute.mock.calls[1][0])
+    const fpSql = sqlAt(1)
     expect(fpSql).toContain('fingerprint_hash = ?')
     expect(fpSql).toContain('FOR UPDATE')
   })

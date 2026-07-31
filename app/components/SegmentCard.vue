@@ -95,7 +95,9 @@ function formatScore(score: number) {
         </button>
         <button class="segment-words-btn" @click="emit('open-words')">
           <svg viewBox="0 0 24 24" fill="currentColor" style="width: 18px">
-            <path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4V4zm16 0h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6V4z" />
+            <path
+              d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4V4zm16 0h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6V4z"
+            />
           </svg>
           单词本
         </button>
@@ -351,20 +353,20 @@ function formatScore(score: number) {
 }
 
 .segment-words-btn {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    white-space: nowrap;
-    padding: 5px 10px;
-    background: transparent;
-    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
-    border-radius: 999px;
-    font-size: 12px;
-    color: var(--primary);
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-right: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 8px;
 }
 
 .segment-lb-btn svg {

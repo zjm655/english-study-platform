@@ -29,8 +29,16 @@ const {
 
 // ===== 全局挂载 auto-import =====
 ;(globalThis as any).readBody = mockReadBody
-;(globalThis as any).validateSuccess = (data: unknown, message = '') => ({ code: 200, message, data })
-;(globalThis as any).validateError = (message: string, code = 400) => ({ code, message, data: null })
+;(globalThis as any).validateSuccess = (data: unknown, message = '') => ({
+  code: 200,
+  message,
+  data,
+})
+;(globalThis as any).validateError = (message: string, code = 400) => ({
+  code,
+  message,
+  data: null,
+})
 // 使用与生产一致的 zod schema（含 min/max 约束）
 ;(globalThis as any).studyTimeSchema = z.object({
   studySeconds: z.number().min(0, '学习时长不能为负数').max(3600, '单次上报时长不能超过1小时'),
@@ -106,8 +114,8 @@ describe('无 cookie → 懒签发', () => {
     expect(res.code).toBe(200)
     expect(mockSetGuestCookie).toHaveBeenCalledOnce()
     // 返回的 guestDisplayId 是 8 位前缀
-    expect(res.data.guestDisplayId).toHaveLength(8)
-    expect(res.data.stats).toBeNull()
+    expect(res.data!.guestDisplayId).toHaveLength(8)
+    expect(res.data!.stats).toBeNull()
     // <=0 秒不触发事务
     expect(mockWithTransaction).not.toHaveBeenCalled()
   })
@@ -128,7 +136,7 @@ describe('无 cookie → 懒签发', () => {
 
     expect(res.code).toBe(200)
     expect(mockSetGuestCookie).toHaveBeenCalledOnce()
-    expect(res.data.stats).toEqual(fakeStats)
+    expect(res.data!.stats).toEqual(fakeStats)
     expect(mockEnsureGuestUser).toHaveBeenCalledOnce()
     expect(mockAccumulateStudyTime).toHaveBeenCalledOnce()
   })
@@ -143,8 +151,8 @@ describe('有 cookie + <=0 秒 → 早返回', () => {
     const res = await handler(makeEvent())
 
     expect(res.code).toBe(200)
-    expect(res.data.guestDisplayId).toBe('abcdef12')
-    expect(res.data.stats).toBeNull()
+    expect(res.data!.guestDisplayId).toBe('abcdef12')
+    expect(res.data!.stats).toBeNull()
     expect(mockSetGuestCookie).not.toHaveBeenCalled() // 已有 cookie 不重签
     expect(mockWithTransaction).not.toHaveBeenCalled()
   })
@@ -158,8 +166,8 @@ describe('有 cookie + <=0 秒 → 早返回', () => {
     const res = await handler(makeEvent())
 
     expect(res.code).toBe(200)
-    expect(res.data.guestDisplayId).toBe('xyz12345')
-    expect(res.data.stats).toBeNull()
+    expect(res.data!.guestDisplayId).toBe('xyz12345')
+    expect(res.data!.stats).toBeNull()
   })
 })
 
@@ -180,8 +188,8 @@ describe('有 cookie + 正数 → 正常累计', () => {
     const res = await handler(makeEvent())
 
     expect(res.code).toBe(200)
-    expect(res.data.guestDisplayId).toBe('aabbccdd')
-    expect(res.data.stats).toEqual(fakeStats)
+    expect(res.data!.guestDisplayId).toBe('aabbccdd')
+    expect(res.data!.stats).toEqual(fakeStats)
     // 不重签 cookie
     expect(mockSetGuestCookie).not.toHaveBeenCalled()
   })
@@ -203,9 +211,9 @@ describe('残留 cookie（conflict）→ 换发新 key', () => {
 
     expect(res.code).toBe(200)
     // 换发了新 key，displayId 不应等于旧 key 前缀
-    expect(res.data.guestDisplayId).toHaveLength(8)
-    expect(res.data.guestDisplayId).not.toBe('oldmerge')
-    expect(res.data.stats).toBeNull()
+    expect(res.data!.guestDisplayId).toHaveLength(8)
+    expect(res.data!.guestDisplayId).not.toBe('oldmerge')
+    expect(res.data!.stats).toBeNull()
     // 确认重签了 cookie
     expect(mockSetGuestCookie).toHaveBeenCalledOnce()
     // 不触发 accumulateStudyTime（conflict 直接返回 null）

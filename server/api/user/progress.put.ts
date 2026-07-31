@@ -11,7 +11,7 @@ import { mapProgressRow } from '#shared/utils/progress'
  * PUT /api/user/progress
  */
 export default defineEventHandler(async (event) => {
-  const userId = event.context.user?.id ?? await resolveAndEnsureGuestUserId(event)
+  const userId = event.context.user?.id ?? (await resolveAndEnsureGuestUserId(event))
   if (!userId) {
     return validateError('未登录', 401)
   }

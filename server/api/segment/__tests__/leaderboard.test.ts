@@ -76,9 +76,9 @@ describe('handler 护栏', () => {
     })
     const res = await handler(makeEvent('9', { id: 1, role: 0 }))
     expect(res.code).toBe(200)
-    expect(res.data.segment).toEqual({ id: 9, title: 'S', unitId: 3 })
-    expect(res.data.phase3).toEqual({ list: [], me: null })
-    expect(res.data.phase4).toEqual({ list: [], me: null })
+    expect(res.data!.segment).toEqual({ id: 9, title: 'S', unitId: 3 })
+    expect(res.data!.phase3).toEqual({ list: [], me: null })
+    expect(res.data!.phase4).toEqual({ list: [], me: null })
   })
 
   it('管理员可访问他人私有材料', async () => {
@@ -168,7 +168,9 @@ describe('buildBoard', () => {
     })
     expect(mockQuery).toHaveBeenCalledTimes(3)
     const [rankSql, rankParams] = mockQuery.mock.calls[2]!
-    expect(String(rankSql)).toContain('HAVING b.best_score > ? OR (b.best_score = ? AND achieved_at < ?)')
+    expect(String(rankSql)).toContain(
+      'HAVING b.best_score > ? OR (b.best_score = ? AND achieved_at < ?)',
+    )
     // achievedAt 透传驱动原始 Date（非 ISO 字符串），避免 MySQL 无法解析带 Z 后缀的字面量
     expect(rankParams).toEqual([9, 4, 9, 4, 60, 60, myAchieved])
   })

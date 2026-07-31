@@ -11,7 +11,7 @@ import type { ResultSetHeader } from 'mysql2'
  * 流程：查 log → 已签到则返回 / 未签到则更新 → 计算连续性 → UPDATE stats
  */
 export default defineEventHandler(async (event): Promise<ResPayload<CheckinStats | null>> => {
-  const userId = event.context.user?.id ?? await resolveAndEnsureGuestUserId(event)
+  const userId = event.context.user?.id ?? (await resolveAndEnsureGuestUserId(event))
   if (!userId) return validateError('未登录', 401)
   const now = new Date()
   const todayStr = formatDate(now)

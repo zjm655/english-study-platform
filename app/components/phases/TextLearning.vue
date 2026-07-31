@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
+import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
 import { useFavorites } from '~/composables/useFavorites'
 import WordCard from '~/components/WordCard.vue'
 import type { SegmentDetail, VocabularyItem } from '~~/shared/types/unit'
@@ -122,7 +123,11 @@ async function completePhase() {
     <div class="card text-card">
       <div class="card__header">
         <span>原文</span>
-        <button v-if="segment.audioUrl || segment.audioObjectKey" class="material-play-btn" @click="playMaterialAudio">
+        <button
+          v-if="segment.audioUrl || segment.audioObjectKey"
+          class="material-play-btn"
+          @click="playMaterialAudio"
+        >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z" />
           </svg>

@@ -343,7 +343,8 @@ function remainingSegments(unit: AdminUserUnitProgress) {
 }
 
 function showMoreProgress(unitId: number) {
-  unitVisibleCounts.value[unitId] = (unitVisibleCounts.value[unitId] ?? PROGRESS_PAGE) + PROGRESS_PAGE
+  unitVisibleCounts.value[unitId] =
+    (unitVisibleCounts.value[unitId] ?? PROGRESS_PAGE) + PROGRESS_PAGE
 }
 
 // 授权数据（超管专属）：加载目标用户当前权限键

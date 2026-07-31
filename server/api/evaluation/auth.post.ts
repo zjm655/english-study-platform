@@ -59,7 +59,7 @@ export default defineEventHandler(
       if (!guestKey) return validateError('未登录', 401)
 
       // 从请求 body 读取 phase（前端传入 'dubbing' | 'shadow'）
-      const body = await readBody(event).catch(() => ({})) as { phase?: string }
+      const body = (await readBody(event).catch(() => ({}))) as { phase?: string }
       guestPhase = body.phase === 'shadow' ? 'shadow' : 'dubbing'
 
       // 通过 guest_key 查到游客 user.id（评测引擎签名需要 userId）

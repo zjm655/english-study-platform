@@ -52,6 +52,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   // 6. 写入数据库：若带未合并的游客 cookie → 同行转正（保留其已有学习数据，零迁移）；否则新建
   const guestKey = await readGuestKey(event)
   let promoted = false
+  let promotedGuestId: number | null = null
   if (guestKey) {
     const guestRows = await query<{ id: number }>(
       'SELECT id FROM user WHERE guest_key = ? AND is_guest = 1 AND merged_into_user_id IS NULL',
@@ -67,18 +68,20 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
       // affectedRows 为 0 说明被并发请求抢先转正/合并，跳过转正走正常新建流程
       if (updateResult.affectedRows > 0) {
         // 纵深防御：回读确认未被并发合并标记（防御性，理论上 affectedRows>0 已保证）
-        const verifyRows = await pool.execute(
-          'SELECT deleted_at FROM user WHERE id = ?',
-          [guestRow.id],
-        )
+        const verifyRows = await pool.execute('SELECT deleted_at FROM user WHERE id = ?', [
+          guestRow.id,
+        ])
         const verifyRow = (verifyRows[0] as Array<{ deleted_at: string | null }>)[0]
         if (verifyRow?.deleted_at) {
           throw new Error('GUEST_PROMOTION_CONFLICT')
         }
         // 游客实体化时已建 stats 行，用 IGNORE 兑底
-        await pool.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [guestRow.id])
+        await pool.execute('INSERT IGNORE INTO user_checkin_stats (user_id) VALUES (?)', [
+          guestRow.id,
+        ])
         clearGuestCookie(event)
         promoted = true
+        promotedGuestId = guestRow.id
       }
     }
   }
@@ -95,7 +98,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
   }
 
   // 转正成功后，清理游客限流内存缓存中的残留条目（防止内存泄漏）
-  if (promoted) {
+  if (promotedGuestId != null) {
     const { invalidateGuestAudioLimitCache } = await import('#server/utils/guestOssLimit')
     const { invalidateGuestEvalLimitCache } = await import('#server/utils/guestEvalLimit')
     invalidateGuestAudioLimitCache()
@@ -106,7 +109,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     if (fingerprint && /^[a-f0-9]{64}$/.test(fingerprint)) {
       try {
         const { mergeFingerprintOrphan } = await import('#server/services/guestMerge')
-        await mergeFingerprintOrphan(fingerprint, guestRow!.id)
+        await mergeFingerprintOrphan(fingerprint, promotedGuestId)
       } catch (err) {
         logger.error('[register] 指纹孤儿行合并失败:', err)
       }

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import type { VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
 import UnitDetail from '../[id]/index.vue'
 
@@ -35,7 +36,7 @@ vi.mock('~/composables/user/useGuestStudyTimer', () => ({ useGuestStudyTimer: vi
 
 // Mock useFavorites（避免真实网络请求触发测试环境 logger 未定义）
 const mockFetchFavSegments = vi.fn()
-const mockIsSegmentFav = vi.fn(() => false)
+const mockIsSegmentFav = vi.fn((_id: number) => false)
 const mockToggleSegment = vi.fn()
 const mockTogglingSegment = ref<number | null>(null)
 vi.mock('~/composables/useFavorites', () => ({
@@ -119,6 +120,9 @@ const mockSuccessData = {
   },
 }
 
+// 共享响应式 mock 下残留组件的 watcher 会污染 observe spy，用例间统一卸载隔离
+const mountedWrappers: VueWrapper[] = []
+
 async function createWrapper() {
   const wrapper = mount(UnitDetail, {
     global: {
@@ -144,9 +148,6 @@ async function createWrapper() {
   mountedWrappers.push(wrapper)
   return wrapper
 }
-
-// 共享响应式 mock 下残留组件的 watcher 会污染 observe spy，用例间统一卸载隔离
-const mountedWrappers: Array<Awaited<ReturnType<typeof createWrapper>>> = []
 
 describe('UnitDetail Page', () => {
   beforeEach(() => {
@@ -261,7 +262,14 @@ describe('UnitDetail Page', () => {
       code: 200,
       message: 'ok',
       data: {
-        unit: { id: 1, title: '测试单元', description: null, level: 1, sortOrder: 1, audioUrl: null },
+        unit: {
+          id: 1,
+          title: '测试单元',
+          description: null,
+          level: 1,
+          sortOrder: 1,
+          audioUrl: null,
+        },
         segments: [],
         pagination: { page: 1, pageSize: 10, total: 0, hasMore: false },
       },

@@ -90,7 +90,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
   }
 
   // 9. 返回用户信息（排除密码）；头像为私有对象，下发前签名为临时可访问 URL
-  const { passwordHash, ...safeInfo } = user
-  safeInfo.avatarUrl = await signAvatarUrl(safeInfo.avatarUrl)
+  const { passwordHash, account: userAccount, ...rest } = user
+  const safeInfo: LoginRes = {
+    ...rest,
+    account: userAccount ?? '',
+    avatarUrl: await signAvatarUrl(rest.avatarUrl),
+  }
   return validateSuccess(safeInfo, '登录成功！', 200)
 })

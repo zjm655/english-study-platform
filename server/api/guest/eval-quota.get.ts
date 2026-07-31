@@ -9,7 +9,9 @@ import { readGuestKey } from '#server/utils/guest'
 import { getGuestEvalQuota } from '#server/utils/guestEvalLimit'
 
 export default defineEventHandler(
-  async (event): Promise<
+  async (
+    event,
+  ): Promise<
     ResPayload<{
       dubbing: { used: number; limit: number }
       shadow: { used: number; limit: number }

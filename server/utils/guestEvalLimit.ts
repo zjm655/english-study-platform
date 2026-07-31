@@ -74,7 +74,12 @@ export async function checkGuestEvalLimit(
   // 命中缓存
   const cached = cache.get(cacheKey)
   if (cached && Date.now() < cached.expireAt) {
-    return { allowed: cached.used < limit, remaining: Math.max(0, limit - cached.used), used: cached.used, limit }
+    return {
+      allowed: cached.used < limit,
+      remaining: Math.max(0, limit - cached.used),
+      used: cached.used,
+      limit,
+    }
   }
 
   try {

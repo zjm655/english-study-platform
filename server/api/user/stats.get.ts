@@ -7,7 +7,10 @@ import { query } from '#server/utils/db'
 export default defineEventHandler(async (event) => {
   const userId = await resolveEffectiveUserId(event)
   if (!userId) {
-    return validateSuccess({ completedSegments: 0, avgDubbingScore: null, lastStudyTime: null }, '获取成功')
+    return validateSuccess(
+      { completedSegments: 0, avgDubbingScore: null, lastStudyTime: null },
+      '获取成功',
+    )
   }
 
   const completedRows = await query<{ cnt: number | string }>(

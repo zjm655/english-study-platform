@@ -27,14 +27,14 @@ const uploadLimitsPath = '/api/config/upload-limits'
 export function useUploadLimits() {
   const requestFetch = useRequestFetch()
 
-  const { data } = useAsyncData<UploadLimits>(
+  const { data } = useAsyncData<UploadLimits | null>(
     'upload-limits',
     () =>
       requestFetch<ResPayload<UploadLimits>>(uploadLimitsPath, {
         method: 'GET',
         signal: AbortSignal.timeout(5000),
       })
-        .then((res) => (res?.code === 200 ? res.data : null))
+        .then((res: ResPayload<UploadLimits>) => (res?.code === 200 ? res.data : null))
         .catch(() => null),
     {
       // 仅客户端发起（SSR 期不请求，直接用内置默认值）
@@ -45,9 +45,7 @@ export function useUploadLimits() {
   )
 
   // 接口成功则用服务端值，失败/未就绪则回退内置静态默认
-  const limits = computed<UploadLimits>(
-    () => data.value ?? { ...UPLOAD_LIMITS_FALLBACK },
-  )
+  const limits = computed<UploadLimits>(() => data.value ?? { ...UPLOAD_LIMITS_FALLBACK })
 
   return { limits }
 }

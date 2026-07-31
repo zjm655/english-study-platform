@@ -74,7 +74,9 @@
         <el-table-column prop="account" label="账号" min-width="120">
           <template #default="{ row }">
             {{ row.account || '-' }}
-            <el-tag v-if="row.isGuest" type="info" size="small" style="margin-left: 4px">游客</el-tag>
+            <el-tag v-if="row.isGuest" type="info" size="small" style="margin-left: 4px"
+              >游客</el-tag
+            >
           </template>
         </el-table-column>
         <el-table-column label="昵称" min-width="120">

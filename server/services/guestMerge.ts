@@ -12,7 +12,11 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2'
  * @param guestKey     游客 JWT 键
  * @param targetUserId 目标正式账户 id
  */
-export async function mergeGuestData(guestKey: string, targetUserId: number, fingerprint?: string | null): Promise<void> {
+export async function mergeGuestData(
+  guestKey: string,
+  targetUserId: number,
+  fingerprint?: string | null,
+): Promise<void> {
   await withTransaction(async (conn) => {
     // 1. 定位未合并的游客行（FOR UPDATE 防并发合并）
     const [rows] = await conn.execute<RowDataPacket[]>(
@@ -168,9 +172,9 @@ export async function mergeGuestData(guestKey: string, targetUserId: number, fin
     // 9. 合并统计日志
     logger.info(
       `[guestMerge] 游客 ${guestId} → 用户 ${targetUserId} 合并完成: ` +
-      `progress=${progRes.affectedRows}, fav_segment=${favSegRes.affectedRows}, ` +
-      `fav_word=${favWordRes.affectedRows}, recording=${recRes.affectedRows}` +
-      (fingerprintGuestId ? `, fp_guest=${fingerprintGuestId}, fp_recording=${fpRecCount}` : ''),
+        `progress=${progRes.affectedRows}, fav_segment=${favSegRes.affectedRows}, ` +
+        `fav_word=${favWordRes.affectedRows}, recording=${recRes.affectedRows}` +
+        (fingerprintGuestId ? `, fp_guest=${fingerprintGuestId}, fp_recording=${fpRecCount}` : ''),
     )
   })
 }
@@ -179,7 +183,10 @@ export async function mergeGuestData(guestKey: string, targetUserId: number, fin
  * 合并指纹孤儿游客行到目标用户（注册转正后调用）。
  * 与 mergeGuestData 步骤 8b 逻辑对称，独立事务，失败不阻断注册流程。
  */
-export async function mergeFingerprintOrphan(fingerprint: string, targetUserId: number): Promise<void> {
+export async function mergeFingerprintOrphan(
+  fingerprint: string,
+  targetUserId: number,
+): Promise<void> {
   await withTransaction(async (conn) => {
     const [fpRows] = await conn.execute<RowDataPacket[]>(
       'SELECT id FROM user WHERE fingerprint_hash = ? AND id != ? AND is_guest = 1 AND merged_into_user_id IS NULL FOR UPDATE',
@@ -189,7 +196,10 @@ export async function mergeFingerprintOrphan(fingerprint: string, targetUserId: 
     const orphanId = (fpRows[0] as { id: number }).id
 
     // 迁移录音
-    await conn.execute('UPDATE recording SET user_id = ? WHERE user_id = ? AND deleted_at IS NULL', [targetUserId, orphanId])
+    await conn.execute(
+      'UPDATE recording SET user_id = ? WHERE user_id = ? AND deleted_at IS NULL',
+      [targetUserId, orphanId],
+    )
     // 迁移进度（取优）
     await conn.execute(
       `INSERT INTO user_progress (user_id, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score)

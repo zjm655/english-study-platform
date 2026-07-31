@@ -91,12 +91,11 @@ async function handleCheckin() {
       <!-- 顶部问候：游客显示欢迎体验 -->
       <div class="greeting-section">
         <div class="greeting-text">
-          <template v-if="!isLogin">
-            欢迎体验
-          </template>
+          <template v-if="!isLogin"> 欢迎体验 </template>
           <template v-else>
             <!-- greeting 依赖浏览器本地时间保留 ClientOnly（fallback 占位防跳动）；nickname 已由 SSR verify 直出 -->
-            <ClientOnly>{{ greeting }}<template #fallback>你好</template></ClientOnly>，{{ user?.nickname || '学习者' }}
+            <ClientOnly>{{ greeting }}<template #fallback>你好</template></ClientOnly
+            >，{{ user?.nickname || '学习者' }}
           </template>
         </div>
         <div v-if="checkinStats?.currentStreakDays" class="streak-badge">
@@ -106,11 +105,7 @@ async function handleCheckin() {
       </div>
 
       <!-- 签到卡片：登录用户和游客均可签到 -->
-      <div
-        class="checkin-card"
-        :class="{ 'checked-in': isCheckedIn }"
-        @click="handleCheckin()"
-      >
+      <div class="checkin-card" :class="{ 'checked-in': isCheckedIn }" @click="handleCheckin()">
         <div class="checkin-icon">
           <el-icon :size="32"><Sunny /></el-icon>
         </div>
@@ -125,9 +120,7 @@ async function handleCheckin() {
       <div class="learn-section">
         <NuxtLink v-if="isLogin && isCheckedIn" to="/learn" class="learn-btn">开始学习</NuxtLink>
         <NuxtLink v-else-if="!isLogin" to="/learn" class="learn-btn">开始学习</NuxtLink>
-        <div v-else class="learn-btn" style="cursor: pointer" @click="handleCheckin">
-          点击签到
-        </div>
+        <div v-else class="learn-btn" style="cursor: pointer" @click="handleCheckin">点击签到</div>
       </div>
 
       <!-- 统计卡片：登录用户和游客均显示真实数据 -->

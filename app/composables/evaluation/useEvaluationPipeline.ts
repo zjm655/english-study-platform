@@ -78,7 +78,11 @@ export const useEvaluationPipeline = () => {
     if (authRes?.code !== 200 || !authRes.data) {
       throw new Error(authRes?.message || '获取评测授权失败')
     }
-    return { warrantId: authRes.data.warrantId, applicationId: authRes.data.applicationId, userId: authRes.data.userId }
+    return {
+      warrantId: authRes.data.warrantId,
+      applicationId: authRes.data.applicationId,
+      userId: authRes.data.userId,
+    }
   }
 
   /** 本地构造「分析失败」的回退 Recording（后端 markAnalyzeFail 不可用时兜底）。 */

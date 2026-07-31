@@ -20,10 +20,10 @@ export default defineNitroPlugin(() => {
   void (async () => {
     try {
       // 从 sys_config 读取游客数据保留天数，默认 180 天，最低 30 天
-      const cfgRows = await query<RowDataPacket>(
+      const cfgRows = await query<{ config_value: string }>(
         "SELECT config_value FROM sys_config WHERE config_key = 'guest_retention_days'",
       )
-      const rawDays = cfgRows.length > 0 ? parseInt(cfgRows[0].config_value, 10) : 180
+      const rawDays = cfgRows[0] ? parseInt(cfgRows[0].config_value, 10) : 180
       const retentionDays = isNaN(rawDays) || rawDays < 30 ? 180 : rawDays
 
       logger.info(`[guestCleanup] 启动清理，保留天数=${retentionDays}`)
@@ -38,7 +38,10 @@ export default defineNitroPlugin(() => {
       if (mergedCount > 0 || expiredCount > 0) {
         logger.info(`[guestCleanup] 清理完成：已合并=${mergedCount}行，过期=${expiredCount}行`)
       }
-      await fileLog('db', 'info', `[guestCleanup] 清理完成`, { merged: mergedCount, expired: expiredCount })
+      await fileLog('db', 'info', `[guestCleanup] 清理完成`, {
+        merged: mergedCount,
+        expired: expiredCount,
+      })
     } catch (err) {
       // 清理失败不阻塞服务启动
       logger.error('[guestCleanup] 启动清理失败:', err)

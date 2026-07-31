@@ -7,7 +7,7 @@ import { resolveAndEnsureGuestUserId } from '#server/utils/guestEnsure'
  * POST /api/notice/read-all
  */
 export default defineEventHandler(async (event) => {
-  const userId = event.context.user?.id ?? await resolveAndEnsureGuestUserId(event)
+  const userId = event.context.user?.id ?? (await resolveAndEnsureGuestUserId(event))
   if (!userId) return validateError('未登录', 401)
 
   const affectedRows = await markAllAsRead(userId)

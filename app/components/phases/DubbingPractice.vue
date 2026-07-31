@@ -203,7 +203,9 @@ onMounted(() => {
     <!-- 游客配额用完提示 -->
     <div v-if="isGuest && guestQuotaExhausted" class="quota-exhausted-banner">
       <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        <path
+          d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+        />
       </svg>
       <span>今日体验次数已用完，<a href="/login">登录</a>后可无限使用</span>
     </div>
@@ -212,7 +214,11 @@ onMounted(() => {
     <div class="card">
       <div class="card__header">
         <span>原文</span>
-        <button v-if="segment.audioUrl || segment.audioObjectKey" class="material-play-btn" @click="playMaterialAudio">
+        <button
+          v-if="segment.audioUrl || segment.audioObjectKey"
+          class="material-play-btn"
+          @click="playMaterialAudio"
+        >
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M8 5v14l11-7z" />
           </svg>

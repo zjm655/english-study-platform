@@ -26,7 +26,11 @@ export default defineEventHandler(async (event): Promise<ResPayload<PaginatedRec
       if (rows.length > 0) userId = rows[0]!.id
     }
   }
-  if (!userId) return validateSuccess<PaginatedRecordings>({ items: [], total: 0, page: 1, pageSize: 3 }, '获取成功')
+  if (!userId)
+    return validateSuccess<PaginatedRecordings>(
+      { items: [], total: 0, page: 1, pageSize: 3 },
+      '获取成功',
+    )
   const queryParams = getQuery(event)
   const segmentId = Number(queryParams.segmentId)
   const phase = Number(queryParams.phase)

@@ -64,7 +64,10 @@ export default defineEventHandler(
     await query('UPDATE user SET avatarUrl = ? WHERE id = ?', [avatarUrl, userId])
 
     // 响应返回签名 URL，保证上传后前端立即可展示
-    return validateSuccess({ avatarUrl: await signAvatarUrl(avatarUrl) }, '头像更新成功')
+    return validateSuccess(
+      { avatarUrl: (await signAvatarUrl(avatarUrl)) ?? avatarUrl },
+      '头像更新成功',
+    )
   },
 )
 

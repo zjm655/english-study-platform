@@ -24,8 +24,7 @@ const {
 const leaderboard = computed(() => lbRes.value?.data ?? null)
 
 useSeoMeta({
-  title: () =>
-    leaderboard.value ? `${leaderboard.value.segment.title} - 排行榜` : '排行榜',
+  title: () => (leaderboard.value ? `${leaderboard.value.segment.title} - 排行榜` : '排行榜'),
 })
 
 // 双 tab：配音（phase3）/ 跟读（phase4）
@@ -156,9 +155,7 @@ function formatDate(s: string) {
             <div class="rank-item__score">{{ formatScore(entry.bestScore) }}</div>
           </div>
         </div>
-        <div v-else class="empty-state">
-          该阶段还没有人上榜，抢占第一个席位吧
-        </div>
+        <div v-else class="empty-state">该阶段还没有人上榜，抢占第一个席位吧</div>
       </template>
     </template>
   </div>

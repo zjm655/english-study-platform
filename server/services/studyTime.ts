@@ -4,7 +4,7 @@
 // 事务内执行，调用方负责 withTransaction 包裹。防作弊逻辑（服务端间隔校验、单报封顶）与
 // 原登录用户路径逐字节等价；游客路径额外传 dailyCapSeconds 做单日封顶。
 import type { PoolConnection } from 'mysql2/promise'
-import type { ResultSetHeader } from 'mysql2'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import { formatDate, getStats } from './checkinHelper'
 import type { CheckinLogRow } from '#server/types/db'
 import type { CheckinStats } from '#shared/types/user'
@@ -95,10 +95,10 @@ export async function accumulateStudyTime(
       return getStats(conn, userId) // 已达单日上限，不再累计
     }
   } else {
-    await conn.execute('UPDATE user_checkin_log SET study_seconds = study_seconds + ? WHERE id = ?', [
-      addSeconds,
-      todayLog.id,
-    ])
+    await conn.execute(
+      'UPDATE user_checkin_log SET study_seconds = study_seconds + ? WHERE id = ?',
+      [addSeconds, todayLog.id],
+    )
   }
 
   await conn.execute(
