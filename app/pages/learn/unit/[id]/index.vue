@@ -172,12 +172,7 @@ function goFavWords(segment: UnitProgressDetail['segments'][number]) {
       <button class="retry-btn" @click="retry">重试</button>
     </div>
 
-    <!-- Empty -->
-    <div v-else-if="!displayedSegments.length" class="empty-state">
-      {{ favOnly ? '暂无收藏材料' : '暂无片段数据' }}
-    </div>
-
-    <!-- Content -->
+    <!-- 标题栏：Content 与 Empty 均展示，保证空态页（无收藏/无片段）也能切回全部材料 -->
     <template v-else>
       <div class="unit-header">
         <h2 class="unit-header__title">{{ unitData?.title }}</h2>
@@ -196,7 +191,13 @@ function goFavWords(segment: UnitProgressDetail['segments'][number]) {
         </button>
       </div>
 
-      <div class="segment-list">
+      <!-- Empty -->
+      <div v-if="!displayedSegments.length" class="empty-state">
+        {{ favOnly ? '暂无收藏材料' : '暂无片段数据' }}
+      </div>
+
+      <!-- Content -->
+      <div v-else class="segment-list">
         <SegmentCard
           v-for="segment in displayedSegments"
           :key="segment.id"

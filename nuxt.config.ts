@@ -96,23 +96,9 @@ export default defineNuxtConfig({
     port: 5173,
   },
 
-  // 关闭构建 sourcemap（Nuxt 默认 server 开启）：1.8G 小内存服务器上
-  // Nitro server 打包阶段生成大量 map 是构建 OOM（被内核 Killed）的主要内存开销之一；
-  // 生产排障主要靠 DB 埋点 + logs/ 文件日志（requestId 互查），server sourcemap 价值低
-  sourcemap: {
-    server: false,
-    client: false,
-  },
-
   nitro: {
     externals: {
       trace: false,
-    },
-    // 同上：Nitro 自身的 sourcemap 开关与顶层 sourcemap 独立，需单独关闭
-    sourceMap: false,
-    // 显式关闭 server 产物 minify（保险项：node-server 预设默认大概率已关，
-    // 显式声明防未来预设默认值变化）；esbuild 为 Go 原生，内存不受 --max-old-space-size 管控；
-    // server bundle 在本机运行无下行流量，体积换构建内存，运行性能无感
-    minify: false,
+    }
   },
 })

@@ -278,6 +278,8 @@ describe('UnitDetail Page', () => {
     const wrapper = await createWrapper()
     expect(wrapper.find('.empty-state').exists()).toBe(true)
     expect(wrapper.text()).toContain('暂无片段数据')
+    // 空态页也保留标题栏与收藏按钮，可切回全部材料
+    expect(wrapper.find('.unit-fav-btn').exists()).toBe(true)
   })
 
   it('shows error state when API returns non-200 (page-level, no toast)', async () => {
@@ -372,5 +374,12 @@ describe('UnitDetail Page', () => {
     await wrapper.find('.unit-fav-btn').trigger('click')
     expect(wrapper.findAll('.segment-card').length).toBe(0)
     expect(wrapper.text()).toContain('暂无收藏材料')
+    // 空收藏态下按钮仍保留（文案为「全部材料」），再次点击可恢复全部片段
+    const favBtn = wrapper.find('.unit-fav-btn')
+    expect(favBtn.exists()).toBe(true)
+    expect(favBtn.text()).toContain('全部材料')
+    await favBtn.trigger('click')
+    expect(wrapper.findAll('.segment-card').length).toBe(2)
+    expect(wrapper.text()).not.toContain('暂无收藏材料')
   })
 })
