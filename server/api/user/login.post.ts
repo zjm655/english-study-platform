@@ -6,7 +6,7 @@ import type { UserRow } from '#server/types/db'
 import { query } from '#server/utils/db'
 import { signAvatarUrl } from '#server/utils/oss'
 import { mergeGuestData } from '#server/services/guestMerge'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 /**
  * 登录接口：验证账号密码 → 生成 JWT → 写入 httpOnly Cookie

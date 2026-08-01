@@ -10,6 +10,8 @@ vi.hoisted(() => {
   // Nuxt 自动导入的符号在 vitest node 环境需手动挂全局
   ;(globalThis as any).defineEventHandler = (handler: any) => handler
   ;(globalThis as any).getRouterParam = (event: any, name: string) => event.__params?.[name]
+  ;(globalThis as any).getRequestHeader = (event: any, name: string) =>
+    event.__headers?.[name]
   ;(globalThis as any).logger = { error: () => {}, warn: () => {}, info: () => {} }
   ;(globalThis as any).validateError = (message: string, code: number = 400) => ({
     code,

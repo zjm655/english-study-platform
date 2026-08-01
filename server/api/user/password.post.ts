@@ -1,5 +1,5 @@
 // server/api/user/password.post.ts
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { query } from '#server/utils/db'
 import type { ResPayload } from '#shared/types/request'
 

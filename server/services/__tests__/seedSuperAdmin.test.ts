@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { seedSuperAdmin } from '../seedSuperAdmin'
 import { ROLE_ADMIN, ROLE_SUPER_ADMIN } from '#shared/utils/role'
 
-// 单元测试：启动期自举超管核心逻辑。mock db（query + withTransaction）与 bcrypt。
+// 单元测试：启动期自举超管核心逻辑。mock db（query + withTransaction）与 bcryptjs。
 // 覆盖：弱密码/账号超长→抛错、无超管建新、account 占用→抛错、幂等跳过、
 // 异账号超管未开关跳过、forceReplace 降级+立新、表缺失 fail-fast。
 
@@ -15,7 +15,7 @@ const { mockQuery, mockWithTransaction, mockConnExecute } = vi.hoisted(() => ({
 }))
 
 vi.mock('#server/utils/db', () => ({ query: mockQuery, withTransaction: mockWithTransaction }))
-vi.mock('bcrypt', () => ({ default: { hash: vi.fn(async () => 'HASHED') } }))
+vi.mock('bcryptjs', () => ({ default: { hash: vi.fn(async () => 'HASHED') } }))
 
 const CFG = { account: 'root_admin', password: 'strongpass123' }
 

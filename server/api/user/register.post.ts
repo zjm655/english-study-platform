@@ -5,7 +5,7 @@ import type { ZodSafeParseResult } from 'zod'
 import type { ResPayload } from '#shared/types/request'
 import type { UserRow } from '#server/types/db'
 import type { ResultSetHeader } from 'mysql2'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 /**
  * 注册接口：校验参数 → 检查唯一性 → 密码加密 → 写入数据库

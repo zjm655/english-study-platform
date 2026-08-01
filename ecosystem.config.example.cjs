@@ -1,21 +1,3 @@
-// ============================================================================
-// pm2 生产配置样例（复刻 .env/.env.example 约定）
-//
-// 使用方式：在服务器上 `cd ecosystem.config.example.cjs ecosystem.config.cjs`，
-// 按本机情况修改后使用；真实文件 ecosystem.config.cjs 已被 .gitignore 忽略，不入库。
-// 启动/更新统一走：pm2 startOrReload ecosystem.config.cjs --update-env
-// （pm2 reload <应用名> 不会重读本文件，改配置后必须显式指到文件并带 --update-env）
-//
-// 【硬约束】exec_mode: 'fork' + instances: 1，禁止改成 cluster 或多实例——
-// 限流滑动窗口、埋点内存缓冲、云服务并发队列（p-queue）均为进程内状态，
-// cluster reload 的新旧进程重叠期会出现双实例并存：限流/并发阈值翻倍、
-// queueRecovery 启动恢复的时间界假设被破坏（在途任务被新实例重复恢复）。
-// 多实例化前必须先完成内存态外置改造（见 .agents/docs/TECH_DEBT.md 第 1 条）。
-//
-// 【env 注入】Nitro 生产产物（.output/server/index.mjs）不会自动读取 .env，
-// 依赖 node_args 的 --env-file=.env（node >= 20.6）在启动时注入；
-// .env 保持环境变量唯一事实源，本文件的 env 块只放与部署形态绑定的少数变量。
-// ============================================================================
 module.exports = {
   apps: [
     {
@@ -30,8 +12,7 @@ module.exports = {
       max_memory_restart: '1G',
       env: {
         NODE_ENV: 'production',
-        // 生产端口（devServer 的 5173 仅开发生效，生产 Nitro 默认 3000）；
-        // scripts/deploy.sh 的健康检查会读取此值
+        // 生产端口（devServer 的 5173 仅开发生效，生产 Nitro 默认 3000）
         PORT: '3000',
         // JWT密钥
         // 文件日志保留天数（logs/ 下超期 .log 文件在服务启动时自动清理）；留空默认 30

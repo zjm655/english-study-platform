@@ -8,7 +8,7 @@
 // - 与迁移 018「升首个管理员为超管」的遗留冲突，正是「异账号超管」分支，交由 forceReplace 消化，
 //   绝不再写降级迁移（盲跑迁移会造成「零超管」锁死授权管理）。
 // - account 被占用一律拒绝（抛错）；读 user 表失败（未迁移/连不上）抛错 → 由插件冒泡中止启动。
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise'
 import { query, withTransaction } from '#server/utils/db'
 import { ROLE_ADMIN, ROLE_SUPER_ADMIN } from '#shared/utils/role'
