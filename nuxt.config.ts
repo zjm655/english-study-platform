@@ -99,6 +99,6 @@ export default defineNuxtConfig({
   nitro: {
     externals: {
       trace: false,
-    }
+    },
   },
 })
