@@ -97,8 +97,21 @@ export default defineNuxtConfig({
   },
 
   nitro: {
-    externals: {
-      trace: false,
+    rollupConfig: {
+      plugins: [
+        {
+          name: 'ali-oss-ts-strip',
+          async transform(code, id) {
+            // ali-oss v6.23 的 lib/ 混有未编译 .ts 源文件（github#1372），
+            // Rollup 无法解析 TS 语法；用 esbuild 在构建时 strip types
+            if (id.includes('ali-oss') && id.endsWith('.ts')) {
+              const { transform } = await import('esbuild')
+              const result = await transform(code, { loader: 'ts', format: 'esm' })
+              return { code: result.code, map: null }
+            }
+          },
+        },
+      ],
     },
   },
 })
