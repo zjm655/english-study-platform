@@ -67,6 +67,16 @@
             <!-- 受限材料 + 无审核权限：只读 -->
             <el-tag v-else type="info" size="small">私有（用户材料，需审核权限调整）</el-tag>
           </el-form-item>
+          <el-form-item label="NLS 校对">
+            <el-tooltip
+              v-if="nlsCheck === 1"
+              content="该材料上传时开启了 NLS 语音校对（识别+相似度核验），可在上传记录中追溯"
+              placement="top"
+            >
+              <el-tag type="warning" size="small">已启用语音校对</el-tag>
+            </el-tooltip>
+            <span v-else class="text-muted">未启用</span>
+          </el-form-item>
           <el-form-item label="英文原文">
             <el-input
               v-model="form.textContent"
@@ -287,6 +297,9 @@ const form = reactive({
   vocabulary: [] as AdminVocabEditItem[],
 })
 
+// NLS 语音校对标记（材料详情只读展示，非可编辑字段）
+const nlsCheck = ref(0)
+
 // 单元下拉数据（所属单元变更；无 id=0 行时手动前置自定义单元占位）
 const units = ref<UnitWithProgress[]>([])
 const unitOptions = computed(() => {
@@ -421,6 +434,7 @@ async function loadDetail() {
     audioDuration.value = d.duration ?? null
     audioLocked.value = d.audioLocked ?? false
     visibilityLocked.value = d.visibilityLocked ?? false
+    nlsCheck.value = d.nlsCheck ?? 0
   } else if (res?.code === 404) {
     loadError.value = res.message || '材料不存在或已删除'
   }

@@ -68,7 +68,7 @@ export default defineEventHandler(async (event) => {
     AdminMaterialRecordListItem & { role: number | null; user_id: number | null }
   >(
     `SELECT r.id, r.title, r.status, r.error_message, r.segment_id,
-            r.is_public, r.createdAt, r.user_id,
+            r.is_public, r.nls_check, r.createdAt, r.user_id,
             COALESCE(u.account, '已注销用户') AS username,
             u.role
      FROM material_upload_record r
@@ -97,6 +97,7 @@ export default defineEventHandler(async (event) => {
     error_message: row.error_message,
     segment_id: row.segment_id,
     is_public: row.is_public,
+    nls_check: row.nls_check,
     username: row.username,
     userId: row.user_id,
     source: isAdminOrAbove(row.role) ? 'admin' : 'user',

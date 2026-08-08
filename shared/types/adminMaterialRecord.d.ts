@@ -11,6 +11,8 @@ export interface AdminMaterialRecordListItem {
   error_message: string | null
   segment_id: number | null
   is_public: number
+  /** 是否开启 NLS 语音校对: 0关闭 1开启（管理员上传音频时可选，重处理沿用） */
+  nls_check: number
   username: string
   /** 上传者用户 ID（用户行已物理删除时为 null，前端降级纯文本） */
   userId: number | null
@@ -26,6 +28,8 @@ export interface AdminMaterialRecordDetail {
   text_content: string
   voice: string
   is_public: number
+  /** 是否开启 NLS 语音校对: 0关闭 1开启 */
+  nls_check: number
   status: MaterialUploadStatus
   error_message: string | null
   segment_id: number | null

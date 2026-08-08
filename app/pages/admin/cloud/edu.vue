@@ -82,8 +82,9 @@
       </el-table>
       <el-empty v-else description="范围内无调用记录" :image-size="64" />
       <p class="estimate-note">
-        ⚠️ 基于本地 API 调用埋点估算，仅供参考。官方计费 0.004 元/次（失败不计费）， 此处统计含
-        evaluation/auth（获取 warrantId）与 recording/*/analyze（评测入库）两类请求。
+        ⚠️ 基于本地 API 调用埋点估算，仅供参考。官方计费 0.004 元/次（失败不计费），此处仅统计
+        evaluation/auth（获取 warrantId 鉴权）成功调用；recording/*/analyze 仅将前端评测结果
+        入库、后端不调用评测平台，不计费。鉴权失败/重复鉴权次数已从估算中剔除。
       </p>
     </section>
   </div>

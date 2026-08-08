@@ -1,4 +1,5 @@
 import { query } from '#server/utils/db'
+import { startDateOf } from '#server/utils/dateSeries'
 import { adminStatsQuerySchema, validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
@@ -9,10 +10,38 @@ import type {
   TopPathItem,
 } from '#shared/types/adminStats'
 
-/** 看板结果短 TTL 缓存（统计非实时，60s 内共享结果，降低对 api_call_log 的重复大范围扫描）。
- *  days 受 zod 约束在 1-90，故 Map 最多 90 项，无需额外淘汰。 */
+/** 短 TTL 缓存键：days 受 zod 约束在 1-90，故 Map 最多 90 项，无需额外淘汰。 */
 const CACHE_TTL_MS = 60_000
 const statsCache = new Map<number, { result: AdminStatsResult; expireAt: number }>()
+
+/**
+ * 按天趋势补零：生成 [startDate, endDate] 完整序列（含首尾），
+ * 缺失日期对 count/errorCount/avgDuration 逐一补 0（与 trend.get.ts 的 fillDailyZeros 同约定，
+ * 保证「无调用日期显示为 0」而非跨日直连）。
+ */
+export function fillDailyTrendZeros(
+  startDate: string,
+  endDate: string,
+  rows: Array<Record<string, string | number>>,
+): DailyTrendItem[] {
+  const byDate = new Map(rows.map((r) => [String(r.date), r]))
+  const items: DailyTrendItem[] = []
+  const cursor = new Date(`${startDate}T00:00:00Z`)
+  const end = new Date(`${endDate}T00:00:00Z`)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  while (cursor <= end) {
+    const date = `${cursor.getUTCFullYear()}-${pad(cursor.getUTCMonth() + 1)}-${pad(cursor.getUTCDate())}`
+    const r = byDate.get(date)
+    items.push({
+      date,
+      count: r ? Number(r.count ?? 0) : 0,
+      errorCount: r ? Number(r.errorCount ?? 0) : 0,
+      avgDuration: r ? Number(r.avgDuration ?? 0) : 0,
+    })
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  return items
+}
 
 /**
  * 运营统计聚合看板（单一端点，一次返回全部 widget 数据）
@@ -69,6 +98,9 @@ export default defineEventHandler(async (event) => {
   }
 
   // 2. 按天趋势（DATE_FORMAT 直接输出字符串，避免 mysql2 将 DATE 转为 JS Date 的时区问题）
+  //    区间终点取 DB 时区 CURDATE()（与 SQL 聚合同源），缺数据日期由 fillDailyTrendZeros 补 0
+  const [todayRows] = await query<{ today: string }>('SELECT CURDATE() AS today')
+  const today = todayRows[0]?.today ?? new Date().toISOString().slice(0, 10)
   const trendRows = await query<Record<string, string | number>>(
     `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS date,
             COUNT(*) AS count,
@@ -80,12 +112,7 @@ export default defineEventHandler(async (event) => {
      ORDER BY date ASC`,
     [days],
   )
-  const dailyTrend: DailyTrendItem[] = trendRows.map((r) => ({
-    date: String(r.date),
-    count: Number(r.count),
-    errorCount: Number(r.errorCount),
-    avgDuration: Number(r.avgDuration),
-  }))
+  const dailyTrend = fillDailyTrendZeros(startDateOf(today, days), today, trendRows)
 
   // 3. 热门接口 Top 10
   const topRows = await query<Record<string, string | number>>(

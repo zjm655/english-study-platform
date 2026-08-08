@@ -18,8 +18,9 @@ export default defineEventHandler(async (event) => {
   const unitId = formData.get('unitId') as string | null
   const voice = formData.get('voice') as string | null
   const isPublic = formData.get('isPublic') as string | null
+  const nlsCheck = formData.get('nlsCheck') as string | null
 
-  const parsed = adminUploadSchema.safeParse({ mode, unitId, voice, isPublic })
+  const parsed = adminUploadSchema.safeParse({ mode, unitId, voice, isPublic, nlsCheck })
   if (!parsed.success) {
     return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
@@ -29,6 +30,7 @@ export default defineEventHandler(async (event) => {
     unitId: validUnitId,
     voice: validVoice,
     isPublic: validIsPublic,
+    nlsCheck: validNlsCheck,
   } = parsed.data
   const { oss } = useRuntimeConfig()
   const bucket = oss.bucket as string
@@ -68,6 +70,8 @@ export default defineEventHandler(async (event) => {
       title,
       voice: validVoice,
       isPublic: validIsPublic,
+      // 仅 single 场景携带；batch 无音频，不传（保持 0）
+      nlsCheck: validNlsCheck === 1,
       bucket,
       audioBuffer,
       audioFileName,

@@ -37,15 +37,16 @@ export async function reprocessRecord(id: number, unitId: number): Promise<Repro
     return { ok: false, reason: '仅失败记录可重处理，当前状态：' + rows[0]!.status, code: 400 }
   }
 
-  // 获取记录完整信息
+  // 获取记录完整信息（含 nls_check：重处理沿用原开关，标记不丢失）
   const rows = await query<{
     user_id: number
     title: string
     text_content: string
     voice: string
     is_public: number
+    nls_check: number
   }>(
-    'SELECT user_id, title, text_content, voice, is_public FROM material_upload_record WHERE id = ?',
+    'SELECT user_id, title, text_content, voice, is_public, nls_check FROM material_upload_record WHERE id = ?',
     [id],
   )
   const record = rows[0]!
@@ -63,6 +64,7 @@ export async function reprocessRecord(id: number, unitId: number): Promise<Repro
         title: record.title,
         voice: record.voice,
         isPublic: record.is_public,
+        nlsCheck: record.nls_check === 1,
         bucket: config.oss.bucket || '',
         existingRecordId: id,
       }),

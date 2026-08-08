@@ -54,8 +54,8 @@ export async function mergeGuestData(
     //    （游客行已软删但 log 行仍在，latch 已保证本段 at-most-once，无需删游客 log）
     await conn.execute(
       `INSERT INTO user_checkin_log (user_id, checkin_date, checked_in, study_seconds, segments_completed)
-       SELECT ?, checkin_date, checked_in, study_seconds, segments_completed
-       FROM user_checkin_log WHERE user_id = ?
+       SELECT ?, src.checkin_date, src.checked_in, src.study_seconds, src.segments_completed
+       FROM user_checkin_log src WHERE src.user_id = ?
        ON DUPLICATE KEY UPDATE
          study_seconds = study_seconds + VALUES(study_seconds),
          checked_in = GREATEST(checked_in, VALUES(checked_in)),
@@ -75,8 +75,8 @@ export async function mergeGuestData(
     // 5. 合并学习进度：同 (user_id, segment_id) 取优，done 字段取 OR，score 字段取 GREATEST
     const [progRes] = await conn.execute<ResultSetHeader>(
       `INSERT INTO user_progress (user_id, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score)
-       SELECT ?, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score
-       FROM user_progress WHERE user_id = ? AND deleted_at IS NULL
+       SELECT ?, src.segment_id, src.phase1_done, src.phase2_done, src.phase3_done, src.phase3_score, src.phase4_done, src.phase4_score
+       FROM user_progress src WHERE src.user_id = ? AND src.deleted_at IS NULL
        ON DUPLICATE KEY UPDATE
          phase1_done = phase1_done OR VALUES(phase1_done),
          phase2_done = phase2_done OR VALUES(phase2_done),
@@ -121,8 +121,8 @@ export async function mergeGuestData(
       // 迁移进度（取优）
       await conn.execute(
         `INSERT INTO user_progress (user_id, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score)
-         SELECT ?, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score
-         FROM user_progress WHERE user_id = ? AND deleted_at IS NULL
+         SELECT ?, src.segment_id, src.phase1_done, src.phase2_done, src.phase3_done, src.phase3_score, src.phase4_done, src.phase4_score
+         FROM user_progress src WHERE src.user_id = ? AND src.deleted_at IS NULL
          ON DUPLICATE KEY UPDATE
            phase1_done = phase1_done OR VALUES(phase1_done),
            phase2_done = phase2_done OR VALUES(phase2_done),
@@ -146,8 +146,8 @@ export async function mergeGuestData(
       // 迁移签到日志（同日累加）
       await conn.execute(
         `INSERT INTO user_checkin_log (user_id, checkin_date, checked_in, study_seconds, segments_completed)
-         SELECT ?, checkin_date, checked_in, study_seconds, segments_completed
-         FROM user_checkin_log WHERE user_id = ?
+         SELECT ?, src.checkin_date, src.checked_in, src.study_seconds, src.segments_completed
+         FROM user_checkin_log src WHERE src.user_id = ?
          ON DUPLICATE KEY UPDATE
            study_seconds = study_seconds + VALUES(study_seconds),
            checked_in = GREATEST(checked_in, VALUES(checked_in)),
@@ -203,8 +203,8 @@ export async function mergeFingerprintOrphan(
     // 迁移进度（取优）
     await conn.execute(
       `INSERT INTO user_progress (user_id, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score)
-       SELECT ?, segment_id, phase1_done, phase2_done, phase3_done, phase3_score, phase4_done, phase4_score
-       FROM user_progress WHERE user_id = ? AND deleted_at IS NULL
+       SELECT ?, src.segment_id, src.phase1_done, src.phase2_done, src.phase3_done, src.phase3_score, src.phase4_done, src.phase4_score
+       FROM user_progress src WHERE src.user_id = ? AND src.deleted_at IS NULL
        ON DUPLICATE KEY UPDATE
          phase1_done = phase1_done OR VALUES(phase1_done),
          phase2_done = phase2_done OR VALUES(phase2_done),
@@ -226,7 +226,7 @@ export async function mergeFingerprintOrphan(
     // 迁移签到日志
     await conn.execute(
       `INSERT INTO user_checkin_log (user_id, checkin_date, checked_in, study_seconds, segments_completed)
-       SELECT ?, checkin_date, checked_in, study_seconds, segments_completed FROM user_checkin_log WHERE user_id = ?
+       SELECT ?, src.checkin_date, src.checked_in, src.study_seconds, src.segments_completed FROM user_checkin_log src WHERE src.user_id = ?
        ON DUPLICATE KEY UPDATE study_seconds = study_seconds + VALUES(study_seconds), checked_in = GREATEST(checked_in, VALUES(checked_in)), segments_completed = segments_completed + VALUES(segments_completed)`,
       [targetUserId, orphanId],
     )

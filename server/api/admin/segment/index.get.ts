@@ -40,7 +40,8 @@ export default defineEventHandler(async (event) => {
   // 列表只 SELECT 必要字段（不含 textContent/translation/questions 大字段）
   const list = await query<AdminSegmentListItem>(
     `SELECT s.id, s.title, s.unit_id AS unitId, u.title AS unitTitle,
-            s.is_public AS isPublic, s.sort_order AS sortOrder, s.createdAt
+            s.is_public AS isPublic, s.nls_check AS nlsCheck,
+            s.sort_order AS sortOrder, s.createdAt
      FROM segment s
      LEFT JOIN unit u ON s.unit_id = u.id
      WHERE ${whereSql}

@@ -26,6 +26,7 @@
           class="filter-item filter-item--narrow"
           @change="handleSearch"
         >
+          <el-option label="全部用户" value="everyone" />
           <el-option label="正式用户" value="all" />
           <el-option label="正常" value="normal" />
           <el-option label="封禁" value="banned" />
@@ -214,7 +215,8 @@ useSeoMeta({ title: '用户管理 - 管理后台' })
 
 // 筛选条件
 const filterKeyword = ref('')
-const filterState = ref<AdminUserState>('all')
+// 默认「全部用户」兜底：展示全量（含游客/已注销）用户，由服务端分页承载
+const filterState = ref<AdminUserState>('everyone')
 
 // 分页
 const page = ref(1)
@@ -266,7 +268,7 @@ function handleSearch() {
 function handleReset() {
   clear()
   filterKeyword.value = ''
-  filterState.value = 'all'
+  filterState.value = 'everyone'
   page.value = 1
   loadList()
 }

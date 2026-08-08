@@ -14,6 +14,8 @@ export interface CloudPathEstimate {
   count: number
   unitPrice: number
   estimatedCost: number
+  /** 业务时长（毫秒，仅按时长计费的产品如 NLS 有值：真实音频时长 biz_duration_ms 之和） */
+  bizDurationMs?: number
 }
 
 /** 本地埋点估算汇总 */
@@ -24,6 +26,8 @@ export interface CloudEstimateSummary {
   unit: string // '次' | '小时' 等
   byPath: CloudPathEstimate[]
   days: number
+  /** 总业务时长（毫秒，仅按时长计费的产品如 NLS 有值：SUM(biz_duration_ms)） */
+  bizDurationMs?: number
 }
 
 /** OSS Bucket 统计（官方 GetBucketStat API，数据延迟可能 >1h，不含流量） */

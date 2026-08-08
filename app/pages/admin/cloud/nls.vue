@@ -22,24 +22,24 @@
     <!-- 指标带 -->
     <div class="metric-band">
       <div class="metric-cell metric-cell--blue">
-        <span class="metric-label">总调用次数</span>
+        <span class="metric-label">识别调用次数</span>
         <span class="metric-value"
           >{{ data?.estimate.totalCalls.toLocaleString() ?? '--'
           }}<i class="metric-unit">次</i></span
         >
-        <span class="metric-sub">近 {{ days }} 天语音识别请求</span>
+        <span class="metric-sub">近 {{ days }} 天语音识别请求（成功）</span>
       </div>
       <div class="metric-cell metric-cell--orange">
         <span class="metric-label">估算费用</span>
         <span class="metric-value"
           >￥{{ data?.estimate.totalEstimatedCost.toFixed(2) ?? '--' }}</span
         >
-        <span class="metric-sub">单价 ￥{{ data?.estimate.unitPrice ?? 0 }}/次</span>
+        <span class="metric-sub">单价 ￥{{ data?.estimate.unitPrice ?? 0 }}/小时</span>
       </div>
       <div class="metric-cell metric-cell--green">
         <span class="metric-label">估算识别时长</span>
         <span class="metric-value">{{ estimatedHours }}<i class="metric-unit">小时</i></span>
-        <span class="metric-sub">按每次约 2 分钟估算</span>
+        <span class="metric-sub">按真实音频时长合计（biz_duration_ms）</span>
       </div>
     </div>
 
@@ -56,7 +56,7 @@
     <section class="panel">
       <header class="panel-head">
         <h3 class="panel-title">本地埋点估算明细</h3>
-        <span class="panel-note">基于 api_call_log 统计</span>
+        <span class="panel-note">基于 cloud_service_call_log 统计</span>
       </header>
       <el-table
         v-if="data?.estimate.byPath.length"
@@ -64,26 +64,33 @@
         stripe
         size="small"
       >
-        <el-table-column prop="path" label="路径" min-width="200">
+        <el-table-column prop="label" label="识别方式" min-width="200">
           <template #default="{ row }">
-            <code class="path-code">{{ row.path }}</code>
+            {{ row.label }}
+            <code class="path-code" style="margin-left: 6px">{{ row.path }}</code>
           </template>
         </el-table-column>
-        <el-table-column prop="method" label="方法" width="80" />
         <el-table-column prop="count" label="调用次数" width="100" align="right">
           <template #default="{ row }">{{ row.count.toLocaleString() }}</template>
         </el-table-column>
-        <el-table-column prop="unitPrice" label="单价(元)" width="100" align="right">
+        <el-table-column prop="bizDurationMs" label="识别时长" width="110" align="right">
+          <template #default="{ row }">{{ formatDuration(row.bizDurationMs) }}</template>
+        </el-table-column>
+        <el-table-column prop="unitPrice" label="单价(元/时)" width="110" align="right">
           <template #default="{ row }">￥{{ row.unitPrice }}</template>
         </el-table-column>
         <el-table-column prop="estimatedCost" label="估算费用" width="110" align="right">
           <template #default="{ row }">￥{{ row.estimatedCost.toFixed(3) }}</template>
         </el-table-column>
       </el-table>
-      <el-empty v-else description="范围内无调用记录" :image-size="64" />
+      <el-empty v-else description="范围内无识别调用" :image-size="64" />
       <p class="estimate-note">
-        ⚠️ 基于本地 API 调用埋点估算，仅供参考。录音上传（/api/recording POST）亦触发 ASR
-        校对，已纳入统计。 官方计费按音频时长（2.50 元/小时），此处按次估算为保守近似。
+        ⚠️ 基于 cloud_service_call_log 真实调用埋点估算（仅成功识别，失败不计费）。官方按
+        <b>音频时长</b>计费（约 2.5 元/小时），此处识别时长取埋点中的真实音频时长
+        （filetrans 的 BizDuration / 极速版的 duration）。<br />
+        误差说明：① 标准版 filetrans 处于「每日 2 小时免费试用」期内时实际费用为 0，估算值为按量价上限；
+        ② 免费额度按自然日重置，跨天任务以提交日为准；③ 极速版 2026-07 前的埋点无时长字段，历史行按 0
+        时长计，估算可能偏低；④ createToken（鉴权）与 sttFallback（回退诊断）非计费调用，未计入。
       </p>
     </section>
   </div>
@@ -115,11 +122,18 @@ let trendChart: EChartsType | null = null
 // 容器尺寸变化时自适应，卸载时统一 dispose
 useChartResize([{ getChart: () => trendChart, containerRef: trendChartRef }])
 
-/** 估算识别时长（小时）：每次调用约 2 分钟 */
+/** 估算识别时长（小时）：真实音频时长合计 */
 const estimatedHours = computed(() => {
-  const calls = data.value?.estimate.totalCalls ?? 0
-  return ((calls * 2) / 60).toFixed(1)
+  const bizMs = data.value?.estimate.bizDurationMs ?? 0
+  return (bizMs / 3_600_000).toFixed(2)
 })
+
+/** 毫秒时长格式化：小于 1 小时显示分钟，否则显示小时 */
+function formatDuration(ms: number | undefined) {
+  if (!ms || ms <= 0) return '0'
+  if (ms < 3_600_000) return `${(ms / 60_000).toFixed(1)} 分钟`
+  return `${(ms / 3_600_000).toFixed(2)} 小时`
+}
 
 async function fetchData() {
   const res = await execute({ days: days.value })
@@ -140,7 +154,7 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
   }
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0, textStyle: { fontSize: 11 } },
+    legend: { data: ['识别次数', '识别音频时长'], bottom: 0, textStyle: { fontSize: 11 } },
     grid: { left: 50, right: 60, top: 20, bottom: 40 },
     xAxis: {
       type: 'category',
@@ -148,12 +162,12 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
       axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
     },
     yAxis: [
-      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
-      { type: 'value', name: '耗时(ms)', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
+      { type: 'value', name: '识别次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
+      { type: 'value', name: '时长(分钟)', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
     ],
     series: [
       {
-        name: '调用次数',
+        name: '识别次数',
         type: 'line',
         data: callCounts,
         smooth: true,
@@ -166,10 +180,10 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
         },
       },
       {
-        name: '总耗时(ms)',
+        name: '识别音频时长',
         type: 'line',
         yAxisIndex: 1,
-        data: totalDurations,
+        data: totalDurations.map((ms) => ms / 60_000),
         smooth: true,
         itemStyle: { color: '#E6A23C' },
         areaStyle: {

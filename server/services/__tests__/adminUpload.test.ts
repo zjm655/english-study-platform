@@ -17,6 +17,9 @@ const {
   mockPoolExecute,
   mockWithTransaction,
   mockIsUploadQueueFull,
+  mockRecognizeSpeech,
+  mockModerateText,
+  mockCompareTextSimilarity,
 } = vi.hoisted(() => {
   const mockTextToSpeech = vi.fn()
   const mockUploadWithKey = vi.fn()
@@ -27,6 +30,9 @@ const {
   const mockPoolExecute = vi.fn()
   const mockWithTransaction = vi.fn()
   const mockIsUploadQueueFull = vi.fn()
+  const mockRecognizeSpeech = vi.fn()
+  const mockModerateText = vi.fn()
+  const mockCompareTextSimilarity = vi.fn()
   return {
     mockTextToSpeech: mockTextToSpeech,
     mockUploadWithKey: mockUploadWithKey,
@@ -37,6 +43,9 @@ const {
     mockPoolExecute: mockPoolExecute,
     mockWithTransaction: mockWithTransaction,
     mockIsUploadQueueFull: mockIsUploadQueueFull,
+    mockRecognizeSpeech: mockRecognizeSpeech,
+    mockModerateText: mockModerateText,
+    mockCompareTextSimilarity: mockCompareTextSimilarity,
   }
 })
 
@@ -52,6 +61,12 @@ vi.mock('#server/utils/audioMeta', () => ({ extractAudioMeta: mockExtractAudioMe
 vi.mock('../aiContent', () => ({
   generateLearningContent: mockGenerateLearningContent,
   generateTitle: mockGenerateTitle,
+}))
+// NLS 校对链路：STT 识别 / 音频文本审核 / 相似度对比
+vi.mock('../sttFiletrans', () => ({ recognizeSpeech: mockRecognizeSpeech }))
+vi.mock('../contentModeration', () => ({ moderateText: mockModerateText }))
+vi.mock('#server/utils/textSimilarity', () => ({
+  compareTextSimilarity: mockCompareTextSimilarity,
 }))
 vi.mock('#server/utils/db', () => ({
   pool: { execute: mockPoolExecute },
@@ -209,6 +224,103 @@ describe('processAdminMaterial', () => {
       expect.anything(),
     )
     expect(mockUploadWithKey).toHaveBeenCalled()
+  })
+
+  it('nlsCheck=false（默认）时有音频也不调用 STT', async () => {
+    setupDefaults()
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Audio without nls check.',
+      title: 'No NLS',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockRecognizeSpeech).not.toHaveBeenCalled()
+  })
+
+  it('nlsCheck=true 且含音频：执行 STT 校对，segment 写入 nls_check=1', async () => {
+    setupDefaults()
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: 'recognized text here' })
+    mockModerateText.mockResolvedValue({ safe: true, reason: null })
+    mockCompareTextSimilarity.mockReturnValue({ passed: true, score: 0.95 })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Audio with nls check enabled.',
+      title: 'NLS On',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+      nlsCheck: true,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockRecognizeSpeech).toHaveBeenCalledWith(
+      expect.objectContaining({ format: 'mp3', ossKey: expect.any(String) }),
+    )
+    expect(mockModerateText).toHaveBeenCalledWith('recognized text here')
+    expect(mockCompareTextSimilarity).toHaveBeenCalled()
+    // 事务内 segment INSERT 含 nls_check=1
+    const segInsert = mockWithTransaction.mock.calls[0]![0].toString()
+    expect(segInsert).toContain('nls_check')
+  })
+
+  it('nlsCheck=true 且 STT 失败：整单失败并走清理栈（不调用 AI）', async () => {
+    setupDefaults()
+    mockRecognizeSpeech.mockResolvedValue({ success: false, error: '识别超时' })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Audio will fail stt.',
+      title: 'NLS Fail',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+      nlsCheck: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('音频识别失败')
+    expect(mockGenerateLearningContent).not.toHaveBeenCalled()
+    // 清理栈：STT 失败发生在 media 入库之前（segmentMediaId 为空），故仅删除 OSS 主音频 + 记录标 failed
+    expect(mockDeleteObject).toHaveBeenCalled()
+    expect(mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes("'failed'"))).toBe(true)
+  })
+
+  it('nlsCheck=true 且相似度不匹配：整单失败', async () => {
+    setupDefaults()
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: 'completely different audio' })
+    mockModerateText.mockResolvedValue({ safe: true, reason: null })
+    mockCompareTextSimilarity.mockReturnValue({ passed: false, score: 0.3 })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Expected text content.',
+      title: 'Sim Fail',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+      nlsCheck: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('不匹配')
   })
 
   it('AI 标题生成失败时降级为文本截取', async () => {

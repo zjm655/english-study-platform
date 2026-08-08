@@ -61,6 +61,14 @@
               </template>
             </el-upload>
           </el-form-item>
+          <!-- 仅本次上传包含音频时出现：NLS 语音校对开关（默认关闭）。
+               开启后消耗 NLS 额度（标准版每日 2h 免费 / 极速版按量），识别+文本核验任一失败整单失败 -->
+          <el-form-item v-if="audioFile" label="NLS 校对">
+            <el-switch v-model="nlsCheck" active-text="开启语音校对" inactive-text="关闭" />
+            <span class="nls-tip">
+              开启后上传时对音频做语音识别，核验音频内容与材料文本一致（消耗 NLS 额度）
+            </span>
+          </el-form-item>
         </el-form>
       </div>
 
@@ -161,6 +169,9 @@ const mode = ref<'single' | 'batch'>('single')
 const textContent = ref('')
 const title = ref('')
 const audioFile = ref<File | null>(null)
+// NLS 语音校对开关（默认关闭：管理员材料多来自权威来源，开启会消耗 NLS 额度并增加失败概率；
+// 需要核验音频与文本一致性时再显式开启）
+const nlsCheck = ref(false)
 
 // 批量模式
 const txtFiles = ref<File[]>([])
@@ -199,6 +210,8 @@ function handleTxtExceed() {
 }
 
 async function handleSubmit() {
+  // 每次提交先清空上次入队回执：失败后不残留旧回执卡（loading 复位由 useHandleRes 保证，可立即重提）
+  result.value = null
   const fd = new FormData()
   fd.append('mode', mode.value)
   fd.append('unitId', String(unitId.value))
@@ -212,7 +225,11 @@ async function handleSubmit() {
     }
     fd.append('textContent', textContent.value.trim())
     if (title.value.trim()) fd.append('title', title.value.trim())
-    if (audioFile.value) fd.append('audio', audioFile.value)
+    if (audioFile.value) {
+      fd.append('audio', audioFile.value)
+      // 仅含音频时提交 NLS 校对开关（未选音频时为关）
+      fd.append('nlsCheck', nlsCheck.value ? '1' : '0')
+    }
   } else {
     if (!txtFiles.value.length) {
       toastWarning('请至少选择一个 txt 文件')
@@ -265,6 +282,13 @@ onMounted(() => {
 .upload-tip {
   font-size: 12px;
   color: var(--text-3);
+  line-height: 1.6;
+}
+
+.nls-tip {
+  margin-left: 12px;
+  font-size: 12px;
+  color: var(--text-4);
   line-height: 1.6;
 }
 

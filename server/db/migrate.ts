@@ -204,7 +204,16 @@ async function executeMigrationFile(
     .filter((s) => s.length > 0)
 
   for (const stmt of statements) {
-    await connection.execute(stmt)
+    // SET 语句（如 001 的 SET NAMES / SET FOREIGN_KEY_CHECKS）必须走 query()（文本协议）：
+    // mysql2 的 execute() 用预编译协议，SET FOREIGN_KEY_CHECKS 等会话级 SET 会报
+    // ER_UNSUPPORTED_PS (1295)「This command is not supported in the prepared statement protocol yet」，
+    // 全新库（如 docker migrate）执行 001 必然失败。
+    // 其余语句保持 execute()（预编译协议，参数化与类型安全）。
+    if (/^SET\b/i.test(stmt)) {
+      await connection.query(stmt)
+    } else {
+      await connection.execute(stmt)
+    }
   }
 
   await markAsExecuted(connection, version, filename)

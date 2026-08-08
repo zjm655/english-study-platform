@@ -82,6 +82,18 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="NLS 校验" width="100" align="center">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="row.nlsCheck === 1"
+              content="该材料上传时开启了 NLS 语音校对（识别+相似度核验）"
+              placement="top"
+            >
+              <el-tag type="warning" size="small">已启用</el-tag>
+            </el-tooltip>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="创建时间" width="170">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>

@@ -59,7 +59,7 @@ async function cleanupMergedGuests(startedAt: Date): Promise<number> {
   while (true) {
     const cleaned = await withTransaction(async (conn) => {
       // 取一批待清理的已合并游客行 id（只取启动前创建的，避免误删窗口期新行）
-      const [guests] = await conn.execute<RowDataPacket[]>(
+      const [guests] = await conn.query<RowDataPacket[]>(
         `SELECT id FROM user
          WHERE is_guest = 1 AND merged_into_user_id IS NOT NULL AND createdAt < ?
          LIMIT ?`,
@@ -126,7 +126,7 @@ async function cleanupExpiredGuests(startedAt: Date, retentionDays: number): Pro
       const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
       const safeCutoff = cutoff < startedAt ? cutoff : startedAt
 
-      const [guests] = await conn.execute<RowDataPacket[]>(
+      const [guests] = await conn.query<RowDataPacket[]>(
         `SELECT u.id
          FROM user u
          LEFT JOIN user_checkin_stats s ON s.user_id = u.id

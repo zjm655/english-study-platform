@@ -101,6 +101,28 @@ describe('管理员用户列表 - 过滤与搜索', () => {
     const params = mockQuery.mock.calls[0]![1]
     expect(params).toContain('%张%')
   })
+
+  it('state=everyone 时不带任何状态过滤（WHERE 不含 is_guest/deleted_at）', async () => {
+    mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }])
+    await listHandler(makeEvent({ user: ADMIN, query: { state: 'everyone' } }))
+    const sql = mockQuery.mock.calls[0]![0] as string
+    // SELECT 列含 is_guest AS isGuest，故仅检查 WHERE 段（FROM user 之后）
+    const wherePart = sql.split('FROM user')[1] ?? ''
+    expect(wherePart).not.toContain('is_guest')
+    expect(wherePart).not.toContain('deleted_at')
+    // 空条件不带悬空 WHERE 关键字
+    expect(wherePart).not.toMatch(/WHERE\s+ORDER/)
+  })
+
+  it('state=everyone 与 keyword 组合：仅保留 keyword 条件', async () => {
+    mockQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ total: 0 }])
+    await listHandler(makeEvent({ user: ADMIN, query: { state: 'everyone', keyword: 'abc' } }))
+    const sql = mockQuery.mock.calls[0]![0] as string
+    const wherePart = sql.split('FROM user')[1] ?? ''
+    expect(wherePart).toContain('account LIKE ?')
+    expect(wherePart).not.toContain('is_guest')
+    expect(wherePart).not.toContain('deleted_at')
+  })
 })
 
 // ============ 封禁：护栏 ============

@@ -10,6 +10,9 @@ import { mapWithConcurrency } from '#server/utils/concurrency'
 import { withQueue } from './serviceQueue'
 import { isUploadQueueFull } from './materialJob'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { recognizeSpeech } from './sttFiletrans'
+import { moderateText } from './contentModeration'
+import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { logger } from '../../shared/utils/logger'
 import type { AdminUploadItemResult } from '../../shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
@@ -25,11 +28,12 @@ async function createUploadRecord(
   voice: string,
   isPublic: number,
   status: 'queued' | 'processing' = 'processing',
+  nlsCheck: number = 0,
 ): Promise<number> {
   const [res] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, status)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [userId, title, textContent, voice, isPublic, status],
+    `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, nls_check, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [userId, title, textContent, voice, isPublic, nlsCheck, status],
   )
   return res.insertId
 }
@@ -62,6 +66,8 @@ export interface ProcessAdminMaterialParams {
   audioFileName?: string
   /** 传入时跳过 createUploadRecord，复用已有记录 ID */
   existingRecordId?: number
+  /** 是否开启 NLS 语音校对（仅含音频时生效；消耗 NLS 额度，失败整单失败） */
+  nlsCheck?: boolean
 }
 
 export async function processAdminMaterial(
@@ -77,6 +83,7 @@ export async function processAdminMaterial(
     bucket,
     audioBuffer,
     audioFileName,
+    nlsCheck = false,
   } = params
 
   // 1. 对话检测（免费正则）
@@ -106,6 +113,8 @@ export async function processAdminMaterial(
         textContent,
         voice,
         isPublic,
+        undefined,
+        nlsCheck ? 1 : 0,
       )
     } catch (err) {
       logger.error('[admin upload] 创建记录失败:', err)
@@ -163,6 +172,41 @@ export async function processAdminMaterial(
       logger.error('[admin upload] OSS 上传失败:', err)
       await fail('文件上传失败')
       return { index: 0, success: false, error: '文件上传失败' }
+    }
+
+    // 3.5 可选 NLS 语音校对（仅开启且本次上传含音频时生效）：
+    // 仿 materialJob 的 STT 链路——识别 → 音频文本审核 → 与材料文本相似度对比。
+    // 消耗 NLS 额度（filetrans 每日 2h 免费 / flash 按量），任一失败整单失败并走清理栈。
+    if (nlsCheck && audioBuffer) {
+      const sttFormat = ['wav', 'aac', 'opus', 'mp4'].includes(ext)
+        ? (ext as 'wav' | 'aac' | 'opus' | 'mp4')
+        : 'mp3'
+      const sttResult = await recognizeSpeech({
+        audioBuffer: audioBuffer_,
+        format: sttFormat,
+        ossKey,
+      })
+      if (!sttResult.success) {
+        const msg = `音频识别失败: ${sttResult.error ?? '未知原因'}`
+        await fail(msg)
+        return { index: 0, success: false, error: '音频识别失败' }
+      }
+      const recognizedText = sttResult.text ?? ''
+      if (recognizedText.trim()) {
+        const mod2 = await moderateText(recognizedText)
+        if (!mod2.safe) {
+          const msg = `音频内容不合规: ${mod2.reason ?? '未知原因'}`
+          await fail(msg)
+          return { index: 0, success: false, error: '音频内容不合规' }
+        }
+        const sim = compareTextSimilarity(textContent, recognizedText)
+        if (!sim.passed) {
+          const msg = `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`
+          await fail(msg)
+          return { index: 0, success: false, error: '音频内容与材料文本不匹配' }
+        }
+      }
+      logger.info(`[admin upload] NLS 校对通过 record=${recordId}`)
     }
 
     // 4. 插入 media 记录
@@ -241,8 +285,8 @@ export async function processAdminMaterial(
     // 9. 全部入库（短事务，仅纯 DB 写，不含任何网络 I/O）
     const segmentId = await withTransaction(async (conn) => {
       const [segRes] = await conn.execute<ResultSetHeader>(
-        `INSERT INTO segment (unit_id, title, textContent, translation, questions, is_public, media_id, sort_order)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+        `INSERT INTO segment (unit_id, title, textContent, translation, questions, is_public, nls_check, media_id, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [
           unitId,
           finalTitle,
@@ -250,6 +294,7 @@ export async function processAdminMaterial(
           aiResult.translation ?? '',
           JSON.stringify(questions),
           isPublic,
+          nlsCheck && audioBuffer ? 1 : 0,
           segmentMediaId,
         ],
       )
@@ -357,6 +402,7 @@ export async function enqueueAdminMaterial(
       voice,
       isPublic,
       'queued',
+      params.nlsCheck ? 1 : 0,
     )
   } catch (err) {
     logger.error('[admin upload] 创建记录失败:', err)

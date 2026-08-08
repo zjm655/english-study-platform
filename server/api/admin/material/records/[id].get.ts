@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     }
   >(
     `SELECT r.id, r.user_id, r.title, r.text_content, r.voice,
-            r.is_public, r.status, r.error_message, r.segment_id,
+            r.is_public, r.nls_check, r.status, r.error_message, r.segment_id,
             r.createdAt, r.updatedAt,
             COALESCE(u.account, '已注销用户') AS username,
             u.role,
@@ -52,6 +52,7 @@ export default defineEventHandler(async (event) => {
     text_content: row.text_content,
     voice: row.voice,
     is_public: row.is_public,
+    nls_check: row.nls_check,
     status: row.status as AdminMaterialRecordDetail['status'],
     error_message: row.error_message,
     segment_id: row.segment_id,

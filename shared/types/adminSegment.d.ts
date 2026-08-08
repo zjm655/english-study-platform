@@ -8,6 +8,8 @@ export interface AdminSegmentListItem {
   unitId: number
   unitTitle: string
   isPublic: number // 0 私有 1 公开
+  /** 是否经 NLS 语音校对: 0否 1是（材料管理标识用） */
+  nlsCheck: number
   sortOrder: number
   createdAt: string
 }
@@ -48,6 +50,8 @@ export interface AdminSegmentDetail {
   translation: string | null
   questions: Question[]
   isPublic: number
+  /** 是否经 NLS 语音校对: 0否 1是 */
+  nlsCheck?: number
   unitId: number
   unitTitle: string
   vocabulary: AdminVocabEditItem[]

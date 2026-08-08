@@ -52,7 +52,8 @@ describe('cloudEstimate - 分组聚合 + 成功计费', () => {
     const res = await estimateServiceUsage('nls', 7)
     expect(res.totalCalls).toBe(0)
     expect(res.totalEstimatedCost).toBe(0)
-    expect(res.byPath.every((p) => p.count === 0)).toBe(true)
+    expect(res.byPath).toHaveLength(0)
+    expect(res.bizDurationMs).toBe(0)
   })
 
   it('SUM 返回字符串（mysql2 DECIMAL）也能正确解析', async () => {
@@ -61,5 +62,38 @@ describe('cloudEstimate - 分组聚合 + 成功计费', () => {
     ])
     const res = await estimateServiceUsage('edu', 7)
     expect(res.totalCalls).toBe(50)
+  })
+})
+
+describe('cloudEstimate - NLS 按音频时长计费（cloud_service_call_log 真实埋点）', () => {
+  it('nls 走专用聚合：按 operation 分行，费用 = SUM(biz_duration_ms) × 2.5 元/小时', async () => {
+    // filetrans 3 次共 12 分钟（720000ms），speechToText 2 次共 3 分钟（180000ms）
+    mockQuery.mockResolvedValueOnce([
+      { operation: 'filetrans', call_count: 3, biz_ms: 720000 },
+      { operation: 'speechToText', call_count: 2, biz_ms: 180000 },
+    ])
+    const res = await estimateServiceUsage('nls', 7)
+    expect(mockQuery).toHaveBeenCalledTimes(1)
+    expect(res.totalCalls).toBe(5)
+    expect(res.bizDurationMs).toBe(900000) // 15 分钟
+    // 900000ms = 0.25 小时 × 2.5 元 = 0.625 元
+    expect(res.totalEstimatedCost).toBeCloseTo(0.625, 3)
+    expect(res.unit).toBe('小时')
+    expect(res.byPath).toHaveLength(2)
+    const filetrans = res.byPath.find((p) => p.path === 'nls:filetrans')!
+    expect(filetrans.bizDurationMs).toBe(720000)
+    expect(filetrans.estimatedCost).toBeCloseTo(0.5, 3)
+  })
+
+  it('nls 聚合 SQL 仅统计成功识别调用（filetrans/speechToText），排除 createToken/sttFallback', async () => {
+    mockQuery.mockResolvedValueOnce([])
+    await estimateServiceUsage('nls', 30)
+    const sql = mockQuery.mock.calls[0]![0] as string
+    expect(sql).toContain("operation IN ('filetrans', 'speechToText')")
+    expect(sql).toContain("service = 'nls'")
+    expect(sql).toContain('success = 1')
+    expect(sql).toContain('SUM(biz_duration_ms)')
+    const params = mockQuery.mock.calls[0]![1]
+    expect(params).toEqual([30])
   })
 })

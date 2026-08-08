@@ -20,9 +20,12 @@ export default defineEventHandler(async (event) => {
   const { page, pageSize, keyword, state } = parsed.data
   const offset = (page - 1) * pageSize
 
-  // state 映射 WHERE：all=未销号正式用户；normal=未销号且正常；banned=未销号且封禁；deleted=已销号；guest=游客
+  // state 映射 WHERE：everyone=全部用户（含游客/已注销，仅 keyword 过滤）；
+  // all=未销号正式用户；normal=未销号且正常；banned=未销号且封禁；deleted=已销号；guest=游客
   const where: string[] = []
-  if (state === 'guest') {
+  if (state === 'everyone') {
+    // 全部用户：不筛选 is_guest / deleted_at（游客、已注销均计入，含未合并游客）
+  } else if (state === 'guest') {
     where.push('is_guest = 1')
     where.push('merged_into_user_id IS NULL') // 已合并的游客不显示
   } else {
@@ -41,21 +44,22 @@ export default defineEventHandler(async (event) => {
     where.push('(account LIKE ? OR nickname LIKE ?)')
     params.push(`%${keyword}%`, `%${keyword}%`)
   }
-  const whereSql = where.join(' AND ')
+  // 全部用户（everyone）时 where 为空数组：不带 WHERE 关键字，否则 SQL 悬空
+  const whereSql = where.length > 0 ? 'WHERE ' + where.join(' AND ') : ''
 
   // 只 SELECT 必要字段，严禁 SELECT *（避免泄露 passwordHash）
   const list = await query<AdminUserListItem>(
     `SELECT id, account, nickname, email, role, level, status,
             is_guest AS isGuest, deleted_at AS deletedAt, createdAt
      FROM user
-     WHERE ${whereSql}
+     ${whereSql}
      ORDER BY createdAt DESC, id DESC
      LIMIT ? OFFSET ?`,
     [...params, pageSize, offset],
   )
 
   const countRows = await query<{ total: number }>(
-    `SELECT COUNT(*) AS total FROM user WHERE ${whereSql}`,
+    `SELECT COUNT(*) AS total FROM user ${whereSql}`,
     params,
   )
   const total = Number(countRows[0]?.total ?? 0)

@@ -41,16 +41,18 @@ interface ProductConfig {
   paths: PathConfig[]
 }
 
-// NLS 计费系数：约 2.5 元/小时；本项目单次音频平均约 2 分钟，折算 ≈ 0.083 元/次。
-// api_call_log 无 per-record 时长，故以「平均时长」常量系数并入单价（遵守不新增埋点约束）。
+// NLS 计费：录音文件识别（filetrans）/ 极速版（FlashRecognizer）官方按音频时长计费（约 2.5 元/小时）。
+// 本项目不再按次折算——埋点已带真实音频时长 biz_duration_ms（filetrans 的 BizDuration / flash 的 duration），
+// 直接 SUM 时长 × 单价，口径与官方账单一致。
+// 注意：api_call_log 路径聚合已废弃（管理员上传与录音上传均不触发 NLS，仅用户材料上传走 STT），
+// 真实调用从 cloud_service_call_log 统计（service='nls' AND success=1 AND operation IN (filetrans, speechToText)）。
 const NLS_PRICE_PER_HOUR = 2.5
-const NLS_AVG_MINUTES = 2
-const NLS_UNIT_PRICE = Math.round((NLS_PRICE_PER_HOUR / 60) * NLS_AVG_MINUTES * 1000) / 1000
 
 // OSS 外网下行计费：上传流入（内外网）免费、内网流出免费，仅外网流出（前端签名 URL 直连
 // 播放）收费——这是 OSS 唯一实际成本，却完全绕过 api_call_log。故放弃「上传内外网区分」
 // （零成本洞察），改由 oss_playback_daily 统计播放次数，以「平均音频体积」常量系数折算下行费用。
-const OSS_OUTBOUND_PRICE_PER_GB = 0.37 // 外网下行约 0.37 元/GB（闲时价近似）
+// 单价取官方忙时第一阶梯价 0.50 元/GB（闲时约半价），偏保守估算上限；精确流量以 BSS 账单为准。
+const OSS_OUTBOUND_PRICE_PER_GB = 0.5
 const OSS_AVG_AUDIO_MB = 1.5 // 单次音频平均约 1.5 MB
 /** 每次播放的外网下行估算单价（元/次）：平均体积(GB) × 单价(元/GB)，保留 6 位避免展示拖尾 */
 const OSS_PLAYBACK_UNIT_PRICE =
@@ -61,7 +63,7 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
   oss: {
     name: 'OSS 对象存储',
     unit: '次',
-    unitPrice: 0.0001, // Put 请求费 0.01 元/万次
+    unitPrice: 0.000001, // Put 请求费 0.01 元/万次 = 0.000001 元/次
     paths: [
       // OSS 写入（PUT）：上传成功才产生对象写入费；OSS 读取（回放）由浏览器经签名 URL
       // 直连 OSS，不经本服务，故 api_call_log 无读请求记录，此处仅覆盖写入维度。
@@ -70,15 +72,12 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
       { pattern: '/api/admin/segment/upload', method: 'POST', label: '管理员材料上传 (PUT)' },
     ],
   },
+  // NLS 不走 api_call_log 路径聚合（见 estimateNlsUsage 专用分支），注册表仅保留展示信息。
   nls: {
     name: 'NLS 智能语音交互',
-    unit: '次',
-    unitPrice: NLS_UNIT_PRICE,
-    paths: [
-      { pattern: '/api/segment/upload', method: 'POST', label: '材料校对 (ASR)' },
-      { pattern: '/api/recording', method: 'POST', label: '录音校对 (ASR)' }, // 录音上传也触发 ASR 校对
-      { pattern: '/api/admin/segment/upload', method: 'POST', label: '管理员材料校对 (ASR)' },
-    ],
+    unit: '小时',
+    unitPrice: NLS_PRICE_PER_HOUR,
+    paths: [],
   },
   edu: {
     name: '智能科教平台',
@@ -109,6 +108,11 @@ export async function estimateServiceUsage(
   product: CloudProductKey,
   days: number,
 ): Promise<CloudEstimateSummary> {
+  // NLS 专用分支：基于 cloud_service_call_log 的真实调用统计（含音频时长），不走 api_call_log 路径聚合
+  if (product === 'nls') {
+    return estimateNlsUsage(days)
+  }
+
   const config = PRODUCT_REGISTRY[product]
   if (!config || config.paths.length === 0) {
     return { totalCalls: 0, totalEstimatedCost: 0, unitPrice: 0, unit: '次', byPath: [], days }
@@ -199,5 +203,81 @@ export async function estimateServiceUsage(
     unit: config.unit,
     byPath,
     days,
+  }
+}
+
+/**
+ * NLS 用量估算：真实调用（cloud_service_call_log）按音频时长计费。
+ *
+ * 计费口径（官方）：录音文件识别/极速版识别按「音频时长」计费，约 2.5 元/小时。
+ * - 计入：success=1 且 operation ∈ {filetrans（标准版）, speechToText（极速版）} 的识别调用；
+ *   费用 = SUM(biz_duration_ms) / 3600000 × 2.5。
+ * - 不计入：createToken（鉴权换取 token，非计费调用）、sttFallback（回退诊断行）、失败调用。
+ * - 免费额度：filetrans 标准版处于每日 2 小时免费试用期内时实际不计费，估算值为「按量价」上限。
+ * - 误差：flash 极速版在 2026-07 前的埋点未记 biz_duration_ms，历史数据缺失部分按 0 时长计。
+ */
+async function estimateNlsUsage(days: number): Promise<CloudEstimateSummary> {
+  const rows = await query<{
+    operation: string
+    call_count: number | string
+    biz_ms: number | string
+  }>(
+    `SELECT operation,
+            COUNT(*) AS call_count,
+            COALESCE(SUM(biz_duration_ms), 0) AS biz_ms
+     FROM cloud_service_call_log
+     WHERE service = 'nls' AND success = 1
+       AND operation IN ('filetrans', 'speechToText')
+       AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+     GROUP BY operation`,
+    [days],
+  )
+
+  const byPath: CloudPathEstimate[] = []
+  let totalCalls = 0
+  let totalBizMs = 0
+
+  for (const row of rows) {
+    const count = Number(row.call_count ?? 0)
+    const bizMs = Number(row.biz_ms ?? 0)
+    totalCalls += count
+    totalBizMs += bizMs
+    const hours = bizMs / 3_600_000
+    byPath.push({
+      path: `nls:${row.operation}`,
+      label:
+        row.operation === 'filetrans'
+          ? '录音文件识别（标准版 filetrans）'
+          : '极速版识别（FlashRecognizer）',
+      method: 'POST',
+      count,
+      unitPrice: NLS_PRICE_PER_HOUR,
+      estimatedCost: Math.round(hours * NLS_PRICE_PER_HOUR * 1000) / 1000,
+      bizDurationMs: bizMs,
+    })
+  }
+
+  // 无调用记录时按空结果返回（unit 仍为小时，页面展示口径一致）
+  if (byPath.length === 0) {
+    return {
+      totalCalls: 0,
+      totalEstimatedCost: 0,
+      unitPrice: NLS_PRICE_PER_HOUR,
+      unit: '小时',
+      byPath,
+      days,
+      bizDurationMs: 0,
+    }
+  }
+
+  const totalEstimatedCost = Math.round((totalBizMs / 3_600_000) * NLS_PRICE_PER_HOUR * 1000) / 1000
+  return {
+    totalCalls,
+    totalEstimatedCost,
+    unitPrice: NLS_PRICE_PER_HOUR,
+    unit: '小时',
+    byPath,
+    days,
+    bizDurationMs: totalBizMs,
   }
 }

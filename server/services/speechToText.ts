@@ -220,6 +220,8 @@ export async function speechToText(
       operation: 'speechToText',
       success: true,
       durationMs: Date.now() - callStart2,
+      // 真实音频时长（flash_result.duration）写入业务时长列，供 NLS 按音频时长计费口径估算
+      bizDurationMs: duration ?? null,
     })
     return {
       success: true,

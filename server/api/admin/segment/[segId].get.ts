@@ -91,6 +91,7 @@ export default defineEventHandler(async (event) => {
     translation: segment.translation,
     questions,
     isPublic: segment.is_public,
+    nlsCheck: segment.nls_check ?? 0,
     unitId: segment.unit_id,
     unitTitle: segment.unitTitle ?? '',
     vocabulary,

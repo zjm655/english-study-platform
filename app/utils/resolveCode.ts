@@ -41,20 +41,34 @@ export async function resolveCode(logCfg: LogCfg, silent = false) {
       return true
     }
     case 400:
-      if (!silent) logger.warn(logCfg.tips.clientFail || logCfg.message || '客户端请求异常')
-      if (notify) toastError(logCfg.tips.clientFail || logCfg.message || '客户端请求异常')
-      break
+      // 服务端业务拒绝（validateError）message 是权威原因（如「队列已满」「材料为对话格式」），
+      // 优先透出；缺失/为空时回退 tips.clientFail。风格同 401/403 的 message 优先。
+      {
+        const text = logCfg.message?.trim() || logCfg.tips.clientFail || '客户端请求异常'
+        if (!silent) logger.warn(text)
+        if (notify) toastError(text)
+        break
+      }
     case 500:
-      if (!silent) logger.error(logCfg.tips.serverFail || logCfg.message || '服务器内部错误')
-      if (notify) toastError(logCfg.tips.serverFail || logCfg.message || '服务器内部错误')
-      break
+      {
+        // 服务端 5xx message 优先（如「服务器异常，请稍后重试」），缺失时回退 tips.serverFail
+        const text = logCfg.message?.trim() || logCfg.tips.serverFail || '服务器内部错误'
+        if (!silent) logger.error(text)
+        if (notify) toastError(text)
+        break
+      }
     case 401: {
       const tokenCookie = useCookie('token')
       const hasToken = !!tokenCookie.value
-      if (!silent) logger.warn(logCfg.message || (hasToken ? '登录已过期，请重新登录' : '需要登录'))
+      // 优先透出服务端返回的 message（如「账号已注销」「账号或密码错误」）——登录/鉴权失败的真实原因
+      // 在服务端，硬编码文案会吞掉它（曾致登录失败只弹笼统的「此功能需要登录」）；
+      // message 缺失/为空时按 token 有无回退通用文案。风格同 403 分支（logCfg.message || '权限不足'）。
+      const authText =
+        logCfg.message?.trim() || (hasToken ? '登录已过期，请重新登录' : '此功能需要登录')
+      if (!silent) logger.warn(authText)
       if (isClient && canToastAuth()) {
         // 区分游客与登录过期：游客仅温和提示，不跳转；登录过期走原有清 cookie + 跳转流程
-        toastWarning(hasToken ? '登录已过期，请重新登录' : '此功能需要登录')
+        toastWarning(authText)
       }
       if (hasToken) {
         // 登录用户 token 失效：清 cookie、清用户状态、跳转登录页
@@ -86,6 +100,8 @@ export async function resolveCode(logCfg: LogCfg, silent = false) {
       if (!silent) logger.info(logCfg.message || '需要进一步验证')
       break
     case -1:
+      // 网络异常/本地侧错误：无服务端权威文案，保持 tips.error 优先——
+      // 避免 ofetch 网络失败抛出的英文（如 AbortError: The operation was aborted.）直弹给用户
       if (!silent) logger.error(logCfg.tips.error || logCfg.message || '网络异常')
       if (notify) toastError(logCfg.tips.error || logCfg.message || '网络异常')
       break

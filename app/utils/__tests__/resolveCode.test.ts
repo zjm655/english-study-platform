@@ -70,13 +70,31 @@ describe('resolveCode toast 分级（写弹读静默）', () => {
     await resolveCode(makeCfg({ code: 200, notify: 'fail' }))
     expect(mockToastSuccess).not.toHaveBeenCalled()
 
-    await resolveCode(makeCfg({ code: 400, notify: 'fail' }))
+    // message 为空时回退 tips 文案（服务端未返回具体原因）
+    await resolveCode(makeCfg({ code: 400, message: '', notify: 'fail' }))
     expect(mockToastError).toHaveBeenLastCalledWith('客户端失败文案')
-    await resolveCode(makeCfg({ code: 500, notify: 'fail' }))
+    await resolveCode(makeCfg({ code: 500, message: '', notify: 'fail' }))
     expect(mockToastError).toHaveBeenLastCalledWith('服务端失败文案')
     await resolveCode(makeCfg({ code: -1, notify: 'fail' }))
     expect(mockToastError).toHaveBeenLastCalledWith('网络异常文案')
     expect(mockToastError).toHaveBeenCalledTimes(3)
+  })
+
+  it("notify='fail' 时 400/500 优先透出服务端 message（业务拒绝/服务器错误的原因不被 tips 吞掉）", async () => {
+    await resolveCode(makeCfg({ code: 400, notify: 'fail', message: '队列已满，请稍后再试' }))
+    expect(mockToastError).toHaveBeenLastCalledWith('队列已满，请稍后再试')
+    await resolveCode(makeCfg({ code: 500, notify: 'fail', message: '服务器异常，请稍后重试' }))
+    expect(mockToastError).toHaveBeenLastCalledWith('服务器异常，请稍后重试')
+    // 空白 message 同样回退 tips
+    await resolveCode(makeCfg({ code: 400, message: '   ', notify: 'fail' }))
+    expect(mockToastError).toHaveBeenLastCalledWith('客户端失败文案')
+  })
+
+  it('网络异常（code -1，message 为 ofetch 英文原文）仍弹 tips.error，不直弹英文', async () => {
+    await resolveCode(
+      makeCfg({ code: -1, notify: 'fail', message: 'AbortError: The operation was aborted.' }),
+    )
+    expect(mockToastError).toHaveBeenLastCalledWith('网络异常文案')
   })
 
   it("notify='all' 时成功弹 toastSuccess，文案取 tips.success", async () => {
@@ -110,7 +128,7 @@ describe('resolveCode toast 分级（写弹读静默）', () => {
 describe('resolveCode 401/403 登录引导', () => {
   it('401 有 token（登录过期）：弹「登录已过期」+ 清 cookie + clearUser + 跳 /login', async () => {
     tokenCookie.value = 'jwt-token'
-    await resolveCode(makeCfg({ code: 401 }))
+    await resolveCode(makeCfg({ code: 401, message: '' }))
     expect(mockToastWarning).toHaveBeenCalledWith('登录已过期，请重新登录')
     expect(tokenCookie.value).toBeNull()
     expect(mockClearUser).toHaveBeenCalled()
@@ -119,26 +137,39 @@ describe('resolveCode 401/403 登录引导', () => {
 
   it('401 无 token（游客触碰登录态功能）：弹「此功能需要登录」，不跳转', async () => {
     tokenCookie.value = null
-    await resolveCode(makeCfg({ code: 401 }))
+    await resolveCode(makeCfg({ code: 401, message: '' }))
     expect(mockToastWarning).toHaveBeenCalledWith('此功能需要登录')
     expect(mockClearUser).not.toHaveBeenCalled()
     expect(mockNavigateTo).not.toHaveBeenCalled()
   })
 
   it('401 游客提示不受 silent 影响（toast 仍执行）', async () => {
-    await resolveCode(makeCfg({ code: 401 }), true)
+    await resolveCode(makeCfg({ code: 401, message: '' }), true)
     expect(mockToastWarning).toHaveBeenCalledWith('此功能需要登录')
     expect(mockNavigateTo).not.toHaveBeenCalled()
   })
 
+  it('401 携带服务端 message（如登录失败）：优先透出服务端文案，不吞真实原因', async () => {
+    tokenCookie.value = null
+    await resolveCode(makeCfg({ code: 401, message: '账号已注销' }))
+    expect(mockToastWarning).toHaveBeenCalledWith('账号已注销')
+    expect(mockNavigateTo).not.toHaveBeenCalled()
+    // 有 token 时同样优先透出服务端文案（清 cookie + 跳转流程不变）；跨过节流窗口
+    vi.advanceTimersByTime(3001)
+    tokenCookie.value = 'jwt-token'
+    await resolveCode(makeCfg({ code: 401, message: '账号或密码错误' }))
+    expect(mockToastWarning).toHaveBeenLastCalledWith('账号或密码错误')
+    expect(mockNavigateTo).toHaveBeenCalledWith('/login')
+  })
+
   it('并发 401 节流：3s 窗口内只弹一次，窗口过后可再弹', async () => {
-    await resolveCode(makeCfg({ code: 401 }))
-    await resolveCode(makeCfg({ code: 401 }))
-    await resolveCode(makeCfg({ code: 401 }))
+    await resolveCode(makeCfg({ code: 401, message: '' }))
+    await resolveCode(makeCfg({ code: 401, message: '' }))
+    await resolveCode(makeCfg({ code: 401, message: '' }))
     expect(mockToastWarning).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(3001)
-    await resolveCode(makeCfg({ code: 401 }))
+    await resolveCode(makeCfg({ code: 401, message: '' }))
     expect(mockToastWarning).toHaveBeenCalledTimes(2)
   })
 

@@ -73,7 +73,11 @@
       </header>
       <ul class="info-notes">
         <li>DeepSeek API 按输入/输出 token 分别计价，赠送余额优先扣除</li>
-        <li>本项目使用 deepseek-v4-flash 模型，每次材料上传约消耗 5000 token（≈0.007 元）</li>
+        <li>
+          用量数据来自本地埋点（仅成功调用，含内容生成/标题生成/内容审核/余额查询），Token 趋势图
+          反映真实消耗；费用按官方单价换算，请以官方账单为准
+        </li>
+        <li>模型与单价随运行配置变化（NUXT_DEEPSEEK_MODEL / 官方价格调整），页面不预设硬编码单价</li>
         <li>余额数据有 5 分钟服务端缓存，刷新按钮可获取最新数据</li>
         <li>认证方式：Bearer Token（即 DeepSeek API Key），无需额外配置</li>
       </ul>

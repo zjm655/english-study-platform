@@ -121,6 +121,18 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="NLS 校验" width="90" align="center">
+          <template #default="{ row }">
+            <el-tooltip
+              v-if="row.nls_check === 1"
+              content="该任务开启 NLS 语音校对（管理员上传音频时可选，重处理沿用）"
+              placement="top"
+            >
+              <el-tag type="warning" size="small">已开启</el-tag>
+            </el-tooltip>
+            <span v-else class="text-muted">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="时间" width="160">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
@@ -185,6 +197,10 @@
             <el-tag :type="detail.is_public ? 'success' : 'info'" size="small">
               {{ detail.is_public ? '公开' : '私有' }}
             </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="NLS 校验">
+            <el-tag v-if="detail.nls_check === 1" type="warning" size="small">已开启</el-tag>
+            <span v-else>-</span>
           </el-descriptions-item>
           <el-descriptions-item label="片段ID">
             <el-link

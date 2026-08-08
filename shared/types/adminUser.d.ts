@@ -17,7 +17,7 @@ export interface AdminUserListItem {
 }
 
 /** 用户状态筛选枚举 */
-export type AdminUserState = 'all' | 'normal' | 'banned' | 'deleted' | 'guest'
+export type AdminUserState = 'everyone' | 'all' | 'normal' | 'banned' | 'deleted' | 'guest'
 
 /** 用户列表查询参数（query string，后端 zod coerce） */
 export interface AdminUserListQuery {

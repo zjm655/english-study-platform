@@ -152,6 +152,12 @@ export const adminUploadSchema = z.object({
     .refine((v) => v === 0 || v === 1, 'isPublic 必须为 0 或 1')
     .nullish()
     .transform((v) => v ?? 1),
+  // NLS 语音校对开关（仅 single + 音频场景生效；batch 无音频恒为 0）：null/undefined 兼底 0（默认关闭）
+  nlsCheck: z.coerce
+    .number()
+    .refine((v) => v === 0 || v === 1, 'nlsCheck 必须为 0 或 1')
+    .nullish()
+    .transform((v) => v ?? 0),
 })
 
 // 材料上传记录更新校验
@@ -274,8 +280,8 @@ export const adminUserListSchema = z.object({
     .default(10),
   keyword: z.string().max(50, '搜索关键词不能超过 50 个字符').optional(),
   state: z
-    .enum(['all', 'normal', 'banned', 'deleted', 'guest'], {
-      message: 'state 必须为 all/normal/banned/deleted/guest',
+    .enum(['everyone', 'all', 'normal', 'banned', 'deleted', 'guest'], {
+      message: 'state 必须为 everyone/all/normal/banned/deleted/guest',
     })
     .optional()
     .default('all'),
