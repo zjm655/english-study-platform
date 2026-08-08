@@ -1,0 +1,28 @@
+# ====================================================================
+# 单独 redis 服务 compose（预留，多实例部署场景）
+# 当前系统为单实例内存态（限流滑窗/埋点缓冲/服务队列均在进程内），
+# 未来水平扩展将限流滑窗/埋点缓冲外置到 redis 时启用此文件
+# 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.redis.yml up -d
+# 前置：复制 docker/env/.env.redis.example -> .env.redis 并填值（REDIS_PASSWORD）
+# ====================================================================
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: nuxt-redis
+    restart: unless-stopped
+    env_file:
+      - ../env/.env.redis
+    command: sh -c "redis-server --appendonly yes --requirepass $$REDIS_PASSWORD"
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - app-net
+
+volumes:
+  redis-data:
+
+networks:
+  app-net:
+    driver: bridge

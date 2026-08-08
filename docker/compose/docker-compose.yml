@@ -1,0 +1,106 @@
+# ====================================================================
+# 生产全量部署 compose：migrate(一次性) + app + db(mysql) + nginx
+# 启动顺序：db 健康 -> migrate 跑完退出 -> app 启动 -> nginx 就绪
+# 适用单机部署场景，一条命令拉起完整应用栈（含自动迁移）
+# 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.yml up -d
+# 前置：复制根目录 .env.example -> .env 并填值（app 配置，NUXT_DB_* 需与 .env.mysql 一致）；
+#       复制 docker/env/.env.mysql.example -> .env.mysql 并填值（mysql 独立配置）
+# ====================================================================
+services:
+  # ------------------------------------------------------------------
+  # migrate: 数据库迁移一次性任务（基于 builder target，含 tsx + 源码）
+  # 等数据库健康后执行 npm run migrate，跑完即退（restart: "no"）
+  # ------------------------------------------------------------------
+  migrate:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+      target: migrator
+    container_name: nuxt-migrate
+    restart: "no"
+    env_file:
+      - ../../.env
+    environment:
+      # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
+      NUXT_DB_HOST: db
+      NUXT_DB_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  # ------------------------------------------------------------------
+  # app: Nuxt 生产应用（Dockerfile runner target）
+  # 等迁移完成后启动，通过 env_file 注入业务配置
+  # ------------------------------------------------------------------
+  app:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+      target: runner
+    container_name: nuxt-app
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
+      NUXT_DB_HOST: db
+      NUXT_DB_PORT: 3306
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - app-net
+
+  # ------------------------------------------------------------------
+  # db: MySQL 8.0 数据库
+  # 配置自包含于 .env.mysql（基础设施独立，不依赖 app 的 .env）
+  # env_file 注入 MYSQL_* 变量，mysql 镜像直接读取初始化
+  # ------------------------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: nuxt-mysql
+    restart: unless-stopped
+    env_file:
+      - ../env/.env.mysql
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-net
+
+  # ------------------------------------------------------------------
+  # nginx: 反向代理，统一入口 80 端口转发到 app:3000
+  # 挂载整个 conf.d 目录（nginx 镜像默认 include /etc/nginx/conf.d/*.conf）
+  # 新增规则只需在 docker/nginx/conf.d/ 下加 .conf 文件，无需改本文件
+  # 支持 WebSocket（评测 SDK）、长连接超时配置
+  # ------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: nuxt-nginx
+    restart: unless-stopped
+    volumes:
+      - ../nginx/conf.d:/etc/nginx/conf.d:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - app-net
+
+volumes:
+  mysql-data:
+
+networks:
+  app-net:
+    driver: bridge

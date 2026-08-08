@@ -1,0 +1,66 @@
+# ====================================================================
+# Docker 构建上下文排除清单
+# 必须放在项目根目录（Docker 构建上下文根，硬性规定不能移到 docker/ 下）
+# ====================================================================
+
+# 依赖目录（容器内会重新安装）
+node_modules/
+
+# Nuxt 构建缓存和产物（容器内构建时重新生成）
+.nuxt/
+.output/
+.nitro/
+.cache
+.data
+dist/
+build/
+
+# 版本控制
+.git/
+.gitignore
+.gitattributes
+
+# 日志和临时文件
+/logs/
+*.log
+*.tmp
+*.bak
+*.sql.bak
+
+# 系统文件
+.DS_Store
+
+# 环境变量文件（敏感信息不进镜像，仅保留 .example 模板）
+.env
+.env.*
+!.env.example
+# Docker 部署专用环境变量（真实值不进镜像）
+docker/env/.env
+docker/env/.env.mysql
+docker/env/.env.redis
+
+# IDE 配置
+.vscode/
+.idea/
+.fleet
+
+# pm2 本机配置（样例入库，真实配置不入库）
+ecosystem.config.cjs
+
+# 项目文档与 AI 工具配置（构建不需要）
+AGENTS.md
+.trae/
+.qoder/
+.agents/
+.claude/
+.github/
+
+# 内容素材与上传目录（不入镜像）
+content/
+.uploads/
+public/audio/
+public/uploads/
+
+# Vitest 临时文件
+vitest.config.ts.timestamp-*.mjs
+auto-imports.d.ts

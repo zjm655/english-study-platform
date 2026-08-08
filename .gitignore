@@ -22,6 +22,7 @@ node_modules
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 # pm2 本机配置（样例 ecosystem.config.example.cjs 入库，真实配置不入库）
 ecosystem.config.cjs
