@@ -3,12 +3,13 @@
 # 启动顺序：db 健康 -> migrate 跑完退出 -> app(dev) 启动
 # 源码通过 volume 挂载到容器内实现热重载，node_modules 用匿名卷隔离
 # 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.dev.yml up
-# 前置：复制根目录 .env.example -> .env 并填值（app 配置，NUXT_DB_* 需与 .env.mysql 一致）；
+# 前置：复制 docker/env/.env.app.example -> .env.app 并填值（app 配置）；
+#       复制 docker/env/.env.migrate.example -> .env.migrate 并填值（migrate 配置）；
 #       复制 docker/env/.env.mysql.example -> .env.mysql 并填值（mysql 独立配置）
 # ====================================================================
 services:
   # ------------------------------------------------------------------
-  # migrate: 数据库迁移一次性任务（基于 builder target，含 tsx + 源码）
+  # migrate: 数据库迁移一次性任务（基于 builder target，含完整源码 + tsx）
   # 注意：dev 模式下 migrate 镜像构建时会 COPY 源码，但运行时源码已固定在镜像内，
   # 不随宿主热重载变更；如需重跑迁移，docker compose up --force-recreate migrate
   # ------------------------------------------------------------------
@@ -20,7 +21,7 @@ services:
     container_name: nuxt-migrate-dev
     restart: "no"
     env_file:
-      - ../../.env
+      - ../env/.env.migrate
     environment:
       # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
       NUXT_DB_HOST: db
@@ -44,7 +45,7 @@ services:
     container_name: nuxt-app-dev
     restart: unless-stopped
     env_file:
-      - ../../.env
+      - ../env/.env.app
     environment:
       # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
       NUXT_DB_HOST: db

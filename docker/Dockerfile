@@ -64,6 +64,8 @@ CMD ["node", ".output/server/index.mjs"]
 # 基于 builder（已有完整源码 + tsx + node_modules），CMD 执行 npm run migrate
 # compose 中作为 depends_on 的服务，跑完即退（restart: "no"）
 # 迁移源码（server/db/migrate.ts）依赖 tsx 运行，故不能并入 runner 镜像
+# 注：migrator 镜像只本地使用不上传，复用 builder 缓存比独立轻量化更务实
+#     （独立阶段在 node --import tsx 的 loader 解析上有环境兼容问题）
 # --------------------------------------------------------------------
 FROM builder AS migrator
 CMD ["npm", "run", "migrate"]

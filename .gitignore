@@ -24,6 +24,14 @@ node_modules
 !.env.example
 !.env.*.example
 
+# Docker 部署 env 文件（实际配置不入库，仅 .example 模板入库）
+# 下方显式列出以明示意并保持对称（已被上方 .env.* 通配符覆盖，此处补全 docker/env 与 server/db 路径）
+docker/env/.env.app
+docker/env/.env.migrate
+docker/env/.env.mysql
+docker/env/.env.redis
+server/db/.env.migrate
+
 # pm2 本机配置（样例 ecosystem.config.example.cjs 入库，真实配置不入库）
 ecosystem.config.cjs
 

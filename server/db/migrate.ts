@@ -6,29 +6,59 @@ import { resolveCollation, applyCollation } from './collation'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-async function loadEnv() {
-  const envPath = join(__dirname, '../../.env')
+/**
+ * 读取单个 .env 文件并注入 process.env（不覆盖已存在的变量）。
+ * @returns true 表示文件存在并已加载，false 表示文件不存在
+ */
+async function loadEnvFile(filePath: string): Promise<boolean> {
   try {
-    await access(envPath)
-    const content = await readFile(envPath, 'utf-8')
-    content.split('\n').forEach((line) => {
-      line = line.trim()
-      if (!line || line.startsWith('#')) return
-      const match = line.match(/^([^=]+)=(.+)$/)
-      if (match && match[1] && match[2]) {
-        let value = match[2].trim()
-        if (
-          (value.startsWith('"') && value.endsWith('"')) ||
-          (value.startsWith("'") && value.endsWith("'"))
-        ) {
-          value = value.slice(1, -1)
-        }
-        process.env[match[1].trim()] = value
-      }
-    })
+    await access(filePath)
   } catch {
-    console.log('[INFO] .env 文件不存在，使用默认配置')
+    return false
   }
+  const content = await readFile(filePath, 'utf-8')
+  content.split('\n').forEach((line) => {
+    line = line.trim()
+    if (!line || line.startsWith('#')) return
+    const match = line.match(/^([^=]+)=(.+)$/)
+    if (match && match[1] && match[2]) {
+      const key = match[1].trim()
+      let value = match[2].trim()
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1)
+      }
+      // 不覆盖已存在的 process.env（Docker compose env_file 注入优先）
+      if (process.env[key] === undefined) {
+        process.env[key] = value
+      }
+    }
+  })
+  return true
+}
+
+/**
+ * 分层加载环境变量（不覆盖已存在的 process.env）：
+ * 1. 优先读 server/db/.env.migrate（迁移专用，与 migrate.ts 同级，可选）
+ * 2. 回退读项目根 .env（本地开发默认）
+ * 3. 都不存在则提示并继续（用 process.env 默认值）
+ *
+ * Docker 场景：compose env_file 已把变量注入容器环境，loadEnv 不会覆盖。
+ */
+async function loadEnv() {
+  const localEnv = join(__dirname, '.env.migrate')
+  const rootEnv = join(__dirname, '../../.env')
+  if (await loadEnvFile(localEnv)) {
+    console.log('[INFO] 已加载 server/db/.env.migrate')
+    return
+  }
+  if (await loadEnvFile(rootEnv)) {
+    console.log('[INFO] 已加载根目录 .env')
+    return
+  }
+  console.log('[INFO] 未找到 .env 文件，使用环境变量默认配置')
 }
 
 async function main() {

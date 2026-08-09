@@ -3,12 +3,13 @@
 # 启动顺序：db 健康 -> migrate 跑完退出 -> app 启动 -> nginx 就绪
 # 适用单机部署场景，一条命令拉起完整应用栈（含自动迁移）
 # 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.yml up -d
-# 前置：复制根目录 .env.example -> .env 并填值（app 配置，NUXT_DB_* 需与 .env.mysql 一致）；
+# 前置：复制 docker/env/.env.app.example -> .env.app 并填值（app 配置）；
+#       复制 docker/env/.env.migrate.example -> .env.migrate 并填值（migrate 配置）；
 #       复制 docker/env/.env.mysql.example -> .env.mysql 并填值（mysql 独立配置）
 # ====================================================================
 services:
   # ------------------------------------------------------------------
-  # migrate: 数据库迁移一次性任务（基于 builder target，含 tsx + 源码）
+  # migrate: 数据库迁移一次性任务（基于 builder target，含完整源码 + tsx）
   # 等数据库健康后执行 npm run migrate，跑完即退（restart: "no"）
   # ------------------------------------------------------------------
   migrate:
@@ -19,7 +20,7 @@ services:
     container_name: nuxt-migrate
     restart: "no"
     env_file:
-      - ../../.env
+      - ../env/.env.migrate
     environment:
       # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
       NUXT_DB_HOST: db
@@ -42,7 +43,7 @@ services:
     container_name: nuxt-app
     restart: unless-stopped
     env_file:
-      - ../../.env
+      - ../env/.env.app
     environment:
       # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
       NUXT_DB_HOST: db

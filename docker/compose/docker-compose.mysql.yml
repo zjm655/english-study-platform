@@ -3,13 +3,13 @@
 # 多实例部署时 db 独立运行，供多个 app 实例共享连接
 # 含 migrate 服务：部署 db 后自动执行迁移，跑完退出
 # 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.mysql.yml up -d
-# 前置：复制根目录 .env.example -> .env 并填值（app 配置，NUXT_DB_HOST 指向本 db）；
+# 前置：复制 docker/env/.env.migrate.example -> .env.migrate 并填值（migrate 配置，NUXT_DB_HOST 指向本 db）；
 #       复制 docker/env/.env.mysql.example -> .env.mysql 并填值（mysql 完整配置）
 # 部署后 app 用 docker-compose.app.yml 连接（NUXT_DB_HOST 指向本 mysql 容器地址）
 # ====================================================================
 services:
   # ------------------------------------------------------------------
-  # migrate: 数据库迁移一次性任务（基于 builder target，含 tsx + 源码）
+  # migrate: 数据库迁移一次性任务（基于 builder target，含完整源码 + tsx）
   # 等数据库健康后执行 npm run migrate，跑完即退（restart: "no"）
   # ------------------------------------------------------------------
   migrate:
@@ -20,7 +20,7 @@ services:
     container_name: nuxt-migrate
     restart: "no"
     env_file:
-      - ../../.env
+      - ../env/.env.migrate
     environment:
       # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
       NUXT_DB_HOST: db
