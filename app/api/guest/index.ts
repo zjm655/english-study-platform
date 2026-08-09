@@ -1,5 +1,4 @@
 import { guestStudyTimePath, guestAudioUrlPath, guestEvalQuotaPath } from '~/api/paths'
-import { request } from '~/utils/request'
 import type { GuestStudyResult } from '#shared/types/user'
 
 /**

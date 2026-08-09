@@ -1,7 +1,5 @@
 import { useToVerify, useCheckinRefresh } from '~/composables/user'
 import { useUserStore } from '~/store/useUserStore'
-import { isAdminOrAbove, isSuperAdmin } from '#shared/utils/role'
-import { PERMISSIONS } from '#shared/utils/permission'
 import type { PermissionKey } from '#shared/utils/permission'
 
 // 后台页面路径前缀 → 所需权限（与侧边栏/后端门禁口径一致；仅体验层，真正防线在后端）

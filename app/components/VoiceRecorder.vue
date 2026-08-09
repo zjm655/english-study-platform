@@ -2,8 +2,6 @@
 import { useRecorder, RecorderError } from '~/composables/media/useRecorder'
 import { useUploadRecording } from '~/composables/recording'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
-import { useUploadLimits, UPLOAD_LIMITS_FALLBACK } from '~/composables/useUploadLimits'
-import { toastError } from '~/utils/popup'
 import type { UploadRecordingResult } from '#shared/types/recording'
 
 const props = defineProps<{

@@ -1,4 +1,4 @@
-import { materialRecordsPath } from '../paths'
+import { materialRecordsPath } from '~/api/paths'
 import type {
   MaterialUploadRecordListItem,
   MaterialRecordStatusItem,

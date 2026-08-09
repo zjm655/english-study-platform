@@ -136,9 +136,8 @@
 </template>
 
 <script setup lang="ts">
-import { getUnits } from '~/api/unit/units'
 import { useAdminUpload } from '~/composables/admin'
-import { toastWarning } from '~/utils/popup'
+import { useUnits } from '~/composables/unit'
 import type { AdminUploadResponse } from '#shared/types/adminUpload'
 import type { UnitWithProgress } from '#shared/types/unit'
 import type { UploadFile, UploadFiles } from 'element-plus'
@@ -180,10 +179,11 @@ const txtFiles = ref<File[]>([])
 const units = ref<UnitWithProgress[]>([])
 
 const { isLoading, execute } = useAdminUpload()
+const { execute: executeUnits } = useUnits()
 const result = ref<AdminUploadResponse | null>(null)
 
 async function loadUnits() {
-  const res = await getUnits()
+  const res = await executeUnits(undefined)
   if (res?.code === 200 && res.data) {
     units.value = res.data
   }

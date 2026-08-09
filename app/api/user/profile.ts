@@ -1,4 +1,4 @@
-import { userProfilePath, userPasswordPath, userAvatarPath } from '../paths'
+import { userProfilePath, userPasswordPath, userAvatarPath } from '~/api/paths'
 import type {
   UserProfileUpdatePayload,
   PasswordChangePayload,

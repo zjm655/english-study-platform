@@ -56,10 +56,8 @@ import {
   Lock,
   Bell,
 } from '@element-plus/icons-vue'
-import type { Component } from 'vue'
 import { usePermission } from '~/composables/user'
 import { useUserStore } from '~/store/useUserStore'
-import { PERMISSIONS } from '#shared/utils/permission'
 import type { PermissionKey } from '#shared/utils/permission'
 
 definePageMeta({

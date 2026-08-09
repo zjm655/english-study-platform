@@ -1,4 +1,4 @@
-import { adminStatsPath } from '../paths'
+import { adminStatsPath } from '~/api/paths'
 import type { AdminStatsQuery, AdminStatsResult } from '#shared/types/adminStats'
 
 /**

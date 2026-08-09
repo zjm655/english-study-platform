@@ -1,7 +1,7 @@
 // shared/utils/request.ts
 import { $fetch } from 'ofetch'
 import type { FetchContext } from 'ofetch'
-import type { ResPayload } from '#shared/types/request.d.ts'
+import type { ResPayload } from '#shared/types/request'
 
 interface BaseCfg {
   baseURL?: string

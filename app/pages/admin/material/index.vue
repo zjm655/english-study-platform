@@ -146,14 +146,13 @@
 
 <script setup lang="ts">
 import { Upload, Search } from '@element-plus/icons-vue'
-import { getUnits } from '~/api/unit/units'
 import {
   useAdminSegmentList,
   useDeleteAdminSegment,
   useBatchAdminSegments,
   useTableSelection,
 } from '~/composables/admin'
-import { toastSuccess, toastConfirm, toastWarning, toastBatchResult } from '~/utils/popup'
+import { useUnits } from '~/composables/unit'
 import type { AdminSegmentListItem, AdminSegmentListQuery } from '#shared/types/adminSegment'
 import type { UnitWithProgress } from '#shared/types/unit'
 
@@ -181,6 +180,7 @@ const units = ref<UnitWithProgress[]>([])
 const { isLoading, execute: listExecute } = useAdminSegmentList()
 const { execute: deleteExecute } = useDeleteAdminSegment()
 const { isLoading: isBatching, execute: batchExecute } = useBatchAdminSegments()
+const { execute: executeUnits } = useUnits()
 
 // 批量选择（reserve-selection 跨页保留；上限对齐后端 batchIds=100）
 const {
@@ -319,7 +319,7 @@ function formatDate(s: string) {
 }
 
 async function loadUnits() {
-  const res = await getUnits()
+  const res = await executeUnits(undefined)
   if (res?.code === 200 && res.data) {
     units.value = res.data
   }

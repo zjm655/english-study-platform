@@ -1,5 +1,4 @@
 import type { Recording } from '#shared/types/recording'
-import { toastError } from '~/utils/popup'
 import { useEvaluationPipeline } from '~/composables/evaluation/useEvaluationPipeline'
 import { useUserStore } from '~/store/useUserStore'
 

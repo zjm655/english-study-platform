@@ -1,4 +1,4 @@
-import { adminSegmentPath, adminSegmentBatchPath } from '../paths'
+import { adminSegmentPath, adminSegmentBatchPath } from '~/api/paths'
 import type {
   AdminSegmentListQuery,
   AdminSegmentListResult,

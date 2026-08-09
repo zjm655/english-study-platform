@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useSegmentDetail } from '~/composables/unit'
-import type { SegmentDetail } from '~~/shared/types/unit'
+import type { SegmentDetail } from '#shared/types/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioLifecycle } from '~/composables/media/useAudioLifecycle'
 import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'

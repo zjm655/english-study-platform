@@ -202,8 +202,6 @@ import {
   useBatchAdminUsers,
   useTableSelection,
 } from '~/composables/admin'
-import { toastSuccess, toastConfirm, toastPrompt, toastBatchResult } from '~/utils/popup'
-import { ROLE_ADMIN, ROLE_SUPER_ADMIN, isAdminOrAbove } from '#shared/utils/role'
 import type { AdminUserListItem, AdminUserState } from '#shared/types/adminUser'
 
 definePageMeta({

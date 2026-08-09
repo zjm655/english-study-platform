@@ -7,7 +7,6 @@
 // - 游客 payload 不含 id（防塞进 token cookie 触发 auth 中间件 undefined 绑参，见 auth.ts payload.id 防线）。
 import { SignJWT, jwtVerify } from 'jose'
 import type { JWTPayload } from 'jose'
-import type { H3Event } from 'h3'
 import { getSecret } from '#server/utils/auth'
 
 /** 游客 JWT 载荷：仅随机键 + 类型标记，无 id/role（与 JwtPayload 刻意不兼容） */

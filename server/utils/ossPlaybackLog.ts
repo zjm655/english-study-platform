@@ -10,7 +10,7 @@
 // 但因只需「按天计数」，用整型累加器替代条目数组，天然有界、零丢弃风险。
 // 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程。
 import { query } from './db'
-import { logger } from '../../shared/utils/logger'
+import { logger } from '#shared/utils/logger'
 
 const FLUSH_INTERVAL_MS = 5000
 /** 累计到该阈值立即 flush，缩小高频播放场景的丢失窗口 */

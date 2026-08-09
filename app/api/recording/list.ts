@@ -1,4 +1,4 @@
-import { recordingPath } from '../paths'
+import { recordingPath } from '~/api/paths'
 import type { RecordingListQuery, PaginatedRecordings } from '#shared/types/recording'
 
 export const getRecordingList = async (query: RecordingListQuery) => {

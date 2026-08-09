@@ -5,7 +5,7 @@ import {
   adminCloudBssPath,
   adminCloudDeepseekPath,
   adminCloudTrendPath,
-} from '../paths'
+} from '~/api/paths'
 import type {
   CloudEstimateQuery,
   OssStatResult,

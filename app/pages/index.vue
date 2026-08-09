@@ -3,8 +3,7 @@ import { Sunny } from '@element-plus/icons-vue'
 import { useUserStore } from '~/store/useUserStore'
 import { useCheckin } from '~/composables/user'
 import { userCheckinStatsPath } from '~/api/paths'
-import { toastError } from '~/utils/popup'
-import type { CheckinStats } from '~~/shared/types/user'
+import type { CheckinStats } from '#shared/types/user'
 
 definePageMeta({
   title: '首页',

@@ -5,7 +5,7 @@ import { useUserStats } from '~/composables/user/useUserStats'
 import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
 import { useUserStore } from '~/store/useUserStore'
 import { unitsPath } from '~/api/paths'
-import type { UnitWithProgress, UserProgress } from '~~/shared/types/unit'
+import type { UnitWithProgress, UserProgress } from '#shared/types/unit'
 import type { UserStats } from '#shared/types/user'
 
 definePageMeta({

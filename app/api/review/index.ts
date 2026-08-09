@@ -1,5 +1,4 @@
-import { reviewVocabPath, reviewMaterialPath } from '../paths'
-import { request } from '~/utils/request'
+import { reviewVocabPath, reviewMaterialPath } from '~/api/paths'
 import type { ReviewVocabItem, ReviewMaterialItem } from '#shared/types/review'
 
 export interface ReviewVocabResult {

@@ -1,4 +1,3 @@
-import { onBeforeUnmount, onMounted } from 'vue'
 import { useAudioPlayer } from './useAudioPlayer'
 
 /**

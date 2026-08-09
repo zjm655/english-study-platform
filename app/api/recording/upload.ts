@@ -1,5 +1,4 @@
-import { recordingPath } from '../paths'
-import { getGuestFingerprint } from '~/utils/fingerprint'
+import { recordingPath } from '~/api/paths'
 import type { UploadRecordingPayload, UploadRecordingResult } from '#shared/types/recording'
 
 export const uploadRecording = async (payload: UploadRecordingPayload) => {

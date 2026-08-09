@@ -1,13 +1,12 @@
-// server/utils/guestEnsure.ts
+// server/services/guestEnsure.ts
 // 解析游客身份并确保 user 行存在（懒实体化），用于写端点（progress/checkin）。
 //
 // 与 guestUserId.ts 的 resolveEffectiveUserId 区别：
 // - resolveEffectiveUserId：只读查询，游客未实体化返回 null
 // - resolveAndEnsureGuestUserId：写操作前调用，游客未实体化时自动 INSERT user 行
-import type { H3Event } from 'h3'
 import { readGuestKey } from '#server/utils/guest'
 import { withTransaction } from '#server/utils/db'
-import { ensureGuestUser } from '#server/services/guestUser'
+import { ensureGuestUser } from './guestUser'
 import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 
 /**

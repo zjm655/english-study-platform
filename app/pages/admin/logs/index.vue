@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { usePermission } from '~/composables/user'
-import { PERMISSIONS } from '#shared/utils/permission'
 
 definePageMeta({ layout: 'admin' })
 

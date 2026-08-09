@@ -1,4 +1,4 @@
-import { adminOperationLogPath } from '../paths'
+import { adminOperationLogPath } from '~/api/paths'
 import type {
   AdminOperationLogListQuery,
   AdminOperationLogListResult,

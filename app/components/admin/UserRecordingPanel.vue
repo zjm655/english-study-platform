@@ -182,8 +182,6 @@
 <script setup lang="ts">
 import { useAdminUserRecordingList, useAuditionUserRecording } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
-import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
-import { PERMISSIONS } from '#shared/utils/permission'
 import type {
   AdminUserRecordingListItem,
   AdminUserUnitOption,

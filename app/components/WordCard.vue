@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
-import type { VocabularyItem } from '~~/shared/types/unit'
+import type { VocabularyItem } from '#shared/types/unit'
 import { toastError } from '~/utils/popup'
 
 interface Props {

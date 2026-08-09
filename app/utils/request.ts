@@ -1,5 +1,4 @@
 // app/utils/request.ts
-import { createFetch } from '#shared/utils/request'
 import type { ResPayload } from '#shared/types/request'
 
 const _request = createFetch()

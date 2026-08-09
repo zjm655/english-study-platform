@@ -143,7 +143,6 @@
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref, computed } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Headset, Reading, Microphone, ChatDotRound } from '@element-plus/icons-vue'
 import { useToLogin, useToRegister } from '~/composables/user'

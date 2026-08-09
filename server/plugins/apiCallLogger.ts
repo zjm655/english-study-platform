@@ -11,7 +11,6 @@
 // 双入口用 event.context._apiLogged 标志去重（钩子自身出错的边缘路径两钩子可能都触发）。
 //
 // 性能保证：afterResponse 中仅做纯内存取值 + fire-and-forget 调用，对请求延迟零影响。
-import type { H3Event } from 'h3'
 import { randomUUID } from 'node:crypto'
 import {
   logApiCall,

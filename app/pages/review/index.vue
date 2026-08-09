@@ -3,10 +3,10 @@ import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useAudioStore } from '~/store/useAudioStore'
 import { useVocabCardState } from '~/composables/review/useVocabCardState'
 import { useMaterialNavState } from '~/composables/review/useMaterialNavState'
+import { useReviewData } from '~/composables/review/useReviewData'
 import { useGuestStudyTimer } from '~/composables/user/useGuestStudyTimer'
-import { getReviewVocab, getReviewMaterial } from '~/api/review'
 import type { ReviewVocabItem, ReviewMaterialItem } from '#shared/types/review'
-import type { Question } from '~~/shared/types/unit'
+import type { Question } from '#shared/types/unit'
 
 definePageMeta({
   title: '复习',
@@ -19,6 +19,7 @@ useSeoMeta({
 
 const { load, play, pause: _pause, togglePlay, seek, stop } = useAudioPlayer()
 const audioStore = useAudioStore()
+const { executeVocab, executeMaterial } = useReviewData()
 
 // 自动上报学习时长（登录走 useStudyTimer，游客走静默上报）
 useGuestStudyTimer()
@@ -60,11 +61,11 @@ async function loadVocab(append = false) {
   vocabLoading.value = true
   vocabError.value = null
   try {
-    const res = await getReviewVocab(
-      VOCAB_PAGE,
-      append ? vocabOffset.value : 0,
-      vocabKeyword.value || undefined,
-    )
+    const res = await executeVocab({
+      limit: VOCAB_PAGE,
+      offset: append ? vocabOffset.value : 0,
+      keyword: vocabKeyword.value || undefined,
+    })
     if (res?.code === 200 && res.data) {
       if (append) {
         vocabList.value = [...vocabList.value, ...res.data.items]
@@ -121,11 +122,11 @@ async function loadMaterial(append = false) {
   materialLoading.value = true
   materialError.value = null
   try {
-    const res = await getReviewMaterial(
-      MATERIAL_PAGE,
-      append ? materialOffset.value : 0,
-      materialKeyword.value || undefined,
-    )
+    const res = await executeMaterial({
+      limit: MATERIAL_PAGE,
+      offset: append ? materialOffset.value : 0,
+      keyword: materialKeyword.value || undefined,
+    })
     if (res?.code === 200 && res.data) {
       if (append) {
         materialList.value = [...materialList.value, ...res.data.items]

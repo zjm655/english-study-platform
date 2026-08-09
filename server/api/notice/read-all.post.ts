@@ -1,6 +1,6 @@
 import { markAllAsRead } from '#server/services/notice'
 import { validateSuccess, validateError } from '#server/utils/validate'
-import { resolveAndEnsureGuestUserId } from '#server/utils/guestEnsure'
+import { resolveAndEnsureGuestUserId } from '#server/services/guestEnsure'
 
 /**
  * 用户端一键已读（把全部活跃公告标记为已读，登录用户 + 游客）

@@ -1,4 +1,4 @@
-import { adminSegmentUploadPath } from '../paths'
+import { adminSegmentUploadPath } from '~/api/paths'
 import type { AdminUploadResponse } from '#shared/types/adminUpload'
 
 /**

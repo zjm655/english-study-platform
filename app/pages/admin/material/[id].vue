@@ -259,10 +259,7 @@ import {
   useUpdateSegmentVisibility,
 } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
-import { getUnits } from '~/api/unit/units'
-import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
-import { toastSuccess, toastWarning } from '~/utils/popup'
-import { PERMISSIONS } from '#shared/utils/permission'
+import { useUnits } from '~/composables/unit'
 import type { AdminVocabEditItem, AdminSegmentUpdatePayload } from '#shared/types/adminSegment'
 import type { Question, UnitWithProgress } from '#shared/types/unit'
 
@@ -310,7 +307,7 @@ const unitOptions = computed(() => {
 })
 
 async function loadUnits() {
-  const res = await getUnits()
+  const res = await executeUnits(undefined)
   if (res?.code === 200 && res.data) {
     units.value = res.data
   }
@@ -322,6 +319,7 @@ const { isLoading: isLoadingDetail, execute: detailExecute } = useAdminSegmentDe
 const { isLoading: isSaving, execute: updateExecute } = useUpdateAdminSegment()
 const { isLoading: isAuditioning, execute: auditionExecute } = useAuditionSegment()
 const { isLoading: isVisibilitySaving, execute: visibilityExecute } = useUpdateSegmentVisibility()
+const { execute: executeUnits } = useUnits()
 
 // ===== 词汇编辑 =====
 function addVocab() {

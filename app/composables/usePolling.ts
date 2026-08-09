@@ -1,5 +1,3 @@
-import { ref, onBeforeUnmount, getCurrentInstance } from 'vue'
-
 /**
  * 通用轮询 Hook（指数衰减）
  *

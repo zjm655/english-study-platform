@@ -1,4 +1,3 @@
-import { ref } from 'vue'
 import type { CommonReqCfg } from '~/types/requestType'
 import type { ResPayload } from '#shared/types/request'
 

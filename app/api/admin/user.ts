@@ -1,4 +1,4 @@
-import { adminUserPath, adminUserBatchPath } from '../paths'
+import { adminUserPath, adminUserBatchPath } from '~/api/paths'
 import type {
   AdminUserListQuery,
   AdminUserListResult,

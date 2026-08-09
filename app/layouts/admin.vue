@@ -148,7 +148,6 @@ import {
 } from '@element-plus/icons-vue'
 import type { MenuInstance } from 'element-plus'
 import { usePermission } from '~/composables/user'
-import { PERMISSIONS } from '#shared/utils/permission'
 
 const { can } = usePermission()
 

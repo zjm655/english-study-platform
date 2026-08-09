@@ -1,4 +1,3 @@
-import { ref, computed } from 'vue'
 import type { ReviewVocabItem } from '#shared/types/review'
 
 /**

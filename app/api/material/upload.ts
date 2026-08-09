@@ -1,4 +1,4 @@
-import { materialUploadPath } from '../paths'
+import { materialUploadPath } from '~/api/paths'
 import type { UploadMaterialResult } from '#shared/types/material'
 
 export const uploadMaterial = async (payload: FormData) => {

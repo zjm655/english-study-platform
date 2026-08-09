@@ -342,12 +342,7 @@ import {
   useTableSelection,
 } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
-import { usePolling } from '~/composables/usePolling'
-import { getUnits } from '~/api/unit/units'
-import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
-import { toastConfirm, toastWarning, toastBatchResult } from '~/utils/popup'
-import { exportRowsToCsv } from '~/utils/csvExport'
-import { PERMISSIONS } from '#shared/utils/permission'
+import { useUnits } from '~/composables/unit'
 import type {
   AdminMaterialRecordListItem,
   AdminMaterialRecordDetail,
@@ -414,6 +409,7 @@ const { execute: deleteExecute } = useDeleteAdminMaterialRecord()
 const { isLoading: isReprocessing, execute: reprocessExecute } = useReprocessAdminMaterialRecord()
 const { isLoading: isBatching, execute: batchExecute } = useBatchAdminMaterialRecords()
 const { isLoading: isAuditioning, execute: auditionExecute } = useAuditionMaterialRecord()
+const { execute: executeUnits } = useUnits()
 
 // 批量选择（reserve-selection 跨页保留，上限对齐后端 batchIds=100）；批量重试只对选中的 failed 生效
 const {
@@ -440,7 +436,7 @@ const reprocessUnitOptions = computed(() => {
 })
 
 async function loadUnits() {
-  const res = await getUnits()
+  const res = await executeUnits(undefined)
   if (res?.code === 200 && res.data) {
     units.value = res.data
   }

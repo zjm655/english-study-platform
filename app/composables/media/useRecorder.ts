@@ -1,5 +1,3 @@
-import { ref, onBeforeUnmount } from 'vue'
-
 // ============ 错误类型定义 ============
 export type RecorderErrorType =
   | 'INSECURE_CONTEXT' // 非安全上下文（非 HTTPS / localhost）

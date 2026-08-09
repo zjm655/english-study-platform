@@ -1,6 +1,4 @@
 import { getFavWordIds, toggleFavWord, getFavSegmentIds, toggleFavSegment } from '~/api/user'
-import { isResPayload } from '~/composables/useRequest'
-import { toastError } from '~/utils/popup'
 
 // toggle 抛异常时的统一处理：401 交给 resolveCode 复用登录引导与跳转，其余弹错提示
 function handleToggleError(err: unknown) {

@@ -1,5 +1,4 @@
-import { request } from '~/utils/request'
-import { userFavWordsPath, userFavWordPath } from '../paths'
+import { userFavWordsPath, userFavWordPath } from '~/api/paths'
 
 /** 获取当前用户收藏的单词 ID 列表 */
 export const getFavWordIds = async () => {

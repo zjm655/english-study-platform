@@ -42,8 +42,6 @@
 </template>
 
 <script setup lang="ts">
-import { REVIEW_REASON_CATEGORIES } from '#shared/utils/permission'
-
 const props = withDefaults(
   defineProps<{
     modelValue: boolean

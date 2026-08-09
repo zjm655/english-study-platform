@@ -1,5 +1,4 @@
-import { request } from '~/utils/request'
-import { userFavSegmentsPath, userFavSegmentPath } from '../paths'
+import { userFavSegmentsPath, userFavSegmentPath } from '~/api/paths'
 
 /** 获取当前用户收藏的片段 ID 列表 */
 export const getFavSegmentIds = async () => {

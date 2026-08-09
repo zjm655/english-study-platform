@@ -2,12 +2,12 @@
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { useRecordingHistory, useRetryAnalyze } from '~/composables/recording'
-import type { SegmentDetail } from '~~/shared/types/unit'
+import type { SegmentDetail } from '#shared/types/unit'
 import type { Recording, UploadRecordingResult } from '#shared/types/recording'
 import { toastError } from '~/utils/popup'
 import { useUserStore } from '~/store/useUserStore'
 import { useEvaluationPipeline } from '~/composables/evaluation/useEvaluationPipeline'
-import { getGuestEvalQuota } from '~/api/guest'
+import { useGuestEvalQuota } from '~/composables/user/useGuestEvalQuota'
 import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
 
 interface Props {
@@ -54,6 +54,9 @@ const pipeline = useEvaluationPipeline()
 // 用户信息
 const userStore = useUserStore()
 
+// 游客评测配额查询（不走 useHandleRes，避免 401/403 踢游客到 /login）
+const { fetchQuota: fetchGuestEvalQuota } = useGuestEvalQuota()
+
 // 游客配额状态（仅游客身份时有效）
 const isGuest = computed(() => !userStore.user)
 const guestQuotaExhausted = ref(false)
@@ -64,7 +67,7 @@ async function fetchGuestQuota() {
   if (!isGuest.value) return
   guestQuotaLoading.value = true
   try {
-    const res = await getGuestEvalQuota()
+    const res = await fetchGuestEvalQuota()
     if (res?.code === 200 && res.data) {
       const { used, limit } = res.data.dubbing
       guestQuotaExhausted.value = limit > 0 && used >= limit

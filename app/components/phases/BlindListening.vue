@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useUpdateProgress } from '~/composables/unit'
-import type { SegmentDetail, Question } from '~~/shared/types/unit'
+import type { SegmentDetail, Question } from '#shared/types/unit'
 
 interface Props {
   segment: SegmentDetail

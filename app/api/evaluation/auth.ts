@@ -1,4 +1,4 @@
-import { evaluationAuthPath } from '../paths'
+import { evaluationAuthPath } from '~/api/paths'
 
 export interface EvaluationAuthResult {
   warrantId: string

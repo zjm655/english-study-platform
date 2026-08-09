@@ -1,6 +1,5 @@
-import { userLoginPath } from '../paths'
-import { getGuestFingerprint } from '~/utils/fingerprint'
-import type { LoginPayload, LoginResPayload } from '~~/shared/types/user'
+import { userLoginPath } from '~/api/paths'
+import type { LoginPayload, LoginResPayload } from '#shared/types/user'
 
 export const login = async (payload: LoginPayload) => {
   // 游客登录：附加浏览器指纹 header，供服务端合并指纹孤儿行数据

@@ -233,7 +233,6 @@
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
 import { useAdminMonitor } from '~/composables/admin'
-import { usePolling } from '~/composables/usePolling'
 import type { AdminMonitorSnapshot } from '#shared/types/adminMonitor'
 
 definePageMeta({ layout: 'admin', title: '运行监控' })

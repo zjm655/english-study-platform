@@ -102,7 +102,6 @@ import { UserFilled } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useUserStore } from '~/store/useUserStore'
 import { useUpdateProfile, useChangePassword, useUploadAvatar } from '~/composables/user'
-import { toastError } from '~/utils/popup'
 import type { PasswordChangePayload } from '#shared/types/user'
 
 const props = defineProps<{

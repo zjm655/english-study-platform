@@ -1,4 +1,4 @@
-// stores/user.ts
+// store/useUserStore.ts
 import type { CheckinStats } from '#shared/types/user'
 
 export const useUserStore = defineStore('user', () => {

@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { useReviewAccessLogList, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
-import {
-  REVIEW_TARGET_TYPES,
-  REVIEW_TARGET_TYPE_LABELS,
-  REVIEW_REASON_CATEGORIES,
-} from '#shared/utils/permission'
 import type { ReviewTargetType } from '#shared/utils/permission'
 import type { ReviewAccessLogItem } from '#shared/types/adminLogs'
 

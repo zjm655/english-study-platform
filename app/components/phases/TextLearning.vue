@@ -2,9 +2,7 @@
 import { useUpdateProgress } from '~/composables/unit'
 import { useAudioPlayer } from '~/composables/media/useAudioPlayer'
 import { resolveGuestAudioUrl } from '~/composables/media/useGuestAudio'
-import { useFavorites } from '~/composables/useFavorites'
-import WordCard from '~/components/WordCard.vue'
-import type { SegmentDetail, VocabularyItem } from '~~/shared/types/unit'
+import type { SegmentDetail, VocabularyItem } from '#shared/types/unit'
 
 interface Props {
   segment: SegmentDetail

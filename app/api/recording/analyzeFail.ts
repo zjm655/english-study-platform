@@ -1,5 +1,4 @@
-import { recordingPath } from '../paths'
-import { getGuestFingerprint } from '~/utils/fingerprint'
+import { recordingPath } from '~/api/paths'
 import type { Recording } from '#shared/types/recording'
 
 export const markAnalyzeFail = async (id: number) => {

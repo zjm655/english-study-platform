@@ -281,11 +281,7 @@ import {
   useUpdateAdminUserPermissions,
 } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
-import UserRecordingPanel from '~/components/admin/UserRecordingPanel.vue'
 import { useUserStore } from '~/store/useUserStore'
-import { toastConfirm, toastSuccess } from '~/utils/popup'
-import { ROLE_ADMIN, ROLE_USER, ROLE_SUPER_ADMIN } from '#shared/utils/role'
-import { GRANTABLE_PERMISSIONS, PERMISSION_LABELS } from '#shared/utils/permission'
 import type { PermissionKey } from '#shared/utils/permission'
 import type { AdminUserDetail, AdminUserUnitProgress } from '#shared/types/adminUser'
 import type { AdminOperationLogItem } from '#shared/types/adminOperationLog'

@@ -1,4 +1,4 @@
-import { adminUnitPath, adminUnitBatchPath } from '../paths'
+import { adminUnitPath, adminUnitBatchPath } from '~/api/paths'
 import type {
   AdminUnitListQuery,
   AdminUnitListResult,

@@ -1,5 +1,4 @@
-import { adminConfigPath } from '../paths'
-import { request } from '~/utils/request'
+import { adminConfigPath } from '~/api/paths'
 
 /** 系统配置映射：config_key → { value, description } */
 export type AdminConfigMap = Record<string, { value: string; description: string | null }>

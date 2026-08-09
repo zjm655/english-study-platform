@@ -1,4 +1,4 @@
-import { adminNoticePath } from '../paths'
+import { adminNoticePath } from '~/api/paths'
 import type {
   AdminNoticeListResult,
   NoticeCreatePayload,

@@ -1,4 +1,3 @@
-import { readBody } from 'h3'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { logAdminOperation } from '#server/services/adminLog'
 import { ensurePermission } from '#server/services/permission'

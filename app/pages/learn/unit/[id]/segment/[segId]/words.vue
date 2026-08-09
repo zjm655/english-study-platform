@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { getSegmentDetail } from '~/api/unit'
-import { useFavorites } from '~/composables/useFavorites'
-import WordCard from '~/components/WordCard.vue'
-import type { SegmentDetail } from '~~/shared/types/unit'
+import { useSegmentDetail } from '~/composables/unit'
+import type { SegmentDetail } from '#shared/types/unit'
 
 definePageMeta({
   title: '我的单词',
@@ -11,6 +9,7 @@ definePageMeta({
 const route = useRoute()
 const segId = computed(() => Number(route.params.segId))
 
+const { execute: fetchSegmentDetail } = useSegmentDetail()
 const { fetchFavWords, favWordIds, toggleWord, togglingWord } = useFavorites()
 
 const detail = ref<SegmentDetail | null>(null)
@@ -35,7 +34,7 @@ onMounted(async () => {
     if (cached) {
       detail.value = cached
     } else {
-      const res = await getSegmentDetail(segId.value)
+      const res = await fetchSegmentDetail(segId.value)
       if (res?.code === 200 && res.data) {
         detailCache.set(segId.value, res.data)
         detail.value = res.data

@@ -205,7 +205,6 @@ import {
   useUpdateAdminNotice,
   useDeleteAdminNotice,
 } from '~/composables/notice'
-import { toastConfirm } from '~/utils/popup'
 import type { AdminNoticeListItem, NoticeStatus } from '#shared/types/notice'
 
 definePageMeta({

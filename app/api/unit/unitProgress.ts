@@ -1,5 +1,5 @@
-import { unitsPath } from '../paths'
-import type { UnitProgressDetail } from '~~/shared/types/unit'
+import { unitsPath } from '~/api/paths'
+import type { UnitProgressDetail } from '#shared/types/unit'
 
 export const getUnitProgress = async (
   unitId: number,

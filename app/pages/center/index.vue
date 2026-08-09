@@ -116,10 +116,7 @@ import {
 import { useUserStore } from '~/store/useUserStore'
 import { useCheckinStats, useLogout } from '~/composables/user'
 import { useUserStats } from '~/composables/user/useUserStats'
-import { toastConfirm } from '~/utils/popup'
-import { isAdminOrAbove } from '#shared/utils/role'
-import type { CheckinStats } from '~~/shared/types/user'
-import type { UserStats } from '#shared/types/user'
+import type { CheckinStats, UserStats } from '#shared/types/user'
 
 definePageMeta({
   title: '个人中心',

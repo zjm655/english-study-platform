@@ -15,7 +15,6 @@ import { signUrl } from '#server/utils/oss'
 import { withQueue } from './serviceQueue'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
-import { logger } from '../../shared/utils/logger'
 
 // ==================== 常量 ====================
 

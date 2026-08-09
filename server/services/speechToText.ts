@@ -12,7 +12,6 @@ import { fileLog, fileLogError } from '#server/utils/fileLogger'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { serverFetch } from '#server/utils/request'
 import { withQueue } from './serviceQueue'
-import { logger } from '../../shared/utils/logger'
 
 // ==================== 导出类型 ====================
 

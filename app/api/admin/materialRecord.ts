@@ -1,4 +1,4 @@
-import { adminMaterialRecordPath, adminMaterialRecordBatchPath } from '../paths'
+import { adminMaterialRecordPath, adminMaterialRecordBatchPath } from '~/api/paths'
 import type {
   AdminMaterialRecordListQuery,
   AdminMaterialRecordListResult,

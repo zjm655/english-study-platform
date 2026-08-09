@@ -1,6 +1,5 @@
 // app/composables/admin/useChartResize.ts：echarts 图表容器尺寸自适应 + 生命周期统一管理
 import type { EChartsType } from 'echarts/core'
-import type { Ref } from 'vue'
 
 export interface ChartResizeEntry {
   /** 取图表实例（页面用 let 变量惰性初始化，故用 getter 而非直接传实例） */

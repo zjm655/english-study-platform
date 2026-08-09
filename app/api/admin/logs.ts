@@ -6,8 +6,7 @@ import {
   adminLogsCleanPath,
   adminLogsArchiveStatsPath,
   adminLogsArchivePurgePath,
-} from '../paths'
-import { request } from '~/utils/request'
+} from '~/api/paths'
 import type {
   ApiCallLogListQuery,
   ApiCallLogListResult,

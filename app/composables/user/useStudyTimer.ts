@@ -1,4 +1,3 @@
-import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useStudyTime } from './useStudyTime'
 
 const REPORT_INTERVAL = 30000 // 30s 上报间隔

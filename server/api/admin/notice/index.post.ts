@@ -1,4 +1,3 @@
-import { readBody } from 'h3'
 import { createNotice } from '#server/services/notice'
 import { adminNoticeCreateSchema, validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'

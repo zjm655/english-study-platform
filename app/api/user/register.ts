@@ -1,6 +1,5 @@
-import type { RegisterPayload } from '~~/shared/types/user'
-import { userRegisterPath } from '../paths'
-import { getGuestFingerprint } from '~/utils/fingerprint'
+import type { RegisterPayload } from '#shared/types/user'
+import { userRegisterPath } from '~/api/paths'
 
 export const register = async (payload: RegisterPayload) => {
   // 游客注册：附加浏览器指纹 header，供服务端合并指纹孤儿行数据

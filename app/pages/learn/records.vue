@@ -6,9 +6,7 @@ import {
   useUpdateMaterialRecord,
   useDeleteMaterialRecord,
 } from '~/composables/material/useUploadRecords'
-import { usePolling } from '~/composables/usePolling'
 import type { MaterialUploadRecordListItem } from '#shared/types/material'
-import { toastConfirm } from '~/utils/popup'
 
 definePageMeta({ title: '上传记录' })
 

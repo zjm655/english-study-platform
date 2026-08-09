@@ -13,8 +13,8 @@ import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { recognizeSpeech } from './sttFiletrans'
 import { moderateText } from './contentModeration'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
-import { logger } from '../../shared/utils/logger'
-import type { AdminUploadItemResult } from '../../shared/types/adminUpload'
+import { logger } from '#shared/utils/logger'
+import type { AdminUploadItemResult } from '#shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
 
 // 管理员音频时长/大小限制已抽入 sys_config 运营可调（见 uploadLimitChecker），使用处动态读取
