@@ -113,7 +113,7 @@ export default defineEventHandler(async (event) => {
 
   // 单元下拉：该用户实际有录音的单元
   const unitOptions = await query<AdminUserUnitOption>(
-    `SELECT DISTINCT s.unit_id AS unitId, u.title AS unitTitle
+    `SELECT DISTINCT s.unit_id AS unitId, u.title AS unitTitle, u.sort_order AS sortOrder
      FROM recording r
      JOIN segment s ON r.segment_id = s.id
      JOIN unit u ON s.unit_id = u.id

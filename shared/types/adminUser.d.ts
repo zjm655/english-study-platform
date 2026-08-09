@@ -110,6 +110,7 @@ export interface AdminUserRecordingListItem {
 export interface AdminUserUnitOption {
   unitId: number
   unitTitle: string
+  sortOrder?: number
 }
 
 /** 用户录音记录列表响应（服务端分页 + 单元下拉数据） */

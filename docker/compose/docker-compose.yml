@@ -47,8 +47,6 @@ services:
       # 覆盖为容器间服务名（compose 网络内 db 即 mysql 容器）
       NUXT_DB_HOST: db
       NUXT_DB_PORT: 3306
-    ports:
-      - "3000:3000"
     depends_on:
       migrate:
         condition: service_completed_successfully
