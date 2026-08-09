@@ -7,14 +7,10 @@ import {
 } from '#server/services/materialJob'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { query } from '#server/utils/db'
-import {
-  validateError,
-  validateSuccess,
-  uploadMaterialSchema,
-  uploadMaterialAdminSchema,
-} from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
 import type { UploadMaterialResult } from '#shared/types/material'
 import { isAdminOrAbove } from '#shared/utils/role'
+import { uploadMaterialSchema, uploadMaterialAdminSchema } from '#shared/schemas/material'
 
 /**
  * 上传自定义材料（异步任务模式）

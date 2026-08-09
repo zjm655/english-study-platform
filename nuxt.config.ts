@@ -97,6 +97,11 @@ export default defineNuxtConfig({
   },
 
   nitro: {
+    typescript: {
+      tsConfig: {
+        exclude: ['**/__tests__/**', '**/*.spec.ts', '**/*.test.ts'],
+      },
+    },
     rollupConfig: {
       plugins: [
         {

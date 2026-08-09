@@ -1,5 +1,6 @@
 import { query } from '#server/utils/db'
-import { reviewAccessLogListSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { reviewAccessLogListSchema } from '#shared/schemas/adminLogs'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { ReviewAccessLogItem, ReviewAccessLogListResult } from '#shared/types/adminLogs'

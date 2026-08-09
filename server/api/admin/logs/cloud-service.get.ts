@@ -1,9 +1,6 @@
 import { query } from '#server/utils/db'
-import {
-  adminCloudServiceLogListSchema,
-  validateSuccess,
-  validateError,
-} from '#server/utils/validate'
+import { adminCloudServiceLogListSchema } from '#shared/schemas/adminLogs'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 

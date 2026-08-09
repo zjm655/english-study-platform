@@ -1,5 +1,6 @@
 import { withTransaction } from '#server/utils/db'
-import { validateError, validateSuccess, favSegmentSchema } from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
+import { favSegmentSchema } from '#shared/schemas/user'
 import { resolveAndEnsureGuestUserId } from '#server/services/guestEnsure'
 import type { RowDataPacket } from 'mysql2'
 

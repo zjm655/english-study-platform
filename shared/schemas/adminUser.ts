@@ -34,9 +34,9 @@ export const adminUserStatusSchema = z.object({
   status: z.number().refine((v) => v === 0 || v === 1, 'status 必须为 0 或 1'),
 })
 
-/** 管理员角色变更校验（仅普通用户↔管理员；超管唯一且不可经 API 分配） */
+/** 管理员角色变更校验（仅普通用户↔管理员；超管唯一且不可经 API 分配；JSON body 无需 coerce） */
 export const adminUserRoleSchema = z.object({
-  role: z.coerce.number().refine((v) => v === 0 || v === 1, 'role 必须为 0 或 1'),
+  role: z.number().refine((v) => v === 0 || v === 1, 'role 必须为 0 或 1'),
 })
 
 /** 管理员查看某用户录音记录列表查询参数校验 */
@@ -80,8 +80,8 @@ export type AdminUserUpdatePayload = z.input<typeof adminUserUpdateSchema>
 /** 封禁/解封载荷（z.input） */
 export type AdminUserStatusPayload = z.input<typeof adminUserStatusSchema>
 
-/** 角色变更载荷（schema 含 z.coerce，input 退化为 unknown，故取 z.output） */
-export type AdminUserRolePayload = z.output<typeof adminUserRoleSchema>
+/** 角色变更载荷（JSON body，z.input） */
+export type AdminUserRolePayload = z.input<typeof adminUserRoleSchema>
 
 /** 用户录音记录列表查询参数（query string，后端 zod coerce；从 schema 推导，全可选） */
 export type AdminUserRecordingListQuery = QueryInput<typeof adminUserRecordingListSchema>

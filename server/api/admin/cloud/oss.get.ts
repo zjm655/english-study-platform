@@ -1,6 +1,7 @@
 import { estimateServiceUsage } from '#server/services/cloudEstimate'
 import { getOssBucketStat } from '#server/utils/oss'
-import { adminStatsQuerySchema, validateSuccess, validateError } from '#server/utils/validate'
+import { adminStatsQuerySchema } from '#shared/schemas/adminStats'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 

@@ -1,5 +1,6 @@
 import { updateNotice } from '#server/services/notice'
-import { adminNoticeUpdateSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { adminNoticeUpdateSchema } from '#shared/schemas/notice'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 

@@ -38,9 +38,9 @@ export const adminUploadSchema = z.object({
     .transform((v) => v ?? 0),
 })
 
-// 材料上传记录更新校验
+// 材料上传记录更新校验（JSON body，无需 coerce）
 export const updateMaterialRecordSchema = z.object({
-  isPublic: z.coerce.number().refine((v) => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
+  isPublic: z.number().refine((v) => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
 })
 
 // 材料上传记录状态批量查询（轮询轻接口）：ids 为逗号分隔正整数串，去重后 1~50 个
@@ -62,5 +62,5 @@ export const reviewQuerySchema = z.object({
 
 // ============== 请求参数类型（推导自 schema，供 .d.ts re-export） ==============
 
-/** 更新材料记录参数（schema 含 z.coerce，input 退化为 unknown，故取 z.output） */
-export type UpdateMaterialRecordPayload = z.output<typeof updateMaterialRecordSchema>
+/** 更新材料记录参数（JSON body，z.input） */
+export type UpdateMaterialRecordPayload = z.input<typeof updateMaterialRecordSchema>

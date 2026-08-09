@@ -1,10 +1,11 @@
 import { query } from '#server/utils/db'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
-import { validateError, validateSuccess, reviewQuerySchema } from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
 import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { SegmentRow } from '#server/types/db'
 import type { ReviewMaterialItem } from '#shared/types/review'
 import type { Question } from '#shared/types/unit'
+import { reviewQuerySchema } from '#shared/schemas/material'
 
 /** 将数据库 JSON 列的多种形态（数组/字符串/null）规整为 Question[] | null */
 function parseQuestions(raw: Question[] | string | null): Question[] | null {

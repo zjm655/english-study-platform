@@ -1,5 +1,6 @@
 import { query, pool } from '#server/utils/db'
-import { validateError, validateSuccess, updateMaterialRecordSchema } from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
+import { updateMaterialRecordSchema } from '#shared/schemas/material'
 
 /**
  * 更新材料上传记录（目前仅支持修改 is_public）

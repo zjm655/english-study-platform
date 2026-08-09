@@ -1,5 +1,6 @@
 import { withTransaction } from '#server/utils/db'
-import { validateError, validateSuccess, progressSchema } from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
+import { progressSchema } from '#shared/schemas/user'
 import { resolveAndEnsureGuestUserId } from '#server/services/guestEnsure'
 import type { UserProgressRow } from '#server/types/db'
 import type { ResultSetHeader } from 'mysql2'

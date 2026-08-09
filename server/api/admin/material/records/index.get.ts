@@ -1,9 +1,6 @@
 import { query } from '#server/utils/db'
-import {
-  adminMaterialRecordListSchema,
-  validateSuccess,
-  validateError,
-} from '#server/utils/validate'
+import { adminMaterialRecordListSchema } from '#shared/schemas/adminMaterialRecord'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { ROLE_ADMIN, isAdminOrAbove } from '#shared/utils/role'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'

@@ -1,6 +1,7 @@
 import { readBody } from 'h3'
 import { query } from '#server/utils/db'
-import { adminUserBatchSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { adminUserBatchSchema } from '#shared/schemas/batch'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/services/adminLog'
 import { isAdminOrAbove } from '#shared/utils/role'
 import { ensurePermission } from '#server/services/permission'

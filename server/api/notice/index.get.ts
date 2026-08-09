@@ -1,5 +1,6 @@
 import { getActiveNotices } from '#server/services/notice'
-import { noticeListSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { noticeListSchema } from '#shared/schemas/notice'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 
 /**

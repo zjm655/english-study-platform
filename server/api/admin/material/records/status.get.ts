@@ -1,8 +1,9 @@
-import { validateError, validateSuccess, recordStatusQuerySchema } from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
 import { fetchRecordStatuses } from '#server/services/materialRecordStatus'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type { MaterialRecordStatusItem } from '#shared/types/material'
+import { recordStatusQuerySchema } from '#shared/schemas/material'
 
 /**
  * 批量查询上传任务状态（管理端轮询轻接口，可查所有用户的记录）

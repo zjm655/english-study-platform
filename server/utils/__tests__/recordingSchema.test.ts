@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { uploadRecordingSchema, progressSchema } from '../validate'
+import { uploadRecordingSchema, progressSchema } from '#shared/schemas/user'
 
 // 回归测试：录音上传和进度更新 schema 校验
 // 这些 schema 是 recording 和 user/progress 端点的入参防线，

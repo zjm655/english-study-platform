@@ -4,7 +4,7 @@ import {
   userProfileUpdateSchema,
   loginSchema,
   registerSchema,
-} from '../validate'
+} from '#shared/schemas/user'
 
 /** 取第一条校验错误消息，便于断言文案 */
 function firstMessage(parsed: { success: boolean; error?: { issues: { message: string }[] } }) {

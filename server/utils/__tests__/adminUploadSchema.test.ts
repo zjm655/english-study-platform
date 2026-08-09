@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { adminUploadSchema } from '../validate'
+import { adminUploadSchema } from '#shared/schemas/material'
 
 // 回归测试：堵住 C1/C3 测试盲区。
 // handler 从 multipart formData 拿到的 unitId/isPublic 是字符串或缺失(null)，

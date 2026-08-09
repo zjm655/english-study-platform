@@ -1,10 +1,7 @@
 import { readBody } from 'h3'
 import { query, withTransaction } from '#server/utils/db'
-import {
-  adminMaterialRecordBatchSchema,
-  validateSuccess,
-  validateError,
-} from '#server/utils/validate'
+import { adminMaterialRecordBatchSchema } from '#shared/schemas/batch'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/services/adminLog'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { reprocessRecord } from '#server/services/materialReprocess'

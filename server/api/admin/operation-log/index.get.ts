@@ -1,5 +1,6 @@
 import { query } from '#server/utils/db'
-import { adminOperationLogListSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { adminOperationLogListSchema } from '#shared/schemas/adminOperationLog'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type {

@@ -1,9 +1,10 @@
 import { query } from '#server/utils/db'
 import { signUrl, WORD_EXPIRE } from '#server/utils/oss'
-import { validateError, validateSuccess, reviewQuerySchema } from '#server/utils/validate'
+import { validateError, validateSuccess } from '#server/utils/validate'
 import { resolveEffectiveUserId } from '#server/utils/guestUserId'
 import type { ReviewVocabItem } from '#shared/types/review'
 import type { VocabularyRow, UserProgressRow } from '#server/types/db'
+import { reviewQuerySchema } from '#shared/schemas/material'
 
 /** 将数据库行 + 签名 URL 列表转换为复习词汇项 */
 export function rowsToReviewVocab(

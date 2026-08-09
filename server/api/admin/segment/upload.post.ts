@@ -1,9 +1,10 @@
 import { readFormData } from 'h3'
-import { adminUploadSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { enqueueAdminMaterial, processAdminBatch } from '#server/services/adminUpload'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
+import { adminUploadSchema } from '#shared/schemas/material'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 

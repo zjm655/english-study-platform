@@ -1,6 +1,7 @@
 import { readBody } from 'h3'
 import { query } from '#server/utils/db'
-import { adminUserUpdateSchema, validateSuccess, validateError } from '#server/utils/validate'
+import { adminUserUpdateSchema } from '#shared/schemas/adminUser'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/services/adminLog'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'

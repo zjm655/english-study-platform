@@ -1,9 +1,6 @@
 import { readBody } from 'h3'
-import {
-  adminMaterialRecordReprocessSchema,
-  validateError,
-  validateSuccess,
-} from '#server/utils/validate'
+import { adminMaterialRecordReprocessSchema } from '#shared/schemas/adminMaterialRecord'
+import { validateError, validateSuccess } from '#server/utils/validate'
 import { isUploadQueueFull } from '#server/services/materialJob'
 import { reprocessRecord } from '#server/services/materialReprocess'
 import { ensurePermission } from '#server/services/permission'

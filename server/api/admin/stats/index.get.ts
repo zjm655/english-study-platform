@@ -1,6 +1,7 @@
 import { query } from '#server/utils/db'
 import { startDateOf } from '#server/utils/dateSeries'
-import { adminStatsQuerySchema, validateSuccess, validateError } from '#server/utils/validate'
+import { adminStatsQuerySchema } from '#shared/schemas/adminStats'
+import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
 import type {
