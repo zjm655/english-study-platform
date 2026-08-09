@@ -1,5 +1,6 @@
 import { withTransaction } from '#server/utils/db'
 import { accumulateStudyTime } from '#server/services/studyTime'
+import { studyTimeSchema } from '#shared/schemas/user'
 import type { CheckinStats } from '#shared/types/user'
 import type { ZodSafeParseResult } from 'zod'
 

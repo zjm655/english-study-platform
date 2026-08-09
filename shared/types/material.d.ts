@@ -1,4 +1,6 @@
 /** 上传材料响应（异步任务模式：秒回记录 ID，处理进度轮询上传记录） */
+export type { UpdateMaterialRecordPayload } from '../schemas/material'
+
 export interface UploadMaterialResult {
   recordId: number
   /** 入队时前方排队任务数 */
@@ -45,9 +47,4 @@ export interface MaterialRecordStatusItem {
   title: string
   /** 仅 status='queued' 时返回：前方排队任务数 */
   queuedAhead?: number
-}
-
-/** 更新材料记录参数 */
-export interface UpdateMaterialRecordPayload {
-  isPublic: number
 }

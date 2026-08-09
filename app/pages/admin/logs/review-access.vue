@@ -2,16 +2,16 @@
 import { useReviewAccessLogList, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
 import type { ReviewTargetType } from '#shared/utils/permission'
-import type { ReviewAccessLogItem } from '#shared/types/adminLogs'
+import type { ReviewAccessLogItem, ReviewAccessLogListQuery } from '#shared/types/adminLogs'
 
 definePageMeta({ layout: 'admin', title: '审核留痕' })
 useSeoMeta({ title: '审核留痕 - 管理后台' })
 
 const { isLoading, execute } = useReviewAccessLogList()
 
-// 筛选
-const filterTargetType = ref('')
-const filterReasonCategory = ref('')
+// 筛选（targetType/reasonCategory 由 schema 收窄为枚举，ref 类型对齐 query 字段）
+const filterTargetType = ref<NonNullable<ReviewAccessLogListQuery['targetType']> | ''>('')
+const filterReasonCategory = ref<NonNullable<ReviewAccessLogListQuery['reasonCategory']> | ''>('')
 const filterKeyword = ref('')
 const filterStartDate = ref('')
 const filterEndDate = ref('')

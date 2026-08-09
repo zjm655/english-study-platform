@@ -91,8 +91,8 @@ export default defineEventHandler(async (event) => {
   const { service, days } = parsed.data
 
   // 区间终点取 DB 时区 CURDATE()（与 SQL 聚合同源，避免跨时区部署错位一天）
-  const [todayRows] = await query<{ today: string }>('SELECT CURDATE() AS today')
-  const today = todayRows[0]?.today ?? new Date().toISOString().slice(0, 10)
+  const [todayRow] = await query<{ today: string }>('SELECT CURDATE() AS today')
+  const today = todayRow?.today ?? new Date().toISOString().slice(0, 10)
   const startDate = startDateOf(today, days)
 
   let series: DailySeries

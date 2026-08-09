@@ -70,7 +70,8 @@ export const getAdminUserDetail = (id: number) => {
 export const updateAdminUserRole = (id: number, role: number) => {
   return request.json<null>(`${adminUserPath}/${id}/role`, {
     method: 'PUT',
-    body: { role } satisfies AdminUserRolePayload,
+    // 角色仅 0/1（超管不经此 API 分配）；schema output 收窄为 0|1，调用链 editRole 为 number，边界处收窄，后端 schema 仍会校验
+    body: { role: role as AdminUserRolePayload['role'] } satisfies AdminUserRolePayload,
   })
 }
 

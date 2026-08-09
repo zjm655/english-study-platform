@@ -1,5 +1,6 @@
 // server/api/user/profile.put.ts
 import { query } from '#server/utils/db'
+import { userProfileUpdateSchema } from '#shared/schemas/user'
 import type { ResPayload } from '#shared/types/request'
 
 /**

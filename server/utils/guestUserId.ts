@@ -6,6 +6,7 @@
 // - 否则读 guest_token cookie → verifyGuestToken → gk → 查 user 表
 // - 游客未实体化（无 user 行）→ 返回 null（调用方决定是否懒实体化）
 // - 查库失败 → null（静默降级，不阻断业务）
+import type { H3Event } from 'h3'
 import { readGuestKey } from '#server/utils/guest'
 import { query } from '#server/utils/db'
 

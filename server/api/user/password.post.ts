@@ -1,6 +1,7 @@
 // server/api/user/password.post.ts
 import bcrypt from 'bcryptjs'
 import { query } from '#server/utils/db'
+import { passwordChangeSchema } from '#shared/schemas/user'
 import type { ResPayload } from '#shared/types/request'
 
 /**

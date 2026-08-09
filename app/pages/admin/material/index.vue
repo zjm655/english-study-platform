@@ -165,7 +165,7 @@ useSeoMeta({ title: '材料管理 - 管理后台' })
 
 // 筛选条件
 const filterUnitId = ref<number>()
-const filterIsPublic = ref<number>()
+const filterIsPublic = ref<0 | 1>()
 const filterKeyword = ref('')
 
 // 分页

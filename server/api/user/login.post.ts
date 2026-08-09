@@ -3,6 +3,7 @@ import type { ZodSafeParseResult } from 'zod'
 import type { ResPayload } from '#shared/types/request'
 import type { UserRow } from '#server/types/db'
 
+import { loginSchema } from '#shared/schemas/user'
 import { query } from '#server/utils/db'
 import { signAvatarUrl } from '#server/utils/oss'
 import { mergeGuestData } from '#server/services/guestMerge'

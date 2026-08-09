@@ -1,4 +1,5 @@
 /** 管理员操作日志共享类型（全局查看 + 用户维度查看） */
+export type { AdminOperationLogListQuery } from '../schemas/adminOperationLog'
 
 /** 操作日志列表项 */
 export interface AdminOperationLogItem {
@@ -9,14 +10,6 @@ export interface AdminOperationLogItem {
   targetId: number
   detail: Record<string, unknown> | null // JSON 变更快照
   createdAt: string
-}
-
-/** 操作日志列表查询参数 */
-export interface AdminOperationLogListQuery {
-  page?: number
-  pageSize?: number
-  action?: string // 操作类型筛选，如 'user.ban'
-  keyword?: string // 模糊搜索 target_type 或 CAST(target_id AS CHAR)
 }
 
 /** 操作日志列表响应（服务端分页） */

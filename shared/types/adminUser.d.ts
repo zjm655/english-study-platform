@@ -1,6 +1,13 @@
 /** 管理员用户管理共享类型（列表 / 资料修改 / 封禁） */
 
 import type { Recording } from './recording'
+export type {
+  AdminUserListQuery,
+  AdminUserUpdatePayload,
+  AdminUserStatusPayload,
+  AdminUserRolePayload,
+  AdminUserRecordingListQuery,
+} from '../schemas/adminUser'
 
 /** 用户列表项（不含 passwordHash） */
 export interface AdminUserListItem {
@@ -19,32 +26,12 @@ export interface AdminUserListItem {
 /** 用户状态筛选枚举 */
 export type AdminUserState = 'everyone' | 'all' | 'normal' | 'banned' | 'deleted' | 'guest'
 
-/** 用户列表查询参数（query string，后端 zod coerce） */
-export interface AdminUserListQuery {
-  page?: number
-  pageSize?: number
-  keyword?: string // 按账号/昵称模糊搜索
-  state?: AdminUserState
-}
-
 /** 用户列表响应（服务端分页） */
 export interface AdminUserListResult {
   list: AdminUserListItem[]
   total: number
   page: number
   pageSize: number
-}
-
-/** 资料修改载荷（nickname / email / level；本次不含角色变更） */
-export interface AdminUserUpdatePayload {
-  nickname?: string | null
-  email?: string | null
-  level?: number // 0-3
-}
-
-/** 封禁/解封载荷 */
-export interface AdminUserStatusPayload {
-  status: number // 0 封禁 1 正常
 }
 
 // ============== 用户详情 ==============
@@ -80,18 +67,6 @@ export interface AdminUserUnitProgress {
 
 /** 录音记录分数档筛选 */
 export type AdminUserRecordingScoreBand = 'all' | 'high' | 'mid' | 'low'
-
-/** 用户录音记录列表查询参数（query string，后端 zod coerce） */
-export interface AdminUserRecordingListQuery {
-  page?: number
-  pageSize?: number
-  phase?: 3 | 4 // 3 配音 / 4 跟读
-  unitId?: number
-  keyword?: string // 按片段标题模糊搜索
-  scoreBand?: AdminUserRecordingScoreBand
-  startDate?: string // YYYY-MM-DD
-  endDate?: string // YYYY-MM-DD
-}
 
 /** 用户录音记录列表项（仅元数据，不含音频 URL / 识别内容） */
 export interface AdminUserRecordingListItem {
@@ -145,11 +120,4 @@ export interface AdminUserDetail {
   }
   stats: AdminUserLearningStats
   unitProgress: AdminUserUnitProgress[]
-}
-
-// ============== 角色变更 ==============
-
-/** 角色变更载荷 */
-export interface AdminUserRolePayload {
-  role: number // 0 普通用户 1 管理员
 }

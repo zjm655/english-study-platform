@@ -1,4 +1,5 @@
 /** 系统公告共享类型（用户端消息中心 / 管理端公告管理） */
+export type { NoticeCreatePayload, NoticeUpdatePayload } from '../schemas/notice'
 
 /** 公告状态：草稿 / 已发布 / 已撤回（定时发布 = published + 未来 publishAt，无独立 scheduled 态） */
 export type NoticeStatus = 'draft' | 'published' | 'revoked'
@@ -31,26 +32,6 @@ export interface NoticeListResult {
 /** 公告详情（用户端，附带创建者昵称，仅管理场景需要时填充） */
 export interface NoticeDetail extends Notice {
   createdByName?: string
-}
-
-/** 公告创建载荷（管理端） */
-export interface NoticeCreatePayload {
-  title: string
-  content: string
-  publishAt?: string | null // 缺省时发布态取 NOW
-  expireAt?: string | null
-  isPinned?: boolean
-  status?: Extract<NoticeStatus, 'draft' | 'published'> // 创建仅允许 draft/published
-}
-
-/** 公告更新载荷（管理端，全字段可选，受状态转移规则约束） */
-export interface NoticeUpdatePayload {
-  title?: string
-  content?: string
-  publishAt?: string | null
-  expireAt?: string | null
-  isPinned?: boolean
-  status?: NoticeStatus // 更新可含 revoked
 }
 
 /** 管理端公告列表项（附带阅读数与创建者昵称） */

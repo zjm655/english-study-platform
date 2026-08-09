@@ -31,6 +31,7 @@ function makeRow(overrides: Partial<ReviewRow> = {}): ReviewRow {
       { question: 'What is the warning about?', options: ['A', 'B', 'C', 'D'], answer: 'B' },
     ],
     is_public: 1,
+    nls_check: 0,
     sort_order: 1,
     createdAt: '2026-01-01T00:00:00.000Z',
     seg_media_key: 'segments/1.mp3',

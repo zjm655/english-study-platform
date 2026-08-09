@@ -3,6 +3,7 @@ import { withTransaction } from '#server/utils/db'
 import { readGuestKey, setGuestCookie } from '#server/utils/guest'
 import { ensureGuestUser, getGuestDailyStudyCap } from '#server/services/guestUser'
 import { accumulateStudyTime } from '#server/services/studyTime'
+import { studyTimeSchema } from '#shared/schemas/user'
 import type { GuestStudyResult } from '#shared/types/user'
 import type { ZodSafeParseResult } from 'zod'
 

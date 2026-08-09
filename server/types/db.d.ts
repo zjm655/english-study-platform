@@ -42,6 +42,7 @@ export interface SegmentRow {
   translation: string | null
   questions: Question[] | string | null // json 列：mysql2 自动解析为数组，兼容字符串
   is_public: number // 0不公开 1公开
+  nls_check: number // 是否经 NLS 语音校对: 0否 1是（迁移 032）
   sort_order: number
   createdAt: string
   deleted_at: string | null // 软删除时间（NULL 未删除）

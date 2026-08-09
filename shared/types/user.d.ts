@@ -1,11 +1,12 @@
-export interface LoginPayload {
-  account: string
-  password: string
-  /** 图形验证码 token（登录连错达阈值后必填） */
-  captchaToken?: string
-  /** 图形验证码用户输入（登录连错达阈值后必填） */
-  captchaCode?: string
-}
+// 请求参数类型从 zod schema 推导（单一真相源在 shared/schemas/user.ts）。
+// 响应类型（CaptchaResult/LoginResPayload 等）无 schema 对应，保留手写。
+export type {
+  LoginPayload,
+  RegisterPayload,
+  UserProfileUpdatePayload,
+  PasswordChangePayload,
+  StudyTimePayload,
+} from '../schemas/user'
 
 /** 图形验证码获取结果 */
 export interface CaptchaResult {
@@ -25,18 +26,6 @@ export interface LoginResPayload {
   permissions?: string[]
 }
 
-export interface RegisterPayload {
-  nickname?: string
-  account: string
-  email?: string
-  password1: string
-  password2: string
-  /** 图形验证码 token（注册必填） */
-  captchaToken: string
-  /** 图形验证码用户输入（注册必填） */
-  captchaCode: string
-}
-
 export interface CheckinStats {
   totalCheckinDays: number
   lastCheckinTime: string | null
@@ -51,18 +40,6 @@ export interface GuestStudyResult {
   guestDisplayId: string
   /** 已实体化并累计时返回最新统计；未落库（首访/0 秒基准/残留 cookie）为 null */
   stats: CheckinStats | null
-}
-
-/** 编辑资料入参（昵称 1-25 字） */
-export interface UserProfileUpdatePayload {
-  nickname: string
-}
-
-/** 修改密码入参（成功后后端会清除 token cookie） */
-export interface PasswordChangePayload {
-  oldPassword: string
-  newPassword: string
-  confirmPassword: string
 }
 
 /** 头像上传结果 */

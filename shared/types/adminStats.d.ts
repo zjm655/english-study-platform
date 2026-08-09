@@ -1,4 +1,5 @@
 /** 运营统计共享类型（API 调用埋点聚合看板） */
+export type { AdminStatsQuery } from '../schemas/adminStats'
 
 /** 概览指标（选定时间范围 + 今日） */
 export interface StatsSummary {
@@ -33,11 +34,6 @@ export interface AdminStatsResult {
   dailyTrend: DailyTrendItem[]
   topPaths: TopPathItem[] // 调用量 Top 10
   errorPaths: TopPathItem[] // HTTP≥400 路径分布 Top 10
-}
-
-/** 查询参数（query string，后端 zod coerce） */
-export interface AdminStatsQuery {
-  days?: number // 时间范围天数，默认 7，最大 90
 }
 
 /** 云账户余额（阿里云 BSS，探索性） */

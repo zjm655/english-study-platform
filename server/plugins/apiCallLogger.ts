@@ -12,6 +12,7 @@
 //
 // 性能保证：afterResponse 中仅做纯内存取值 + fire-and-forget 调用，对请求延迟零影响。
 import { randomUUID } from 'node:crypto'
+import type { H3Event } from 'h3'
 import {
   logApiCall,
   flushApiCallLog,

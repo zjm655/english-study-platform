@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { useCloudServiceLogList, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
-import type { CloudServiceLogItem } from '#shared/types/adminLogs'
+import type { CloudServiceLogItem, CloudServiceLogListQuery } from '#shared/types/adminLogs'
 
 definePageMeta({ layout: 'admin', title: '云服务调用日志' })
 useSeoMeta({ title: '云服务调用日志 - 管理后台' })
 
 const { isLoading, execute } = useCloudServiceLogList()
 
-// 筛选
-const filterService = ref('')
+// 筛选（service 由 schema 收窄为枚举，ref 类型对齐 query 字段）
+const filterService = ref<NonNullable<CloudServiceLogListQuery['service']> | ''>('')
 const filterSuccess = ref<string>('') // '' / '1' / '0'
 const filterOperationKeyword = ref('')
 const filterStartDate = ref('')
@@ -34,7 +34,10 @@ async function loadList() {
     page: page.value,
     pageSize: pageSize.value,
     service: filterService.value || undefined,
-    success: filterSuccess.value !== '' ? Number(filterSuccess.value) : undefined,
+    success:
+      filterSuccess.value === ''
+        ? undefined
+        : (Number(filterSuccess.value) as NonNullable<CloudServiceLogListQuery['success']>),
     operationKeyword: filterOperationKeyword.value.trim() || undefined,
     startDate: filterStartDate.value || undefined,
     endDate: filterEndDate.value || undefined,

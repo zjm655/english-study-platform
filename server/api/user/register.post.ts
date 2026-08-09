@@ -1,5 +1,6 @@
 // server/api/user/register.post.ts
 import { query, pool } from '#server/utils/db'
+import { registerSchema } from '#shared/schemas/user'
 import type { RegisterPayload } from '#shared/types/user'
 import type { ZodSafeParseResult } from 'zod'
 import type { ResPayload } from '#shared/types/request'

@@ -1,5 +1,10 @@
 import type { MaterialUploadStatus } from './material'
 
+export type {
+  AdminMaterialRecordListQuery,
+  AdminMaterialRecordReprocessPayload,
+} from '../schemas/adminMaterialRecord'
+
 /** 上传来源筛选 */
 export type UploadSource = 'all' | 'user' | 'admin'
 
@@ -43,25 +48,10 @@ export interface AdminMaterialRecordDetail {
   duration?: number | null
 }
 
-/** 管理员上传记录列表查询参数 */
-export interface AdminMaterialRecordListQuery {
-  page?: number
-  pageSize?: number
-  status?: MaterialUploadStatus
-  source?: UploadSource
-  startDate?: string
-  endDate?: string
-}
-
 /** 管理员上传记录列表响应 */
 export interface AdminMaterialRecordListResult {
   list: AdminMaterialRecordListItem[]
   total: number
   page: number
   pageSize: number
-}
-
-/** 重处理请求参数 */
-export interface AdminMaterialRecordReprocessPayload {
-  unitId: number
 }

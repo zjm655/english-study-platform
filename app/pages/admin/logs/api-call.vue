@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { useApiCallLogList, useTableSelection } from '~/composables/admin'
 import { adminLogsExportPath } from '~/api/paths'
-import type { ApiCallLogItem } from '#shared/types/adminLogs'
+import type { ApiCallLogItem, ApiCallLogListQuery } from '#shared/types/adminLogs'
 
 definePageMeta({ layout: 'admin', title: 'API 调用日志' })
 useSeoMeta({ title: 'API 调用日志 - 管理后台' })
 
 const { isLoading, execute } = useApiCallLogList()
 
-// 筛选
-const filterMethod = ref('')
-const filterStatusCodeGroup = ref('')
+// 筛选（method/statusCodeGroup 由 schema 收窄为枚举，ref 类型对齐 query 字段）
+const filterMethod = ref<NonNullable<ApiCallLogListQuery['method']> | ''>('')
+const filterStatusCodeGroup = ref<NonNullable<ApiCallLogListQuery['statusCodeGroup']> | ''>('')
 const filterPathKeyword = ref('')
 const filterUserId = ref<number | undefined>(undefined)
 const filterStartDate = ref('')
@@ -35,7 +35,7 @@ async function loadList() {
     page: page.value,
     pageSize: pageSize.value,
     method: filterMethod.value || undefined,
-    statusCodeGroup: (filterStatusCodeGroup.value as 'success' | '4xx' | '5xx') || undefined,
+    statusCodeGroup: filterStatusCodeGroup.value || undefined,
     pathKeyword: filterPathKeyword.value.trim() || undefined,
     userId: filterUserId.value || undefined,
     startDate: filterStartDate.value || undefined,
