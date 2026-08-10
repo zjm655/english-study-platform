@@ -1,9 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest'
-import { fillDailyTrendZeros } from '../index.get'
+import handler, { fillDailyTrendZeros } from '../index.get'
+import { query } from '#server/utils/db'
 
 // Nuxt 自动导入的符号在 vitest node 环境需手动挂全局（同 user.test.ts 先例）
 vi.hoisted(() => {
   ;(globalThis as unknown as Record<string, unknown>).defineEventHandler = (h: unknown) => h
+  ;(globalThis as unknown as Record<string, unknown>).getQuery = (event: unknown) =>
+    (event as Record<string, unknown>).__query ?? {}
 })
 
 // 模块加载依赖链：db.ts 顶层读 useRuntimeConfig、permission.ts 透传引入 oss.ts，
@@ -49,5 +53,37 @@ describe('fillDailyTrendZeros - 运营统计按天补零', () => {
     expect(items.every((i) => i.count === 0 && i.errorCount === 0 && i.avgDuration === 0)).toBe(
       true,
     )
+  })
+})
+
+describe('stats handler 集成 - today 取 DB 时区字符串（回归 329d4e7）', () => {
+  it('today 查询使用 DATE_FORMAT 强制字符串，且 dailyTrend 序列完整', async () => {
+    // 修复点：today 查询必须用 DATE_FORMAT 输出 YYYY-MM-DD 字符串（与 trend.get.ts 同源）。
+    // 裸 CURDATE() 在 mysql2 dateStrings=false 下返回 JS Date 对象，模板字符串拼出 Invalid Date →
+    // startDateOf 产出 NaN 日期 → fillDailyTrendZeros while 不执行 → dailyTrend 全空。
+    vi.mocked(query)
+      .mockResolvedValueOnce([
+        { totalCalls: 10, avgDuration: 50, errorRate: 0, businessErrorRate: 0, activeUsers: 1, unauthCalls: 0, todayCalls: 3 },
+      ]) // summary
+      .mockResolvedValueOnce([{ today: '2026-08-10' }]) // today（DATE_FORMAT 输出的字符串）
+      .mockResolvedValueOnce([{ date: '2026-08-10', count: 3, errorCount: 0, avgDuration: 50 }]) // trendRows
+      .mockResolvedValueOnce([]) // topRows
+      .mockResolvedValueOnce([]) // errRows
+
+    const res = await handler({
+      __query: { days: 7 },
+      context: { user: { role: 1, permissions: ['view_stats'] } },
+    } as any)
+
+    // 固化修复：第 2 次查询（today）必须走 DATE_FORMAT（改回 CURDATE() 时此断言失败）
+    const [todaySql] = vi.mocked(query).mock.calls[1]!
+    expect(todaySql).toContain("DATE_FORMAT(CURDATE(), '%Y-%m-%d')")
+
+    // 行为验证：字符串 today → dailyTrend 完整 7 天序列，数据正确落位
+    expect(res.code).toBe(200)
+    expect(res.data!.dailyTrend).toHaveLength(7)
+    expect(res.data!.dailyTrend[0]!.date).toBe('2026-08-04')
+    expect(res.data!.dailyTrend[6]!.date).toBe('2026-08-10')
+    expect(res.data!.dailyTrend[6]!.count).toBe(3)
   })
 })

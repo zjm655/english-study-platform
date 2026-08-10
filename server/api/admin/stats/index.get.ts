@@ -99,8 +99,12 @@ export default defineEventHandler(async (event) => {
   }
 
   // 2. 按天趋势（DATE_FORMAT 直接输出字符串，避免 mysql2 将 DATE 转为 JS Date 的时区问题）
-  //    区间终点取 DB 时区 CURDATE()（与 SQL 聚合同源），缺数据日期由 fillDailyTrendZeros 补 0
-  const [todayRow] = await query<{ today: string }>('SELECT CURDATE() AS today')
+  //    区间终点取 DB 时区 CURDATE()（与 SQL 聚合同源），缺数据日期由 fillDailyTrendZeros 补 0。
+  //    注意：today 查询必须用 DATE_FORMAT 强制输出字符串——裸 CURDATE() 在 mysql2 dateStrings=false
+  //    下返回 JS Date 对象，模板字符串拼出 Invalid Date 导致 dailyTrend 全空（回归 329d4e7）。
+  const [todayRow] = await query<{ today: string }>(
+    "SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today",
+  )
   const today = todayRow?.today ?? new Date().toISOString().slice(0, 10)
   const trendRows = await query<Record<string, string | number>>(
     `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS date,

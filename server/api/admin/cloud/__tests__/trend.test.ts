@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest'
-import { fillDailyZeros, type TrendAggRow } from '../trend.get'
+import handler, { fillDailyZeros, type TrendAggRow } from '../trend.get'
 import { startDateOf } from '#server/utils/dateSeries'
+import { query } from '#server/utils/db'
 
 // Nuxt 自动导入的符号在 vitest node 环境需手动挂全局（同 user.test.ts 先例）
 vi.hoisted(() => {
@@ -105,5 +107,34 @@ describe('startDateOf - 区间起点推算', () => {
 
   it('days=1：起点 = 终点（单日区间）', () => {
     expect(startDateOf('2026-08-08', 1)).toBe('2026-08-08')
+  })
+})
+
+describe('trend handler 集成 - today 取 DB 时区字符串（回归 329d4e7）', () => {
+  it('today 查询使用 DATE_FORMAT 强制字符串，且序列完整含数据落位', async () => {
+    // 修复点：today 查询必须用 DATE_FORMAT 输出 YYYY-MM-DD 字符串。mysql2 dateStrings=false 时
+    // 裸 CURDATE() 的 DATE 列返回 JS Date 对象，模板字符串拼出 Invalid Date → 补零序列全空。
+    // 329d4e7 把 todayRows[0]?.today 改为 todayRow?.today 后不再走 fallback，暴露该问题。
+    vi.mocked(query)
+      .mockResolvedValueOnce([{ today: '2026-08-10' }]) // DATE_FORMAT 输出的字符串
+      .mockResolvedValueOnce([
+        { date: '2026-08-10', call_count: 6, total_duration: 1378, total_tokens: 0 },
+      ])
+
+    const res = await handler({
+      __query: { service: 'oss', days: 7 },
+      context: { user: { role: 1, permissions: ['view_stats'] } },
+    } as any)
+
+    // 固化修复：today 查询必须走 DATE_FORMAT（改回 CURDATE() 时此断言失败）
+    const [todaySql] = vi.mocked(query).mock.calls[0]!
+    expect(todaySql).toContain("DATE_FORMAT(CURDATE(), '%Y-%m-%d')")
+
+    // 行为验证：字符串 today → 完整 7 天序列，数据正确落位
+    expect(res.code).toBe(200)
+    expect(res.data!.dates).toHaveLength(7)
+    expect(res.data!.dates[6]).toBe('2026-08-10')
+    expect(res.data!.callCounts).toHaveLength(7)
+    expect(res.data!.callCounts[6]).toBe(6)
   })
 })

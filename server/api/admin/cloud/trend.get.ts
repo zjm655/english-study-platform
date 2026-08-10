@@ -90,8 +90,12 @@ export default defineEventHandler(async (event) => {
 
   const { service, days } = parsed.data
 
-  // 区间终点取 DB 时区 CURDATE()（与 SQL 聚合同源，避免跨时区部署错位一天）
-  const [todayRow] = await query<{ today: string }>('SELECT CURDATE() AS today')
+  // 区间终点取 DB 时区 CURDATE()（与 SQL 聚合同源，避免跨时区部署错位一天）。
+  // 必须用 DATE_FORMAT 强制输出 YYYY-MM-DD 字符串：mysql2 dateStrings=false 时 CURDATE() 的
+  // DATE 列会被转为 JS Date 对象，模板字符串拼接会产出 Invalid Date 导致补零序列全空（回归 329d4e7）。
+  const [todayRow] = await query<{ today: string }>(
+    "SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today",
+  )
   const today = todayRow?.today ?? new Date().toISOString().slice(0, 10)
   const startDate = startDateOf(today, days)
 
