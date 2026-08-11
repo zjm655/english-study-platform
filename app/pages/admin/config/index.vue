@@ -74,6 +74,10 @@ const guestRetentionDays = ref(180)
 const sttBackend = ref<'filetrans' | 'flash'>('filetrans')
 const sttTrialStartDate = ref<string | null>(null)
 
+// ─── DeepSeek 超时（单位秒，保存时转毫秒写库）────────────────
+const deepseekTimeoutSec = ref(120)
+const deepseekTitleTimeoutSec = ref(60)
+
 // ─── 加载配置 ───────────────────────────────────────────
 async function fetchConfigs() {
   loading.value = true
@@ -122,6 +126,11 @@ async function fetchConfigs() {
       sttBackend.value = d['stt_backend']?.value === 'flash' ? 'flash' : 'filetrans'
       const rawTrialDate = d['stt_trial_start_date']?.value ?? '-'
       sttTrialStartDate.value = /^\d{4}-\d{2}-\d{2}$/.test(rawTrialDate) ? rawTrialDate : null
+      // DeepSeek 超时（毫秒 → 秒，非法值兜底默认 120/60）
+      const rawContentMs = parseInt(d['deepseek_timeout_ms']?.value ?? '', 10)
+      deepseekTimeoutSec.value = rawContentMs > 0 ? Math.round(rawContentMs / 1000) : 120
+      const rawTitleMs = parseInt(d['deepseek_title_timeout_ms']?.value ?? '', 10)
+      deepseekTitleTimeoutSec.value = rawTitleMs > 0 ? Math.round(rawTitleMs / 1000) : 60
     }
   } finally {
     loading.value = false
@@ -310,6 +319,33 @@ async function saveSttConfig() {
     ])
     if (res.code === 200) {
       ElMessage.success('保存成功，对后续上传任务立即生效')
+    } else {
+      ElMessage.error(res.message ?? '保存失败')
+      await fetchConfigs()
+    }
+  } catch {
+    ElMessage.error('网络异常，保存失败')
+    await fetchConfigs()
+  } finally {
+    saving.value = false
+  }
+}
+
+// ─── 保存 DeepSeek 超时 ───────────────────────────────────
+async function saveDeepseekConfig() {
+  const vals = [deepseekTimeoutSec.value, deepseekTitleTimeoutSec.value]
+  if (vals.some((v) => v < 5 || v > 600 || !Number.isInteger(v))) {
+    ElMessage.warning('请输入 5–600 的整数（单位：秒）')
+    return
+  }
+  saving.value = true
+  try {
+    const res = await updateConfigsExec([
+      { key: 'deepseek_timeout_ms', value: String(deepseekTimeoutSec.value * 1000) },
+      { key: 'deepseek_title_timeout_ms', value: String(deepseekTitleTimeoutSec.value * 1000) },
+    ])
+    if (res.code === 200) {
+      ElMessage.success('保存成功，对后续 DeepSeek 调用立即生效')
     } else {
       ElMessage.error(res.message ?? '保存失败')
       await fetchConfigs()
@@ -705,6 +741,45 @@ async function saveSttConfig() {
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="saving" @click="saveSttConfig">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </el-card>
+
+      <!-- ═══ DeepSeek ═══ -->
+      <el-card shadow="never" class="config-card">
+        <template #header>
+          <div class="card-head">
+            <span class="card-title">DeepSeek</span>
+            <span class="card-sub">AI 内容生成与标题生成的调用超时</span>
+          </div>
+        </template>
+        <el-form label-width="140px">
+          <el-form-item label="内容生成超时">
+            <el-input-number
+              v-model="deepseekTimeoutSec"
+              :min="5"
+              :max="600"
+              :step="5"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">
+              学习内容生成（翻译/词汇/理解题）的单次调用超时，单位：秒，保存后即时生效。
+            </div>
+          </el-form-item>
+          <el-form-item label="标题生成超时">
+            <el-input-number
+              v-model="deepseekTitleTimeoutSec"
+              :min="5"
+              :max="600"
+              :step="5"
+              controls-position="right"
+              style="width: 140px"
+            />
+            <div class="form-tip">中文标题生成的单次调用超时，单位：秒，保存后即时生效。</div>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="saving" @click="saveDeepseekConfig">保存</el-button>
           </el-form-item>
         </el-form>
       </el-card>

@@ -61,6 +61,12 @@ export default defineEventHandler(async (event) => {
     invalidateUploadLimitCache()
   }
 
+  // 使 DeepSeek 超时配置缓存失效
+  if (key.startsWith('deepseek_')) {
+    const { invalidateDeepseekConfigCache } = await import('#server/utils/deepseekConfig')
+    invalidateDeepseekConfigCache()
+  }
+
   // 使游客音频限流配置缓存失效
   if (key === 'guest_daily_audio_limit') {
     const { invalidateGuestAudioLimitCache } = await import('#server/utils/guestOssLimit')

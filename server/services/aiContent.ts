@@ -12,6 +12,7 @@
 
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
+import { getDeepseekTimeouts } from '#server/utils/deepseekConfig'
 import { withQueue } from './serviceQueue'
 
 // ==================== 导出类型 ====================
@@ -74,9 +75,6 @@ interface DeepSeekConfig {
 
 /** 输入文本最大长度 */
 const MAX_TEXT_LENGTH = 5000
-
-/** API 超时（毫秒） */
-const API_TIMEOUT = 30_000
 
 /** 最大输出 token 数 */
 const MAX_TOKENS = 3000
@@ -247,6 +245,8 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 
   let callStart = 0
   try {
+    // 读取可配超时（sys_config 后台可调，查库失败兜底默认值）
+    const { contentTimeoutMs } = await getDeepseekTimeouts()
     // deepseek 云产品并发闸门：callStart 在队列 acquire 后才赋值，duration_ms 只计执行不计排队
     const resp = await withQueue('deepseek', () => {
       callStart = Date.now()
@@ -265,7 +265,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
           temperature: 0.3,
           max_tokens: MAX_TOKENS,
         }),
-        timeout: API_TIMEOUT,
+        timeout: contentTimeoutMs,
         tag: '[aiContent]',
       })
     })
@@ -381,9 +381,6 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 /** 标题生成系统提示词 */
 const TITLE_SYSTEM_PROMPT = `你是一位英语教育内容编辑。请根据以下英文学习材料，生成一个简洁、准确、吸引人的中文标题（不超过 20 个字）。标题应概括材料主题，适合学习者快速识别内容。只返回标题文本，不要返回任何其他内容。`
 
-/** 标题生成超时（毫秒） */
-const TITLE_API_TIMEOUT = 10_000
-
 /** 标题生成最大 token 数 */
 const TITLE_MAX_TOKENS = 100
 
@@ -410,6 +407,8 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
 
   let callStart = 0
   try {
+    // 读取可配超时（sys_config 后台可调，查库失败兜底默认值）
+    const { titleTimeoutMs } = await getDeepseekTimeouts()
     // deepseek 云产品并发闸门：同 generateLearningContent
     const resp = await withQueue('deepseek', () => {
       callStart = Date.now()
@@ -428,7 +427,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
           temperature: 0.3,
           max_tokens: TITLE_MAX_TOKENS,
         }),
-        timeout: TITLE_API_TIMEOUT,
+        timeout: titleTimeoutMs,
         tag: '[aiContent]',
       })
     })

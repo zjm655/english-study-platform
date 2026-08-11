@@ -37,7 +37,7 @@ export async function reprocessRecord(id: number, unitId: number): Promise<Repro
     return { ok: false, reason: '仅失败记录可重处理，当前状态：' + rows[0]!.status, code: 400 }
   }
 
-  // 获取记录完整信息（含 nls_check：重处理沿用原开关，标记不丢失）
+  // 获取记录完整信息（含 nls_check / audio_oss_key：重处理沿用原开关与已持久化音频，标记不丢失）
   const rows = await query<{
     user_id: number
     title: string
@@ -45,8 +45,9 @@ export async function reprocessRecord(id: number, unitId: number): Promise<Repro
     voice: string
     is_public: number
     nls_check: number
+    audio_oss_key: string | null
   }>(
-    'SELECT user_id, title, text_content, voice, is_public, nls_check FROM material_upload_record WHERE id = ?',
+    'SELECT user_id, title, text_content, voice, is_public, nls_check, audio_oss_key FROM material_upload_record WHERE id = ?',
     [id],
   )
   const record = rows[0]!
@@ -65,6 +66,8 @@ export async function reprocessRecord(id: number, unitId: number): Promise<Repro
         voice: record.voice,
         isPublic: record.is_public,
         nlsCheck: record.nls_check === 1,
+        // 透传同步段持久化的主音频：重处理复用上传音频，而非静默退回 TTS 合成
+        audioOssKey: record.audio_oss_key ?? undefined,
         bucket: config.oss.bucket || '',
         existingRecordId: id,
       }),

@@ -1,7 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import { readFormData } from 'h3'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { enqueueAdminMaterial, processAdminBatch } from '#server/services/adminUpload'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { uploadWithKey, deleteObject } from '#server/utils/oss'
+import { extractAudioMeta } from '#server/utils/audioMeta'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
 import { adminUploadSchema } from '#shared/schemas/material'
@@ -54,14 +57,32 @@ export default defineEventHandler(async (event) => {
 
     let audioBuffer: Buffer | undefined
     let audioFileName: string | undefined
+    let audioOssKey: string | undefined
     if (audio && audio.size > 0) {
       // 大小前置校验：避免超大文件先烧 TTS/OSS 云费、大 Buffer 驻留队列（限制值运营可调）
-      const { maxAudioSizeAdmin } = await getUploadLimits()
+      const { maxAudioSizeAdmin, maxAudioDurationAdmin } = await getUploadLimits()
       if (audio.size > maxAudioSizeAdmin) {
         return validateError(`音频大小超过限制（${maxAudioSizeAdmin / 1024 / 1024}MB）`, 400)
       }
       audioBuffer = Buffer.from(await audio.arrayBuffer())
       audioFileName = audio.name
+      // 时长前置校验：超长音频不烧 STT/OSS 云费（流水线内仍有后置兼校）
+      const meta = await extractAudioMeta(audioBuffer)
+      if (!meta) {
+        return validateError('无法解析音频信息', 400)
+      }
+      if (meta.duration > maxAudioDurationAdmin) {
+        return validateError(`音频时长超过限制（${maxAudioDurationAdmin}s）`, 400)
+      }
+      // 持久化到 OSS：任务失败重处理时可复用上传音频，不再静默退回 TTS 合成
+      const ext = audio.name.split('.').pop()?.toLowerCase() || 'mp3'
+      audioOssKey = `audio/material/${randomUUID()}.${ext}`
+      try {
+        await uploadWithKey(audioBuffer, audioOssKey)
+      } catch (err) {
+        logger.error('[admin upload] 同步段音频上传失败:', err)
+        return validateError('音频上传失败，请重试', 400)
+      }
     }
 
     const result = await enqueueAdminMaterial({
@@ -76,7 +97,12 @@ export default defineEventHandler(async (event) => {
       bucket,
       audioBuffer,
       audioFileName,
+      audioOssKey,
     })
+    if (!result.success && audioOssKey) {
+      // 建记录失败：best-effort 清理已持久化的音频孤儿（音频归记录所有，记录没了对象也要清）
+      void deleteObject(audioOssKey)
+    }
     results = [{ ...result, index: 0 }]
   } else {
     // batch

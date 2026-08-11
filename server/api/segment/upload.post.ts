@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { withQueue } from '#server/services/serviceQueue'
 import {
   runMaterialJob,
@@ -6,6 +7,8 @@ import {
   isUploadQueueFull,
 } from '#server/services/materialJob'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { uploadWithKey, deleteObject } from '#server/utils/oss'
+import { extractAudioMeta } from '#server/utils/audioMeta'
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import type { UploadMaterialResult } from '#shared/types/material'
@@ -54,10 +57,10 @@ export default defineEventHandler(
       return validateError('系统繁忙，请稍后再试', 503)
     }
 
-    // 5. 音频大小前置校验 + Buffer 拷贝进任务闭包（任务与 event 生命周期解耦）
-    // 提前拦截超大文件：避免先烧 STT/OSS 云费、大 Buffer 驻留队列（流水线内 Step 3 仍有后置兼校）
+    // 5. 音频大小/时长前置校验 + 持久化到 OSS（任务失败重处理可复用，不再静默退回 TTS 合成）
     let audioBuffer: Buffer | undefined
     let audioFileName: string | undefined
+    let audioOssKey: string | undefined
     if (audioFile && audioFile instanceof File && audioFile.size > 0) {
       // 大小限制运营可调（sys_config），管理员/用户分档
       const limits = await getUploadLimits()
@@ -67,11 +70,43 @@ export default defineEventHandler(
       }
       audioBuffer = Buffer.from(await audioFile.arrayBuffer())
       audioFileName = audioFile.name
+      // 时长前置校验（管理员/用户分档；流水线内仍有后置兼校）
+      const maxDuration = isAdmin ? limits.maxAudioDurationAdmin : limits.maxAudioDurationUser
+      const meta = await extractAudioMeta(audioBuffer)
+      if (!meta) {
+        return validateError('无法解析音频信息')
+      }
+      if (meta.duration > maxDuration) {
+        return validateError(`音频时长超过限制（${maxDuration}s）`)
+      }
+      const ext = audioFile.name.split('.').pop()?.toLowerCase() || 'mp3'
+      audioOssKey = `audio/material/${randomUUID()}.${ext}`
+      try {
+        await uploadWithKey(audioBuffer, audioOssKey)
+      } catch (err) {
+        logger.error('[material upload] 同步段音频上传失败:', err)
+        return validateError('音频上传失败，请重试')
+      }
     }
 
-    // 6. 建 queued 记录（record 是任务唯一真相源）
+    // 6. 建 queued 记录（record 是任务唯一真相源；建记录失败清理已持久化的音频孤儿）
     const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
-    const recordId = await createUploadRecord(user.id, fallbackTitle, textContent, voice, isPublic)
+    let recordId: number
+    try {
+      recordId = await createUploadRecord(
+        user.id,
+        fallbackTitle,
+        textContent,
+        voice,
+        isPublic,
+        'queued',
+        audioOssKey,
+      )
+    } catch (err) {
+      if (audioOssKey) void deleteObject(audioOssKey)
+      logger.error('[material upload] 创建上传记录失败:', err)
+      return validateError('创建上传记录失败，请重试')
+    }
 
     // 7. 排队位置估算（DB COUNT，重启自洽，不依赖内存队列插桩）
     const aheadRows = await query<{ cnt: number | string }>(
@@ -94,6 +129,7 @@ export default defineEventHandler(
           unitId: finalUnitId,
           audioBuffer,
           audioFileName,
+          audioOssKey,
         }),
       { priority: 1 },
     ).catch(async (err) => {

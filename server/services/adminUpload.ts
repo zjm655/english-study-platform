@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { isDialogueText, parseTxtFile } from '#server/utils/textParser'
 import { generateLearningContent, generateTitle } from './aiContent'
-import { textToSpeech } from './tts'
 import { ttsWithRetry } from './ttsRetry'
-import { uploadWithKey, deleteObject } from '#server/utils/oss'
+import { uploadWithKey, deleteObject, downloadObject } from '#server/utils/oss'
 import { extractAudioMeta } from '#server/utils/audioMeta'
 import { pool, withTransaction } from '#server/utils/db'
 import { mapWithConcurrency } from '#server/utils/concurrency'
@@ -29,11 +28,12 @@ async function createUploadRecord(
   isPublic: number,
   status: 'queued' | 'processing' = 'processing',
   nlsCheck: number = 0,
+  audioOssKey?: string | null,
 ): Promise<number> {
   const [res] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, nls_check, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [userId, title, textContent, voice, isPublic, nlsCheck, status],
+    `INSERT INTO material_upload_record (user_id, title, text_content, voice, audio_oss_key, is_public, nls_check, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, title, textContent, voice, audioOssKey ?? null, isPublic, nlsCheck, status],
   )
   return res.insertId
 }
@@ -64,6 +64,8 @@ export interface ProcessAdminMaterialParams {
   bucket: string
   audioBuffer?: Buffer
   audioFileName?: string
+  /** 同步段已持久化到 OSS 的主音频 key（重处理复用）。来源优先级：audioBuffer > audioOssKey > TTS */
+  audioOssKey?: string
   /** 传入时跳过 createUploadRecord，复用已有记录 ID */
   existingRecordId?: number
   /** 是否开启 NLS 语音校对（仅含音频时生效；消耗 NLS 额度，失败整单失败） */
@@ -83,6 +85,7 @@ export async function processAdminMaterial(
     bucket,
     audioBuffer,
     audioFileName,
+    audioOssKey,
     nlsCheck = false,
   } = params
 
@@ -115,6 +118,7 @@ export async function processAdminMaterial(
         isPublic,
         undefined,
         nlsCheck ? 1 : 0,
+        audioOssKey,
       )
     } catch (err) {
       logger.error('[admin upload] 创建记录失败:', err)
@@ -146,38 +150,54 @@ export async function processAdminMaterial(
 
   try {
     // 2. 音频处理
+    // 主音频来源优先级：同步段刚上传的 audioBuffer → 已持久化的 audioOssKey（重处理复用，需下载）→ TTS 合成。
+    // 持久化路径（buffer/key）绝不 push 进 uploadedKeys：失败时保留对象供重处理复用，不重复上传。
     let audioBuffer_: Buffer
     let mediaType: string
     const ext = audioFileName ? audioFileName.split('.').pop()?.toLowerCase() || 'mp3' : 'mp3'
+    // 持久化路径复用同步段已上传的 key；TTS 路径新建 key
+    const ossKey = audioOssKey ?? `audio/material/${randomUUID()}.${ext}`
 
     if (audioBuffer) {
+      // 同步段已上传 OSS：只做元数据校验与 NLS 校对，不再重复上传
       audioBuffer_ = audioBuffer
       mediaType = 'user_material'
+    } else if (audioOssKey) {
+      // 重处理复用：下载已持久化的主音频
+      try {
+        audioBuffer_ = await downloadObject(audioOssKey)
+      } catch (err) {
+        logger.error('[admin upload] 原音频下载失败:', err)
+        await fail('原音频不可用，请重新上传含音频的材料')
+        return { index: 0, success: false, error: '原音频不可用，请重新上传含音频的材料' }
+      }
+      mediaType = 'user_material'
     } else {
-      const ttsResult = await textToSpeech(textContent, voice)
+      // 无音频：TTS 生成（带自动重试）
+      const ttsResult = await ttsWithRetry(textContent, voice)
       if (!ttsResult.success || !ttsResult.audio) {
         await fail('音频生成失败')
         return { index: 0, success: false, error: '音频生成失败' }
       }
       audioBuffer_ = ttsResult.audio
       mediaType = 'tts'
+
+      // 3. OSS 上传（仅 TTS 路径：主音频 key 进入清理栈；持久化路径不重复上传）
+      try {
+        await uploadWithKey(audioBuffer_, ossKey)
+        uploadedKeys.push(ossKey)
+      } catch (err) {
+        logger.error('[admin upload] OSS 上传失败:', err)
+        await fail('文件上传失败')
+        return { index: 0, success: false, error: '文件上传失败' }
+      }
     }
 
-    // 3. OSS 上传
-    const ossKey = `audio/material/${randomUUID()}.${ext}`
-    try {
-      await uploadWithKey(audioBuffer_, ossKey)
-      uploadedKeys.push(ossKey)
-    } catch (err) {
-      logger.error('[admin upload] OSS 上传失败:', err)
-      await fail('文件上传失败')
-      return { index: 0, success: false, error: '文件上传失败' }
-    }
-
-    // 3.5 可选 NLS 语音校对（仅开启且本次上传含音频时生效）：
+    // 3.5 可选 NLS 语音校对（仅开启且本任务使用用户音频——同步 buffer 或持久化复用——时生效）：
     // 仿 materialJob 的 STT 链路——识别 → 音频文本审核 → 与材料文本相似度对比。
     // 消耗 NLS 额度（filetrans 每日 2h 免费 / flash 按量），任一失败整单失败并走清理栈。
-    if (nlsCheck && audioBuffer) {
+    const hasUserAudio = Boolean(audioBuffer || audioOssKey)
+    if (nlsCheck && hasUserAudio) {
       const sttFormat = ['wav', 'aac', 'opus', 'mp4'].includes(ext)
         ? (ext as 'wav' | 'aac' | 'opus' | 'mp4')
         : 'mp3'
@@ -294,7 +314,7 @@ export async function processAdminMaterial(
           aiResult.translation ?? '',
           JSON.stringify(questions),
           isPublic,
-          nlsCheck && audioBuffer ? 1 : 0,
+          nlsCheck && hasUserAudio ? 1 : 0,
           segmentMediaId,
         ],
       )
@@ -403,6 +423,7 @@ export async function enqueueAdminMaterial(
       isPublic,
       'queued',
       params.nlsCheck ? 1 : 0,
+      params.audioOssKey,
     )
   } catch (err) {
     logger.error('[admin upload] 创建记录失败:', err)

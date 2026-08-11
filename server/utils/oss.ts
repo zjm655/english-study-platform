@@ -266,6 +266,42 @@ export async function uploadWithKey(fileBuffer: Buffer, ossKey: string): Promise
   }
 }
 
+// ---------- 核心功能：下载（上传音频重处理复用） ----------
+/**
+ * 下载 OSS 对象为 Buffer（供重处理复用上传音频等场景）。
+ * 失败抛错（由调用方决定失败语义），埋点风格对齐 uploadWithKey。
+ * @param ossKey 对象 key
+ */
+export async function downloadObject(ossKey: string): Promise<Buffer> {
+  const client = getUploadClient()
+  const start = Date.now()
+  try {
+    const result = await client.get(ossKey)
+    const content = result.content as Buffer
+    logger.info(`[OSS] 下载成功: ${ossKey} (${content.length}B)`)
+    fileLog('oss', 'info', `[OSS] 下载成功: ${ossKey}`, { size: content.length })
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'downloadObject',
+      success: true,
+      durationMs: Date.now() - start,
+    })
+    return content
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    logger.error(`[OSS] 下载失败: ${ossKey}, 错误: ${errMsg}`)
+    fileLogError('oss', `[OSS] 下载失败: ${ossKey}`, errMsg)
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'downloadObject',
+      success: false,
+      durationMs: Date.now() - start,
+      errorMessage: errMsg.substring(0, 500),
+    })
+    throw error
+  }
+}
+
 // ---------- 核心功能：删除（孤儿清理） ----------
 /**
  * 删除 OSS 对象（best-effort，用于「先传 OSS 后写库」事务失败后清理孤儿文件）。

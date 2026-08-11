@@ -16,9 +16,8 @@ import { recognizeSpeech } from './sttFiletrans'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { extractAudioMeta } from '#server/utils/audioMeta'
 import { generateLearningContent, generateTitle } from './aiContent'
-import { textToSpeech } from './tts'
 import { ttsWithRetry } from './ttsRetry'
-import { uploadWithKey, deleteObject } from '#server/utils/oss'
+import { uploadWithKey, deleteObject, downloadObject } from '#server/utils/oss'
 import { withTransaction, pool } from '#server/utils/db'
 import { mapWithConcurrency } from '#server/utils/concurrency'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
@@ -46,11 +45,12 @@ export async function createUploadRecord(
   voice: string,
   isPublic: number,
   status: 'queued' | 'processing' = 'queued',
+  audioOssKey?: string | null,
 ): Promise<number> {
   const [res] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO material_upload_record (user_id, title, text_content, voice, is_public, status)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [userId, title, textContent, voice, isPublic, status],
+    `INSERT INTO material_upload_record (user_id, title, text_content, voice, audio_oss_key, is_public, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [userId, title, textContent, voice, audioOssKey ?? null, isPublic, status],
   )
   return res.insertId
 }
@@ -83,6 +83,8 @@ export interface MaterialJobParams {
   /** 用户上传的音频（无则走 TTS 合成） */
   audioBuffer?: Buffer
   audioFileName?: string
+  /** 同步段已持久化到 OSS 的主音频 key（重处理复用）。来源优先级：audioBuffer > audioOssKey > TTS */
+  audioOssKey?: string
 }
 
 function getExt(filename: string): string {
@@ -132,7 +134,9 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     ])
 
     logger.info(
-      `[material job] 开始处理 user=${userId} record=${recordId} ${params.audioBuffer ? '用户上传音频' : 'TTS合成'} 文本${textContent.length}字`,
+      `[material job] 开始处理 user=${userId} record=${recordId} ${
+        params.audioBuffer ? '用户上传音频' : params.audioOssKey ? '持久化音频复用' : 'TTS合成'
+      } 文本${textContent.length}字`,
     )
 
     // ===== Step 1: 文本审核 =====
@@ -142,12 +146,14 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     }
 
     // ===== Step 2: 音频处理 =====
-    // 主音频 key/限制先算好：用户音频路径需在 STT 前完成 OSS 上传（filetrans 以签名 URL 作 file_link）
+    // 主音频来源优先级：同步段刚上传的 audioBuffer → 已持久化的 audioOssKey（重处理复用，需下载）→ TTS 合成。
+    // 持久化路径（buffer/key）绝不 push 进 uploadedKeys：同步段已上传、失败时保留对象供重处理复用，不重复上传。
     let audioBuffer: Buffer
     let mediaType: string
     let audioDuration = 0
     const ext = params.audioFileName ? getExt(params.audioFileName) : 'mp3'
-    const ossKey = `audio/material/${randomUUID()}.${ext}`
+    // 持久化路径复用同步段已上传的 key；TTS 路径新建 key
+    const ossKey = params.audioOssKey ?? `audio/material/${randomUUID()}.${ext}`
     const bucket = useRuntimeConfig().oss.bucket
     // 限制值运营可调（sys_config），5min 缓存内不额外查库
     const limits = await getUploadLimits()
@@ -168,7 +174,7 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
       return null
     }
 
-    /** 主音频上传（成功即登记清理栈，后续任何失败统一由 fail() 删除） */
+    /** 主音频上传（成功即登记清理栈，后续任何失败统一由 fail() 删除）——仅 TTS 路径调用 */
     const uploadMainAudio = async (buf: Buffer): Promise<boolean> => {
       try {
         await uploadWithKey(buf, ossKey)
@@ -180,48 +186,58 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
       }
     }
 
-    if (params.audioBuffer && params.audioBuffer.length > 0) {
-      audioBuffer = params.audioBuffer
-      mediaType = 'user_material'
-
-      // 2a. 元数据校验前移：超长/超大音频不烧 filetrans 免费额度与 STT 成本
-      const metaErr = await checkAudioMeta(audioBuffer)
-      if (metaErr) {
-        return await fail(metaErr)
-      }
-
-      // 2b. 主音频先上传 OSS（filetrans 需要可下载的签名 URL）
-      if (!(await uploadMainAudio(audioBuffer))) {
-        return await fail('文件上传失败')
-      }
-
-      // 2c. 语音转文字（标准版 filetrans 优先，命中回退集自动改走极速版）
+    /** 用户音频链路 STT → 音频文本审核 → 文本相似度（原 2c-2e；持久化两条路径共用）。返回错误文案（null=通过） */
+    const runSttChain = async (buf: Buffer): Promise<string | null> => {
       const sttResult = await recognizeSpeech({
-        audioBuffer,
+        audioBuffer: buf,
         format: extToFormat(params.audioFileName ?? ''),
         ossKey,
       })
       if (!sttResult.success) {
-        return await fail(`音频识别失败: ${sttResult.error}`)
+        return `音频识别失败: ${sttResult.error}`
       }
-
-      // 2d. 音频文本审核
       const recognizedText = sttResult.text ?? ''
       if (recognizedText.trim()) {
         const mod2 = await moderateText(recognizedText)
         if (!mod2.safe) {
-          return await fail(`音频内容不合规: ${mod2.reason}`)
+          return `音频内容不合规: ${mod2.reason}`
         }
-
-        // 2e. 文本相似度对比
         const sim = compareTextSimilarity(textContent, recognizedText)
         if (!sim.passed) {
-          return await fail(`音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`)
+          return `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`
         }
       }
+      return null
+    }
+
+    if (params.audioBuffer && params.audioBuffer.length > 0) {
+      // 2a. 同步段已上传 OSS：只做元数据校验与 STT，不再重复上传
+      audioBuffer = params.audioBuffer
+      mediaType = 'user_material'
+
+      const metaErr = await checkAudioMeta(audioBuffer)
+      if (metaErr) return await fail(metaErr)
+
+      const sttErr = await runSttChain(audioBuffer)
+      if (sttErr) return await fail(sttErr)
+    } else if (params.audioOssKey) {
+      // 2b. 重处理复用：下载已持久化的主音频（audioFileName 缺失，STT format 经 extToFormat 兜底 mp3）
+      try {
+        audioBuffer = await downloadObject(params.audioOssKey)
+      } catch (err) {
+        logger.error('[material job] 原音频下载失败:', err)
+        return await fail('原音频不可用，请重新上传含音频的材料')
+      }
+      mediaType = 'user_material'
+
+      const metaErr = await checkAudioMeta(audioBuffer)
+      if (metaErr) return await fail(metaErr)
+
+      const sttErr = await runSttChain(audioBuffer)
+      if (sttErr) return await fail(sttErr)
     } else {
-      // 2f. 无音频：TTS 生成（合成后同样校验元数据再上传）
-      const ttsResult = await textToSpeech(textContent, voice)
+      // 2c. 无音频：TTS 生成（带自动重试；合成后同样校验元数据再上传）
+      const ttsResult = await ttsWithRetry(textContent, voice)
       if (!ttsResult.success || !ttsResult.audio) {
         return await fail(`音频生成失败: ${ttsResult.error ?? '未知原因'}`)
       }
@@ -229,9 +245,7 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
       mediaType = 'tts'
 
       const metaErr = await checkAudioMeta(audioBuffer)
-      if (metaErr) {
-        return await fail(metaErr)
-      }
+      if (metaErr) return await fail(metaErr)
 
       if (!(await uploadMainAudio(audioBuffer))) {
         return await fail('文件上传失败')

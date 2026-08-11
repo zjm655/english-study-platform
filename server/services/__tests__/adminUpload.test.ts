@@ -11,6 +11,7 @@ const {
   mockTextToSpeech,
   mockUploadWithKey,
   mockDeleteObject,
+  mockDownloadObject,
   mockExtractAudioMeta,
   mockGenerateLearningContent,
   mockGenerateTitle,
@@ -24,6 +25,7 @@ const {
   const mockTextToSpeech = vi.fn()
   const mockUploadWithKey = vi.fn()
   const mockDeleteObject = vi.fn()
+  const mockDownloadObject = vi.fn()
   const mockExtractAudioMeta = vi.fn()
   const mockGenerateLearningContent = vi.fn()
   const mockGenerateTitle = vi.fn()
@@ -37,6 +39,7 @@ const {
     mockTextToSpeech: mockTextToSpeech,
     mockUploadWithKey: mockUploadWithKey,
     mockDeleteObject: mockDeleteObject,
+    mockDownloadObject: mockDownloadObject,
     mockExtractAudioMeta: mockExtractAudioMeta,
     mockGenerateLearningContent: mockGenerateLearningContent,
     mockGenerateTitle: mockGenerateTitle,
@@ -54,6 +57,7 @@ vi.mock('../tts', () => ({ textToSpeech: mockTextToSpeech }))
 vi.mock('#server/utils/oss', () => ({
   uploadWithKey: mockUploadWithKey,
   deleteObject: mockDeleteObject,
+  downloadObject: mockDownloadObject,
 }))
 // materialJob 仅提供队列深度检查，mock 掉避免拉入其完整依赖链（STT/审核等）
 vi.mock('../materialJob', () => ({ isUploadQueueFull: mockIsUploadQueueFull }))
@@ -89,6 +93,7 @@ function setupDefaults() {
   })
   mockTextToSpeech.mockResolvedValue({ success: true, audio: FAKE_AUDIO })
   mockUploadWithKey.mockResolvedValue(undefined)
+  mockDownloadObject.mockResolvedValue(FAKE_AUDIO)
   mockExtractAudioMeta.mockResolvedValue({ duration: 30.5, size: 1024 })
   mockGenerateLearningContent.mockResolvedValue({
     success: true,
@@ -202,7 +207,7 @@ describe('processAdminMaterial', () => {
     expect(result.error).toContain('音频生成')
   })
 
-  it('有音频时跳过 TTS，直接上传 OSS', async () => {
+  it('有音频时跳过 TTS，主音频不再重复上传（同步段已持久化）', async () => {
     setupDefaults()
 
     const result = await processAdminMaterial({
@@ -223,7 +228,64 @@ describe('processAdminMaterial', () => {
       'User provided audio text.',
       expect.anything(),
     )
-    expect(mockUploadWithKey).toHaveBeenCalled()
+    // 主音频已在同步段持久化，此处不重复上传（仅词汇音频上传，key 前缀 audio/vocab/）
+    expect(
+      mockUploadWithKey.mock.calls.every(([, key]) => !String(key).startsWith('audio/material/')),
+    ).toBe(true)
+  })
+
+  it('仅传 audioOssKey（重处理复用）：下载音频、跳过主音频 TTS、复用 key 入库', async () => {
+    setupDefaults()
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Reprocess persisted audio.',
+      title: 'Repro',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioOssKey: 'audio/material/persisted.mp3',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockDownloadObject).toHaveBeenCalledWith('audio/material/persisted.mp3')
+    // 主音频不重新合成（词汇 TTS 仍会调用，检查材料文本参数）
+    expect(mockTextToSpeech).not.toHaveBeenCalledWith(
+      'Reprocess persisted audio.',
+      expect.anything(),
+    )
+    // media 记录复用持久化 key
+    const mediaInsert = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO media'),
+    )
+    expect(mediaInsert).toBeTruthy()
+    expect(mediaInsert![1]).toContain('audio/material/persisted.mp3')
+    // 主音频不重复上传
+    expect(
+      mockUploadWithKey.mock.calls.every(([, key]) => !String(key).startsWith('audio/material/')),
+    ).toBe(true)
+  })
+
+  it('持久化音频下载失败：整单失败且不调主音频 TTS、不清理', async () => {
+    setupDefaults()
+    mockDownloadObject.mockRejectedValue(new Error('oss down'))
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Reprocess audio unavailable.',
+      title: 'Gone',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioOssKey: 'audio/material/gone.mp3',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('原音频不可用')
+    expect(mockTextToSpeech).not.toHaveBeenCalled()
+    expect(mockDeleteObject).not.toHaveBeenCalled()
   })
 
   it('nlsCheck=false（默认）时有音频也不调用 STT', async () => {
@@ -295,8 +357,8 @@ describe('processAdminMaterial', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('音频识别失败')
     expect(mockGenerateLearningContent).not.toHaveBeenCalled()
-    // 清理栈：STT 失败发生在 media 入库之前（segmentMediaId 为空），故仅删除 OSS 主音频 + 记录标 failed
-    expect(mockDeleteObject).toHaveBeenCalled()
+    // 主音频已在同步段持久化，STT 失败不清理持久化 key（保留供重处理复用），仅记录标 failed
+    expect(mockDeleteObject).not.toHaveBeenCalled()
     expect(mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes("'failed'"))).toBe(true)
   })
 
@@ -359,12 +421,39 @@ describe('processAdminMaterial', () => {
     expect(result.success).toBe(false)
     // 主音频 + 1 个词汇音频均被清理
     expect(mockDeleteObject).toHaveBeenCalledTimes(2)
+    // TTS 合成路径的主音频 key 会进入清理栈
+    expect(
+      mockDeleteObject.mock.calls.some(([key]) => String(key).startsWith('audio/material/')),
+    ).toBe(true)
     // media 禁用
     expect(
       mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes('UPDATE media SET status')),
     ).toBe(true)
     // record 标 failed
     expect(mockPoolExecute.mock.calls.some(([sql]) => String(sql).includes("'failed'"))).toBe(true)
+  })
+
+  it('持久化音频任务失败（事务失败）：主音频 key 保留不清理，仅词汇孤儿被清', async () => {
+    setupDefaults()
+    mockWithTransaction.mockRejectedValue(new Error('db down'))
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Persisted audio transaction failure.',
+      title: 'Test',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioOssKey: 'audio/material/persisted.mp3',
+    })
+
+    expect(result.success).toBe(false)
+    // 词汇音频 key 仍被清理（1 个词汇），主音频持久化 key 绝不被删（保留供重处理复用）
+    expect(mockDeleteObject).toHaveBeenCalledTimes(1)
+    expect(
+      mockDeleteObject.mock.calls.every(([key]) => !String(key).startsWith('audio/material/')),
+    ).toBe(true)
   })
 
   it('事务提交后 success 写入报错：不误伤已入库资源，重试补写 success', async () => {
