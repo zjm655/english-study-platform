@@ -6,6 +6,8 @@ export interface AdminUploadItemResult {
   recordId?: number
   segmentId?: number
   title?: string
+  /** 同步段标题截取等提示，前端展示 */
+  notice?: string
   error?: string
 }
 

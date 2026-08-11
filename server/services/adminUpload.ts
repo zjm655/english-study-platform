@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { isDialogueText, parseTxtFile } from '#server/utils/textParser'
+import { isDialogueText, parseTxtFile, extractInlineTitle } from '#server/utils/textParser'
 import { generateLearningContent, generateTitle } from './aiContent'
 import { ttsWithRetry } from './ttsRetry'
 import { uploadWithKey, deleteObject, downloadObject } from '#server/utils/oss'
@@ -13,6 +13,7 @@ import { recognizeSpeech } from './sttFiletrans'
 import { moderateText } from './contentModeration'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { logger } from '#shared/utils/logger'
+import { fileLog } from '#server/utils/fileLogger'
 import type { AdminUploadItemResult } from '#shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
 
@@ -70,6 +71,8 @@ export interface ProcessAdminMaterialParams {
   existingRecordId?: number
   /** 是否开启 NLS 语音校对（仅含音频时生效；消耗 NLS 额度，失败整单失败） */
   nlsCheck?: boolean
+  /** 标题模式：'ai'（默认，title 为空时 AI 生成）| 'manual'（仅用传入 title）| 'filename'（由文件名定）| 'inline'（正文首个 `# ` 行） */
+  titleMode?: 'ai' | 'manual' | 'filename' | 'inline'
 }
 
 export async function processAdminMaterial(
@@ -87,10 +90,11 @@ export async function processAdminMaterial(
     audioFileName,
     audioOssKey,
     nlsCheck = false,
+    titleMode = 'ai',
   } = params
 
-  // 1. 对话检测（免费正则）
-  if (isDialogueText(textContent)) {
+  // 1. 对话检测（免费正则）：仅无用户音频时拒绝——带音频时主音频不依赖 TTS 合成，允许对话文本
+  if (!audioBuffer && !audioOssKey && isDialogueText(textContent)) {
     return { index: 0, success: false, error: '材料为对话格式，不支持上传' }
   }
 
@@ -260,10 +264,11 @@ export async function processAdminMaterial(
       segmentMediaId,
     ])
 
-    // 6. AI 内容生成 + 标题生成（并行；标题仅在无用户指定标题时生成）
+    // 6. AI 内容生成 + 标题生成（并行；仅 titleMode=ai 且无用户指定标题时生成标题）
+    const needAiTitle = (titleMode ?? 'ai') === 'ai' && !title?.trim()
     const [aiResult, titleResult] = await Promise.all([
       generateLearningContent(textContent),
-      title ? Promise.resolve(null) : generateTitle(textContent),
+      needAiTitle ? generateTitle(textContent) : Promise.resolve(null),
     ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
       await fail('AI 内容生成失败')
@@ -273,14 +278,22 @@ export async function processAdminMaterial(
     const vocabulary = aiResult.vocabulary!
     const questions = aiResult.questions!
 
-    // 7. 标题处理
+    // 7. 标题处理：title 优先 → AI 结果（仅 ai 模式）→ 文本截取降级
     let finalTitle: string
     if (title) {
       finalTitle = title
-    } else if (titleResult && titleResult.success && titleResult.title) {
+    } else if (needAiTitle && titleResult && titleResult.success && titleResult.title) {
       finalTitle = titleResult.title
-    } else {
+    } else if (needAiTitle) {
+      // AI 失败降级：截取前 50 字符（与 enqueue 阶段 fallbackTitle 同口径）
       logger.warn('[admin upload] 标题生成失败，降级为文本截取:', titleResult?.error)
+      fileLog('ai', 'warn', '[admin upload] 标题生成失败，已截取文本前50字符为标题', {
+        error: titleResult?.error,
+        textLength: textContent.length,
+      })
+      finalTitle = fallbackTitle
+    } else {
+      // 非 ai 模式（manual/filename/inline）未提供标题：直接文本截取
       finalTitle = fallbackTitle
     }
 
@@ -397,8 +410,9 @@ export async function enqueueAdminMaterial(
 ): Promise<AdminUploadItemResult & { recordId?: number }> {
   const { userId, textContent, title, voice, isPublic } = params
 
-  // 轻校验：拒绝时不产生记录（与同步时代行为一致）
-  if (isDialogueText(textContent)) {
+  // 轻校验：拒绝时不产生记录（与同步时代行为一致）。入队阶段无 audioOssKey 概念，
+  // 仅无音频 Buffer 时拒绝对话——带音频时主音频不依赖 TTS 合成，允许对话文本
+  if (!params.audioBuffer && isDialogueText(textContent)) {
     return { index: 0, success: false, error: '材料为对话格式，不支持上传' }
   }
 
@@ -450,35 +464,57 @@ export async function processAdminBatch(params: {
   isPublic: number
   bucket: string
   files: Array<{ name: string; content: string }>
+  titleMode?: 'ai' | 'manual' | 'filename' | 'inline'
 }): Promise<AdminUploadItemResult[]> {
-  const { userId, unitId, voice, isPublic, bucket, files } = params
+  const { userId, unitId, voice, isPublic, bucket, files, titleMode = 'ai' } = params
   const results: AdminUploadItemResult[] = []
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i]!
-    const parsed = { title: null as string | null, textContent: '' }
 
-    // 解析 txt
+    // 解析 txt（空内容抛错走现有 catch → results.push 解析失败）
+    let textContent: string
     try {
-      const r = parseTxtFile(file.content)
-      parsed.title = r.title
-      parsed.textContent = r.textContent
+      textContent = parseTxtFile(file.content).textContent
     } catch {
       results.push({ index: i, success: false, error: `文件 ${file.name} 解析失败：内容为空` })
       continue
+    }
+
+    // 标题模式：inline 取正文首个 `# ` 行；filename 取文件名去扩展名（超 50 截取并提示）；
+    // manual（批量不提供）与 ai → title=null（流水线 AI 生成）
+    let title: string | null = null
+    let notice: string | undefined
+    if (titleMode === 'inline') {
+      const inline = extractInlineTitle(textContent)
+      title = inline.title
+      textContent = inline.textContent // 用提取后的正文
+    } else if (titleMode === 'filename') {
+      const raw = file.name.replace(/\.[^.]+$/, '')
+      if (raw.length > 50) {
+        title = raw.slice(0, 50)
+        notice = '标题超过 50 字符，已截取'
+        fileLog('ai', 'warn', '[admin upload] 批量文件名标题超过50字符，已截取', {
+          fileName: file.name,
+          title,
+        })
+      } else {
+        title = raw
+      }
     }
 
     // 拆单入队：每个文件独立任务，可与用户任务交错调度，不再整块霸占队列
     const result = await enqueueAdminMaterial({
       userId,
       unitId,
-      textContent: parsed.textContent,
-      title: parsed.title,
+      textContent,
+      title,
+      titleMode,
       voice,
       isPublic,
       bucket,
     })
-    results.push({ ...result, index: i })
+    results.push({ ...result, index: i, notice })
   }
 
   return results

@@ -81,4 +81,48 @@ describe('adminUploadSchema（multipart 字符串入参回归）', () => {
     const parsed = adminUploadSchema.safeParse({ mode: 'invalid', unitId: '0', isPublic: '1' })
     expect(parsed.success).toBe(false)
   })
+
+  it('C-titleMode: 缺失（null）应默认 AI 生成 ai', () => {
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '0',
+      isPublic: '1',
+      titleMode: null,
+    })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.titleMode).toBe('ai')
+  })
+
+  it('C-titleMode: 缺失（undefined）应默认 AI 生成 ai', () => {
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '0',
+      isPublic: '1',
+    })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.titleMode).toBe('ai')
+  })
+
+  it('C-titleMode: 合法值 inline/filename/manual/ai 均应通过', () => {
+    for (const v of ['inline', 'filename', 'manual', 'ai']) {
+      const parsed = adminUploadSchema.safeParse({
+        mode: 'single',
+        unitId: '0',
+        isPublic: '1',
+        titleMode: v,
+      })
+      expect(parsed.success).toBe(true)
+      if (parsed.success) expect(parsed.data.titleMode).toBe(v)
+    }
+  })
+
+  it('C-titleMode: 非法值（auto）应被拒绝', () => {
+    const parsed = adminUploadSchema.safeParse({
+      mode: 'single',
+      unitId: '0',
+      isPublic: '1',
+      titleMode: 'auto',
+    })
+    expect(parsed.success).toBe(false)
+  })
 })

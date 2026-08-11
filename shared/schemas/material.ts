@@ -3,6 +3,9 @@
 import { z } from 'zod'
 import { ALLOWED_VOICES } from './common'
 
+/** 标题生成方式：ai=AI生成(失败截取前50字符) / manual=用户填写 / filename=文件名 / inline=正文#首行 */
+export const TITLE_MODES = ['ai', 'manual', 'filename', 'inline'] as const
+
 // 材料上传校验（普通用户）
 export const uploadMaterialSchema = z.object({
   textContent: z
@@ -11,6 +14,7 @@ export const uploadMaterialSchema = z.object({
     .max(5000, '材料文本不能超过5000个字符'),
   isPublic: z.coerce.number().refine((v) => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
   voice: z.enum(ALLOWED_VOICES).optional().default('en-US-AriaNeural'),
+  titleMode: z.enum(TITLE_MODES).optional().default('ai'),
 })
 
 // 材料上传校验（管理员，额外要求 unitId；允许 0=自定义单元）
@@ -36,6 +40,11 @@ export const adminUploadSchema = z.object({
     .refine((v) => v === 0 || v === 1, 'nlsCheck 必须为 0 或 1')
     .nullish()
     .transform((v) => v ?? 0),
+  // 缺失时 formData.get 返回 null；nullish 让 null/undefined 绕过，transform 兼底 'ai'（默认 AI 生成）
+  titleMode: z
+    .enum(TITLE_MODES)
+    .nullish()
+    .transform((v) => v ?? 'ai'),
 })
 
 // 材料上传记录更新校验（JSON body，无需 coerce）
@@ -61,6 +70,9 @@ export const reviewQuerySchema = z.object({
 })
 
 // ============== 请求参数类型（推导自 schema，供 .d.ts re-export） ==============
+
+/** 标题生成方式：ai=AI生成 / manual=用户填写 / filename=文件名 / inline=正文#首行 */
+export type TitleMode = (typeof TITLE_MODES)[number]
 
 /** 更新材料记录参数（JSON body，z.input） */
 export type UpdateMaterialRecordPayload = z.input<typeof updateMaterialRecordSchema>

@@ -1,35 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { parseTxtFile, isDialogueText } from '../textParser'
+import { parseTxtFile, extractInlineTitle, resolveUploadTitle, isDialogueText } from '../textParser'
 
 // ===== textParser 测试 =====
-// TDD: 此文件先于 textParser.ts 编写，预期全部失败
+// TDD: 先于 textParser.ts 编写，预期失败
 
 describe('parseTxtFile', () => {
-  it('首行非空为标题，其余为正文', () => {
+  it('返回清理后的正文（不再剥离首行标题，标题由 titleMode 决定）', () => {
     const content = 'My First Lesson\n\nThis is the body text.\nIt has multiple lines.'
     const result = parseTxtFile(content)
-    expect(result.title).toBe('My First Lesson')
-    expect(result.textContent).toBe('This is the body text.\nIt has multiple lines.')
+    expect(result.textContent).toBe(content.trim())
   })
 
-  it('仅一行时整行为正文，title 为 null', () => {
-    const result = parseTxtFile('Just a single line of text.')
-    expect(result.title).toBeNull()
-    expect(result.textContent).toBe('Just a single line of text.')
-  })
-
-  it('首行为空时，title 为 null，取第一非空行开始为正文', () => {
-    const content = '\n\nActual content starts here.\nMore lines.'
+  it('首行以 # 开头时仍作为正文保留（标题提取走 extractInlineTitle）', () => {
+    const content = '# My Title\n\nBody here.'
     const result = parseTxtFile(content)
-    expect(result.title).toBeNull()
-    expect(result.textContent).toBe('Actual content starts here.\nMore lines.')
-  })
-
-  it('首行+正文之间有多个空行，应正确跳过', () => {
-    const content = 'Title Line\n\n\n\nBody here.'
-    const result = parseTxtFile(content)
-    expect(result.title).toBe('Title Line')
-    expect(result.textContent).toBe('Body here.')
+    expect(result.textContent).toBe(content.trim())
   })
 
   it('空内容应抛错', () => {
@@ -38,6 +23,93 @@ describe('parseTxtFile', () => {
 
   it('仅空白字符应抛错', () => {
     expect(() => parseTxtFile('   \n\n  \t  ')).toThrow()
+  })
+})
+
+describe('extractInlineTitle', () => {
+  it('首行 # 开头提取为标题并从正文移除', () => {
+    const text = '# A Day at the Park\n\nThe sun was shining.\nBirds were singing.'
+    const result = extractInlineTitle(text)
+    expect(result.title).toBe('A Day at the Park')
+    expect(result.textContent).toBe('The sun was shining.\nBirds were singing.')
+  })
+
+  it('无 # 首行时 title 为 null 且正文原样返回', () => {
+    const text = 'The sun was shining.\nBirds were singing.'
+    const result = extractInlineTitle(text)
+    expect(result.title).toBeNull()
+    expect(result.textContent).toBe(text)
+  })
+
+  it('前导空行后 # 首行仍可提取', () => {
+    const text = '\n\n# My Title\n\nBody line.'
+    const result = extractInlineTitle(text)
+    expect(result.title).toBe('My Title')
+    expect(result.textContent).toBe('Body line.')
+  })
+
+  it('# 后无空格不视为标题', () => {
+    const text = '#NoSpaceTitle\n\nBody line.'
+    const result = extractInlineTitle(text)
+    expect(result.title).toBeNull()
+    expect(result.textContent).toBe(text)
+  })
+
+  it('空文本返回 title=null', () => {
+    const result = extractInlineTitle('')
+    expect(result.title).toBeNull()
+    expect(result.textContent).toBe('')
+  })
+})
+
+describe('resolveUploadTitle', () => {
+  const textContent = 'The sun was shining.\nBirds were singing.'
+
+  it('ai 模式返回 title=null、正文不变（交流水线 AI 生成）', () => {
+    const result = resolveUploadTitle({ titleMode: 'ai', textContent })
+    expect(result.title).toBeNull()
+    expect(result.textContent).toBe(textContent)
+  })
+
+  it('manual 模式直接使用用户填写标题', () => {
+    const result = resolveUploadTitle({
+      titleMode: 'manual',
+      title: '  My Title  ',
+      textContent,
+    })
+    expect(result.title).toBe('My Title')
+    expect(result.textContent).toBe(textContent)
+  })
+
+  it('manual 模式未填标题返回 null', () => {
+    const result = resolveUploadTitle({ titleMode: 'manual', title: '', textContent })
+    expect(result.title).toBeNull()
+  })
+
+  it('filename 模式用文件名（去扩展名）作标题', () => {
+    const result = resolveUploadTitle({
+      titleMode: 'filename',
+      fileName: 'A Day at the Park.txt',
+      textContent,
+    })
+    expect(result.title).toBe('A Day at the Park')
+    expect(result.notice).toBeUndefined()
+  })
+
+  it('filename 超 50 字符截取并返回 notice', () => {
+    const longName = 'x'.repeat(60) + '.txt'
+    const result = resolveUploadTitle({ titleMode: 'filename', fileName: longName, textContent })
+    expect(result.title).toBe('x'.repeat(50))
+    expect(result.notice).toContain('截取')
+  })
+
+  it('inline 模式提取 # 首行为标题并清理正文', () => {
+    const result = resolveUploadTitle({
+      titleMode: 'inline',
+      textContent: '# My Title\n\nBody line.',
+    })
+    expect(result.title).toBe('My Title')
+    expect(result.textContent).toBe('Body line.')
   })
 })
 

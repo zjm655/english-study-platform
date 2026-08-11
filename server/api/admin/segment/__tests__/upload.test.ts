@@ -23,7 +23,11 @@ vi.mock('#server/services/adminUpload', () => ({
   enqueueAdminMaterial: mockEnqueueAdminMaterial,
   processAdminBatch: mockProcessAdminBatch,
 }))
-vi.mock('#server/utils/textParser', () => ({ parseTxtFile: vi.fn() }))
+// textParser 为纯函数，re-export 真实实现（resolveUploadTitle/extractInlineTitle 由 handler 同步段使用）
+vi.mock('#server/utils/textParser', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#server/utils/textParser')>()
+  return { ...actual }
+})
 vi.mock('#imports', () => ({ useRuntimeConfig: () => ({ oss: { bucket: 'test-bucket' } }) }))
 // upload.post 透过 permission.ts 引入 db.ts / oss.ts（两者模块顶层读 useRuntimeConfig），node 测试需 mock
 vi.mock('#server/utils/db', () => ({ query: vi.fn(), withTransaction: vi.fn() }))
@@ -106,6 +110,132 @@ describe('管理员上传接口 - 入参强转（C1/C3 回归）', () => {
 
     expect(res.code).toBe(200)
     expect(mockEnqueueAdminMaterial.mock.calls[0]![0].isPublic).toBe(1)
+  })
+})
+
+// ============ titleMode：同步段标题解析 ============
+
+describe('管理员上传接口 - titleMode 标题解析', () => {
+  it('inline 模式：提取 # 首行为标题并清理正文', async () => {
+    mockReadFormData.mockResolvedValue(
+      makeFormData({
+        mode: 'single',
+        unitId: '0',
+        voice: 'en-US-AriaNeural',
+        isPublic: '1',
+        titleMode: 'inline',
+        textContent: '# My Title\n\nThe weather is nice today. She went to the park.',
+        title: null,
+        audio: null,
+      }),
+    )
+    mockEnqueueAdminMaterial.mockResolvedValue({ success: true, recordId: 200, title: 'My Title' })
+
+    const res = await handler(makeEvent(ADMIN))
+
+    expect(res.code).toBe(200)
+    const arg = mockEnqueueAdminMaterial.mock.calls[0]![0]
+    expect(arg.title).toBe('My Title')
+    expect(arg.textContent).toContain('The weather is nice today')
+    expect(arg.textContent).not.toContain('# My Title')
+    expect(arg.titleMode).toBe('inline')
+  })
+
+  it('filename 模式：用文件名（去扩展名）作标题', async () => {
+    mockReadFormData.mockResolvedValue(
+      makeFormData({
+        mode: 'single',
+        unitId: '0',
+        voice: 'en-US-AriaNeural',
+        isPublic: '1',
+        titleMode: 'filename',
+        fileName: 'A Day at the Park.txt',
+        textContent: 'The weather is nice today. She went to the park.',
+        title: null,
+        audio: null,
+      }),
+    )
+    mockEnqueueAdminMaterial.mockResolvedValue({
+      success: true,
+      recordId: 201,
+      title: 'A Day at the Park',
+    })
+
+    const res = await handler(makeEvent(ADMIN))
+
+    expect(res.code).toBe(200)
+    const arg = mockEnqueueAdminMaterial.mock.calls[0]![0]
+    expect(arg.title).toBe('A Day at the Park')
+    expect(res.data?.results?.[0]?.notice).toBeUndefined()
+  })
+
+  it('filename 超 50 字符：截取并回执携带 notice', async () => {
+    const longName = 'x'.repeat(60) + '.txt'
+    mockReadFormData.mockResolvedValue(
+      makeFormData({
+        mode: 'single',
+        unitId: '0',
+        voice: 'en-US-AriaNeural',
+        isPublic: '1',
+        titleMode: 'filename',
+        fileName: longName,
+        textContent: 'The weather is nice today. She went to the park.',
+        title: null,
+        audio: null,
+      }),
+    )
+    mockEnqueueAdminMaterial.mockResolvedValue({
+      success: true,
+      recordId: 202,
+      title: 'x'.repeat(50),
+    })
+
+    const res = await handler(makeEvent(ADMIN))
+
+    expect(res.code).toBe(200)
+    const arg = mockEnqueueAdminMaterial.mock.calls[0]![0]
+    expect(arg.title).toBe('x'.repeat(50))
+    expect(res.data?.results?.[0]?.notice).toContain('截取')
+  })
+
+  it('manual 模式：使用用户填写标题；未填返回 400', async () => {
+    mockReadFormData.mockResolvedValue(
+      makeFormData({
+        mode: 'single',
+        unitId: '0',
+        voice: 'en-US-AriaNeural',
+        isPublic: '1',
+        titleMode: 'manual',
+        title: 'My Manual Title',
+        textContent: 'The weather is nice today. She went to the park.',
+        audio: null,
+      }),
+    )
+    mockEnqueueAdminMaterial.mockResolvedValue({
+      success: true,
+      recordId: 203,
+      title: 'My Manual Title',
+    })
+
+    const res = await handler(makeEvent(ADMIN))
+    expect(res.code).toBe(200)
+    expect(mockEnqueueAdminMaterial.mock.calls[0]![0].title).toBe('My Manual Title')
+
+    // 未填标题
+    mockReadFormData.mockResolvedValue(
+      makeFormData({
+        mode: 'single',
+        unitId: '0',
+        voice: 'en-US-AriaNeural',
+        isPublic: '1',
+        titleMode: 'manual',
+        title: null,
+        textContent: 'The weather is nice today. She went to the park.',
+        audio: null,
+      }),
+    )
+    const res2 = await handler(makeEvent(ADMIN))
+    expect(res2.code).toBe(400)
   })
 })
 

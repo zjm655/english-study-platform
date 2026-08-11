@@ -9,6 +9,8 @@ import {
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { uploadWithKey, deleteObject } from '#server/utils/oss'
 import { extractAudioMeta } from '#server/utils/audioMeta'
+import { resolveUploadTitle } from '#server/utils/textParser'
+import { fileLog } from '#server/utils/fileLogger'
 import { query } from '#server/utils/db'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import type { UploadMaterialResult } from '#shared/types/material'
@@ -35,6 +37,9 @@ export default defineEventHandler(
     const isPublic = Number(formData.get('isPublic'))
     const unitIdRaw = formData.get('unitId') as string | null
     const audioFile = formData.get('audio') as File | null
+    const title = formData.get('title') as string | null
+    const titleMode = (formData.get('titleMode') as string | null) ?? undefined
+    const fileName = formData.get('fileName') as string | null
 
     // 2. 角色判断（管理员 / 超管享受管理员上传档：更长时长、可指定单元）
     const isAdmin = isAdminOrAbove(user.role)
@@ -42,7 +47,7 @@ export default defineEventHandler(
 
     // 3. Zod 校验
     const schema = isAdmin ? uploadMaterialAdminSchema : uploadMaterialSchema
-    const parseInput: Record<string, unknown> = { textContent, isPublic, voice }
+    const parseInput: Record<string, unknown> = { textContent, isPublic, voice, titleMode }
     if (isAdmin) parseInput.unitId = finalUnitId
 
     const parsed = schema.safeParse(parseInput)
@@ -51,6 +56,21 @@ export default defineEventHandler(
     }
 
     if (!textContent) return validateError('材料文本不能为空')
+
+    // 3.5 标题模式解析（同步段）：manual 必须填写标题；inline 提取 # 首行并清理正文；filename 用文件名；ai 交流水线生成
+    if (parsed.data.titleMode === 'manual' && !title?.trim()) {
+      return validateError('请填写标题（手动模式）')
+    }
+    const resolved = resolveUploadTitle({
+      titleMode: parsed.data.titleMode,
+      title,
+      fileName,
+      textContent: textContent.trim(),
+    })
+    const resolvedText = resolved.textContent.trim()
+    if (resolvedText.length < 10) {
+      return validateError('提取标题后正文不能少于10个字符')
+    }
 
     // 4. 入队深度防御
     if (await isUploadQueueFull()) {
@@ -90,13 +110,15 @@ export default defineEventHandler(
     }
 
     // 6. 建 queued 记录（record 是任务唯一真相源；建记录失败清理已持久化的音频孤儿）
-    const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
+    const fallbackTitle =
+      resolvedText.length > 50 ? resolvedText.slice(0, 50) + '...' : resolvedText
+    const recordTitle = resolved.title ?? fallbackTitle
     let recordId: number
     try {
       recordId = await createUploadRecord(
         user.id,
-        fallbackTitle,
-        textContent,
+        recordTitle,
+        resolvedText,
         voice,
         isPublic,
         'queued',
@@ -123,7 +145,8 @@ export default defineEventHandler(
           recordId,
           userId: user.id,
           isAdmin,
-          textContent,
+          textContent: resolvedText,
+          title: resolved.title,
           voice,
           isPublic,
           unitId: finalUnitId,
@@ -141,6 +164,9 @@ export default defineEventHandler(
     logger.info(
       `[material upload] 已入队 user=${user.id} record=${recordId} 排队位置=${queuePosition}`,
     )
-    return validateSuccess<UploadMaterialResult>({ recordId, queuePosition }, '材料已加入处理队列')
+    return validateSuccess<UploadMaterialResult>(
+      { recordId, queuePosition, ...(resolved.notice ? { notice: resolved.notice } : {}) },
+      '材料已加入处理队列',
+    )
   },
 )

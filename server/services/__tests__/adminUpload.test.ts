@@ -21,6 +21,7 @@ const {
   mockRecognizeSpeech,
   mockModerateText,
   mockCompareTextSimilarity,
+  mockFileLog,
 } = vi.hoisted(() => {
   const mockTextToSpeech = vi.fn()
   const mockUploadWithKey = vi.fn()
@@ -35,6 +36,7 @@ const {
   const mockRecognizeSpeech = vi.fn()
   const mockModerateText = vi.fn()
   const mockCompareTextSimilarity = vi.fn()
+  const mockFileLog = vi.fn()
   return {
     mockTextToSpeech: mockTextToSpeech,
     mockUploadWithKey: mockUploadWithKey,
@@ -49,6 +51,7 @@ const {
     mockRecognizeSpeech: mockRecognizeSpeech,
     mockModerateText: mockModerateText,
     mockCompareTextSimilarity: mockCompareTextSimilarity,
+    mockFileLog: mockFileLog,
   }
 })
 
@@ -75,6 +78,10 @@ vi.mock('#server/utils/textSimilarity', () => ({
 vi.mock('#server/utils/db', () => ({
   pool: { execute: mockPoolExecute },
   withTransaction: mockWithTransaction,
+}))
+vi.mock('#server/utils/fileLogger', () => ({
+  fileLog: mockFileLog,
+  fileLogError: vi.fn(),
 }))
 vi.mock('node:crypto', () => ({ randomUUID: vi.fn().mockReturnValue('mock-uuid') }))
 vi.mock('../../../shared/utils/logger', () => ({
@@ -146,6 +153,28 @@ describe('processAdminMaterial', () => {
     expect(mockTextToSpeech).not.toHaveBeenCalled()
   })
 
+  it('带 audioBuffer 的对话文本放行（主音频不依赖 TTS，允许对话）', async () => {
+    setupDefaults()
+
+    const dialogue = 'Alice: Hello\nBob: Hi there\nAlice: How are you?\nBob: Fine'
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: dialogue,
+      title: 'Dialogue Material',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.error).toBeUndefined()
+    // 主音频不 TTS 合成
+    expect(mockTextToSpeech).not.toHaveBeenCalledWith(dialogue, expect.anything())
+  })
+
   it('无音频时完整成功路径', async () => {
     setupDefaults()
 
@@ -184,6 +213,44 @@ describe('processAdminMaterial', () => {
     expect(result.success).toBe(true)
     expect(result.title).toBe('My Custom Title')
     expect(mockGenerateTitle).not.toHaveBeenCalled()
+  })
+
+  it("titleMode='manual' 且 title 为空：不调用 generateTitle，降级文本截取", async () => {
+    setupDefaults()
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Some manual text content here.',
+      title: null,
+      titleMode: 'manual',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockGenerateTitle).not.toHaveBeenCalled()
+    expect(result.title).toBe('Some manual text content here.')
+  })
+
+  it("titleMode='filename' 且 title 为空：不调用 generateTitle，降级文本截取", async () => {
+    setupDefaults()
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Filename titled material text.',
+      title: null,
+      titleMode: 'filename',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockGenerateTitle).not.toHaveBeenCalled()
+    expect(result.title).toBe('Filename titled material text.')
   })
 
   it('TTS 失败应返回错误', async () => {
@@ -402,6 +469,13 @@ describe('processAdminMaterial', () => {
 
     expect(result.success).toBe(true)
     expect(result.title).toBe(longText.slice(0, 50) + '...')
+    // AI 失败降级需记录 ai 文件日志
+    expect(mockFileLog).toHaveBeenCalledWith(
+      'ai',
+      'warn',
+      expect.stringContaining('标题生成失败'),
+      expect.any(Object),
+    )
   })
 
   it('事务失败：清理栈删除主音频与词汇音频 OSS 对象 + media 禁用 + failed', async () => {
@@ -495,7 +569,7 @@ describe('processAdminBatch', () => {
     vi.clearAllMocks()
   })
 
-  it('批量处理多个 txt 文件，单个失败不中断', async () => {
+  it('批量处理多个 txt 文件，单个失败不中断；默认 ai 模式标题不再取自首行', async () => {
     setupDefaults()
 
     const result = await processAdminBatch({
@@ -514,9 +588,73 @@ describe('processAdminBatch', () => {
     expect(result).toHaveLength(3)
     expect(result[0]!.success).toBe(false)
     expect(result[0]!.error).toContain('对话')
+    // 无 titleMode → 默认 ai：title=null（首行不再是标题），入队记录标题 = 文本截取（前 50 字符）
     expect(result[1]!.success).toBe(true)
-    expect(result[1]!.title).toBe('Daily Weather')
+    expect(result[1]!.title).toBe('Daily Weather\nThe weather is nice today.')
     expect(result[2]!.success).toBe(true)
-    expect(result[2]!.title).toBe('Science News')
+    expect(result[2]!.title).toBe('Science News\nScientists found something new.')
+  })
+
+  it('inline 模式：正文首行 `# ` 提取为标题并从正文移除', async () => {
+    setupDefaults()
+
+    const result = await processAdminBatch({
+      userId: 1,
+      unitId: 1,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      files: [{ name: 'story.txt', content: '# My Title\nRest of the story content here.' }],
+      titleMode: 'inline',
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.success).toBe(true)
+    expect(result[0]!.title).toBe('My Title')
+  })
+
+  it('filename 模式：文件名去扩展名作为标题', async () => {
+    setupDefaults()
+
+    const result = await processAdminBatch({
+      userId: 1,
+      unitId: 1,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      files: [{ name: 'abc.txt', content: 'Some content for abc.' }],
+      titleMode: 'filename',
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.success).toBe(true)
+    expect(result[0]!.title).toBe('abc')
+  })
+
+  it('filename 模式：超长文件名截取 50 字符并附 notice', async () => {
+    setupDefaults()
+
+    const longName = 'a'.repeat(60)
+    const result = await processAdminBatch({
+      userId: 1,
+      unitId: 1,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      files: [{ name: `${longName}.txt`, content: 'Some content here.' }],
+      titleMode: 'filename',
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.success).toBe(true)
+    expect(result[0]!.title).toBe('a'.repeat(50))
+    expect(result[0]!.notice).toBe('标题超过 50 字符，已截取')
+    // filename 截取需记录 ai 文件日志
+    expect(mockFileLog).toHaveBeenCalledWith(
+      'ai',
+      'warn',
+      expect.stringContaining('50字符'),
+      expect.objectContaining({ fileName: `${longName}.txt` }),
+    )
   })
 })

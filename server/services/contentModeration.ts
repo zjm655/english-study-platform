@@ -40,11 +40,31 @@ const SYSTEM_PROMPT = `你是一个内容审核助手。你需要对用户提交
 只返回 JSON，不要返回任何其他内容。`
 
 /**
+ * 允许对话格式的审核 prompt（上传附带音频时主音频不依赖 TTS 合成，
+ * 无需担心「无法区分多角色」问题，对话文本应可正常使用）。
+ * 其余规则（涉黄/涉政等）与默认 prompt 完全一致。
+ */
+const SYSTEM_PROMPT_ALLOW_DIALOGUE = SYSTEM_PROMPT.replace(
+  '3. 内容应该是个人独白、趣味文章、新闻报道等非对话类英文文本',
+  '3. 内容可以是个人独白、趣味文章、新闻报道或对话形式（对话需为正常的语言学习材料）',
+)
+
+/** 审核选项 */
+export interface ModerationOptions {
+  /** 允许对话格式文本通过（默认 false，维持「非对话类」规则） */
+  allowDialogue?: boolean
+}
+
+/**
  * 审核文本内容是否合规
  * @param text 待审核的文本
+ * @param options.allowDialogue 为 true 时放行对话格式（带音频上传场景）
  * @returns 审核结果
  */
-export async function moderateText(text: string): Promise<ModerationResult> {
+export async function moderateText(
+  text: string,
+  options: ModerationOptions = {},
+): Promise<ModerationResult> {
   // 1. 读取配置
   const config = useRuntimeConfig()
   const ds = config.deepseek as unknown as DeepSeekConfig
@@ -59,6 +79,8 @@ export async function moderateText(text: string): Promise<ModerationResult> {
 
   let callStart = 0
   try {
+    // 按选项选择审核 prompt：allowDialogue=true 时放行对话格式
+    const systemPrompt = options.allowDialogue ? SYSTEM_PROMPT_ALLOW_DIALOGUE : SYSTEM_PROMPT
     // deepseek 云产品并发闸门：callStart 在队列 acquire 后才赋值，duration_ms 只计执行不计排队
     const resp = await withQueue('deepseek', () => {
       callStart = Date.now()
@@ -71,7 +93,7 @@ export async function moderateText(text: string): Promise<ModerationResult> {
         body: JSON.stringify({
           model: ds.model,
           messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'system', content: systemPrompt },
             { role: 'user', content: text },
           ],
           temperature: 0,

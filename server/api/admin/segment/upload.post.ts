@@ -5,6 +5,7 @@ import { enqueueAdminMaterial, processAdminBatch } from '#server/services/adminU
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { uploadWithKey, deleteObject } from '#server/utils/oss'
 import { extractAudioMeta } from '#server/utils/audioMeta'
+import { resolveUploadTitle } from '#server/utils/textParser'
 import { useRuntimeConfig } from '#imports'
 import type { AdminUploadResponse, AdminUploadItemResult } from '#shared/types/adminUpload'
 import { adminUploadSchema } from '#shared/schemas/material'
@@ -23,8 +24,9 @@ export default defineEventHandler(async (event) => {
   const voice = formData.get('voice') as string | null
   const isPublic = formData.get('isPublic') as string | null
   const nlsCheck = formData.get('nlsCheck') as string | null
+  const titleMode = formData.get('titleMode') as string | null
 
-  const parsed = adminUploadSchema.safeParse({ mode, unitId, voice, isPublic, nlsCheck })
+  const parsed = adminUploadSchema.safeParse({ mode, unitId, voice, isPublic, nlsCheck, titleMode })
   if (!parsed.success) {
     return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
@@ -35,6 +37,7 @@ export default defineEventHandler(async (event) => {
     voice: validVoice,
     isPublic: validIsPublic,
     nlsCheck: validNlsCheck,
+    titleMode: validTitleMode,
   } = parsed.data
   const { oss } = useRuntimeConfig()
   const bucket = oss.bucket as string
@@ -45,6 +48,7 @@ export default defineEventHandler(async (event) => {
   if (validMode === 'single') {
     const textContent = formData.get('textContent') as string | null
     const title = formData.get('title') as string | null
+    const fileName = formData.get('fileName') as string | null
     const audio = formData.get('audio') as File | null
 
     const trimmedText = textContent?.trim() ?? ''
@@ -53,6 +57,21 @@ export default defineEventHandler(async (event) => {
     }
     if (trimmedText.length > 5000) {
       return validateError('材料文本不能超过5000个字符', 400)
+    }
+
+    // 标题模式解析（同步段）：manual 必须填写标题；inline 提取 # 首行并清理正文；filename 用文件名；ai 交流水线生成
+    if (validTitleMode === 'manual' && !title?.trim()) {
+      return validateError('请填写标题（手动模式）', 400)
+    }
+    const resolved = resolveUploadTitle({
+      titleMode: validTitleMode,
+      title,
+      fileName,
+      textContent: trimmedText,
+    })
+    const resolvedText = resolved.textContent.trim()
+    if (resolvedText.length < 10) {
+      return validateError('提取标题后正文不能少于10个字符', 400)
     }
 
     let audioBuffer: Buffer | undefined
@@ -88,8 +107,9 @@ export default defineEventHandler(async (event) => {
     const result = await enqueueAdminMaterial({
       userId,
       unitId: validUnitId,
-      textContent: trimmedText,
-      title,
+      textContent: resolvedText,
+      title: resolved.title,
+      titleMode: validTitleMode,
       voice: validVoice,
       isPublic: validIsPublic,
       // 仅 single 场景携带；batch 无音频，不传（保持 0）
@@ -103,7 +123,7 @@ export default defineEventHandler(async (event) => {
       // 建记录失败：best-effort 清理已持久化的音频孤儿（音频归记录所有，记录没了对象也要清）
       void deleteObject(audioOssKey)
     }
-    results = [{ ...result, index: 0 }]
+    results = [{ ...result, index: 0, ...(resolved.notice ? { notice: resolved.notice } : {}) }]
   } else {
     // batch
     const files = formData.getAll('files') as File[]
@@ -130,6 +150,7 @@ export default defineEventHandler(async (event) => {
       unitId: validUnitId,
       voice: validVoice,
       isPublic: validIsPublic,
+      titleMode: validTitleMode,
       bucket,
       files: txtFiles,
     })

@@ -41,9 +41,33 @@
               show-word-limit
               placeholder="输入英文材料原文（10-5000 字符）"
             />
+            <div class="text-file-row">
+              <el-upload
+                :auto-upload="false"
+                :limit="1"
+                accept=".txt,.md"
+                :on-change="handleTextFileChange"
+                :on-remove="handleTextFileRemove"
+                :on-exceed="handleTextFileExceed"
+              >
+                <el-button type="primary" plain size="small">选择文本文件</el-button>
+                <template #tip>
+                  <div class="upload-tip">也可选择 txt 文本文件，内容将填入上方文本域可编辑</div>
+                </template>
+              </el-upload>
+            </div>
           </el-form-item>
-          <el-form-item label="标题">
-            <el-input v-model="title" placeholder="可选，留空则自动生成" style="width: 420px" />
+          <el-form-item label="标题生成方式">
+            <el-radio-group v-model="titleMode">
+              <el-radio-button value="ai">AI 生成</el-radio-button>
+              <el-radio-button value="manual">手动填写</el-radio-button>
+              <el-radio-button value="filename">文件名</el-radio-button>
+              <el-radio-button value="inline">正文 # 标题</el-radio-button>
+            </el-radio-group>
+            <div class="upload-tip title-mode-tip">{{ titleModeTip }}</div>
+          </el-form-item>
+          <el-form-item v-if="titleMode === 'manual'" label="标题（必填）">
+            <el-input v-model="title" placeholder="请输入标题" style="width: 420px" />
           </el-form-item>
           <el-form-item label="音频">
             <el-upload
@@ -74,6 +98,16 @@
 
       <!-- 批量模式 -->
       <div v-else class="mode-panel">
+        <el-form label-width="90px">
+          <el-form-item label="标题生成方式">
+            <el-radio-group v-model="titleMode">
+              <el-radio-button value="ai">AI 生成</el-radio-button>
+              <el-radio-button value="filename">文件名</el-radio-button>
+              <el-radio-button value="inline">正文 # 标题</el-radio-button>
+            </el-radio-group>
+            <div class="upload-tip title-mode-tip">{{ titleModeTip }}</div>
+          </el-form-item>
+        </el-form>
         <el-upload
           :auto-upload="false"
           multiple
@@ -86,7 +120,8 @@
           <el-button type="primary" plain>选择 txt 文件（最多 20 个）</el-button>
           <template #tip>
             <div class="upload-tip">
-              每个 txt 首行为标题，正文为材料原文；批量模式不上传音频，统一 TTS 合成。
+              标题由「标题生成方式」决定：inline 模式以每个 txt 首行 `# ` 为标题（无 `# `
+              则首行为正文），filename 模式以文件名为标题；批量模式不上传音频，统一 TTS 合成。
             </div>
           </template>
         </el-upload>
@@ -125,6 +160,11 @@
         </el-table-column>
         <el-table-column prop="title" label="标题" />
         <el-table-column prop="error" label="错误信息" />
+        <el-table-column label="提示">
+          <template #default="{ row }">
+            <el-tag v-if="row.notice" type="warning" size="small">{{ row.notice }}</el-tag>
+          </template>
+        </el-table-column>
       </el-table>
       <div class="result-footer">
         材料已加入处理队列，请到
@@ -167,6 +207,10 @@ const mode = ref<'single' | 'batch'>('single')
 // 单条模式
 const textContent = ref('')
 const title = ref('')
+// 标题生成方式：ai=AI 生成 / manual=手动填写 / filename=文件名 / inline=正文 # 标题（批量模式无 manual）
+const titleMode = ref<'ai' | 'manual' | 'filename' | 'inline'>('ai')
+// 所选文本文件名（filename 标题模式使用；移除文件时清空，正文不清空）
+const textFileName = ref('')
 const audioFile = ref<File | null>(null)
 // NLS 语音校对开关（默认关闭：管理员材料多来自权威来源，开启会消耗 NLS 额度并增加失败概率；
 // 需要核验音频与文本一致性时再显式开启）
@@ -182,6 +226,27 @@ const { isLoading, execute } = useAdminUpload()
 const { execute: executeUnits } = useUnits()
 const result = ref<AdminUploadResponse | null>(null)
 
+// 各标题生成方式的提示文案
+const titleModeTip = computed(() => {
+  switch (titleMode.value) {
+    case 'manual':
+      return '手动填写标题'
+    case 'filename':
+      return '将使用所选文件名作为标题（超过 50 字符自动截取）'
+    case 'inline':
+      return '正文第一行以 `# ` 开头即作为标题，例如 `# A Day at the Park`'
+    default:
+      return 'AI 根据内容生成，失败时截取正文前 50 字符'
+  }
+})
+
+// 批量模式不支持手动填写：从 single 切到 batch 时回退 ai，避免 radio 无选中项
+watch(mode, (m) => {
+  if (m === 'batch' && titleMode.value === 'manual') {
+    titleMode.value = 'ai'
+  }
+})
+
 async function loadUnits() {
   const res = await executeUnits(undefined)
   if (res?.code === 200 && res.data) {
@@ -194,6 +259,27 @@ function handleAudioChange(file: UploadFile) {
 }
 function handleAudioRemove() {
   audioFile.value = null
+}
+
+// 选择文本文件：读取内容填入文本域（可继续编辑），并记录文件名
+async function handleTextFileChange(file: UploadFile) {
+  const raw = file.raw
+  if (!raw) return
+  try {
+    const content = await raw.text()
+    // 与文本域 maxlength 保持一致，避免超长文件撑爆输入框
+    textContent.value = content.slice(0, 5000)
+    textFileName.value = raw.name
+  } catch {
+    toastWarning('读取文本文件失败，请重试或手动粘贴内容')
+  }
+}
+function handleTextFileRemove() {
+  // 仅清空文件名（filename 标题模式回退），不清空已填入的正文
+  textFileName.value = ''
+}
+function handleTextFileExceed() {
+  toastWarning('最多选择一个文本文件，请先移除已选文件')
 }
 
 function collectTxtFiles(fileList: UploadFiles) {
@@ -224,7 +310,22 @@ async function handleSubmit() {
       return
     }
     fd.append('textContent', textContent.value.trim())
-    if (title.value.trim()) fd.append('title', title.value.trim())
+    fd.append('titleMode', titleMode.value)
+    if (titleMode.value === 'manual') {
+      if (!title.value.trim()) {
+        toastWarning('请填写标题')
+        return
+      }
+      fd.append('title', title.value.trim())
+    }
+    if (titleMode.value === 'filename') {
+      const fileName = textFileName.value || (audioFile.value?.name ?? '')
+      if (!fileName) {
+        toastWarning('请先选择文本文件或音频文件')
+        return
+      }
+      fd.append('fileName', fileName)
+    }
     if (audioFile.value) {
       fd.append('audio', audioFile.value)
       // 仅含音频时提交 NLS 校对开关（未选音频时为关）
@@ -235,6 +336,7 @@ async function handleSubmit() {
       toastWarning('请至少选择一个 txt 文件')
       return
     }
+    fd.append('titleMode', titleMode.value)
     for (const f of txtFiles.value) fd.append('files', f)
   }
 
@@ -283,6 +385,16 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-3);
   line-height: 1.6;
+}
+
+.text-file-row {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.title-mode-tip {
+  width: 100%;
+  margin-top: 4px;
 }
 
 .nls-tip {

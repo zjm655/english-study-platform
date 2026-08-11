@@ -18,6 +18,7 @@ import { extractAudioMeta } from '#server/utils/audioMeta'
 import { generateLearningContent, generateTitle } from './aiContent'
 import { ttsWithRetry } from './ttsRetry'
 import { uploadWithKey, deleteObject, downloadObject } from '#server/utils/oss'
+import { fileLog } from '#server/utils/fileLogger'
 import { withTransaction, pool } from '#server/utils/db'
 import { mapWithConcurrency } from '#server/utils/concurrency'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
@@ -80,6 +81,8 @@ export interface MaterialJobParams {
   voice: string
   isPublic: number
   unitId: number
+  /** 同步段按 titleMode 已确定的标题；null/空=需 AI 生成 */
+  title?: string | null
   /** 用户上传的音频（无则走 TTS 合成） */
   audioBuffer?: Buffer
   audioFileName?: string
@@ -140,7 +143,10 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     )
 
     // ===== Step 1: 文本审核 =====
-    const mod1 = await moderateText(textContent)
+    // 带音频时主音频不依赖 TTS，允许对话文本（对话限制本为无音频时 TTS 无法区分多角色而设）
+    const mod1 = await moderateText(textContent, {
+      allowDialogue: Boolean(params.audioBuffer?.length || params.audioOssKey),
+    })
     if (!mod1.safe) {
       return await fail(`材料内容不合规: ${mod1.reason}`)
     }
@@ -271,9 +277,11 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     segmentMediaId = mediaRes.insertId
 
     // ===== Step 4: AI 内容生成 + 标题生成（并行） =====
+    // 同步段按 titleMode 已确定的标题直接透传（params.title 非空时不再调 AI 标题生成）
+    const presetTitle = (params.title ?? '').trim()
     const [aiResult, titleResult] = await Promise.all([
       generateLearningContent(textContent),
-      generateTitle(textContent),
+      presetTitle ? Promise.resolve(null) : generateTitle(textContent),
     ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
       return await fail('AI 内容生成失败')
@@ -284,10 +292,16 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
 
     const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
     let title: string
-    if (titleResult.success && titleResult.title) {
+    if (presetTitle) {
+      title = presetTitle
+    } else if (titleResult?.success && titleResult.title) {
       title = titleResult.title
     } else {
-      logger.warn('[material job] 标题生成失败，降级为文本截取:', titleResult.error)
+      logger.warn('[material job] 标题生成失败，降级为文本截取:', titleResult?.error)
+      fileLog('ai', 'warn', '[material job] 标题生成失败，已截取文本前50字符为标题', {
+        error: titleResult?.error,
+        textLength: textContent.length,
+      })
       title = fallbackTitle
     }
 

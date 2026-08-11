@@ -24,6 +24,8 @@ const { execute: doDelete } = useDeleteMaterialRecord()
 const textContent = ref('')
 const audioFile = ref<File | null>(null)
 const isPublic = ref<1>(1)
+const titleMode = ref<'ai' | 'manual' | 'inline' | 'filename'>('ai')
+const manualTitle = ref('')
 
 /** 可选朗读音色列表 */
 const VOICE_OPTIONS = [
@@ -203,10 +205,26 @@ function handleAudioRemove() {
 async function handleSubmit() {
   if (!canSubmit.value) return
 
+  // 标题生成方式前置校验：手动填写须非空、音频文件名须先上传音频
+  if (titleMode.value === 'manual' && !manualTitle.value.trim()) {
+    toastWarning('请填写标题')
+    return
+  }
+  if (titleMode.value === 'filename' && !audioFile.value) {
+    toastWarning('请先上传音频文件')
+    return
+  }
+
   const formData = new FormData()
   formData.append('textContent', textContent.value)
   formData.append('isPublic', String(isPublic.value))
   formData.append('voice', selectedVoice.value)
+  formData.append('titleMode', titleMode.value)
+  if (titleMode.value === 'manual') {
+    formData.append('title', manualTitle.value.trim())
+  } else if (titleMode.value === 'filename') {
+    formData.append('fileName', audioFile.value?.name ?? '')
+  }
   if (audioFile.value) {
     formData.append('audio', audioFile.value)
   }
@@ -218,9 +236,15 @@ async function handleSubmit() {
         ? `已加入处理队列，前方还有 ${res.data.queuePosition} 个任务`
         : '已加入处理队列，预计 1-2 分钟完成',
     )
+    // 标题被截取等提示透传展示
+    if (res.data.notice) {
+      toastWarning(res.data.notice)
+    }
     // 不再跳转：留在本页通过「最近上传」轮询展示排队/处理进度
     textContent.value = ''
     audioFile.value = null
+    titleMode.value = 'ai'
+    manualTitle.value = ''
     await loadRecentRecords()
     // 新任务入队：重置衰减回起始间隔快轮（未在轮询中则等价启动）
     resetPolling()
@@ -291,6 +315,34 @@ async function handleSubmit() {
             </div>
           </template>
         </el-upload>
+      </div>
+
+      <!-- 标题 -->
+      <div class="form-section">
+        <label class="form-label">标题</label>
+        <el-radio-group v-model="titleMode">
+          <el-radio value="ai">AI 生成</el-radio>
+          <el-radio value="manual">手动填写</el-radio>
+          <el-radio value="filename" :disabled="!audioFile">音频文件名</el-radio>
+          <el-radio value="inline">正文 # 标题</el-radio>
+        </el-radio-group>
+        <div v-if="titleMode === 'manual'" class="form-title-input">
+          <el-input
+            v-model="manualTitle"
+            placeholder="请输入标题..."
+            maxlength="100"
+            show-word-limit
+          />
+        </div>
+        <p v-else-if="titleMode === 'ai'" class="form-desc">
+          AI 根据内容生成，失败时截取正文前 50 字符
+        </p>
+        <p v-else-if="titleMode === 'filename'" class="form-desc">
+          将使用音频文件名作为标题（超过 50 字符自动截取）
+        </p>
+        <p v-else-if="titleMode === 'inline'" class="form-desc">
+          正文第一行以「# 」开头即作为标题，例如「# A Day at the Park」
+        </p>
       </div>
 
       <!-- 是否公开 -->
@@ -458,6 +510,10 @@ async function handleSubmit() {
   font-size: 32px;
   color: var(--text-3);
   margin-bottom: 8px;
+}
+
+.form-title-input {
+  margin-top: 8px;
 }
 
 .form-actions {

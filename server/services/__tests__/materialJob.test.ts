@@ -19,6 +19,7 @@ const {
   mockGenerateTitle,
   mockPoolExecute,
   mockWithTransaction,
+  mockFileLog,
 } = vi.hoisted(() => ({
   mockModerateText: vi.fn(),
   mockRecognizeSpeech: vi.fn(),
@@ -32,6 +33,7 @@ const {
   mockGenerateTitle: vi.fn(),
   mockPoolExecute: vi.fn(),
   mockWithTransaction: vi.fn(),
+  mockFileLog: vi.fn(),
 }))
 
 vi.mock('../contentModeration', () => ({ moderateText: mockModerateText }))
@@ -51,6 +53,10 @@ vi.mock('../aiContent', () => ({
 vi.mock('#server/utils/db', () => ({
   pool: { execute: mockPoolExecute },
   withTransaction: mockWithTransaction,
+}))
+vi.mock('#server/utils/fileLogger', () => ({
+  fileLog: mockFileLog,
+  fileLogError: vi.fn(),
 }))
 vi.mock('node:crypto', () => ({ randomUUID: vi.fn().mockReturnValue('mock-uuid') }))
 vi.mock('../../../shared/utils/logger', () => ({
@@ -107,6 +113,24 @@ function recordStatusUpdates(): string[] {
   return mockPoolExecute.mock.calls
     .filter(([sql]) => String(sql).includes('material_upload_record'))
     .map(([sql]) => String(sql))
+}
+
+/** 覆盖 mockWithTransaction，捕获事务内 segment INSERT 的 title 参数 */
+function captureSegmentTitle(): { get: () => unknown } {
+  let title: unknown
+  mockWithTransaction.mockImplementation(async (fn: any) => {
+    const conn = {
+      execute: vi.fn(async (sql: string, args?: any[]) => {
+        if (sql.includes('INSERT INTO segment')) {
+          title = args?.[1]
+          return [{ insertId: 55 }]
+        }
+        return [{ insertId: 200 }]
+      }),
+    }
+    return fn(conn)
+  })
+  return { get: () => title }
 }
 
 beforeEach(() => {
@@ -290,5 +314,63 @@ describe('runMaterialJob', () => {
         String(sql).includes('UPDATE media SET status = 0'),
       ),
     ).toBe(false)
+  })
+
+  it('无音频（TTS 合成）时 Step1 文本审核不放开对话限制（allowDialogue: false）', async () => {
+    await runMaterialJob({ ...BASE_PARAMS })
+    // Step1 首次审核调用显式 allowDialogue: false（默认维持「非对话类」规则）
+    expect(mockModerateText.mock.calls[0]![1]).toEqual({ allowDialogue: false })
+  })
+
+  it('带音频（audioBuffer）时 Step1 文本审核允许对话（allowDialogue: true）', async () => {
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: BASE_PARAMS.textContent })
+    await runMaterialJob({ ...BASE_PARAMS, audioBuffer: FAKE_AUDIO, audioFileName: 'user.mp3' })
+    // Step1 首次审核调用带 allowDialogue: true——主音频由用户提供，不依赖 TTS 区分角色
+    expect(mockModerateText.mock.calls[0]![1]).toEqual({ allowDialogue: true })
+  })
+
+  it('仅传 audioOssKey（重处理复用）时同样放行对话（allowDialogue: true）', async () => {
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: BASE_PARAMS.textContent })
+    await runMaterialJob({ ...BASE_PARAMS, audioOssKey: 'audio/material/persisted.mp3' })
+    expect(mockModerateText.mock.calls[0]![1]).toEqual({ allowDialogue: true })
+  })
+
+  it('params.title 非空（同步段已定标题）：跳过 AI 标题生成，segment/record 直接用预置标题', async () => {
+    const segmentTitle = captureSegmentTitle()
+    await runMaterialJob({ ...BASE_PARAMS, title: 'Preset Title' })
+    // 预置标题时不调用 AI 标题生成
+    expect(mockGenerateTitle).not.toHaveBeenCalled()
+    // 事务内 segment 标题为预置值
+    expect(segmentTitle.get()).toBe('Preset Title')
+    // 成功收尾将预置标题回写 record（title !== fallbackTitle 才更新）
+    const titleUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('UPDATE material_upload_record SET title'),
+    )
+    expect(titleUpdate).toBeTruthy()
+    expect(titleUpdate![1]![0]).toBe('Preset Title')
+  })
+
+  it('AI 标题生成失败且无预置标题：降级为文本前50字符截取', async () => {
+    mockGenerateTitle.mockResolvedValue({ success: false, error: 'LLM error' })
+    const segmentTitle = captureSegmentTitle()
+    await runMaterialJob({ ...BASE_PARAMS })
+    const fallbackTitle =
+      BASE_PARAMS.textContent.length > 50
+        ? BASE_PARAMS.textContent.slice(0, 50) + '...'
+        : BASE_PARAMS.textContent
+    expect(segmentTitle.get()).toBe(fallbackTitle)
+    // 降级标题 === fallbackTitle，不触发 record title UPDATE
+    expect(
+      mockPoolExecute.mock.calls.some(([sql]) =>
+        String(sql).includes('UPDATE material_upload_record SET title'),
+      ),
+    ).toBe(false)
+    // AI 失败降级需记录 ai 文件日志
+    expect(mockFileLog).toHaveBeenCalledWith(
+      'ai',
+      'warn',
+      expect.stringContaining('标题生成失败'),
+      expect.any(Object),
+    )
   })
 })
