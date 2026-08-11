@@ -331,6 +331,7 @@
 
 <script setup lang="ts">
 import { Unlock } from '@element-plus/icons-vue'
+import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
 import {
   useAdminMaterialRecordList,
   useAdminMaterialRecordStatuses,

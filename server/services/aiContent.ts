@@ -12,7 +12,7 @@
 
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
-import { getDeepseekTimeouts } from '#server/utils/deepseekConfig'
+import { getDeepseekParams } from '#server/utils/deepseekConfig'
 import { withQueue } from './serviceQueue'
 
 // ==================== 导出类型 ====================
@@ -75,9 +75,6 @@ interface DeepSeekConfig {
 
 /** 输入文本最大长度 */
 const MAX_TEXT_LENGTH = 5000
-
-/** 最大输出 token 数 */
-const MAX_TOKENS = 3000
 
 /** 词汇数量范围 */
 const MIN_VOCAB = 1
@@ -217,11 +214,26 @@ function validateQuestions(raw: unknown): GeneratedQuestion[] | null {
 // ==================== 核心导出函数 ====================
 
 /**
- * 根据英文原文生成教学内容
+ * 根据英文原文生成教学内容（带失败重试）
+ * 对可重试失败自动重试 1 次（共 2 次尝试）：单次成功立即返回；否则保留最后一次结果继续第二次
  * @param text 英文原文
  * @returns 翻译 + 词汇 + 题目，失败时返回 error
  */
 export async function generateLearningContent(text: string): Promise<AiContentResult> {
+  let result: AiContentResult = { success: false, error: 'AI 内容生成失败' }
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    result = await generateLearningContentOnce(text)
+    if (result.success) return result
+  }
+  return result
+}
+
+/**
+ * 单次生成教学内容（不重试）。
+ * HTTP 200 且 JSON 解析成功后立即记 success=true 埋点；后续内容为空 / 解析失败 / 校验失败
+ * 等分支会在 return error 前补记 success=false，保证 cloud_service_call_log 与业务结果一致。
+ */
+async function generateLearningContentOnce(text: string): Promise<AiContentResult> {
   // 1. 校验输入
   const trimmed = text.trim()
   if (!trimmed) {
@@ -245,8 +257,8 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 
   let callStart = 0
   try {
-    // 读取可配超时（sys_config 后台可调，查库失败兜底默认值）
-    const { contentTimeoutMs } = await getDeepseekTimeouts()
+    // 读取可配超时与 max_tokens（sys_config 后台可调，查库失败兜底默认值）
+    const { contentTimeoutMs, contentMaxTokens } = await getDeepseekParams()
     // deepseek 云产品并发闸门：callStart 在队列 acquire 后才赋值，duration_ms 只计执行不计排队
     const resp = await withQueue('deepseek', () => {
       callStart = Date.now()
@@ -263,7 +275,7 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
             { role: 'user', content: trimmed },
           ],
           temperature: 0.3,
-          max_tokens: MAX_TOKENS,
+          max_tokens: contentMaxTokens,
         }),
         timeout: contentTimeoutMs,
         tag: '[aiContent]',
@@ -307,6 +319,14 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 
     if (!content) {
       logger.error('[aiContent] API 返回空内容')
+      // 补记失败埋点：HTTP 200 但业务无结果，与业务返回值保持一致
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateContent',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: 'AI 未返回有效内容',
+      })
       return { success: false, error: 'AI 未返回有效内容' }
     }
 
@@ -320,6 +340,13 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
       parsed = JSON.parse(cleaned)
     } catch {
       logger.error('[aiContent] JSON 解析失败:', cleaned.substring(0, 200))
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateContent',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: 'AI 生成内容解析失败',
+      })
       return { success: false, error: 'AI 生成内容解析失败' }
     }
 
@@ -327,18 +354,39 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
     const translation = typeof parsed.translation === 'string' ? parsed.translation.trim() : ''
     if (!translation) {
       logger.error('[aiContent] 翻译字段缺失或为空')
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateContent',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: 'AI 生成内容不完整（缺少翻译）',
+      })
       return { success: false, error: 'AI 生成内容不完整（缺少翻译）' }
     }
 
     const vocabulary = validateVocabulary(parsed.vocabulary)
     if (!vocabulary) {
       logger.error('[aiContent] 词汇校验失败')
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateContent',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: 'AI 生成内容不完整（词汇格式错误）',
+      })
       return { success: false, error: 'AI 生成内容不完整（词汇格式错误）' }
     }
 
     const questions = validateQuestions(parsed.questions)
     if (!questions) {
       logger.error('[aiContent] 题目校验失败')
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateContent',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: 'AI 生成内容不完整（题目格式错误）',
+      })
       return { success: false, error: 'AI 生成内容不完整（题目格式错误）' }
     }
 
@@ -381,15 +429,27 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
 /** 标题生成系统提示词 */
 const TITLE_SYSTEM_PROMPT = `你是一位英语教育内容编辑。请根据以下英文学习材料，生成一个简洁、准确、吸引人的中文标题（不超过 20 个字）。标题应概括材料主题，适合学习者快速识别内容。只返回标题文本，不要返回任何其他内容。`
 
-/** 标题生成最大 token 数 */
-const TITLE_MAX_TOKENS = 100
-
 /**
- * 根据英文原文生成中文标题
+ * 根据英文原文生成中文标题（带失败重试）
+ * 对可重试失败自动重试 1 次（共 2 次尝试）：单次成功立即返回；否则保留最后一次结果继续第二次
  * @param text 英文原文
  * @returns 标题生成结果，失败时返回 error
  */
 export async function generateTitle(text: string): Promise<GenerateTitleResult> {
+  let result: GenerateTitleResult = { success: false, error: '标题生成失败' }
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    result = await generateTitleOnce(text)
+    if (result.success) return result
+  }
+  return result
+}
+
+/**
+ * 单次生成中文标题（不重试）。
+ * HTTP 200 且 JSON 解析成功后立即记 success=true 埋点；后续内容为空 / 清洗后为空
+ * 等分支会在 return error 前补记 success=false，保证 cloud_service_call_log 与业务结果一致。
+ */
+async function generateTitleOnce(text: string): Promise<GenerateTitleResult> {
   const trimmed = text.trim()
   if (!trimmed) {
     return { success: false, error: '文本不能为空' }
@@ -407,8 +467,8 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
 
   let callStart = 0
   try {
-    // 读取可配超时（sys_config 后台可调，查库失败兜底默认值）
-    const { titleTimeoutMs } = await getDeepseekTimeouts()
+    // 读取可配超时与 max_tokens（sys_config 后台可调，查库失败兜底默认值）
+    const { titleTimeoutMs, titleMaxTokens } = await getDeepseekParams()
     // deepseek 云产品并发闸门：同 generateLearningContent
     const resp = await withQueue('deepseek', () => {
       callStart = Date.now()
@@ -425,7 +485,7 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
             { role: 'user', content: trimmed.substring(0, 500) },
           ],
           temperature: 0.3,
-          max_tokens: TITLE_MAX_TOKENS,
+          max_tokens: titleMaxTokens,
         }),
         timeout: titleTimeoutMs,
         tag: '[aiContent]',
@@ -469,6 +529,14 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
 
     if (!title) {
       logger.error('[aiContent] 标题生成返回空内容')
+      // 补记失败埋点：HTTP 200 但业务无结果，与业务返回值保持一致
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateTitle',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: 'AI 未返回有效内容',
+      })
       return { success: false, error: 'AI 未返回有效内容' }
     }
 
@@ -478,6 +546,14 @@ export async function generateTitle(text: string): Promise<GenerateTitleResult> 
       .replace(/\n/g, ' ')
       .trim()
     if (!title) {
+      logger.error('[aiContent] 标题清洗后为空')
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'generateTitle',
+        success: false,
+        durationMs: Date.now() - callStart,
+        errorMessage: 'AI 返回标题为空',
+      })
       return { success: false, error: 'AI 返回标题为空' }
     }
 

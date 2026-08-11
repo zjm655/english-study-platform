@@ -180,6 +180,7 @@
 </template>
 
 <script setup lang="ts">
+import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
 import { useAdminUserRecordingList, useAuditionUserRecording } from '~/composables/admin'
 import { usePermission } from '~/composables/user'
 import type {

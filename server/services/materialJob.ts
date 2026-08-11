@@ -284,7 +284,7 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
       presetTitle ? Promise.resolve(null) : generateTitle(textContent),
     ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
-      return await fail('AI 内容生成失败')
+      return await fail(`AI 内容生成失败: ${aiResult.error ?? '未知原因'}`)
     }
 
     const vocabulary: NonNullable<typeof aiResult.vocabulary> = aiResult.vocabulary

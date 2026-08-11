@@ -252,6 +252,7 @@
 
 <script setup lang="ts">
 import { Back, Plus, Delete, Unlock } from '@element-plus/icons-vue'
+import AuditionReasonDialog from '~/components/admin/AuditionReasonDialog.vue'
 import {
   useAdminSegmentDetail,
   useUpdateAdminSegment,

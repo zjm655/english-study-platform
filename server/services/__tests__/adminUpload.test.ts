@@ -452,6 +452,31 @@ describe('processAdminMaterial', () => {
     expect(result.error).toContain('不匹配')
   })
 
+  it('AI 内容生成失败：返回 error 与 error_message 均透传具体原因', async () => {
+    setupDefaults()
+    mockGenerateLearningContent.mockResolvedValue({
+      success: false,
+      error: 'AI 生成内容解析失败',
+    })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Normal text for ai failure.',
+      title: 'Test',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('AI 内容生成失败: AI 生成内容解析失败')
+    // record 的 error_message 同样携带具体原因（可诊断）
+    const failedCall = mockPoolExecute.mock.calls.find(([sql]) => String(sql).includes("'failed'"))
+    expect(failedCall).toBeTruthy()
+    expect(String(failedCall![1])).toContain('AI 内容生成失败: AI 生成内容解析失败')
+  })
+
   it('AI 标题生成失败时降级为文本截取', async () => {
     setupDefaults()
     mockGenerateTitle.mockResolvedValue({ success: false, error: 'LLM error' })

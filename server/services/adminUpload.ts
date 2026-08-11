@@ -271,8 +271,9 @@ export async function processAdminMaterial(
       needAiTitle ? generateTitle(textContent) : Promise.resolve(null),
     ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
-      await fail('AI 内容生成失败')
-      return { index: 0, success: false, error: 'AI 内容生成失败' }
+      const msg = `AI 内容生成失败: ${aiResult.error ?? '未知原因'}`
+      await fail(msg)
+      return { index: 0, success: false, error: msg }
     }
 
     const vocabulary = aiResult.vocabulary!

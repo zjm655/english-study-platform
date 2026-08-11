@@ -57,8 +57,8 @@
               </el-upload>
             </div>
           </el-form-item>
-          <el-form-item label="标题生成方式">
-            <el-radio-group v-model="titleMode">
+          <el-form-item label="标题">
+            <el-radio-group v-model="titleMode" class="title-mode-group">
               <el-radio-button value="ai">AI 生成</el-radio-button>
               <el-radio-button value="manual">手动填写</el-radio-button>
               <el-radio-button value="filename">文件名</el-radio-button>
@@ -100,7 +100,7 @@
       <div v-else class="mode-panel">
         <el-form label-width="90px">
           <el-form-item label="标题生成方式">
-            <el-radio-group v-model="titleMode">
+            <el-radio-group v-model="titleMode" class="title-mode-group">
               <el-radio-button value="ai">AI 生成</el-radio-button>
               <el-radio-button value="filename">文件名</el-radio-button>
               <el-radio-button value="inline">正文 # 标题</el-radio-button>
@@ -390,6 +390,14 @@ onMounted(() => {
 .text-file-row {
   width: 100%;
   margin-top: 8px;
+}
+
+/* 标题模式 radio-button 组：窄容器下换行排列，行间 8px 间距；column-gap 默认 0 保持同排按钮连排 */
+.title-mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 8px;
 }
 
 .title-mode-tip {

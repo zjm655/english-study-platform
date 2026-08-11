@@ -277,6 +277,19 @@ describe('runMaterialJob', () => {
     ).toBe(true)
   })
 
+  it('AI 内容生成失败：error_message 透传具体原因（可诊断）', async () => {
+    mockGenerateLearningContent.mockResolvedValue({
+      success: false,
+      error: 'AI 生成内容解析失败',
+    })
+    await runMaterialJob({ ...BASE_PARAMS })
+
+    expect(recordStatusUpdates().some((s) => s.includes("'failed'"))).toBe(true)
+    const failedCall = mockPoolExecute.mock.calls.find(([sql]) => String(sql).includes("'failed'"))
+    expect(failedCall).toBeTruthy()
+    expect(String(failedCall![1])).toContain('AI 内容生成失败: AI 生成内容解析失败')
+  })
+
   it('未预期异常（AI 模块抛错）：catch-all 兜底写 failed，绝不外抛', async () => {
     mockGenerateLearningContent.mockRejectedValue(new Error('boom'))
     await expect(runMaterialJob({ ...BASE_PARAMS })).resolves.toBeUndefined()

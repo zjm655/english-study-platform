@@ -320,7 +320,7 @@ async function handleSubmit() {
       <!-- 标题 -->
       <div class="form-section">
         <label class="form-label">标题</label>
-        <el-radio-group v-model="titleMode">
+        <el-radio-group v-model="titleMode" class="title-mode-group">
           <el-radio value="ai">AI 生成</el-radio>
           <el-radio value="manual">手动填写</el-radio>
           <el-radio value="filename" :disabled="!audioFile">音频文件名</el-radio>
@@ -494,6 +494,13 @@ async function handleSubmit() {
 
 .form-hint.error {
   color: var(--danger);
+}
+
+/* 标题模式 radio 组：窄容器（app-wrapper 限宽 430px）下换行排列，避免超宽错乱 */
+.title-mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 
 .form-desc {
