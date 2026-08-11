@@ -43,6 +43,7 @@
             />
             <div class="text-file-row">
               <el-upload
+                ref="textFileUploadRef"
                 :auto-upload="false"
                 :limit="1"
                 accept=".txt,.md"
@@ -72,6 +73,7 @@
           </el-form-item>
           <el-form-item label="音频">
             <el-upload
+              ref="audioUploadRef"
               :auto-upload="false"
               :limit="1"
               accept="audio/*"
@@ -100,7 +102,7 @@
       <!-- 批量模式 -->
       <div v-else class="mode-panel">
         <el-form label-width="90px">
-          <el-form-item label="标题生成方式">
+          <el-form-item label="标题">
             <el-radio-group v-model="titleMode" class="title-mode-group">
               <el-radio-button value="ai">AI 生成</el-radio-button>
               <el-radio-button value="text_filename">文本文件名</el-radio-button>
@@ -110,6 +112,7 @@
           </el-form-item>
         </el-form>
         <el-upload
+          ref="txtUploadRef"
           :auto-upload="false"
           multiple
           accept=".txt"
@@ -130,6 +133,12 @@
       </div>
 
       <div class="submit-row">
+        <div class="submit-actions">
+          <!-- 清空材料：仅清空文本/音频输入（保留标题生成方式等设置，便于连续上传多个材料） -->
+          <el-button plain @click="handleResetMaterials">清空材料</el-button>
+          <!-- 重置全部：整个表单回初始状态（含标题/音色/可见范围/单元/回执） -->
+          <el-button plain @click="handleResetAll">重置全部</el-button>
+        </div>
         <el-button type="primary" :loading="isLoading" @click="handleSubmit">
           {{ mode === 'single' ? '上传材料' : '批量上传' }}
         </el-button>
@@ -182,7 +191,7 @@ import { useAdminUpload } from '~/composables/admin'
 import { useUnits } from '~/composables/unit'
 import type { AdminUploadResponse } from '#shared/types/adminUpload'
 import type { UnitWithProgress } from '#shared/types/unit'
-import type { UploadFile, UploadFiles } from 'element-plus'
+import type { UploadFile, UploadFiles, UploadInstance } from 'element-plus'
 
 definePageMeta({
   layout: 'admin',
@@ -220,6 +229,11 @@ const nlsCheck = ref(false)
 
 // 批量模式
 const txtFiles = ref<File[]>([])
+
+// el-upload 实例（重置/清空时同步清空组件内部文件列表）
+const textFileUploadRef = ref<UploadInstance>()
+const audioUploadRef = ref<UploadInstance>()
+const txtUploadRef = ref<UploadInstance>()
 
 // 单元列表
 const units = ref<UnitWithProgress[]>([])
@@ -358,6 +372,33 @@ async function handleSubmit() {
   }
 }
 
+// 清空材料输入：单条模式清文本框/文本文件/音频（保留标题模式、音色、可见范围、单元等设置，
+// 便于连续上传多个材料——音频只能一个个上传）；批量模式清空 txt 文件列表
+function handleResetMaterials() {
+  if (mode.value === 'single') {
+    textContent.value = ''
+    textFileName.value = ''
+    audioFile.value = null
+    nlsCheck.value = false
+    textFileUploadRef.value?.clearFiles()
+    audioUploadRef.value?.clearFiles()
+  } else {
+    txtFiles.value = []
+    txtUploadRef.value?.clearFiles()
+  }
+}
+
+// 重置全部：整个表单回初始状态（含标题模式、标题、音色、可见范围、单元、批量文件与入队回执）
+function handleResetAll() {
+  handleResetMaterials()
+  titleMode.value = 'ai'
+  title.value = ''
+  voice.value = 'en-US-AriaNeural'
+  isPublic.value = true
+  unitId.value = 0
+  result.value = null
+}
+
 onMounted(() => {
   loadUnits()
 })
@@ -425,9 +466,18 @@ onMounted(() => {
 }
 
 .submit-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--border-ll);
+}
+
+.submit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .result-summary {
