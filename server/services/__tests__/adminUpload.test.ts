@@ -234,7 +234,7 @@ describe('processAdminMaterial', () => {
     expect(result.title).toBe('Some manual text content here.')
   })
 
-  it("titleMode='filename' 且 title 为空：不调用 generateTitle，降级文本截取", async () => {
+  it("titleMode='text_filename' 且 title 为空：不调用 generateTitle，降级文本截取", async () => {
     setupDefaults()
 
     const result = await processAdminMaterial({
@@ -242,7 +242,7 @@ describe('processAdminMaterial', () => {
       unitId: 1,
       textContent: 'Filename titled material text.',
       title: null,
-      titleMode: 'filename',
+      titleMode: 'text_filename',
       voice: 'en-US-AriaNeural',
       isPublic: 1,
       bucket: 'test-bucket',
@@ -638,7 +638,7 @@ describe('processAdminBatch', () => {
     expect(result[0]!.title).toBe('My Title')
   })
 
-  it('filename 模式：文件名去扩展名作为标题', async () => {
+  it('text_filename 模式：文件名去扩展名作为标题', async () => {
     setupDefaults()
 
     const result = await processAdminBatch({
@@ -648,7 +648,7 @@ describe('processAdminBatch', () => {
       isPublic: 1,
       bucket: 'test-bucket',
       files: [{ name: 'abc.txt', content: 'Some content for abc.' }],
-      titleMode: 'filename',
+      titleMode: 'text_filename',
     })
 
     expect(result).toHaveLength(1)
@@ -656,7 +656,7 @@ describe('processAdminBatch', () => {
     expect(result[0]!.title).toBe('abc')
   })
 
-  it('filename 模式：超长文件名截取 50 字符并附 notice', async () => {
+  it('text_filename 模式：超长文件名截取 50 字符并附 notice', async () => {
     setupDefaults()
 
     const longName = 'a'.repeat(60)
@@ -667,14 +667,14 @@ describe('processAdminBatch', () => {
       isPublic: 1,
       bucket: 'test-bucket',
       files: [{ name: `${longName}.txt`, content: 'Some content here.' }],
-      titleMode: 'filename',
+      titleMode: 'text_filename',
     })
 
     expect(result).toHaveLength(1)
     expect(result[0]!.success).toBe(true)
     expect(result[0]!.title).toBe('a'.repeat(50))
     expect(result[0]!.notice).toBe('标题超过 50 字符，已截取')
-    // filename 截取需记录 ai 文件日志
+    // text_filename 截取需记录 ai 文件日志
     expect(mockFileLog).toHaveBeenCalledWith(
       'ai',
       'warn',

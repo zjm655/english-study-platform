@@ -61,7 +61,8 @@
             <el-radio-group v-model="titleMode" class="title-mode-group">
               <el-radio-button value="ai">AI 生成</el-radio-button>
               <el-radio-button value="manual">手动填写</el-radio-button>
-              <el-radio-button value="filename">文件名</el-radio-button>
+              <el-radio-button value="text_filename">文本文件名</el-radio-button>
+              <el-radio-button value="audio_filename">音频文件名</el-radio-button>
               <el-radio-button value="inline">正文 # 标题</el-radio-button>
             </el-radio-group>
             <div class="upload-tip title-mode-tip">{{ titleModeTip }}</div>
@@ -102,7 +103,7 @@
           <el-form-item label="标题生成方式">
             <el-radio-group v-model="titleMode" class="title-mode-group">
               <el-radio-button value="ai">AI 生成</el-radio-button>
-              <el-radio-button value="filename">文件名</el-radio-button>
+              <el-radio-button value="text_filename">文本文件名</el-radio-button>
               <el-radio-button value="inline">正文 # 标题</el-radio-button>
             </el-radio-group>
             <div class="upload-tip title-mode-tip">{{ titleModeTip }}</div>
@@ -121,7 +122,8 @@
           <template #tip>
             <div class="upload-tip">
               标题由「标题生成方式」决定：inline 模式以每个 txt 首行 `# ` 为标题（无 `# `
-              则首行为正文），filename 模式以文件名为标题；批量模式不上传音频，统一 TTS 合成。
+              则首行为正文），文本文件名模式以文件名（txt 文件名）为标题；批量模式不上传音频，统一
+              TTS 合成。
             </div>
           </template>
         </el-upload>
@@ -207,9 +209,9 @@ const mode = ref<'single' | 'batch'>('single')
 // 单条模式
 const textContent = ref('')
 const title = ref('')
-// 标题生成方式：ai=AI 生成 / manual=手动填写 / filename=文件名 / inline=正文 # 标题（批量模式无 manual）
-const titleMode = ref<'ai' | 'manual' | 'filename' | 'inline'>('ai')
-// 所选文本文件名（filename 标题模式使用；移除文件时清空，正文不清空）
+// 标题生成方式：ai=AI 生成 / manual=手动填写 / text_filename=文本文件名 / audio_filename=音频文件名 / inline=正文 # 标题（批量模式无 manual/audio_filename）
+const titleMode = ref<'ai' | 'manual' | 'text_filename' | 'audio_filename' | 'inline'>('ai')
+// 所选文本文件名（text_filename 标题模式使用；移除文件时清空，正文不清空）
 const textFileName = ref('')
 const audioFile = ref<File | null>(null)
 // NLS 语音校对开关（默认关闭：管理员材料多来自权威来源，开启会消耗 NLS 额度并增加失败概率；
@@ -231,8 +233,10 @@ const titleModeTip = computed(() => {
   switch (titleMode.value) {
     case 'manual':
       return '手动填写标题'
-    case 'filename':
-      return '将使用所选文件名作为标题（超过 50 字符自动截取）'
+    case 'text_filename':
+      return '将使用文本文件名作为标题（超过 50 字符自动截取）'
+    case 'audio_filename':
+      return '将使用音频文件名作为标题（超过 50 字符自动截取）'
     case 'inline':
       return '正文第一行以 `# ` 开头即作为标题，例如 `# A Day at the Park`'
     default:
@@ -240,9 +244,9 @@ const titleModeTip = computed(() => {
   }
 })
 
-// 批量模式不支持手动填写：从 single 切到 batch 时回退 ai，避免 radio 无选中项
+// 批量模式不支持手动填写与音频文件名：从 single 切到 batch 时回退 ai，避免 radio 无选中项
 watch(mode, (m) => {
-  if (m === 'batch' && titleMode.value === 'manual') {
+  if (m === 'batch' && (titleMode.value === 'manual' || titleMode.value === 'audio_filename')) {
     titleMode.value = 'ai'
   }
 })
@@ -275,7 +279,7 @@ async function handleTextFileChange(file: UploadFile) {
   }
 }
 function handleTextFileRemove() {
-  // 仅清空文件名（filename 标题模式回退），不清空已填入的正文
+  // 仅清空文件名（text_filename 标题模式回退），不清空已填入的正文
   textFileName.value = ''
 }
 function handleTextFileExceed() {
@@ -318,10 +322,18 @@ async function handleSubmit() {
       }
       fd.append('title', title.value.trim())
     }
-    if (titleMode.value === 'filename') {
-      const fileName = textFileName.value || (audioFile.value?.name ?? '')
+    if (titleMode.value === 'text_filename') {
+      const fileName = textFileName.value
       if (!fileName) {
-        toastWarning('请先选择文本文件或音频文件')
+        toastWarning('请先选择文本文件')
+        return
+      }
+      fd.append('fileName', fileName)
+    }
+    if (titleMode.value === 'audio_filename') {
+      const fileName = audioFile.value?.name ?? ''
+      if (!fileName) {
+        toastWarning('请先选择音频文件')
         return
       }
       fd.append('fileName', fileName)

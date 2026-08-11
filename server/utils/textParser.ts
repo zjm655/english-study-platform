@@ -52,12 +52,12 @@ export interface TitleResolution {
   title: string | null
   /** 处理后的正文（inline 模式已移除标题行） */
   textContent: string
-  /** 同步段提示（如 filename 超长截取），供入队回执展示 */
+  /** 同步段提示（如文件名超长截取），供入队回执展示 */
   notice?: string
 }
 
 export interface ResolveUploadTitleOptions {
-  titleMode: 'ai' | 'manual' | 'filename' | 'inline'
+  titleMode: 'ai' | 'manual' | 'text_filename' | 'audio_filename' | 'inline'
   title?: string | null
   fileName?: string | null
   textContent: string
@@ -67,14 +67,16 @@ export interface ResolveUploadTitleOptions {
  * 按标题生成方式解析同步段标题：
  * - ai：title=null，交流水线 AI 生成 + 失败截取
  * - manual：直接用用户填写的 title
- * - filename：用文件名（去扩展名）作标题，超过 MAX_TITLE_LENGTH 截取并返回 notice
+ * - text_filename / audio_filename：用对应文件名（去扩展名）作标题，超过 MAX_TITLE_LENGTH 截取并返回 notice
  * - inline：正文第一个非空行以 `# ` 开头时提取为标题并从正文移除
  */
 export function resolveUploadTitle(opts: ResolveUploadTitleOptions): TitleResolution {
   switch (opts.titleMode) {
     case 'inline':
       return extractInlineTitle(opts.textContent)
-    case 'filename': {
+    case 'text_filename':
+    case 'audio_filename': {
+      // 两种模式逻辑一致：用 opts.fileName（调用方已按模式传入对应文件名）去扩展名，超 MAX_TITLE_LENGTH 截取 + notice
       const raw = (opts.fileName ?? '').replace(/\.[^.]+$/, '').trim()
       if (!raw) return { title: null, textContent: opts.textContent }
       if (raw.length > MAX_TITLE_LENGTH) {

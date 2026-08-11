@@ -3,8 +3,8 @@
 import { z } from 'zod'
 import { ALLOWED_VOICES } from './common'
 
-/** 标题生成方式：ai=AI生成(失败截取前50字符) / manual=用户填写 / filename=文件名 / inline=正文#首行 */
-export const TITLE_MODES = ['ai', 'manual', 'filename', 'inline'] as const
+/** 标题生成方式：ai=AI生成(失败截取前50字符) / manual=用户填写 / text_filename=文本文件名 / audio_filename=音频文件名 / inline=正文#首行 */
+export const TITLE_MODES = ['ai', 'manual', 'text_filename', 'audio_filename', 'inline'] as const
 
 // 材料上传校验（普通用户）
 export const uploadMaterialSchema = z.object({
@@ -71,7 +71,7 @@ export const reviewQuerySchema = z.object({
 
 // ============== 请求参数类型（推导自 schema，供 .d.ts re-export） ==============
 
-/** 标题生成方式：ai=AI生成 / manual=用户填写 / filename=文件名 / inline=正文#首行 */
+/** 标题生成方式：ai=AI生成 / manual=用户填写 / text_filename=文本文件名 / audio_filename=音频文件名 / inline=正文#首行 */
 export type TitleMode = (typeof TITLE_MODES)[number]
 
 /** 更新材料记录参数（JSON body，z.input） */

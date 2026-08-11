@@ -86,9 +86,9 @@ describe('resolveUploadTitle', () => {
     expect(result.title).toBeNull()
   })
 
-  it('filename 模式用文件名（去扩展名）作标题', () => {
+  it('text_filename 模式用文件名（去扩展名）作标题', () => {
     const result = resolveUploadTitle({
-      titleMode: 'filename',
+      titleMode: 'text_filename',
       fileName: 'A Day at the Park.txt',
       textContent,
     })
@@ -96,9 +96,34 @@ describe('resolveUploadTitle', () => {
     expect(result.notice).toBeUndefined()
   })
 
-  it('filename 超 50 字符截取并返回 notice', () => {
+  it('text_filename 超 50 字符截取并返回 notice', () => {
     const longName = 'x'.repeat(60) + '.txt'
-    const result = resolveUploadTitle({ titleMode: 'filename', fileName: longName, textContent })
+    const result = resolveUploadTitle({
+      titleMode: 'text_filename',
+      fileName: longName,
+      textContent,
+    })
+    expect(result.title).toBe('x'.repeat(50))
+    expect(result.notice).toContain('截取')
+  })
+
+  it('audio_filename 模式用文件名（去扩展名）作标题', () => {
+    const result = resolveUploadTitle({
+      titleMode: 'audio_filename',
+      fileName: 'A Day at the Park.mp3',
+      textContent,
+    })
+    expect(result.title).toBe('A Day at the Park')
+    expect(result.notice).toBeUndefined()
+  })
+
+  it('audio_filename 超 50 字符截取并返回 notice', () => {
+    const longName = 'x'.repeat(60) + '.mp3'
+    const result = resolveUploadTitle({
+      titleMode: 'audio_filename',
+      fileName: longName,
+      textContent,
+    })
     expect(result.title).toBe('x'.repeat(50))
     expect(result.notice).toContain('截取')
   })

@@ -141,14 +141,14 @@ describe('管理员上传接口 - titleMode 标题解析', () => {
     expect(arg.titleMode).toBe('inline')
   })
 
-  it('filename 模式：用文件名（去扩展名）作标题', async () => {
+  it('text_filename 模式：用文本文件名（去扩展名）作标题', async () => {
     mockReadFormData.mockResolvedValue(
       makeFormData({
         mode: 'single',
         unitId: '0',
         voice: 'en-US-AriaNeural',
         isPublic: '1',
-        titleMode: 'filename',
+        titleMode: 'text_filename',
         fileName: 'A Day at the Park.txt',
         textContent: 'The weather is nice today. She went to the park.',
         title: null,
@@ -167,9 +167,8 @@ describe('管理员上传接口 - titleMode 标题解析', () => {
     const arg = mockEnqueueAdminMaterial.mock.calls[0]![0]
     expect(arg.title).toBe('A Day at the Park')
     expect(res.data?.results?.[0]?.notice).toBeUndefined()
-  })
 
-  it('filename 超 50 字符：截取并回执携带 notice', async () => {
+    // 超 50 字符：截取并回执携带 notice
     const longName = 'x'.repeat(60) + '.txt'
     mockReadFormData.mockResolvedValue(
       makeFormData({
@@ -177,7 +176,7 @@ describe('管理员上传接口 - titleMode 标题解析', () => {
         unitId: '0',
         voice: 'en-US-AriaNeural',
         isPublic: '1',
-        titleMode: 'filename',
+        titleMode: 'text_filename',
         fileName: longName,
         textContent: 'The weather is nice today. She went to the park.',
         title: null,
@@ -190,12 +189,68 @@ describe('管理员上传接口 - titleMode 标题解析', () => {
       title: 'x'.repeat(50),
     })
 
+    const res2 = await handler(makeEvent(ADMIN))
+
+    expect(res2.code).toBe(200)
+    const arg2 = mockEnqueueAdminMaterial.mock.calls[1]![0]
+    expect(arg2.title).toBe('x'.repeat(50))
+    expect(res2.data?.results?.[0]?.notice).toContain('截取')
+  })
+
+  it('audio_filename 模式：用音频文件名（去扩展名）作标题', async () => {
+    mockReadFormData.mockResolvedValue(
+      makeFormData({
+        mode: 'single',
+        unitId: '0',
+        voice: 'en-US-AriaNeural',
+        isPublic: '1',
+        titleMode: 'audio_filename',
+        fileName: 'A Day at the Park.mp3',
+        textContent: 'The weather is nice today. She went to the park.',
+        title: null,
+        audio: null,
+      }),
+    )
+    mockEnqueueAdminMaterial.mockResolvedValue({
+      success: true,
+      recordId: 203,
+      title: 'A Day at the Park',
+    })
+
     const res = await handler(makeEvent(ADMIN))
 
     expect(res.code).toBe(200)
     const arg = mockEnqueueAdminMaterial.mock.calls[0]![0]
-    expect(arg.title).toBe('x'.repeat(50))
-    expect(res.data?.results?.[0]?.notice).toContain('截取')
+    expect(arg.title).toBe('A Day at the Park')
+    expect(res.data?.results?.[0]?.notice).toBeUndefined()
+
+    // 超 50 字符：截取并回执携带 notice
+    const longName = 'x'.repeat(60) + '.mp3'
+    mockReadFormData.mockResolvedValue(
+      makeFormData({
+        mode: 'single',
+        unitId: '0',
+        voice: 'en-US-AriaNeural',
+        isPublic: '1',
+        titleMode: 'audio_filename',
+        fileName: longName,
+        textContent: 'The weather is nice today. She went to the park.',
+        title: null,
+        audio: null,
+      }),
+    )
+    mockEnqueueAdminMaterial.mockResolvedValue({
+      success: true,
+      recordId: 204,
+      title: 'x'.repeat(50),
+    })
+
+    const res2 = await handler(makeEvent(ADMIN))
+
+    expect(res2.code).toBe(200)
+    const arg2 = mockEnqueueAdminMaterial.mock.calls[1]![0]
+    expect(arg2.title).toBe('x'.repeat(50))
+    expect(res2.data?.results?.[0]?.notice).toContain('截取')
   })
 
   it('manual 模式：使用用户填写标题；未填返回 400', async () => {

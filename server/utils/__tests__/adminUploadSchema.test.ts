@@ -103,8 +103,8 @@ describe('adminUploadSchema（multipart 字符串入参回归）', () => {
     if (parsed.success) expect(parsed.data.titleMode).toBe('ai')
   })
 
-  it('C-titleMode: 合法值 inline/filename/manual/ai 均应通过', () => {
-    for (const v of ['inline', 'filename', 'manual', 'ai']) {
+  it('C-titleMode: 合法值 inline/text_filename/audio_filename/manual/ai 均应通过', () => {
+    for (const v of ['inline', 'text_filename', 'audio_filename', 'manual', 'ai']) {
       const parsed = adminUploadSchema.safeParse({
         mode: 'single',
         unitId: '0',

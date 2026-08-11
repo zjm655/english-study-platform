@@ -71,8 +71,8 @@ export interface ProcessAdminMaterialParams {
   existingRecordId?: number
   /** 是否开启 NLS 语音校对（仅含音频时生效；消耗 NLS 额度，失败整单失败） */
   nlsCheck?: boolean
-  /** 标题模式：'ai'（默认，title 为空时 AI 生成）| 'manual'（仅用传入 title）| 'filename'（由文件名定）| 'inline'（正文首个 `# ` 行） */
-  titleMode?: 'ai' | 'manual' | 'filename' | 'inline'
+  /** 标题模式：'ai'（默认，title 为空时 AI 生成）| 'manual'（仅用传入 title）| 'text_filename'（文本文件名）| 'audio_filename'（音频文件名）| 'inline'（正文首个 `# ` 行） */
+  titleMode?: 'ai' | 'manual' | 'text_filename' | 'audio_filename' | 'inline'
 }
 
 export async function processAdminMaterial(
@@ -294,7 +294,7 @@ export async function processAdminMaterial(
       })
       finalTitle = fallbackTitle
     } else {
-      // 非 ai 模式（manual/filename/inline）未提供标题：直接文本截取
+      // 非 ai 模式（manual/text_filename/audio_filename/inline）未提供标题：直接文本截取
       finalTitle = fallbackTitle
     }
 
@@ -465,7 +465,7 @@ export async function processAdminBatch(params: {
   isPublic: number
   bucket: string
   files: Array<{ name: string; content: string }>
-  titleMode?: 'ai' | 'manual' | 'filename' | 'inline'
+  titleMode?: 'ai' | 'manual' | 'text_filename' | 'audio_filename' | 'inline'
 }): Promise<AdminUploadItemResult[]> {
   const { userId, unitId, voice, isPublic, bucket, files, titleMode = 'ai' } = params
   const results: AdminUploadItemResult[] = []
@@ -482,15 +482,15 @@ export async function processAdminBatch(params: {
       continue
     }
 
-    // 标题模式：inline 取正文首个 `# ` 行；filename 取文件名去扩展名（超 50 截取并提示）；
-    // manual（批量不提供）与 ai → title=null（流水线 AI 生成）
+    // 标题模式：inline 取正文首个 `# ` 行；text_filename 取文本文件名去扩展名（超 50 截取并提示）；
+    // manual（批量不提供）与 audio_filename（批量无音频）与 ai → title=null（流水线 AI 生成）
     let title: string | null = null
     let notice: string | undefined
     if (titleMode === 'inline') {
       const inline = extractInlineTitle(textContent)
       title = inline.title
       textContent = inline.textContent // 用提取后的正文
-    } else if (titleMode === 'filename') {
+    } else if (titleMode === 'text_filename') {
       const raw = file.name.replace(/\.[^.]+$/, '')
       if (raw.length > 50) {
         title = raw.slice(0, 50)

@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
       return validateError('材料文本不能超过5000个字符', 400)
     }
 
-    // 标题模式解析（同步段）：manual 必须填写标题；inline 提取 # 首行并清理正文；filename 用文件名；ai 交流水线生成
+    // 标题模式解析（同步段）：manual 必须填写标题；inline 提取 # 首行并清理正文；text_filename/audio_filename 用对应文件名（去扩展名）；ai 交流水线生成
     if (validTitleMode === 'manual' && !title?.trim()) {
       return validateError('请填写标题（手动模式）', 400)
     }

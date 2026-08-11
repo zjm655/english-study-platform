@@ -24,7 +24,7 @@ const { execute: doDelete } = useDeleteMaterialRecord()
 const textContent = ref('')
 const audioFile = ref<File | null>(null)
 const isPublic = ref<1>(1)
-const titleMode = ref<'ai' | 'manual' | 'inline' | 'filename'>('ai')
+const titleMode = ref<'ai' | 'manual' | 'audio_filename' | 'inline'>('ai')
 const manualTitle = ref('')
 
 /** 可选朗读音色列表 */
@@ -210,7 +210,7 @@ async function handleSubmit() {
     toastWarning('请填写标题')
     return
   }
-  if (titleMode.value === 'filename' && !audioFile.value) {
+  if (titleMode.value === 'audio_filename' && !audioFile.value) {
     toastWarning('请先上传音频文件')
     return
   }
@@ -222,7 +222,7 @@ async function handleSubmit() {
   formData.append('titleMode', titleMode.value)
   if (titleMode.value === 'manual') {
     formData.append('title', manualTitle.value.trim())
-  } else if (titleMode.value === 'filename') {
+  } else if (titleMode.value === 'audio_filename') {
     formData.append('fileName', audioFile.value?.name ?? '')
   }
   if (audioFile.value) {
@@ -323,7 +323,7 @@ async function handleSubmit() {
         <el-radio-group v-model="titleMode" class="title-mode-group">
           <el-radio value="ai">AI 生成</el-radio>
           <el-radio value="manual">手动填写</el-radio>
-          <el-radio value="filename" :disabled="!audioFile">音频文件名</el-radio>
+          <el-radio value="audio_filename" :disabled="!audioFile">音频文件名</el-radio>
           <el-radio value="inline">正文 # 标题</el-radio>
         </el-radio-group>
         <div v-if="titleMode === 'manual'" class="form-title-input">
@@ -337,7 +337,7 @@ async function handleSubmit() {
         <p v-else-if="titleMode === 'ai'" class="form-desc">
           AI 根据内容生成，失败时截取正文前 50 字符
         </p>
-        <p v-else-if="titleMode === 'filename'" class="form-desc">
+        <p v-else-if="titleMode === 'audio_filename'" class="form-desc">
           将使用音频文件名作为标题（超过 50 字符自动截取）
         </p>
         <p v-else-if="titleMode === 'inline'" class="form-desc">
