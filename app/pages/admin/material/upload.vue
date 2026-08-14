@@ -68,7 +68,7 @@
             </el-radio-group>
             <div class="upload-tip title-mode-tip">{{ titleModeTip }}</div>
           </el-form-item>
-          <el-form-item v-if="titleMode === 'manual'" label="标题（必填）">
+          <el-form-item v-if="titleMode === 'manual'" label="">
             <el-input v-model="title" placeholder="请输入标题" style="width: 420px" />
           </el-form-item>
           <el-form-item label="音频">
@@ -83,18 +83,42 @@
               <el-button type="primary" plain>选择音频（可选）</el-button>
               <template #tip>
                 <div class="upload-tip">
-                  不上传则用 TTS 合成；上传则校验音频与文本一致性。管理员上限 10 分钟 / 5MB。
+                  不上传则用 TTS 合成；上传则校验音频与文本一致性。管理员上限
+                  {{ formatDurationMin(maxAudioDurationAdmin) }} /
+                  {{ formatSizeMB(maxAudioSizeAdmin) }}。
                 </div>
               </template>
             </el-upload>
           </el-form-item>
-          <!-- 仅本次上传包含音频时出现：NLS 语音校对开关（默认关闭）。
+          <!-- 仅本次上传包含音频时出现：NLS 语音校对开关（默认开启）。
                开启后消耗 NLS 额度（标准版每日 2h 免费 / 极速版按量），识别+文本核验任一失败整单失败 -->
           <el-form-item v-if="audioFile" label="NLS 校对">
-            <el-switch v-model="nlsCheck" active-text="开启语音校对" inactive-text="关闭" />
-            <span class="nls-tip">
-              开启后上传时对音频做语音识别，核验音频内容与材料文本一致（消耗 NLS 额度）
-            </span>
+            <div class="nls-control">
+              <div class="nls-switch-row">
+                <el-switch
+                  v-model="nlsCheck"
+                  @change="handleNlsChange"
+                  active-text="开启语音校对"
+                  inactive-text="关闭"
+                />
+                <span class="nls-tip">
+                  开启后上传时对音频做语音识别，核验音频内容与材料文本一致（消耗 NLS 额度）
+                </span>
+              </div>
+              <!-- 今日免费额度透明度展示 -->
+              <div v-if="nlsQuota" class="nls-quota">
+                <template v-if="nlsQuota.backend === 'filetrans'">
+                  <span>今日免费额度已用 {{ nlsQuota.usedPercent }}%，剩余 {{ nlsQuota.remainingMin }} 分钟</span>
+                  <span v-if="quotaWarning" class="nls-quota-warn">
+                    已超过 {{ nlsQuota.warnThresholdPercent }}%，超出部分将按量付费
+                    {{ nlsQuota.paidUnitPricePerHour }} 元/小时
+                  </span>
+                </template>
+                <template v-else>
+                  <span>当前 STT 为按量付费（{{ nlsQuota.paidUnitPricePerHour }} 元/小时），无免费额度</span>
+                </template>
+              </div>
+            </div>
           </el-form-item>
         </el-form>
       </div>
@@ -187,10 +211,11 @@
 </template>
 
 <script setup lang="ts">
-import { useAdminUpload } from '~/composables/admin'
+import { useAdminUpload, useAdminNlsQuota } from '~/composables/admin'
 import { useUnits } from '~/composables/unit'
 import type { AdminUploadResponse } from '#shared/types/adminUpload'
 import type { UnitWithProgress } from '#shared/types/unit'
+import type { NlsQuotaInfo } from '#shared/types/nlsQuota'
 import type { UploadFile, UploadFiles, UploadInstance } from 'element-plus'
 
 definePageMeta({
@@ -223,9 +248,10 @@ const titleMode = ref<'ai' | 'manual' | 'text_filename' | 'audio_filename' | 'in
 // 所选文本文件名（text_filename 标题模式使用；移除文件时清空，正文不清空）
 const textFileName = ref('')
 const audioFile = ref<File | null>(null)
-// NLS 语音校对开关（默认关闭：管理员材料多来自权威来源，开启会消耗 NLS 额度并增加失败概率；
-// 需要核验音频与文本一致性时再显式开启）
-const nlsCheck = ref(false)
+// NLS 语音校对开关（默认开启：管理员上传音频默认核验音频与文本一致性，改为关闭时提示副作用）
+const nlsCheck = ref(true)
+// 今日 NLS 免费额度信息（仅含音频时展示，用于透明度与超阈值按量付费提示）
+const nlsQuota = ref<NlsQuotaInfo | null>(null)
 
 // 批量模式
 const txtFiles = ref<File[]>([])
@@ -240,7 +266,45 @@ const units = ref<UnitWithProgress[]>([])
 
 const { isLoading, execute } = useAdminUpload()
 const { execute: executeUnits } = useUnits()
+const { execute: executeNlsQuota } = useAdminNlsQuota()
 const result = ref<AdminUploadResponse | null>(null)
+
+// 上传限制来自 sys_config（管理端可调）：composable 未就绪/拉取失败时降级内置静态默认
+const { limits: uploadLimits } = useUploadLimits()
+const maxAudioDurationAdmin = computed(
+  () => uploadLimits.value?.maxAudioDurationAdmin ?? UPLOAD_LIMITS_FALLBACK.maxAudioDurationAdmin,
+)
+const maxAudioSizeAdmin = computed(
+  () => uploadLimits.value?.maxAudioSizeAdmin ?? UPLOAD_LIMITS_FALLBACK.maxAudioSizeAdmin,
+)
+
+/** 秒 → 分钟展示文案（整数直显，非整数保留 1 位小数） */
+function formatDurationMin(sec: number): string {
+  const min = sec / 60
+  return `${Number.isInteger(min) ? min : min.toFixed(1)} 分钟`
+}
+
+/** 字节 → MB 展示文案（整数直显，非整数保留 1 位小数） */
+function formatSizeMB(bytes: number): string {
+  const mb = bytes / (1024 * 1024)
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)}MB`
+}
+
+// 免费额度超阈值提示：NLS 校对开启 + filetrans 后端 + 已用百分比超过阈值
+const quotaWarning = computed(
+  () =>
+    nlsCheck.value &&
+    !!nlsQuota.value &&
+    nlsQuota.value.backend === 'filetrans' &&
+    nlsQuota.value.usedPercent > nlsQuota.value.warnThresholdPercent,
+)
+
+// 仅用户手动切换开关时触发（el-switch change 事件），程序化重置不提示
+function handleNlsChange(val: string | number | boolean) {
+  if (val === false) {
+    toastWarning('关闭后音频不再做内容一致性核验，可能放行与文本不匹配的音频')
+  }
+}
 
 // 各标题生成方式的提示文案
 const titleModeTip = computed(() => {
@@ -379,7 +443,7 @@ function handleResetMaterials() {
     textContent.value = ''
     textFileName.value = ''
     audioFile.value = null
-    nlsCheck.value = false
+    nlsCheck.value = true
     textFileUploadRef.value?.clearFiles()
     audioUploadRef.value?.clearFiles()
   } else {
@@ -399,8 +463,13 @@ function handleResetAll() {
   result.value = null
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadUnits()
+  // 静默拉取今日 NLS 免费额度（只读，失败不打扰，展示逻辑由 v-if="nlsQuota" 兜底）
+  const res = await executeNlsQuota(undefined, { silent: true })
+  if (res?.code === 200 && res.data) {
+    nlsQuota.value = res.data
+  }
 })
 </script>
 
@@ -458,11 +527,35 @@ onMounted(() => {
   margin-top: 4px;
 }
 
+.nls-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nls-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .nls-tip {
-  margin-left: 12px;
   font-size: 12px;
   color: var(--text-4);
   line-height: 1.6;
+}
+
+.nls-quota {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.6;
+}
+
+.nls-quota-warn {
+  color: var(--el-color-warning, #e6a23c);
 }
 
 .submit-row {

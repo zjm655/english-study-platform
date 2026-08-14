@@ -15,6 +15,8 @@ import { signUrl } from '#server/utils/oss'
 import { withQueue } from './serviceQueue'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
+import { deriveNlsQuotaInfo, NLS_DAILY_FREE_QUOTA_MIN } from '#server/utils/nlsQuota'
+import type { NlsQuotaInfo } from '#shared/types/nlsQuota'
 
 // ==================== 常量 ====================
 
@@ -32,8 +34,8 @@ const POLL_MAX_MS = 30_000
 /** 轮询总超时（毫秒），超时回退 flash */
 const POLL_TIMEOUT_MS = 10 * 60_000
 
-/** 标准版每日免费额度（分钟），监控展示口径 */
-export const FILETRANS_DAILY_QUOTA_MIN = 120
+/** 标准版每日免费额度（分钟），监控展示口径（单一真相源在 #server/utils/nlsQuota） */
+export const FILETRANS_DAILY_QUOTA_MIN = NLS_DAILY_FREE_QUOTA_MIN
 /** 免费试用期（天） */
 const TRIAL_DAYS = 90
 
@@ -360,4 +362,35 @@ export async function getSttMonitorSnapshot(): Promise<SttMonitorSnapshot> {
     trialDaysLeft,
     todayFallbacks: Number(fallbackRows[0]?.cnt ?? 0),
   }
+}
+
+// ==================== 免费额度查询（管理员上传页展示） ====================
+
+/**
+ * 今日 NLS 免费额度信息（管理员上传页展示与超阈值提示）。
+ * 复用 getSttMonitorSnapshot 同款口径：filetrans 成功调用按 biz_duration_ms 当日 SUM。
+ * 查询异常按 0 已用返回（旁路读取不阻断上传业务）。
+ */
+export async function getNlsQuotaInfo(): Promise<NlsQuotaInfo> {
+  const { query } = await import('#server/utils/db')
+
+  let usedMs = 0
+  let backend: 'filetrans' | 'flash' = 'flash'
+  try {
+    const [usedRows, configRows] = await Promise.all([
+      query<{ total: number | string | null }>(
+        `SELECT COALESCE(SUM(biz_duration_ms), 0) AS total FROM cloud_service_call_log
+         WHERE service = 'nls' AND operation = 'filetrans' AND success = 1 AND createdAt >= CURDATE()`,
+      ),
+      query<{ config_value: string }>(
+        `SELECT config_value FROM sys_config WHERE config_key = 'stt_backend'`,
+      ),
+    ])
+    usedMs = Number(usedRows[0]?.total ?? 0) || 0
+    backend = configRows[0]?.config_value === 'filetrans' ? 'filetrans' : 'flash'
+  } catch {
+    // 查询失败按 0 已用 + 默认后端返回，不阻断上传业务
+  }
+
+  return deriveNlsQuotaInfo({ usedMs, backend })
 }
