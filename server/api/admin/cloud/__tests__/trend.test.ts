@@ -7,7 +7,8 @@ import { query } from '#server/utils/db'
 // Nuxt 自动导入的符号在 vitest node 环境需手动挂全局（同 user.test.ts 先例）
 vi.hoisted(() => {
   ;(globalThis as unknown as Record<string, unknown>).defineEventHandler = (h: unknown) => h
-  ;(globalThis as unknown as Record<string, unknown>).getQuery = (event: unknown) => (event as Record<string, unknown>).__query ?? {}
+  ;(globalThis as unknown as Record<string, unknown>).getQuery = (event: unknown) =>
+    (event as Record<string, unknown>).__query ?? {}
 })
 
 // 模块加载依赖链：db.ts 顶层读 useRuntimeConfig、permission.ts 透传引入 oss.ts，
@@ -31,13 +32,7 @@ describe('fillDailyZeros - 按天补零', () => {
       '2026-08-05',
       SAMPLE,
     )
-    expect(dates).toEqual([
-      '2026-08-01',
-      '2026-08-02',
-      '2026-08-03',
-      '2026-08-04',
-      '2026-08-05',
-    ])
+    expect(dates).toEqual(['2026-08-01', '2026-08-02', '2026-08-03', '2026-08-04', '2026-08-05'])
     expect(callCounts).toEqual([3, 0, 0, 0, 2])
     expect(totalDurations).toEqual([1200, 0, 0, 0, 800])
     expect(totalTokens).toEqual([5000, 0, 0, 0, 3000])
@@ -69,9 +64,7 @@ describe('fillDailyZeros - 按天补零', () => {
   })
 
   it('nls 分支 useBizAsDuration=true：totalDurations 取 total_biz（真实音频时长），其余分量仍补 0', () => {
-    const rows: TrendAggRow[] = [
-      { date: '2026-08-02', call_count: 4, total_biz: 3_600_000 },
-    ]
+    const rows: TrendAggRow[] = [{ date: '2026-08-02', call_count: 4, total_biz: 3_600_000 }]
     const { dates, callCounts, totalDurations, totalTokens } = fillDailyZeros(
       '2026-08-01',
       '2026-08-04',

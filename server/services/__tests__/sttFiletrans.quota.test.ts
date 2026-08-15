@@ -1,10 +1,7 @@
 // server/services/__tests__/sttFiletrans.quota.test.ts
 // TDD：先于 deriveNlsQuotaInfo 编写，预期全部失败
 import { describe, it, expect } from 'vitest'
-import {
-  deriveNlsQuotaInfo,
-  NLS_DAILY_FREE_QUOTA_MIN,
-} from '#server/utils/nlsQuota'
+import { deriveNlsQuotaInfo, NLS_DAILY_FREE_QUOTA_MIN } from '#server/utils/nlsQuota'
 
 // ============ deriveNlsQuotaInfo ============
 

@@ -63,7 +63,15 @@ describe('stats handler 集成 - today 取 DB 时区字符串（回归 329d4e7�
     // startDateOf 产出 NaN 日期 → fillDailyTrendZeros while 不执行 → dailyTrend 全空。
     vi.mocked(query)
       .mockResolvedValueOnce([
-        { totalCalls: 10, avgDuration: 50, errorRate: 0, businessErrorRate: 0, activeUsers: 1, unauthCalls: 0, todayCalls: 3 },
+        {
+          totalCalls: 10,
+          avgDuration: 50,
+          errorRate: 0,
+          businessErrorRate: 0,
+          activeUsers: 1,
+          unauthCalls: 0,
+          todayCalls: 3,
+        },
       ]) // summary
       .mockResolvedValueOnce([{ today: '2026-08-10' }]) // today（DATE_FORMAT 输出的字符串）
       .mockResolvedValueOnce([{ date: '2026-08-10', count: 3, errorCount: 0, avgDuration: 50 }]) // trendRows

@@ -40,23 +40,21 @@ export async function resolveCode(logCfg: LogCfg, silent = false) {
       if (notify === 'all' && successText) toastSuccess(successText)
       return true
     }
-    case 400:
-      // 服务端业务拒绝（validateError）message 是权威原因（如「队列已满」「材料为对话格式」），
-      // 优先透出；缺失/为空时回退 tips.clientFail。风格同 401/403 的 message 优先。
-      {
-        const text = logCfg.message?.trim() || logCfg.tips.clientFail || '客户端请求异常'
-        if (!silent) logger.warn(text)
-        if (notify) toastError(text)
-        break
-      }
-    case 500:
-      {
-        // 服务端 5xx message 优先（如「服务器异常，请稍后重试」），缺失时回退 tips.serverFail
-        const text = logCfg.message?.trim() || logCfg.tips.serverFail || '服务器内部错误'
-        if (!silent) logger.error(text)
-        if (notify) toastError(text)
-        break
-      }
+    case 400: // 服务端业务拒绝（validateError）message 是权威原因（如「队列已满」「材料为对话格式」），
+    // 优先透出；缺失/为空时回退 tips.clientFail。风格同 401/403 的 message 优先。
+    {
+      const text = logCfg.message?.trim() || logCfg.tips.clientFail || '客户端请求异常'
+      if (!silent) logger.warn(text)
+      if (notify) toastError(text)
+      break
+    }
+    case 500: {
+      // 服务端 5xx message 优先（如「服务器异常，请稍后重试」），缺失时回退 tips.serverFail
+      const text = logCfg.message?.trim() || logCfg.tips.serverFail || '服务器内部错误'
+      if (!silent) logger.error(text)
+      if (notify) toastError(text)
+      break
+    }
     case 401: {
       const tokenCookie = useCookie('token')
       const hasToken = !!tokenCookie.value

@@ -108,14 +108,22 @@
               <!-- 今日免费额度透明度展示 -->
               <div v-if="nlsQuota" class="nls-quota">
                 <template v-if="nlsQuota.backend === 'filetrans'">
-                  <span>今日免费额度已用 {{ nlsQuota.usedPercent }}%，剩余 {{ nlsQuota.remainingMin }} 分钟</span>
+                  <span
+                    >今日免费额度已用 {{ nlsQuota.usedPercent }}%，剩余
+                    {{ nlsQuota.remainingMin }} 分钟</span
+                  >
                   <span v-if="quotaWarning" class="nls-quota-warn">
                     已超过 {{ nlsQuota.warnThresholdPercent }}%，超出部分将按量付费
                     {{ nlsQuota.paidUnitPricePerHour }} 元/小时
                   </span>
                 </template>
                 <template v-else>
-                  <span>当前 STT 为按量付费（{{ nlsQuota.paidUnitPricePerHour }} 元/小时），无免费额度</span>
+                  <span
+                    >当前 STT 为按量付费（{{
+                      nlsQuota.paidUnitPricePerHour
+                    }}
+                    元/小时），无免费额度</span
+                  >
                 </template>
               </div>
             </div>

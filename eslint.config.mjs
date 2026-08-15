@@ -25,11 +25,13 @@ export default createConfigForNuxt({
           patterns: [
             {
               regex: '^#shared/schemas/',
-              message: '前端请从 #shared/types/* 读取共享类型，禁止直接导入 #shared/schemas/*（类型来源分叉）。',
+              message:
+                '前端请从 #shared/types/* 读取共享类型，禁止直接导入 #shared/schemas/*（类型来源分叉）。',
             },
             {
               regex: '^zod($|/)',
-              message: '前端禁止导入 zod（含 import type），类型由 #shared/types/* 推导提供，避免 zod 运行时进入客户端 bundle。',
+              message:
+                '前端禁止导入 zod（含 import type），类型由 #shared/types/* 推导提供，避免 zod 运行时进入客户端 bundle。',
             },
           ],
         },

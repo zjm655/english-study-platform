@@ -86,11 +86,12 @@
       <el-empty v-else description="范围内无识别调用" :image-size="64" />
       <p class="estimate-note">
         ⚠️ 基于 cloud_service_call_log 真实调用埋点估算（仅成功识别，失败不计费）。官方按
-        <b>音频时长</b>计费（约 2.5 元/小时），此处识别时长取埋点中的真实音频时长
-        （filetrans 的 BizDuration / 极速版的 duration）。<br />
-        误差说明：① 标准版 filetrans 处于「每日 2 小时免费试用」期内时实际费用为 0，估算值为按量价上限；
-        ② 免费额度按自然日重置，跨天任务以提交日为准；③ 极速版 2026-07 前的埋点无时长字段，历史行按 0
-        时长计，估算可能偏低；④ createToken（鉴权）与 sttFallback（回退诊断）非计费调用，未计入。
+        <b>音频时长</b>计费（约 2.5 元/小时），此处识别时长取埋点中的真实音频时长 （filetrans 的
+        BizDuration / 极速版的 duration）。<br />
+        误差说明：① 标准版 filetrans 处于「每日 2 小时免费试用」期内时实际费用为
+        0，估算值为按量价上限； ② 免费额度按自然日重置，跨天任务以提交日为准；③ 极速版 2026-07
+        前的埋点无时长字段，历史行按 0 时长计，估算可能偏低；④ createToken（鉴权）与
+        sttFallback（回退诊断）非计费调用，未计入。
       </p>
     </section>
   </div>
@@ -163,7 +164,12 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
     },
     yAxis: [
       { type: 'value', name: '识别次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
-      { type: 'value', name: '时长(分钟)', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
+      {
+        type: 'value',
+        name: '时长(分钟)',
+        axisLabel: { fontSize: 11 },
+        splitLine: { show: false },
+      },
     ],
     series: [
       {

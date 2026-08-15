@@ -18,7 +18,7 @@ services:
       dockerfile: docker/Dockerfile
       target: migrator
     container_name: nuxt-migrate
-    restart: "no"
+    restart: 'no'
     env_file:
       - ../env/.env.migrate
     environment:
@@ -73,7 +73,7 @@ services:
       - mysql-data:/var/lib/mysql
     # 不映射端口到宿主机：app 通过 compose 子网 db:3306 访问，避免与本机 mysql 冲突
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD || exit 1']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -94,7 +94,7 @@ services:
     volumes:
       - ../nginx/conf.d:/etc/nginx/conf.d:ro
     ports:
-      - "80:80"
+      - '80:80'
     depends_on:
       - app
     networks:

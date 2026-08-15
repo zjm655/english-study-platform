@@ -22,7 +22,7 @@ services:
       # 多实例部署时 DB_HOST 从 .env 读取，连接外部 mysql
       NUXT_DB_HOST: ${NUXT_DB_HOST}
     ports:
-      - "3000:3000"
+      - '3000:3000'
     networks:
       - app-net
 
