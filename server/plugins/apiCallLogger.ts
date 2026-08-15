@@ -22,12 +22,18 @@ import {
 } from '#server/utils/apiCallLog'
 import { flushCloudServiceLog } from '#server/utils/cloudServiceLog'
 import { flushOssPlaybackLog } from '#server/utils/ossPlaybackLog'
-import { flushAlertEventLog } from '#server/utils/alertEventLog'
+import { flushAlertEventLog, logAlertEvent } from '#server/utils/alertEventLog'
+import { getClientIp } from '#server/utils/clientIp'
 import { checkRateLimit, getRateLimitConfig } from '#server/utils/rateLimiter'
 import { fileLogError, cleanupOldLogs } from '#server/utils/fileLogger'
 
 /** 隐私红线：认证类路径不记录 error_stack（堆栈可能携带请求参数，防账号/密码泄漏） */
 const STACK_EXCLUDED_PATHS = new Set(['/api/user/login', '/api/user/register', '/api/user/captcha'])
+
+/** P3-F：限流命中事件节流（每 IP 10 分钟 1 条；Map 有界防内存膨胀） */
+const RATE_LIMIT_EVENT_INTERVAL_MS = 10 * 60 * 1000
+const RATE_LIMIT_EVENT_MAP_MAX = 10_000
+const rateLimitHitEvents = new Map<string, number>()
 
 export default defineNitroPlugin((nitroApp) => {
   // 启动时清理过期文件日志（一次性 fire-and-forget）：
@@ -69,7 +75,7 @@ export default defineNitroPlugin((nitroApp) => {
       businessCode: (event.context._apiLogBusinessCode as number) ?? null,
       durationMs: start ? Date.now() - start : 0,
       userId: event.context.user?.id ?? null,
-      ip: getRequestIP(event, { xForwardedFor: true }) ?? null,
+      ip: getClientIp(event),
       requestId: (event.context.requestId as string) ?? null,
       errorMessage: errorMessage ?? null,
       errorStack: errorStack ?? null,
@@ -82,7 +88,7 @@ export default defineNitroPlugin((nitroApp) => {
 
     // 限流检查（IP 级，用户级限流在 auth 中间件中处理；上传路径独立于全局 enabled）
     const rateLimitConfig = await getRateLimitConfig()
-    const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+    const ip = getClientIp(event)
     const { allowed, retryAfter } = checkRateLimit(ip, event.path, rateLimitConfig)
     if (!allowed) {
       event.node.res.statusCode = 429
@@ -101,6 +107,23 @@ export default defineNitroPlugin((nitroApp) => {
       // 若不补记则攻击/高频期错误率反而显示为 0
       event.context._apiLogBusinessCode = 429
       record(event, 429)
+      // P3-F：限流命中安全事件（游客侧违规可观测，联动告警事件页）；
+      // 节流：每 IP 10 分钟最多 1 条（内存 Map，防事件风暴）
+      const now = Date.now()
+      const lastHit = rateLimitHitEvents.get(ip)
+      if (!lastHit || now - lastHit >= RATE_LIMIT_EVENT_INTERVAL_MS) {
+        rateLimitHitEvents.set(ip, now)
+        if (rateLimitHitEvents.size > RATE_LIMIT_EVENT_MAP_MAX) {
+          rateLimitHitEvents.clear()
+        }
+        void logAlertEvent({
+          source: 'security',
+          level: 'warn',
+          code: 'rate_limit_hit',
+          message: `IP 触发限流 429（${event.path}，${retryAfter}s 后重试）`,
+          context: { ip, path: event.path },
+        })
+      }
       return
     }
 

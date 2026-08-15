@@ -31,6 +31,9 @@ export default defineNuxtConfig({
     isOpenLog: true,
     // 文件日志保留天数（logs/ 下超期 .log 启动时清理），env: NUXT_LOG_RETENTION_DAYS
     logRetentionDays: 30,
+    // 是否信任 X-Forwarded-For（P3-A）：docker 部署 nginx 已覆盖 XFF 为 $remote_addr，
+    // 默认 true 取链首=可信对端；pm2 直连部署设 NUXT_TRUST_PROXY=false 只读 socket IP
+    trustProxy: true,
     db: {
       host: '127.0.0.1',
       port: '3306',

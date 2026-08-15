@@ -1,5 +1,6 @@
-import { readBody, getRequestIP } from 'h3'
+import { readBody } from 'h3'
 import { query } from '#server/utils/db'
+import { getClientIp } from '#server/utils/clientIp'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { logAdminOperation } from '#server/services/adminLog'
 import { ensurePermission, writeReviewAccessLog } from '#server/services/permission'
@@ -69,7 +70,7 @@ export default defineEventHandler(async (event) => {
       targetUserId: row.uploader_user_id,
       reasonCategory,
       reason,
-      ip: getRequestIP(event, { xForwardedFor: true }) || null,
+      ip: getClientIp(event) === 'unknown' ? null : getClientIp(event),
     })
   } catch (e) {
     logger.error('[segment visibility] 留痕失败，拒绝调整:', e)

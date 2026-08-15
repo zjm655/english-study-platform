@@ -7,6 +7,7 @@ import {
   adminLogsArchiveStatsPath,
   adminLogsArchivePurgePath,
   adminLogsArchiveListPath,
+  adminLogsEventsPath,
 } from '~/api/paths'
 import type {
   ApiCallLogListQuery,
@@ -17,6 +18,10 @@ import type {
   ReviewAccessLogListQuery,
   ReviewAccessLogListResult,
   LogArchiveStatsResult,
+  ArchiveListResult,
+  AlertEventListResult,
+  ArchiveListQuery,
+  AlertEventListQuery,
 } from '#shared/types/adminLogs'
 import type { AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
@@ -98,19 +103,26 @@ export const purgeLogArchive = (payload: { table: string; days: number }) =>
     body: payload,
   })
 
-/** 归档表只读浏览（P2-B：三张归档表分页列表，只读不清理） */
-export const getArchiveList = (options: {
-  table: string
-  page: number
-  pageSize: number
-  startDate?: string
-  endDate?: string
-}) =>
+/** 归档表只读浏览（P2-B：三张归档表分页列表，只读不清理；query 从 schema 推导，P3-H） */
+export const getArchiveList = (options: ArchiveListQuery) =>
   request.json<ArchiveListResult>(
     `${adminLogsArchiveListPath}${buildQuery({
       table: options.table,
       page: options.page,
       pageSize: options.pageSize,
+      startDate: options.startDate,
+      endDate: options.endDate,
+    })}`,
+  )
+
+/** 告警事件列表（A1：alert_event 只读浏览；query 从 schema 推导，P3-H） */
+export const getAlertEvents = (options: AlertEventListQuery) =>
+  request.json<AlertEventListResult>(
+    `${adminLogsEventsPath}${buildQuery({
+      page: options.page,
+      pageSize: options.pageSize,
+      source: options.source,
+      level: options.level,
       startDate: options.startDate,
       endDate: options.endDate,
     })}`,

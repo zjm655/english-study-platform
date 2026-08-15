@@ -1,15 +1,12 @@
 // server/utils/alertEventLog.ts
 // 告警事件写入：统一事件表 alert_event（可观测性事件数据源，未来告警通道立项后消费）。
 //
-// 设计要点（与 cloudServiceLog 同模式）：
-// - 内存队列 + 定时 flush + 阈值立即 flush + 软上限丢最旧 + close 钩子 flush；
-// - 失败静默吞错——旁路能力，绝不阻塞业务；
-// - requestId 经请求上下文自动填充（getCurrentRequestId，无上下文为 null）。
+// 批量写入模式（P3-I 重构）：内存队列逻辑统一收敛到 batchQueue 工厂；
+// requestId 经请求上下文自动填充（getCurrentRequestId）。
 // 事件源枚举：client_error（前端错误上报）/ log_queue（埋点队列丢弃）/ task_fail（任务失败）/
-//            cloud_health（云服务健康事件，二期接入，枚举预留）。
-import { query } from '#server/utils/db'
+//            cloud_health（云服务健康事件）/ security（安全事件）。
+import { createBatchQueue } from '#server/utils/batchQueue'
 import { getCurrentRequestId } from '#server/utils/requestContext'
-import { logger } from '#shared/utils/logger'
 
 /** 事件来源（与迁移 037 alert_event.source 枚举一致；varchar 无 CHECK 约束，新增值无需迁移） */
 export type AlertEventSource =
@@ -32,30 +29,20 @@ export interface AlertEventEntry {
   context?: Record<string, unknown> | null
 }
 
-// ─── 内存队列 ────────────────────────────────────────
+// ─── 批量队列（P3-I：由 batchQueue 工厂统一实现）────────────
 
 const BATCH_SIZE = 50
-const FLUSH_INTERVAL_MS = 5000
-/** 队列软上限：超限丢弃最旧条目，防 DB 写入慢时队列无界增长导致 OOM（旁路，可容忍丢弃） */
 const MAX_QUEUE_SIZE = 10_000
 
-const queue: AlertEventEntry[] = []
-let timer: ReturnType<typeof setInterval> | null = null
-/** 累计因超限丢弃的条数（供运行监控探针） */
-let droppedCount = 0
-
-function ensureTimer(): void {
-  if (timer !== null) return
-  timer = setInterval(flush, FLUSH_INTERVAL_MS)
-  if (timer && typeof timer === 'object' && 'unref' in timer) {
-    timer.unref() // 不阻止进程退出
-  }
-}
-
-async function flush(): Promise<void> {
-  if (queue.length === 0) return
-  const batch = queue.splice(0, BATCH_SIZE)
-  try {
+const alertEventQueue = createBatchQueue<AlertEventEntry>({
+  batchSize: BATCH_SIZE,
+  maxQueueSize: MAX_QUEUE_SIZE,
+  errorLabel: '[alert event] 批量写入失败:',
+  enrich: (entry) => {
+    // 请求上下文自动填充 requestId（显式传入优先；无上下文/后台路径为 null）
+    entry.requestId = entry.requestId ?? getCurrentRequestId() ?? null
+  },
+  buildSql: (batch) => {
     const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')
     const params = batch.flatMap((e) => [
       e.source,
@@ -66,50 +53,30 @@ async function flush(): Promise<void> {
       e.userId ?? null,
       e.context ? JSON.stringify(e.context) : null,
     ])
-    await query(
-      `INSERT INTO alert_event (source, level, code, message, request_id, user_id, context)
+    return {
+      sql: `INSERT INTO alert_event (source, level, code, message, request_id, user_id, context)
        VALUES ${values}`,
       params,
-    )
-  } catch (err) {
-    logger.error('[alert event] 批量写入失败:', err)
-    // 静默丢弃本批数据，不重试
-  }
-}
+    }
+  },
+})
 
 /**
  * 写入一条告警事件（入队，不阻塞）。
  * 调用方以 fire-and-forget 方式调用：void logAlertEvent({ ... })
  */
 export function logAlertEvent(entry: AlertEventEntry): void {
-  // 请求上下文自动填充 requestId（显式传入优先；无上下文/后台路径为 null）
-  entry.requestId = entry.requestId ?? getCurrentRequestId() ?? null
-  // 软上限保护：超限丢弃最旧条目
-  if (queue.length >= MAX_QUEUE_SIZE) {
-    queue.shift()
-    droppedCount++
-    if (droppedCount === 1 || droppedCount % 1000 === 0) {
-      logger.warn(`[alert event] 队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条事件`)
-    }
-  }
-  queue.push(entry)
-  ensureTimer()
-  if (queue.length >= BATCH_SIZE) {
-    void flush()
-  }
+  alertEventQueue.push(entry)
 }
 
 /**
  * 进程退出前把队列全部写完（供 Nitro close 钩子调用）。
- * flush 内失败会 splice 丢弃本批，故队列必然递减，不会死循环。
  */
 export async function flushAlertEventLog(): Promise<void> {
-  while (queue.length > 0) {
-    await flush()
-  }
+  await alertEventQueue.flushAll()
 }
 
 /** 只读探针：内存缓冲水位快照（供运行监控观测，不暴露队列引用） */
 export function getAlertEventLogStats(): { size: number; maxSize: number; dropped: number } {
-  return { size: queue.length, maxSize: MAX_QUEUE_SIZE, dropped: droppedCount }
+  return alertEventQueue.getStats()
 }

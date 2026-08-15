@@ -72,9 +72,10 @@ export function recordFail(account: string): void {
   }
 }
 
-/** 登录成功：清零该账号的失败计数 */
+/** 登录成功：清零该账号的失败计数（P2 review 补记 info 留痕） */
 export function resetFail(account: string): void {
   failMap.delete(account)
+  fileLog('auth', 'info', '[login] 登录成功，已清零失败计数', { account })
 }
 
 /** 定时清理：删除所有过期条目 */

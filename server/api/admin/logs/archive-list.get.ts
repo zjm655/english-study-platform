@@ -2,27 +2,10 @@ import { query } from '#server/utils/db'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
-import { z } from 'zod'
-
-/** 归档表白名单（防注入；权限与 export.get.ts 同口径 VIEW_LOGS） */
-const ARCHIVE_TABLE_WHITELIST = [
-  'api_call_log_archive',
-  'cloud_service_call_log_archive',
-  'admin_operation_log_archive',
-] as const
-
-const archiveListSchema = z.object({
-  table: z.enum(ARCHIVE_TABLE_WHITELIST, {
-    message: 'table 必须为归档表之一',
-  }),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式 YYYY-MM-DD').optional(),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式 YYYY-MM-DD').optional(),
-})
+import { adminArchiveListSchema } from '#shared/schemas/adminLogs'
 
 /** 各归档表列别名映射（与原列表端点同构，前端列模板可直接复用；含 archivedAt） */
-const COLUMN_MAP: Record<(typeof ARCHIVE_TABLE_WHITELIST)[number], string> = {
+const COLUMN_MAP: Record<string, string> = {
   api_call_log_archive: `id, path, route_pattern AS routePattern, method, status_code AS statusCode,
     business_code AS businessCode, duration_ms AS durationMs, user_id AS userId, ip,
     request_id AS requestId, error_message AS errorMessage, error_stack AS errorStack,
@@ -43,7 +26,7 @@ export default defineEventHandler(async (event) => {
   const err = ensurePermission(event, PERMISSIONS.VIEW_LOGS)
   if (err) return err
 
-  const parsed = archiveListSchema.safeParse(getQuery(event))
+  const parsed = adminArchiveListSchema.safeParse(getQuery(event))
   if (!parsed.success) {
     return validateError(parsed.error.issues[0]?.message ?? '参数校验失败', 400)
   }

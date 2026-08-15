@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { withTransaction } from '#server/utils/db'
+import { getClientIp } from '#server/utils/clientIp'
 import { readGuestKey, setGuestCookie } from '#server/utils/guest'
+import { checkGuestKeyIssue } from '#server/utils/guestIpGuard'
 import { ensureGuestUser, getGuestDailyStudyCap } from '#server/services/guestUser'
 import { accumulateStudyTime } from '#server/services/studyTime'
 import { studyTimeSchema } from '#shared/schemas/user'
@@ -32,6 +34,10 @@ export default defineEventHandler(async (event): Promise<ResPayload<GuestStudyRe
 
   // 无身份 → 懒签发；无论如何 <=0 秒都不落库
   if (!guestKey) {
+    // P3-C：铸键频率限制（1 次/分/IP）——guest_token 免费签发是身份轮换的供给侧，防脚本批量铸键
+    if (!checkGuestKeyIssue(getClientIp(event))) {
+      return validateError('操作过于频繁，请稍后再试', 429)
+    }
     guestKey = randomUUID()
     await setGuestCookie(event, guestKey)
   }

@@ -16,7 +16,9 @@ import { query } from '#server/utils/db'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { networkInterfaces } from 'node:os'
 import { readGuestKey } from '#server/utils/guest'
+import { getClientIp } from '#server/utils/clientIp'
 import { checkGuestEvalLimit, invalidateGuestEvalQuotaEntry } from '#server/utils/guestEvalLimit'
+import { checkGuestEvalByIp } from '#server/utils/guestIpGuard'
 
 /**
  * 获取本机非回环 IPv4 地址
@@ -79,6 +81,10 @@ export default defineEventHandler(
       if (!evalLimit.allowed) {
         return validateError('今日评测次数已用完，登录后可无限使用', 429)
       }
+      // P3-C：IP 维度兜底（guest_key 可轮换，防脚本换键绕过每阶段额度）
+      if (!checkGuestEvalByIp(getClientIp(event))) {
+        return validateError('今日评测次数已用完，登录后可无限使用', 429)
+      }
       isGuest = true
     }
 
@@ -118,8 +124,8 @@ export default defineEventHandler(
     }
 
     const timestamp = Math.floor(Date.now() / 1000).toString()
-    // 获取客户端 IP，若为回环地址则使用机器真实 IP
-    const requestIp = getRequestIP(event, { xForwardedFor: true }) ?? ''
+    // 获取客户端 IP（P3-A：统一 getClientIp 信任链），若为回环地址则使用机器真实 IP
+    const requestIp = getClientIp(event) === 'unknown' ? '' : getClientIp(event)
     const userClientIp =
       requestIp &&
       requestIp !== '127.0.0.1' &&
@@ -176,10 +182,12 @@ export default defineEventHandler(
       // serverFetch 透明返回原生 Response，非 2xx 不会抛异常，需显式检查
       if (!resp.ok) {
         logger.error('[evaluation auth] 阿里云 HTTP 错误:', resp.status)
-        // P1-D：评测鉴权云调用入 DB 埋点（service=edu；requestId 经请求上下文自动携带）
+        // P1-D：评测鉴权云调用入 DB 埋点（service=edu；HTTP 链无 ALS，requestId 显式透传——
+        // 修复 2026-08-15 review：此前恒为 NULL，评测链路无法与 api_call_log 关联）
         void logCloudServiceCall({
           service: 'edu',
           operation: 'warrant',
+          requestId: (event.context.requestId as string) ?? null,
           success: false,
           durationMs: Date.now() - callStart,
           errorMessage: `HTTP ${resp.status}`,
@@ -198,10 +206,11 @@ export default defineEventHandler(
 
       if (respData.code !== 0) {
         logger.error('[evaluation auth] 阿里云返回错误:', respData)
-        // P1-D：业务码失败埋点（success=false）
+        // P1-D：业务码失败埋点（success=false；requestId 显式透传，见上）
         void logCloudServiceCall({
           service: 'edu',
           operation: 'warrant',
+          requestId: (event.context.requestId as string) ?? null,
           success: false,
           durationMs: Date.now() - callStart,
           errorMessage: (respData.message || '评测鉴权失败').substring(0, 500),
@@ -209,10 +218,11 @@ export default defineEventHandler(
         return validateError(respData.message || '获取评测授权失败', 502)
       }
 
-      // P1-D：换证成功埋点（success=true）
+      // P1-D：换证成功埋点（success=true；requestId 显式透传，见上）
       void logCloudServiceCall({
         service: 'edu',
         operation: 'warrant',
+        requestId: (event.context.requestId as string) ?? null,
         success: true,
         durationMs: Date.now() - callStart,
       })
@@ -220,7 +230,11 @@ export default defineEventHandler(
       // 记录本次评测鉴权发放（作为每日额度计数依据，fire-and-forget 不阻塞响应）。
       // 见 quotaChecker.checkDailyQuota：额度按 eval_auth_log 发放次数统计，
       // 从服务端侧堵死「不回写 analyze 即可绕过额度」的刷量问题。
-      query('INSERT INTO eval_auth_log (user_id) VALUES (?)', [userId]).catch((err) => {
+      // P3-B：游客发放写入 phase（3/4），游客额度按发放计数且保持每阶段语义（迁移 039）
+      query('INSERT INTO eval_auth_log (user_id, phase) VALUES (?, ?)', [
+        userId,
+        isGuest ? (guestPhase === 'shadow' ? 4 : 3) : null,
+      ]).catch((err) => {
         logger.error('[evaluation auth] 记录鉴权发放失败:', err)
       })
 
@@ -238,10 +252,11 @@ export default defineEventHandler(
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err)
       logger.error('[evaluation auth] 请求阿里云鉴权接口失败:', err)
-      // P1-D：异常分支埋点（success=false）
+      // P1-D：异常分支埋点（success=false；requestId 显式透传，见上）
       void logCloudServiceCall({
         service: 'edu',
         operation: 'warrant',
+        requestId: (event.context.requestId as string) ?? null,
         success: false,
         durationMs: callStart ? Date.now() - callStart : 0,
         errorMessage: errMsg.substring(0, 500),

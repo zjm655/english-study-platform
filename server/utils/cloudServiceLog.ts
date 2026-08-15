@@ -1,10 +1,10 @@
 // server/utils/cloudServiceLog.ts
-// 云服务调用埋点写入：记录所有第三方云服务调用（DeepSeek / TTS / OSS / NLS / BSS）。
+// 云服务调用埋点写入：记录所有第三方云服务调用（DeepSeek / TTS / OSS / NLS / BSS / edu）。
 //
-// 批量写入模式：内存队列 + 定时 flush + 达到阈值立即 flush。
+// 批量写入模式（P3-I 重构）：内存队列逻辑统一收敛到 batchQueue 工厂；
+// requestId 经请求上下文自动填充（getCurrentRequestId），调用方显式传入优先。
 // 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程。
-// 调用方以 fire-and-forget 方式调用，对请求延迟零影响。
-import { query } from '#server/utils/db'
+import { createBatchQueue } from '#server/utils/batchQueue'
 import { getCurrentRequestId } from '#server/utils/requestContext'
 import { logAlertEvent } from '#server/utils/alertEventLog'
 
@@ -30,30 +30,20 @@ export interface CloudServiceCallEntry {
   bizDurationMs?: number | null
 }
 
-// ─── 内存队列 ────────────────────────────────────────
+// ─── 批量队列（P3-I：由 batchQueue 工厂统一实现）────────────
 
 const BATCH_SIZE = 50
-const FLUSH_INTERVAL_MS = 5000
-/** 队列软上限：超限时丢弃最旧条目，防止 DB 写入变慢时队列无界增长导致 OOM（埋点为旁路，可容忍丢弃） */
 const MAX_QUEUE_SIZE = 10_000
 
-const queue: CloudServiceCallEntry[] = []
-let timer: ReturnType<typeof setInterval> | null = null
-/** 累计因超限丢弃的条数（用于告警） */
-let droppedCount = 0
-
-function ensureTimer(): void {
-  if (timer !== null) return
-  timer = setInterval(flush, FLUSH_INTERVAL_MS)
-  if (timer && typeof timer === 'object' && 'unref' in timer) {
-    timer.unref() // 不阻止进程退出
-  }
-}
-
-async function flush(): Promise<void> {
-  if (queue.length === 0) return
-  const batch = queue.splice(0, BATCH_SIZE)
-  try {
+const cloudServiceQueue = createBatchQueue<CloudServiceCallEntry>({
+  batchSize: BATCH_SIZE,
+  maxQueueSize: MAX_QUEUE_SIZE,
+  errorLabel: '[cloud service log] 批量写入失败:',
+  enrich: (entry) => {
+    // 请求上下文自动填充 requestId（显式传入优先；无上下文/后台路径为 null，关联键留空）
+    entry.requestId = entry.requestId ?? getCurrentRequestId() ?? null
+  },
+  buildSql: (batch) => {
     const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
     const params = batch.flatMap((e) => [
       e.service,
@@ -67,16 +57,24 @@ async function flush(): Promise<void> {
       e.bizDurationMs ?? null,
       e.errorMessage || null, // 空串归一为 NULL，避免导出/统计出现空白 error_message
     ])
-    await query(
-      `INSERT INTO cloud_service_call_log (service, operation, request_id, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, biz_duration_ms, error_message)
+    return {
+      sql: `INSERT INTO cloud_service_call_log (service, operation, request_id, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, biz_duration_ms, error_message)
        VALUES ${values}`,
       params,
-    )
-  } catch (err) {
-    logger.error('[cloud service log] 批量写入失败:', err)
-    // 静默丢弃本批数据，不重试
-  }
-}
+    }
+  },
+  onDrop: (droppedCount) => {
+    logger.warn(`[cloud service log] 队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条埋点`)
+    // P1：丢弃事件落库（alert_event 为未来告警通道数据源）
+    void logAlertEvent({
+      source: 'log_queue',
+      level: 'warn',
+      code: 'log_queue_dropped',
+      message: `cloud_service_call_log 埋点队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条`,
+      context: { droppedCount },
+    })
+  },
+})
 
 /**
  * 写入一条云服务调用埋点（入队，不阻塞）。
@@ -88,46 +86,17 @@ export function logCloudServiceCall(entry: CloudServiceCallEntry): void {
   if (!entry.success && !entry.errorMessage?.trim()) {
     entry.errorMessage = '(空错误信息)'
   }
-  // 请求上下文自动填充 requestId（显式传入优先；无上下文/后台路径为 null，关联键留空）
-  entry.requestId = entry.requestId ?? getCurrentRequestId() ?? null
-  // 软上限保护：超限丢弃最旧条目，避免 DB 写入慢时队列无界增长导致 OOM
-  if (queue.length >= MAX_QUEUE_SIZE) {
-    queue.shift()
-    droppedCount++
-    if (droppedCount === 1 || droppedCount % 1000 === 0) {
-      logger.warn(
-        `[cloud service log] 队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条埋点`,
-      )
-      // P1：丢弃事件落库（与 warn 同节流节奏；alert_event 为未来告警通道数据源）
-      void logAlertEvent({
-        source: 'log_queue',
-        level: 'warn',
-        code: 'log_queue_dropped',
-        message: `cloud_service_call_log 埋点队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条`,
-        context: { droppedCount },
-      })
-    }
-  }
-  queue.push(entry)
-  ensureTimer()
-  if (queue.length >= BATCH_SIZE) {
-    void flush()
-  }
+  cloudServiceQueue.push(entry)
 }
 
 /**
  * 进程退出前把队列全部写完（供 Nitro close 钩子调用）。
- * 循环 flush 直到清空——单次 flush 仅写一个批次（BATCH_SIZE），
- * 队列超过一个批次时若只调用一次会残留丢失。
- * flush 内失败会 splice 丢弃本批，故队列必然递减，不会死循环。
  */
 export async function flushCloudServiceLog(): Promise<void> {
-  while (queue.length > 0) {
-    await flush()
-  }
+  await cloudServiceQueue.flushAll()
 }
 
 /** 只读探针：内存缓冲水位快照（供 GET /api/admin/monitor 观测，不暴露队列引用） */
 export function getCloudServiceLogStats(): { size: number; maxSize: number; dropped: number } {
-  return { size: queue.length, maxSize: MAX_QUEUE_SIZE, dropped: droppedCount }
+  return cloudServiceQueue.getStats()
 }

@@ -1,5 +1,6 @@
 import type { JwtPayload } from '#server/types/jwtPayload'
 import { query } from '#server/utils/db'
+import { getClientIp } from '#server/utils/clientIp'
 import { isAdminOrAbove, isSuperAdmin } from '#shared/utils/role'
 import { ALL_PERMISSIONS } from '#shared/utils/permission'
 import { getUserPermissions } from '#server/services/permission'
@@ -144,7 +145,7 @@ export default defineEventHandler(async (event) => {
 
   // 6. 用户级限流检查（上传路径独立于全局 enabled）
   const rateLimitConfig = await getRateLimitConfig()
-  const ip = getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+  const ip = getClientIp(event)
   const { allowed, retryAfter } = checkUserRateLimit(ip, event.path, dbUser.id, rateLimitConfig)
   if (!allowed) {
     event.node.res.statusCode = 429

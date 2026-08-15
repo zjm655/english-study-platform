@@ -61,9 +61,13 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
   }
 
   // 失败原因（可选 body）：无 body/校验失败按无错误处理（兼容旧调用，不阻断标记失败主流程）
+  // P2 review：errorCode 一并落库——拼入 analyze_error 前缀（analyze_error 为单列 varchar(500)）
   const rawBody = (await readBody(event).catch(() => ({}))) as Record<string, unknown>
   const parsed = analyzeFailSchema.safeParse(rawBody)
+  const errorCode = parsed.success ? (parsed.data.errorCode ?? null) : null
   const errorMessage = parsed.success ? (parsed.data.errorMessage ?? null) : null
+  const combinedError =
+    errorCode && errorMessage ? `[${errorCode}] ${errorMessage}` : (errorCode ?? errorMessage)
 
   logger.info(`[recording analyze-fail] 标记分析失败 id=${id}`)
 
@@ -74,7 +78,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
       await conn.execute(
         `UPDATE recording SET analyze_status = 'failed', analyze_error = COALESCE(?, analyze_error)
          WHERE id = ? AND user_id = ?`,
-        [errorMessage, id, userId],
+        [combinedError, id, userId],
       )
 
       const [rows] = await conn.execute<RowDataPacket[]>(

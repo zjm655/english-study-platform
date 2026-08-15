@@ -1,8 +1,9 @@
 // server/services/permission.ts
 // 细粒度权限运行时：每用户权限缓存 + 端点守卫 + 审核访问留痕 + 门禁试听解锁。
-import { readBody, getRequestIP } from 'h3'
+import { readBody } from 'h3'
 import type { H3Event } from 'h3'
 import { query } from '#server/utils/db'
+import { getClientIp } from '#server/utils/clientIp'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import type { ResPayload } from '#shared/types/request'
 import { isSuperAdmin } from '#shared/utils/role'
@@ -149,7 +150,7 @@ export async function auditionUnlock(
     targetUserId: input.targetUserId,
     reasonCategory,
     reason,
-    ip: getRequestIP(event, { xForwardedFor: true }) || null,
+    ip: getClientIp(event) === 'unknown' ? null : getClientIp(event),
   })
 
   const audioUrl = await signUrl(input.mediaKey, MATERIAL_EXPIRE)

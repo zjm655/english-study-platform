@@ -69,6 +69,9 @@
           <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/operation"
             >操作日志</el-menu-item
           >
+          <el-menu-item v-if="can(PERMISSIONS.VIEW_LOGS)" index="/admin/logs/events"
+            >告警事件</el-menu-item
+          >
           <el-menu-item v-if="can(PERMISSIONS.VIEW_AUDIT)" index="/admin/logs/review-access"
             >审核留痕</el-menu-item
           >

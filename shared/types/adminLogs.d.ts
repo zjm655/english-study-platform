@@ -4,6 +4,8 @@ export type {
   CloudServiceLogListQuery,
   OperationLogListQueryV2,
   ReviewAccessLogListQuery,
+  ArchiveListQuery,
+  AlertEventListQuery,
 } from '../schemas/adminLogs'
 
 /** API 调用日志列表项（对应 api_call_log 表） */
@@ -56,6 +58,27 @@ export type ArchiveLogRow = Record<string, unknown>
 /** 归档表只读浏览分页结果（P2-B） */
 export interface ArchiveListResult {
   list: ArchiveLogRow[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** 告警事件列表项（对应 alert_event 表，A1 事件可见性） */
+export interface AlertEventItem {
+  id: number
+  source: 'client_error' | 'log_queue' | 'task_fail' | 'cloud_health' | 'security'
+  level: 'error' | 'warn'
+  code: string | null
+  message: string | null
+  requestId: string | null
+  userId: number | null
+  context: Record<string, unknown> | null
+  createdAt: string
+}
+
+/** 告警事件分页结果 */
+export interface AlertEventListResult {
+  list: AlertEventItem[]
   total: number
   page: number
   pageSize: number

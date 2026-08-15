@@ -1,5 +1,6 @@
-import { readBody, getRequestIP } from 'h3'
+import { readBody } from 'h3'
 import { query } from '#server/utils/db'
+import { getClientIp } from '#server/utils/clientIp'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { ensurePermission, writeReviewAccessLog } from '#server/services/permission'
 import { PERMISSIONS, REVIEW_REASON_CATEGORIES } from '#shared/utils/permission'
@@ -63,7 +64,7 @@ export default defineEventHandler(async (event) => {
       targetUserId: userId,
       reasonCategory,
       reason,
-      ip: getRequestIP(event, { xForwardedFor: true }) || null,
+      ip: getClientIp(event) === 'unknown' ? null : getClientIp(event),
     })
   } catch (e) {
     logger.error('[recording-review] 留痕失败，拒绝签名:', e)

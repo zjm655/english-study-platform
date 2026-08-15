@@ -8,7 +8,9 @@
  * - 生成签名 URL 返回
  */
 import { readGuestKey } from '#server/utils/guest'
+import { getClientIp } from '#server/utils/clientIp'
 import { checkGuestAudioLimit } from '#server/utils/guestOssLimit'
+import { checkGuestAudioByIp } from '#server/utils/guestIpGuard'
 import { signUrl, MATERIAL_EXPIRE, WORD_EXPIRE } from '#server/utils/oss'
 import { findMediaByObjectKey } from '#server/utils/media'
 
@@ -37,9 +39,13 @@ export default defineEventHandler(async (event) => {
     return validateError('无效的音频资源', 404)
   }
 
-  // 4. 检查每日配额
+  // 4. 检查每日配额（P3-C：身份额度 + IP 维度兜底——guest_key 可轮换，IP 兜底防脚本换键清零）
   const { allowed } = await checkGuestAudioLimit(guestKey)
   if (!allowed) {
+    event.node.res.statusCode = 429
+    return validateError('今日音频播放次数已用完，登录后可无限使用', 429)
+  }
+  if (!checkGuestAudioByIp(getClientIp(event))) {
     event.node.res.statusCode = 429
     return validateError('今日音频播放次数已用完，登录后可无限使用', 429)
   }

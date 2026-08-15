@@ -7,6 +7,7 @@ import {
   getLogArchiveStats,
   purgeLogArchive,
   getArchiveList,
+  getAlertEvents,
 } from '~/api/admin/logs'
 import type {
   ApiCallLogListQuery,
@@ -18,6 +19,9 @@ import type {
   ReviewAccessLogListResult,
   LogArchiveStatsResult,
   ArchiveListResult,
+  AlertEventListResult,
+  ArchiveListQuery,
+  AlertEventListQuery,
 } from '#shared/types/adminLogs'
 import type { AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
@@ -105,9 +109,21 @@ export const usePurgeLogArchive = () => {
   return useHandleRes(cfg)
 }
 
-/** 归档表只读浏览（P2-B：分页列表，静默加载，失败不打断页面主流程） */
+/** 告警事件列表（A1：只读浏览；payload 从 schema 推导，P3-H） */
+export const useAlertEventList = () => {
+  const cfg = createResCfg<AlertEventListQuery, AlertEventListResult>({
+    handle: (payload) => getAlertEvents(payload),
+    success: '',
+    clientFail: '获取告警事件失败',
+    serverFail: '服务器异常，获取告警事件失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 归档表只读浏览（P2-B：分页列表，静默加载，失败不打断页面主流程；payload 从 schema 推导，P3-H） */
 export const useArchiveList = () => {
-  const cfg = createResCfg<{ table: string; page: number; pageSize: number }, ArchiveListResult>({
+  const cfg = createResCfg<ArchiveListQuery, ArchiveListResult>({
     handle: (payload) => getArchiveList(payload),
     success: '',
     clientFail: '获取归档日志失败',

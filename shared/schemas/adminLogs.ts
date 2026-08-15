@@ -123,6 +123,40 @@ export const reviewAccessLogListSchema = z.object({
     .optional(),
 })
 
+/** 归档表只读浏览查询校验（P2-B，P3-H 从端点内联移入 shared） */
+export const adminArchiveListSchema = z.object({
+  table: z.enum(
+    ['api_call_log_archive', 'cloud_service_call_log_archive', 'admin_operation_log_archive'],
+    { message: 'table 必须为归档表之一' },
+  ),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式 YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式 YYYY-MM-DD')
+    .optional(),
+})
+
+/** 告警事件列表查询校验（A1，P3-H 从端点内联移入 shared） */
+export const adminAlertEventListSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  source: z.enum(['client_error', 'log_queue', 'task_fail', 'cloud_health', 'security']).optional(),
+  level: z.enum(['error', 'warn']).optional(),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式 YYYY-MM-DD')
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式 YYYY-MM-DD')
+    .optional(),
+})
+
 // ============== 请求参数类型（推导自 schema，供 .d.ts re-export） ==============
 
 /** api_call_log 列表查询参数（从 schema 推导，method/statusCodeGroup 收紧为枚举） */
@@ -136,3 +170,9 @@ export type OperationLogListQueryV2 = QueryInput<typeof adminOperationLogListSch
 
 /** review_access_log 列表查询参数（从 schema 推导，targetType/reasonCategory 收紧为枚举） */
 export type ReviewAccessLogListQuery = QueryInput<typeof reviewAccessLogListSchema>
+
+/** 归档表只读浏览查询参数（P2-B，从 schema 推导） */
+export type ArchiveListQuery = QueryInput<typeof adminArchiveListSchema>
+
+/** 告警事件列表查询参数（A1，从 schema 推导） */
+export type AlertEventListQuery = QueryInput<typeof adminAlertEventListSchema>

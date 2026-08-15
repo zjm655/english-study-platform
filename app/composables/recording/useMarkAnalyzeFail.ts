@@ -1,11 +1,10 @@
 import { markAnalyzeFail } from '~/api/recording'
-import type { AnalyzeFailBody } from '~/api/recording/analyzeFail'
-import type { Recording } from '#shared/types/recording'
+import type { AnalyzeFailInput, Recording } from '#shared/types/recording'
 
 export interface MarkAnalyzeFailInput {
   id: number
   /** 评测失败原因（SDK 结构化上报，P2-A） */
-  error?: AnalyzeFailBody
+  error?: AnalyzeFailInput
 }
 
 export const useMarkAnalyzeFail = () => {

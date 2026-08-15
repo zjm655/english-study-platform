@@ -3,7 +3,9 @@
  *
  * 设计要点（仿 uploadLimitChecker）：
  * - 从 sys_config 读取 guest_daily_eval_limit（默认 1），运营可调
- * - 计数方式：查 recording 表，按游客 user.id + 当日 + phase 维度统计
+ * - 计数方式（P3-B 改口径）：查 eval_auth_log，按游客 user.id + 当日 + phase 维度统计
+ *   「发放次数」——与登录侧同口径（014 迁移已修复登录侧；此前按客户端回写
+ *   analyze_status='success' 计数，换证不写回即额度不消耗、云费用可刷）
  * - 内存缓存（TTL 5min），避免每次评测请求都查库
  * - 查库异常兜底为放行（不阻断评测业务）
  */
@@ -96,10 +98,11 @@ export async function checkGuestEvalLimit(
     }
     const userId = userRows[0]!.id
 
-    // 统计当日该 phase 的成功评测数（analyze_status='success'，sargable 范围查询）
+    // 统计当日该 phase 的发放次数（eval_auth_log，P3-B：按发放计，与登录侧同口径；
+    // 游客发放时 auth.post 写入 phase=3/4，见迁移 039）
     const countRows = await query<{ cnt: number } & RowDataPacket>(
-      `SELECT COUNT(*) AS cnt FROM recording
-       WHERE user_id = ? AND phase = ? AND analyze_status = 'success'
+      `SELECT COUNT(*) AS cnt FROM eval_auth_log
+       WHERE user_id = ? AND phase = ?
          AND createdAt >= CURDATE() AND createdAt < DATE_ADD(CURDATE(), INTERVAL 1 DAY)`,
       [userId, phaseNum],
     )
@@ -132,8 +135,8 @@ export async function getGuestEvalQuota(
     const userId = userRows[0]!.id
 
     const countRows = await query<{ phase: number; cnt: number } & RowDataPacket>(
-      `SELECT phase, COUNT(*) AS cnt FROM recording
-       WHERE user_id = ? AND phase IN (?, ?) AND analyze_status = 'success'
+      `SELECT phase, COUNT(*) AS cnt FROM eval_auth_log
+       WHERE user_id = ? AND phase IN (?, ?)
          AND createdAt >= CURDATE() AND createdAt < DATE_ADD(CURDATE(), INTERVAL 1 DAY)
        GROUP BY phase`,
       [userId, PHASE_MAP.dubbing, PHASE_MAP.shadow],

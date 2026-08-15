@@ -1,3 +1,6 @@
+/** 录音相关请求类型：analyze-fail 失败原因（P2-A，从 schema 推导，P3-H 补 re-export） */
+export type { AnalyzeFailInput } from '../schemas/recording'
+
 /** 逐词评分项 */
 export interface WordScore {
   word: string
