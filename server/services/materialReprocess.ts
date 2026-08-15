@@ -19,12 +19,17 @@ export interface ReprocessResult {
  * 重处理一条失败的上传记录。
  * 防重入：先将 status 从 failed 原子更新为 queued，利用状态机避免并发重复触发；
  * 排队期间保持 queued（正确计入队列深度/排队位置口径），由 processAdminMaterial 执行时置 processing。
+ * @param requestId 触发请求短 ID（8 位）：重处理后任务云埋点携带新请求 ID，记录行同步更新
  */
-export async function reprocessRecord(id: number, unitId: number): Promise<ReprocessResult> {
+export async function reprocessRecord(
+  id: number,
+  unitId: number,
+  requestId?: string | null,
+): Promise<ReprocessResult> {
   // 原子状态转换：failed → queued（affectedRows=0 说明已被抢占或状态不对）
   const lockResult = await query<ResultSetHeader>(
-    'UPDATE material_upload_record SET status = ?, error_message = NULL WHERE id = ? AND status = ?',
-    ['queued', id, 'failed'],
+    'UPDATE material_upload_record SET status = ?, error_message = NULL, request_id = COALESCE(?, request_id) WHERE id = ? AND status = ?',
+    ['queued', requestId ?? null, id, 'failed'],
   )
   const affected = (lockResult as unknown as ResultSetHeader).affectedRows ?? 0
   if (affected === 0) {
@@ -70,6 +75,7 @@ export async function reprocessRecord(id: number, unitId: number): Promise<Repro
         audioOssKey: record.audio_oss_key ?? undefined,
         bucket: config.oss.bucket || '',
         existingRecordId: id,
+        requestId: requestId ?? null,
       }),
     { priority: 0 },
   ).catch(async (err) => {

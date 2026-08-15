@@ -99,7 +99,11 @@ export default defineEventHandler(async (event) => {
 
     // 逐条原子锁（N≤20 开销可忽略；IN 版 UPDATE 无法区分哪些行被更新）
     for (const id of acceptedIds) {
-      const result = await reprocessRecord(id, parsed.data.unitId)
+      const result = await reprocessRecord(
+        id,
+        parsed.data.unitId,
+        (event.context.requestId as string) ?? null,
+      )
       if (result.ok) {
         succeeded++
       } else {

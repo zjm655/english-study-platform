@@ -264,8 +264,8 @@ describe('上传记录批量操作', () => {
     expect(res.code).toBe(200)
     expect(res.data!.succeeded).toBe(1)
     expect(res.data!.skipped).toEqual([{ id: 2, reason: '仅失败记录可重处理，当前状态：success' }])
-    // unitId 透传给 reprocessRecord
-    expect(mockReprocessRecord).toHaveBeenCalledWith(1, 3)
+    // unitId 透传给 reprocessRecord（第三参 requestId：测试环境 event 无 requestId → null）
+    expect(mockReprocessRecord).toHaveBeenCalledWith(1, 3, null)
   })
 })
 

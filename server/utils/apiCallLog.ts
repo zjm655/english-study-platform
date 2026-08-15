@@ -5,6 +5,7 @@
 // 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程。
 // 调用方以 fire-and-forget 方式调用，对请求延迟零影响。
 import { query } from '#server/utils/db'
+import { logAlertEvent } from '#server/utils/alertEventLog'
 
 /** 单条埋点记录 */
 export interface ApiCallEntry {
@@ -103,6 +104,14 @@ export function logApiCall(entry: ApiCallEntry): void {
     droppedCount++
     if (droppedCount === 1 || droppedCount % 1000 === 0) {
       logger.warn(`[api call log] 队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条埋点`)
+      // P1：丢弃事件落库（与 warn 同节流节奏；alert_event 为未来告警通道数据源）
+      void logAlertEvent({
+        source: 'log_queue',
+        level: 'warn',
+        code: 'log_queue_dropped',
+        message: `api_call_log 埋点队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条`,
+        context: { droppedCount },
+      })
     }
   }
   queue.push(entry)

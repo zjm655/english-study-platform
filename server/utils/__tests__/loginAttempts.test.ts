@@ -1,6 +1,20 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import { getFailCount, recordFail, resetFail, CAPTCHA_THRESHOLD } from '../loginAttempts'
+
+// loginAttempts 现依赖 alertEventLog（→ db → useRuntimeConfig），mock 掉避免 node 环境崩
+const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }))
+vi.mock('../db', () => ({ query: mockQuery }))
+vi.mock('../alertEventLog', () => ({ logAlertEvent: vi.fn() }))
+vi.mock('../fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
+vi.mock('../../../shared/utils/logger', () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), log: vi.fn(), debug: vi.fn() },
+}))
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  vi.resetModules()
+})
 
 // 注：failMap 为模块级状态，各用例用唯一 account 避免相互污染
 

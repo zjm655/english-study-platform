@@ -13,6 +13,8 @@ export interface ApiCallLogItem {
   routePattern: string | null
   method: string
   statusCode: number
+  /** 业务错误码（beforeResponse 捕获的 body.code；validateError 默认 400 / validateSuccess 默认 200；错误钩子行可为 NULL） */
+  businessCode: number | null
   durationMs: number
   userId: number | null
   ip: string | null
@@ -27,8 +29,12 @@ export interface CloudServiceLogItem {
   id: number
   service: string
   operation: string
+  /** 触发请求短 ID（8 位，与 api_call_log.request_id 互查；后台/启动路径为 NULL） */
+  requestId: string | null
   success: number // 0/1
   durationMs: number
+  /** 业务时长毫秒（nls filetrans=音频时长 BizDuration，区别于 durationMs 执行耗时） */
+  bizDurationMs: number | null
   promptTokens: number | null
   completionTokens: number | null
   totalTokens: number | null
@@ -39,6 +45,17 @@ export interface CloudServiceLogItem {
 /** 通用分页列表响应（三子页共用） */
 export interface LogListResult<T> {
   list: T[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+/** 归档表只读浏览行（列映射与各原列表端点同构；字段按 table 取用，前端组件内按需访问） */
+export type ArchiveLogRow = Record<string, unknown>
+
+/** 归档表只读浏览分页结果（P2-B） */
+export interface ArchiveListResult {
+  list: ArchiveLogRow[]
   total: number
   page: number
   pageSize: number

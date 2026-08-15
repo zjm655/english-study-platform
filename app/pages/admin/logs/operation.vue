@@ -28,6 +28,9 @@ const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect
 const detailVisible = ref(false)
 const detailRow = ref<AdminOperationLogItem | null>(null)
 
+// 实时 / 归档 Tab（P2-B：归档明细只读浏览）
+const activeTab = ref<'current' | 'archive'>('current')
+
 async function loadList() {
   const res = await execute({
     page: page.value,
@@ -189,16 +192,18 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar
-        :count="selectedRows.length"
-        :off-page-count="offPageCount"
-        :rows="selectedRows"
-        :row-label="(r) => r.action"
-        @clear="clear"
-        @remove="removeRow"
-      >
-        <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
-      </AdminBatchBar>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="实时日志" name="current">
+          <AdminBatchBar
+            :count="selectedRows.length"
+            :off-page-count="offPageCount"
+            :rows="selectedRows"
+            :row-label="(r) => r.action"
+            @clear="clear"
+            @remove="removeRow"
+          >
+            <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
+          </AdminBatchBar>
 
       <el-table
         ref="tableRef"
@@ -256,6 +261,11 @@ onMounted(() => {
           @size-change="handleSizeChange"
         />
       </div>
+        </el-tab-pane>
+        <el-tab-pane label="归档明细" name="archive">
+          <AdminArchiveList table="admin_operation_log_archive" />
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
 
     <!-- 详情 Drawer -->

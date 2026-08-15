@@ -122,6 +122,7 @@ export default defineEventHandler(
         isPublic,
         'queued',
         audioOssKey,
+        (event.context.requestId as string) ?? null,
       )
     } catch (err) {
       if (audioOssKey) void deleteObject(audioOssKey)
@@ -152,6 +153,7 @@ export default defineEventHandler(
           audioBuffer,
           audioFileName,
           audioOssKey,
+          requestId: (event.context.requestId as string) ?? null,
         }),
       { priority: 1 },
     ).catch(async (err) => {

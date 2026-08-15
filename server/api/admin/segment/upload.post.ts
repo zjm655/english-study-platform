@@ -118,6 +118,7 @@ export default defineEventHandler(async (event) => {
       audioBuffer,
       audioFileName,
       audioOssKey,
+      requestId: (event.context.requestId as string) ?? null,
     })
     if (!result.success && audioOssKey) {
       // 建记录失败：best-effort 清理已持久化的音频孤儿（音频归记录所有，记录没了对象也要清）
@@ -153,6 +154,7 @@ export default defineEventHandler(async (event) => {
       titleMode: validTitleMode,
       bucket,
       files: txtFiles,
+      requestId: (event.context.requestId as string) ?? null,
     })
   }
 

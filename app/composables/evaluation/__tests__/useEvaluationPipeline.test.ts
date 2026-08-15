@@ -50,6 +50,7 @@ function makeRecording(overrides: Partial<Recording> = {}): Recording {
     rawResult: '{"a":1}',
     createdAt: '2025-01-01T00:00:00.000Z',
     analyzeStatus: 'success',
+    analyzeError: null,
     ...overrides,
   }
 }
@@ -129,7 +130,11 @@ describe('useEvaluationPipeline', () => {
       expect(outcome.success).toBe(false)
       expect(outcome.errorMessage).toBe('SDK 崩溃')
       expect(outcome.recording!.analyzeStatus).toBe('failed')
-      expect(mockMarkExecute).toHaveBeenCalledWith({ id: OFFLINE_CTX.recordingId })
+      // P2-A：失败原因结构化上报（errorCode=eval_offline_failed）
+      expect(mockMarkExecute).toHaveBeenCalledWith({
+        id: OFFLINE_CTX.recordingId,
+        error: { errorCode: 'eval_offline_failed', errorMessage: 'SDK 崩溃' },
+      })
       // 保存不应被调用（评测阶段已失败）
       expect(mockAnalyzeExecute).not.toHaveBeenCalled()
     })
@@ -190,7 +195,11 @@ describe('useEvaluationPipeline', () => {
 
       expect(outcome.success).toBe(false)
       expect(outcome.errorMessage).toBe('服务器异常')
-      expect(mockMarkExecute).toHaveBeenCalledWith({ id: SAVE_CTX.recordingId })
+      // P2-A：保存失败结构化上报（errorCode=eval_save_failed）
+      expect(mockMarkExecute).toHaveBeenCalledWith({
+        id: SAVE_CTX.recordingId,
+        error: { errorCode: 'eval_save_failed', errorMessage: '服务器异常' },
+      })
       expect(outcome.recording).toEqual(
         expect.objectContaining({
           id: SAVE_CTX.recordingId,

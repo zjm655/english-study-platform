@@ -51,9 +51,10 @@ export default defineEventHandler(async (event) => {
   const whereSql = where.length > 0 ? `WHERE ${where.join(' AND ')}` : ''
 
   const list = await query<Record<string, unknown>>(
-    `SELECT id, service, operation, success, duration_ms AS durationMs,
-            prompt_tokens AS promptTokens, completion_tokens AS completionTokens,
-            total_tokens AS totalTokens, error_message AS errorMessage, createdAt
+    `SELECT id, service, operation, request_id AS requestId, success, duration_ms AS durationMs,
+            biz_duration_ms AS bizDurationMs, prompt_tokens AS promptTokens,
+            completion_tokens AS completionTokens, total_tokens AS totalTokens,
+            error_message AS errorMessage, createdAt
      FROM cloud_service_call_log ${whereSql}
      ORDER BY createdAt DESC
      LIMIT ? OFFSET ?`,

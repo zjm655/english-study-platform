@@ -18,10 +18,12 @@ import { extractAudioMeta } from '#server/utils/audioMeta'
 import { generateLearningContent, generateTitle } from './aiContent'
 import { ttsWithRetry } from './ttsRetry'
 import { uploadWithKey, deleteObject, downloadObject } from '#server/utils/oss'
-import { fileLog } from '#server/utils/fileLogger'
+import { fileLog, fileLogError } from '#server/utils/fileLogger'
 import { withTransaction, pool } from '#server/utils/db'
 import { mapWithConcurrency } from '#server/utils/concurrency'
 import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { requestContext } from '#server/utils/requestContext'
+import { logAlertEvent } from '#server/utils/alertEventLog'
 
 // 音频时长/大小限制已抽入 sys_config 运营可调（见 uploadLimitChecker），
 // 上传 handler 入队前的前置校验与本流水线内的后置兼校统一走 getUploadLimits()。
@@ -47,11 +49,12 @@ export async function createUploadRecord(
   isPublic: number,
   status: 'queued' | 'processing' = 'queued',
   audioOssKey?: string | null,
+  requestId?: string | null,
 ): Promise<number> {
   const [res] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO material_upload_record (user_id, title, text_content, voice, audio_oss_key, is_public, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [userId, title, textContent, voice, audioOssKey ?? null, isPublic, status],
+    `INSERT INTO material_upload_record (user_id, title, text_content, voice, audio_oss_key, is_public, status, request_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, title, textContent, voice, audioOssKey ?? null, isPublic, status, requestId ?? null],
   )
   return res.insertId
 }
@@ -88,6 +91,8 @@ export interface MaterialJobParams {
   audioFileName?: string
   /** 同步段已持久化到 OSS 的主音频 key（重处理复用）。来源优先级：audioBuffer > audioOssKey > TTS */
   audioOssKey?: string
+  /** 触发请求短 ID（8 位）：流水线内云埋点经请求上下文自动携带 */
+  requestId?: string | null
 }
 
 function getExt(filename: string): string {
@@ -104,8 +109,16 @@ function extToFormat(filename: string): 'mp3' | 'wav' | 'aac' | 'opus' | 'mp4' {
 /**
  * 执行材料上传流水线（在 upload 队列内调用）。
  * 永不抛出；所有终态（success/failed）写入 material_upload_record。
+ * 以请求上下文（requestId）包裹执行链：流水线内全部云调用埋点自动携带触发请求的 requestId。
  */
 export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
+  return requestContext.run({ requestId: params.requestId ?? null }, () =>
+    runMaterialJobInner(params),
+  )
+}
+
+/** 流水线主体（由 runMaterialJob 在 requestId 上下文中执行，外部不直接调用） */
+async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
   const { recordId, userId, isAdmin, textContent, voice, isPublic, unitId } = params
 
   // 清理栈：已上传的 OSS key（失败时统一 best-effort 删除）+ 主音频 media id
@@ -115,7 +128,7 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
   let committed = false
   let committedSegmentId = 0
 
-  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 */
+  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 + 文件留痕 */
   async function fail(message: string): Promise<void> {
     try {
       if (segmentMediaId !== null) {
@@ -128,6 +141,17 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     for (const key of uploadedKeys) {
       void deleteObject(key)
     }
+    // P0-G：任务级失败文件留痕（DB 状态之外的文件档案，与 requestId 上下文内 api 文件日志互查）
+    fileLogError('db', '[material job] 任务失败', JSON.stringify({ recordId, userId, message }))
+    // P1：任务失败事件落库（alert_event，未来告警通道数据源；requestId 经请求上下文自动携带）
+    void logAlertEvent({
+      source: 'task_fail',
+      level: 'error',
+      code: 'task_fail',
+      message: `材料上传任务失败: ${message}`,
+      userId,
+      context: { recordId },
+    })
   }
 
   try {
@@ -309,12 +333,24 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
     // TTS/OSS 为耗时网络 I/O，绝不放事务内；词汇音频失败则 media=null 静默跳过
     const vocabAudios = await mapWithConcurrency(vocabulary, 4, async (vocab) => {
       const vocabTts = await ttsWithRetry(vocab.word)
-      if (!vocabTts.success || !vocabTts.audio) return { vocab, media: null }
+      if (!vocabTts.success || !vocabTts.audio) {
+        // P0-G：词汇音频失败不再静默——哪个词永久无发音必须有痕（media=null 降级保留）
+        fileLog('tts', 'warn', '[material job] 词汇音频生成失败（跳过，media=null）', {
+          word: vocab.word,
+          error: vocabTts.error ?? '未知原因',
+        })
+        return { vocab, media: null }
+      }
       const vocabKey = `audio/vocab/${randomUUID()}.mp3`
       try {
         await uploadWithKey(vocabTts.audio, vocabKey)
         uploadedKeys.push(vocabKey)
-      } catch {
+      } catch (err) {
+        fileLog('oss', 'warn', '[material job] 词汇音频上传失败（跳过，media=null）', {
+          word: vocab.word,
+          key: vocabKey,
+          error: err instanceof Error ? err.message : String(err),
+        })
         return { vocab, media: null }
       }
       return { vocab, media: { key: vocabKey, size: vocabTts.audio.length } }
@@ -391,6 +427,7 @@ export async function runMaterialJob(params: MaterialJobParams): Promise<void> {
   } catch (err) {
     // catch-all 兜底：绝不向 fire-and-forget 调用方抛出（unhandled rejection 会崩进程）
     logger.error('[material job] 未预期异常:', err)
+    fileLogError('db', '[material job] 未预期异常', err instanceof Error ? err : String(err))
     if (committed) {
       // 提交后仅剩记录状态写失败：重试一次 success 补写，绝不误伤已入库的 segment/media/OSS
       await updateRecordSuccess(recordId, committedSegmentId).catch((e) =>

@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   if (!parsed.success) {
     return validateError(parsed.error?.issues?.[0]?.message ?? '参数校验失败', 400)
   }
-  const { page, pageSize, method, statusCodeGroup, pathKeyword, userId, startDate, endDate } =
+  const { page, pageSize, method, statusCodeGroup, businessCode, pathKeyword, userId, startDate, endDate } =
     parsed.data
   const offset = (page - 1) * pageSize
 
@@ -28,14 +28,24 @@ export default defineEventHandler(async (event) => {
     params.push(method)
   }
 
+  // 状态码分组为「HTTP 码 + 业务码」双维度：
+  // 业务拒绝（validateError 默认码 400，额度/闸门/鉴权拒绝经 HTTP 200 + 业务码返回）与
+  // HTTP 拒绝同等归组，不再被误归入「成功」。业务码镜像 HTTP 语义（>=400 为错误）。
   if (statusCodeGroup) {
     if (statusCodeGroup === 'success') {
-      where.push('status_code < 400')
+      where.push('status_code < 400 AND (business_code IS NULL OR business_code < 400)')
     } else if (statusCodeGroup === '4xx') {
-      where.push('status_code BETWEEN 400 AND 499')
+      where.push(
+        'status_code BETWEEN 400 AND 499 OR (status_code < 400 AND business_code BETWEEN 400 AND 499)',
+      )
     } else {
-      where.push('status_code >= 500')
+      where.push('status_code >= 500 OR (status_code < 400 AND business_code >= 500)')
     }
+  }
+
+  if (businessCode !== undefined) {
+    where.push('business_code = ?')
+    params.push(businessCode)
   }
 
   if (pathKeyword) {
@@ -63,8 +73,8 @@ export default defineEventHandler(async (event) => {
 
   const list = await query<Record<string, unknown>>(
     `SELECT id, path, route_pattern AS routePattern, method, status_code AS statusCode,
-            duration_ms AS durationMs, user_id AS userId, ip, request_id AS requestId,
-            error_message AS errorMessage, error_stack AS errorStack, createdAt
+            business_code AS businessCode, duration_ms AS durationMs, user_id AS userId, ip,
+            request_id AS requestId, error_message AS errorMessage, error_stack AS errorStack, createdAt
      FROM api_call_log ${whereSql}
      ORDER BY createdAt DESC
      LIMIT ? OFFSET ?`,

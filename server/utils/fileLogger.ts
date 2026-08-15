@@ -11,6 +11,7 @@
  * 使用约定：在控制台 logger 打印之后调用——控制台输出简要，文件日志详细。
  */
 import { appendFile, mkdir, readdir, stat, unlink } from 'node:fs/promises'
+import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** 日志来源白名单：作为路径子目录名的唯一合法取值，杜绝 join(LOG_DIR, source) 的路径穿越隐患 */
@@ -93,6 +94,31 @@ export async function fileLog(source: LogSource, level: string, ...args: unknown
 /** 便捷方法：错误日志（自动双写 error-*.log） */
 export function fileLogError(source: LogSource, ...args: unknown[]): Promise<void> {
   return fileLog(source, 'error', ...args)
+}
+
+/**
+ * 同步错误日志（崩溃路径专用）：unhandledRejection / uncaughtException 兜底时进程可能立即退出，
+ * 异步 appendFile 来不及落盘，此函数用同步写保证留痕（error 双写，来源非白名单回退 error）。
+ * 同样吞错——兜底自身绝不抛。
+ */
+export function fileLogErrorSync(source: LogSource, ...args: unknown[]): void {
+  if (IS_TEST) return
+  try {
+    const safeSource: LogSource = LOG_SOURCE_SET.has(source) ? source : 'error'
+    const line = `[${timestamp()}][ERROR][${safeSource}] ${serialize(args)}\n`
+    const date = dateStr()
+    const sourceDir = join(LOG_DIR, safeSource)
+    mkdirSync(sourceDir, { recursive: true })
+    appendFileSync(join(sourceDir, `${date}.log`), line, 'utf-8')
+    // 双写集中错误日志（来源已是 error 时不重复写）
+    if (safeSource !== 'error') {
+      const errorDir = join(LOG_DIR, 'error')
+      mkdirSync(errorDir, { recursive: true })
+      appendFileSync(join(errorDir, `${date}.log`), line, 'utf-8')
+    }
+  } catch {
+    // 崩溃路径也静默：不因日志二次崩溃
+  }
 }
 
 /**

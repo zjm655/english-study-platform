@@ -53,7 +53,12 @@ export default defineEventHandler(
     const ext = mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/png' ? 'png' : 'webp'
     let avatarUrl: string
     try {
-      const result = await uploadImagePublic(file.data, `${userId}.${ext}`, 'avatars/')
+      const result = await uploadImagePublic(
+        file.data,
+        `${userId}.${ext}`,
+        'avatars/',
+        (event.context.requestId as string) ?? null,
+      )
       avatarUrl = result.url
     } catch (err) {
       logger.error('[avatar upload] OSS 上传失败:', err)

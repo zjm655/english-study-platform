@@ -11,6 +11,7 @@ const { isLoading, execute } = useApiCallLogList()
 // 筛选（method/statusCodeGroup 由 schema 收窄为枚举，ref 类型对齐 query 字段）
 const filterMethod = ref<NonNullable<ApiCallLogListQuery['method']> | ''>('')
 const filterStatusCodeGroup = ref<NonNullable<ApiCallLogListQuery['statusCodeGroup']> | ''>('')
+const filterBusinessCode = ref<number | undefined>(undefined)
 const filterPathKeyword = ref('')
 const filterUserId = ref<number | undefined>(undefined)
 const filterStartDate = ref('')
@@ -30,12 +31,16 @@ const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect
 const detailVisible = ref(false)
 const detailRow = ref<ApiCallLogItem | null>(null)
 
+// 实时 / 归档 Tab（P2-B：归档明细只读浏览）
+const activeTab = ref<'current' | 'archive'>('current')
+
 async function loadList() {
   const res = await execute({
     page: page.value,
     pageSize: pageSize.value,
     method: filterMethod.value || undefined,
     statusCodeGroup: filterStatusCodeGroup.value || undefined,
+    businessCode: filterBusinessCode.value || undefined,
     pathKeyword: filterPathKeyword.value.trim() || undefined,
     userId: filterUserId.value || undefined,
     startDate: filterStartDate.value || undefined,
@@ -57,6 +62,7 @@ function handleReset() {
   clear()
   filterMethod.value = ''
   filterStatusCodeGroup.value = ''
+  filterBusinessCode.value = undefined
   filterPathKeyword.value = ''
   filterUserId.value = undefined
   filterStartDate.value = ''
@@ -177,10 +183,18 @@ onMounted(() => {
           placeholder="状态码"
         >
           <el-option label="全部" value="" />
-          <el-option label="成功 (2xx/3xx)" value="success" />
-          <el-option label="客户端错误 (4xx)" value="4xx" />
-          <el-option label="服务器错误 (5xx)" value="5xx" />
+          <el-option label="成功 (2xx/3xx + 业务码<400)" value="success" />
+          <el-option label="客户端错误 (4xx/业务4xx)" value="4xx" />
+          <el-option label="服务器错误 (5xx/业务5xx)" value="5xx" />
         </el-select>
+        <el-input
+          v-model="filterBusinessCode"
+          type="number"
+          placeholder="业务码（如 429/403/503）"
+          clearable
+          class="filter-item filter-item--narrow"
+          @keyup.enter="handleSearch"
+        />
         <el-input
           v-model="filterPathKeyword"
           placeholder="路径关键词"
@@ -219,16 +233,18 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar
-        :count="selectedRows.length"
-        :off-page-count="offPageCount"
-        :rows="selectedRows"
-        :row-label="(r) => r.path"
-        @clear="clear"
-        @remove="removeRow"
-      >
-        <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
-      </AdminBatchBar>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="实时日志" name="current">
+          <AdminBatchBar
+            :count="selectedRows.length"
+            :off-page-count="offPageCount"
+            :rows="selectedRows"
+            :row-label="(r) => r.path"
+            @clear="clear"
+            @remove="removeRow"
+          >
+            <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
+          </AdminBatchBar>
 
       <el-table
         ref="tableRef"
@@ -254,6 +270,18 @@ onMounted(() => {
         <el-table-column prop="statusCode" label="StatusCode" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.statusCode)" size="small">{{ row.statusCode }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="业务码" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag
+              v-if="row.businessCode != null"
+              :type="statusTagType(row.businessCode)"
+              size="small"
+            >
+              {{ row.businessCode }}
+            </el-tag>
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="durationMs" label="Duration" width="100" align="center">
@@ -301,6 +329,11 @@ onMounted(() => {
           @size-change="handleSizeChange"
         />
       </div>
+        </el-tab-pane>
+        <el-tab-pane label="归档明细" name="archive">
+          <AdminArchiveList table="api_call_log_archive" />
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
 
     <!-- 详情 Drawer -->
@@ -314,6 +347,16 @@ onMounted(() => {
         <el-descriptions-item label="RoutePattern">{{ detailRow.routePattern || '-' }}</el-descriptions-item>
         <el-descriptions-item label="StatusCode">
           <el-tag :type="statusTagType(detailRow.statusCode)" size="small">{{ detailRow.statusCode }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="业务码">
+          <el-tag
+            v-if="detailRow.businessCode != null"
+            :type="statusTagType(detailRow.businessCode)"
+            size="small"
+          >
+            {{ detailRow.businessCode }}
+          </el-tag>
+          <span v-else>-</span>
         </el-descriptions-item>
         <el-descriptions-item label="DurationMs">{{ detailRow.durationMs }}ms</el-descriptions-item>
         <el-descriptions-item label="UserId">

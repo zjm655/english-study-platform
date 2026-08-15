@@ -18,15 +18,13 @@ describe('cloudEstimate - 分组聚合 + 成功计费', () => {
     expect(mockQuery).toHaveBeenCalledTimes(1)
   })
 
-  it('edu：仅成功调用计费，单价 0.004，携带 label', async () => {
-    mockQuery.mockResolvedValueOnce([
-      { route_pattern: '/api/evaluation/auth', method: 'POST', ok_cnt: 100, fail_cnt: 20 },
-    ])
+  it('edu：仅成功调用计费，单价 0.004，携带 label（P2 起走 cloud_service_call_log 精确统计）', async () => {
+    mockQuery.mockResolvedValueOnce([{ ok: 100 }])
     const res = await estimateServiceUsage('edu', 7)
-    expect(res.totalCalls).toBe(100) // 失败 20 不计
+    expect(res.totalCalls).toBe(100) // 失败不计（口径：success=1）
     expect(res.totalEstimatedCost).toBeCloseTo(0.4, 3)
     expect(res.byPath).toHaveLength(1)
-    expect(res.byPath[0]!.label).toBe('口语评测鉴权')
+    expect(res.byPath[0]!.label).toBe('口语评测鉴权 (warrant)')
     expect(res.byPath[0]!.unitPrice).toBe(0.004)
   })
 
@@ -57,9 +55,7 @@ describe('cloudEstimate - 分组聚合 + 成功计费', () => {
   })
 
   it('SUM 返回字符串（mysql2 DECIMAL）也能正确解析', async () => {
-    mockQuery.mockResolvedValueOnce([
-      { route_pattern: '/api/evaluation/auth', method: 'POST', ok_cnt: '50', fail_cnt: '5' },
-    ])
+    mockQuery.mockResolvedValueOnce([{ ok: '50' }])
     const res = await estimateServiceUsage('edu', 7)
     expect(res.totalCalls).toBe(50)
   })

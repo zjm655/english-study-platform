@@ -6,6 +6,7 @@ import {
   adminLogsCleanPath,
   adminLogsArchiveStatsPath,
   adminLogsArchivePurgePath,
+  adminLogsArchiveListPath,
 } from '~/api/paths'
 import type {
   ApiCallLogListQuery,
@@ -96,3 +97,21 @@ export const purgeLogArchive = (payload: { table: string; days: number }) =>
     method: 'POST',
     body: payload,
   })
+
+/** 归档表只读浏览（P2-B：三张归档表分页列表，只读不清理） */
+export const getArchiveList = (options: {
+  table: string
+  page: number
+  pageSize: number
+  startDate?: string
+  endDate?: string
+}) =>
+  request.json<ArchiveListResult>(
+    `${adminLogsArchiveListPath}${buildQuery({
+      table: options.table,
+      page: options.page,
+      pageSize: options.pageSize,
+      startDate: options.startDate,
+      endDate: options.endDate,
+    })}`,
+  )

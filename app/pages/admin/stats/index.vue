@@ -7,7 +7,7 @@
         <h2 class="page-title">运营统计</h2>
         <p class="page-desc">
           <span class="live-dot" aria-hidden="true"></span>
-          API 调用全链路埋点 · 错误率口径 HTTP ≥ 400
+          API 调用全链路埋点 · 错误率口径 HTTP ≥ 400 或业务码 ≥ 400（业务拒绝计入，2026-08-15 起）
         </p>
       </div>
       <div class="header-actions">
@@ -68,7 +68,7 @@
       <section class="panel panel--errors">
         <header class="panel-head">
           <h3 class="panel-title">错误路径分布</h3>
-          <span class="panel-note">HTTP ≥ 400</span>
+          <span class="panel-note">HTTP ≥ 400 或业务码 ≥ 400</span>
         </header>
         <div v-if="statsData?.errorPaths.length" class="error-list">
           <div
@@ -94,7 +94,7 @@
             <span class="error-count">{{ item.count }}</span>
           </div>
         </div>
-        <el-empty v-else description="范围内无 HTTP 级错误" :image-size="64" />
+        <el-empty v-else description="范围内无错误" :image-size="64" />
       </section>
 
       <div class="right-stack">
@@ -112,7 +112,9 @@
             <ul class="security-notes">
               <li>未认证调用包含：登录/注册等公开接口、未携带有效 Cookie 的请求</li>
               <li>若该指标异常攀升，可能存在爬虫探测或接口滥用</li>
-              <li>业务错误码（401/403 等）以 HTTP 200 返回，不计入错误率</li>
+              <li>
+                错误率口径：HTTP ≥ 400 或业务码 ≥ 400（业务拒绝以 HTTP 200 返回，2026-08-15 起计入）
+              </li>
             </ul>
           </div>
         </section>

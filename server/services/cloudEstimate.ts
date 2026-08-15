@@ -79,14 +79,13 @@ const PRODUCT_REGISTRY: Record<string, ProductConfig> = {
     unitPrice: NLS_PRICE_PER_HOUR,
     paths: [],
   },
+  // edu 走 cloud_service_call_log 精确统计（P2 起，见 estimateEduUsage 专用分支），
+  // 注册表仅保留展示信息（单价/名称），paths 清空避免走 api_call_log 路径聚合。
   edu: {
     name: '智能科教平台',
     unit: '次',
     unitPrice: 0.004, // 0.004 元/次（失败不计费）
-    paths: [
-      { pattern: '/api/evaluation/auth', method: 'POST', label: '口语评测鉴权' },
-      // /api/recording/%/analyze 仅将前端评测结果入库，后端未调用智能科教平台，不计费
-    ],
+    paths: [],
   },
 }
 
@@ -111,6 +110,11 @@ export async function estimateServiceUsage(
   // NLS 专用分支：基于 cloud_service_call_log 的真实调用统计（含音频时长），不走 api_call_log 路径聚合
   if (product === 'nls') {
     return estimateNlsUsage(days)
+  }
+
+  // edu 专用分支：基于 cloud_service_call_log（P1-D 起 service='edu' 埋点）精确统计
+  if (product === 'edu') {
+    return estimateEduUsage(days)
   }
 
   const config = PRODUCT_REGISTRY[product]
@@ -202,6 +206,45 @@ export async function estimateServiceUsage(
     unitPrice: config.unitPrice,
     unit: config.unit,
     byPath,
+    days,
+  }
+}
+
+/**
+ * edu 用量统计（P2 起，口径切换点 2026-08-15 P1-D 落地）：基于 cloud_service_call_log 精确统计。
+ *
+ * 计费口径：评测鉴权（operation='warrant'）成功调用 0.004 元/次（失败不计费）。
+ * - 计入：service='edu' AND operation='warrant' AND success=1；
+ * - 历史断层：cloud_service_call_log 的 edu 数据自 P1-D 起才有，切换前历史不可比（页面已注明）。
+ */
+async function estimateEduUsage(days: number): Promise<CloudEstimateSummary> {
+  const config = PRODUCT_REGISTRY.edu!
+  const [row] = await query<{ ok: number | string }>(
+    `SELECT SUM(success = 1) AS ok
+     FROM cloud_service_call_log
+     WHERE service = 'edu' AND operation = 'warrant'
+       AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+    [days],
+  )
+  const ok = Number(row?.ok ?? 0)
+  const unitPrice = config.unitPrice
+  const cost = Math.round(ok * unitPrice * 1000) / 1000
+
+  return {
+    totalCalls: ok,
+    totalEstimatedCost: cost,
+    unitPrice,
+    unit: config.unit,
+    byPath: [
+      {
+        path: '/api/evaluation/auth',
+        label: '口语评测鉴权 (warrant)',
+        method: 'POST',
+        count: ok,
+        unitPrice,
+        estimatedCost: cost,
+      },
+    ],
     days,
   }
 }

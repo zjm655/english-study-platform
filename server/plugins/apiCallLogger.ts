@@ -22,6 +22,7 @@ import {
 } from '#server/utils/apiCallLog'
 import { flushCloudServiceLog } from '#server/utils/cloudServiceLog'
 import { flushOssPlaybackLog } from '#server/utils/ossPlaybackLog'
+import { flushAlertEventLog } from '#server/utils/alertEventLog'
 import { checkRateLimit, getRateLimitConfig } from '#server/utils/rateLimiter'
 import { fileLogError, cleanupOldLogs } from '#server/utils/fileLogger'
 
@@ -34,6 +35,19 @@ export default defineNitroPlugin((nitroApp) => {
   // 此处 void 掉且 cleanupOldLogs 内部全程吞错，绝不阻塞启动。
   const retentionDays = Number(useRuntimeConfig().logRetentionDays) || 30
   void cleanupOldLogs(retentionDays)
+
+  // 文件日志每日定时清理（P0-C′）：长跑不重启时 logs/ 不再无限增长（磁盘风险）。
+  // 与埋点队列定时器同模式：unref 不阻止进程退出；保留天数仍取 NUXT_LOG_RETENTION_DAYS；
+  // 单实例进程内定时器与 TECH_DEBT #1 约束兼容（水平扩展前外置）。
+  const dailyCleanupTimer = setInterval(
+    () => {
+      void cleanupOldLogs(retentionDays)
+    },
+    24 * 60 * 60 * 1000,
+  )
+  if (dailyCleanupTimer && typeof dailyCleanupTimer === 'object' && 'unref' in dailyCleanupTimer) {
+    dailyCleanupTimer.unref()
+  }
 
   // 统一记录入口：afterResponse（正常响应）与 error（抛错兜底）共用，_apiLogged 保证每请求只记一条
   function record(
@@ -146,5 +160,6 @@ export default defineNitroPlugin((nitroApp) => {
     await flushApiCallLog()
     await flushCloudServiceLog()
     await flushOssPlaybackLog()
+    await flushAlertEventLog()
   })
 })

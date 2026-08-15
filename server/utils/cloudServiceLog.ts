@@ -5,14 +5,18 @@
 // 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程。
 // 调用方以 fire-and-forget 方式调用，对请求延迟零影响。
 import { query } from '#server/utils/db'
+import { getCurrentRequestId } from '#server/utils/requestContext'
+import { logAlertEvent } from '#server/utils/alertEventLog'
 
 /** 云服务标识 */
-export type CloudService = 'deepseek' | 'tts' | 'oss' | 'nls' | 'bss'
+export type CloudService = 'deepseek' | 'tts' | 'oss' | 'nls' | 'bss' | 'edu'
 
 /** 单条云服务调用埋点 */
 export interface CloudServiceCallEntry {
   service: CloudService | (string & {})
   operation: string
+  /** 触发请求短 ID（8 位，与 api_call_log.request_id 互查；任务流水线经请求上下文自动填充，可显式覆盖） */
+  requestId?: string | null
   success: boolean
   durationMs: number
   errorMessage?: string | null
@@ -50,10 +54,11 @@ async function flush(): Promise<void> {
   if (queue.length === 0) return
   const batch = queue.splice(0, BATCH_SIZE)
   try {
-    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
+    const values = batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
     const params = batch.flatMap((e) => [
       e.service,
       e.operation,
+      e.requestId ?? null,
       e.success ? 1 : 0,
       e.durationMs,
       e.promptTokens ?? null,
@@ -63,7 +68,7 @@ async function flush(): Promise<void> {
       e.errorMessage || null, // 空串归一为 NULL，避免导出/统计出现空白 error_message
     ])
     await query(
-      `INSERT INTO cloud_service_call_log (service, operation, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, biz_duration_ms, error_message)
+      `INSERT INTO cloud_service_call_log (service, operation, request_id, success, duration_ms, prompt_tokens, completion_tokens, total_tokens, biz_duration_ms, error_message)
        VALUES ${values}`,
       params,
     )
@@ -83,6 +88,8 @@ export function logCloudServiceCall(entry: CloudServiceCallEntry): void {
   if (!entry.success && !entry.errorMessage?.trim()) {
     entry.errorMessage = '(空错误信息)'
   }
+  // 请求上下文自动填充 requestId（显式传入优先；无上下文/后台路径为 null，关联键留空）
+  entry.requestId = entry.requestId ?? getCurrentRequestId() ?? null
   // 软上限保护：超限丢弃最旧条目，避免 DB 写入慢时队列无界增长导致 OOM
   if (queue.length >= MAX_QUEUE_SIZE) {
     queue.shift()
@@ -91,6 +98,14 @@ export function logCloudServiceCall(entry: CloudServiceCallEntry): void {
       logger.warn(
         `[cloud service log] 队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条埋点`,
       )
+      // P1：丢弃事件落库（与 warn 同节流节奏；alert_event 为未来告警通道数据源）
+      void logAlertEvent({
+        source: 'log_queue',
+        level: 'warn',
+        code: 'log_queue_dropped',
+        message: `cloud_service_call_log 埋点队列超过 ${MAX_QUEUE_SIZE}，已累计丢弃 ${droppedCount} 条`,
+        context: { droppedCount },
+      })
     }
   }
   queue.push(entry)

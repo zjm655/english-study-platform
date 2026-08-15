@@ -1,8 +1,10 @@
 import { query, withTransaction } from '#server/utils/db'
+import { readBody } from 'h3'
 import { signUrl, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { rowToRecording } from '#server/utils/recording'
 import { resolveEffectiveUserId } from '#server/utils/guestUserId'
+import { analyzeFailSchema } from '#shared/schemas/recording'
 import type { RecordingRow } from '#server/types/db'
 import type { RowDataPacket } from 'mysql2'
 import type { Recording } from '#shared/types/recording'
@@ -10,6 +12,7 @@ import type { Recording } from '#shared/types/recording'
 /**
  * 标记录音分析失败
  * 请求：POST /api/recording/[id]/analyze-fail
+ * body（可选，P2-A）：{ errorCode?, errorMessage? }——SDK 结构化失败原因，写入 recording.analyze_error
  */
 export default defineEventHandler(async (event): Promise<ResPayload<Recording | null>> => {
   // 身份解析：登录用户走 event.context.user，游客优先 guest_token 再指纹兜底
@@ -57,15 +60,21 @@ export default defineEventHandler(async (event): Promise<ResPayload<Recording | 
     return validateError('无权限访问该录音', 403)
   }
 
+  // 失败原因（可选 body）：无 body/校验失败按无错误处理（兼容旧调用，不阻断标记失败主流程）
+  const rawBody = (await readBody(event).catch(() => ({}))) as Record<string, unknown>
+  const parsed = analyzeFailSchema.safeParse(rawBody)
+  const errorMessage = parsed.success ? (parsed.data.errorMessage ?? null) : null
+
   logger.info(`[recording analyze-fail] 标记分析失败 id=${id}`)
 
-  // 2. 更新 analyze_status='failed'，并查回签名后的记录
+  // 2. 更新 analyze_status='failed'（analyze_error 用 COALESCE 保留旧值），并查回签名后的记录
   let updatedRecording: ReturnType<typeof rowToRecording>
   try {
     updatedRecording = await withTransaction(async (conn) => {
       await conn.execute(
-        `UPDATE recording SET analyze_status = 'failed' WHERE id = ? AND user_id = ?`,
-        [id, userId],
+        `UPDATE recording SET analyze_status = 'failed', analyze_error = COALESCE(?, analyze_error)
+         WHERE id = ? AND user_id = ?`,
+        [errorMessage, id, userId],
       )
 
       const [rows] = await conn.execute<RowDataPacket[]>(

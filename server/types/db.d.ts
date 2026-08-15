@@ -107,6 +107,7 @@ export interface RecordingRow {
   rawResult: string | null // 原始评测响应JSON
   duration: string | null // DECIMAL → string
   analyze_status: string // pending | success | failed
+  analyze_error: string | null // 评测失败原因（SDK 结构化上报，迁移 038）
   createdAt: string
   deleted_at: string | null
 }

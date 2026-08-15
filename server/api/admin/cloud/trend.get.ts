@@ -2,8 +2,8 @@
 // 云服务调用趋势：按天聚合，返回完整日期序列 + 调用次数 + 总耗时（+ token）
 // 参数：service (oss/nls/deepseek/edu)、days (7/30/90，默认 7)
 //
-// oss/nls/deepseek 走 cloud_service_call_log；edu 仅在 api_call_log 埋点
-// （后端仅调 /api/evaluation/auth 鉴权，评测本身在前端 SDK），故单独分支聚合。
+// oss/nls/deepseek/edu 均走 cloud_service_call_log；edu 自 P1-D（2026-08-15）起埋点
+// service='edu'（warrant 换证），此前仅 api_call_log 有鉴权请求记录，跨切换点对比注意历史断层。
 //
 // 补零约定：GROUP BY 只返回有数据的日期，缺数据日期由 fillDailyZeros 对
 // callCounts/totalDurations/totalTokens 各分量逐一补 0，保证前端折线/面积图
@@ -102,15 +102,15 @@ export default defineEventHandler(async (event) => {
   let series: DailySeries
 
   if (service === 'edu') {
-    // edu：按天聚合 api_call_log 的评测鉴权成功调用次数（无耗时/token 维度，填 0）
+    // edu（P2 起）：按天聚合 cloud_service_call_log 的评测鉴权成功调用（P1-D 起埋点，切换点 2026-08-15）
     const rows = await query<TrendAggRow>(
       `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') as date, COUNT(*) as call_count
-       FROM api_call_log
-       WHERE route_pattern = ? AND method = ? AND status_code < 400
+       FROM cloud_service_call_log
+       WHERE service = 'edu' AND operation = 'warrant' AND success = 1
          AND createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
        GROUP BY DATE_FORMAT(createdAt, '%Y-%m-%d')
        ORDER BY date ASC`,
-      ['/api/evaluation/auth', 'POST', days],
+      [days],
     )
     series = fillDailyZeros(startDate, today, rows)
   } else if (service === 'nls') {

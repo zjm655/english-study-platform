@@ -144,15 +144,34 @@ export async function uploadImage(fileBuffer: Buffer, fileName: string): Promise
   const key = `records/${Date.now()}_${safeName}${ext}`
 
   const client = getInternalClient()
-  const result = await client.put(key, fileBuffer) // result 类型自动推断
+  const start = Date.now()
+  try {
+    const result = await client.put(key, fileBuffer) // result 类型自动推断
 
-  // 将内网 URL 替换为公网 URL（若没有 -internal 则不变）
-  const publicUrl = result.url.replace('-internal.aliyuncs.com', '.aliyuncs.com')
+    // 将内网 URL 替换为公网 URL（若没有 -internal 则不变）
+    const publicUrl = result.url.replace('-internal.aliyuncs.com', '.aliyuncs.com')
 
-  return {
-    url: publicUrl,
-    name: result.name,
-    size: fileBuffer.length,
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'uploadImage',
+      success: true,
+      durationMs: Date.now() - start,
+    })
+    return {
+      url: publicUrl,
+      name: result.name,
+      size: fileBuffer.length,
+    }
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'uploadImage',
+      success: false,
+      durationMs: Date.now() - start,
+      errorMessage: errMsg.substring(0, 500),
+    })
+    throw error
   }
 }
 
@@ -172,22 +191,44 @@ export async function uploadImagePublic(
   fileBuffer: Buffer,
   fileName: string,
   keyPrefix: string = 'records/',
+  requestId?: string | null,
 ): Promise<UploadResult> {
   const safeName = sanitizeFileName(fileName)
   const ext = safeName.includes('.') ? '' : '.png'
   const key = `${keyPrefix}${Date.now()}_${safeName}${ext}`
 
   const client = getUploadClient()
-  const result = await client.put(key, fileBuffer)
+  const start = Date.now()
+  try {
+    const result = await client.put(key, fileBuffer)
 
-  // 公网归一化：useInternal=true 时走内网 endpoint 上传省流量费，但返回的 url 是
-  // *-internal.aliyuncs.com 内网域名，落库后浏览器无法访问，必须替换为公网域名（无 -internal 时不变）
-  const publicUrl = result.url.replace('-internal.aliyuncs.com', '.aliyuncs.com')
+    // 公网归一化：useInternal=true 时走内网 endpoint 上传省流量费，但返回的 url 是
+    // *-internal.aliyuncs.com 内网域名，落库后浏览器无法访问，必须替换为公网域名（无 -internal 时不变）
+    const publicUrl = result.url.replace('-internal.aliyuncs.com', '.aliyuncs.com')
 
-  return {
-    url: publicUrl,
-    name: result.name,
-    size: fileBuffer.length,
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'uploadImagePublic',
+      requestId: requestId ?? null,
+      success: true,
+      durationMs: Date.now() - start,
+    })
+    return {
+      url: publicUrl,
+      name: result.name,
+      size: fileBuffer.length,
+    }
+  } catch (error: unknown) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    void logCloudServiceCall({
+      service: 'oss',
+      operation: 'uploadImagePublic',
+      requestId: requestId ?? null,
+      success: false,
+      durationMs: Date.now() - start,
+      errorMessage: errMsg.substring(0, 500),
+    })
+    throw error
   }
 }
 

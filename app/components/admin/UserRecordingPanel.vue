@@ -162,6 +162,23 @@
             show-icon
             title="评测未完成或失败，暂无评分"
           />
+          <!-- P2-A：失败原因（analyze-fail 结构化上报） -->
+          <el-alert
+            v-if="
+              drawerDetail.recording.analyzeStatus === 'failed' &&
+              drawerDetail.recording.analyzeError
+            "
+            type="warning"
+            :closable="false"
+            show-icon
+            class="analyze-error-alert"
+          >
+            <template #title>
+              <span class="analyze-error-title"
+                >失败原因：{{ drawerDetail.recording.analyzeError }}</span
+              >
+            </template>
+          </el-alert>
         </div>
 
         <div class="drawer-section">
@@ -386,6 +403,14 @@ onMounted(() => {
   font-weight: 600;
   color: var(--text-1);
   margin-bottom: 8px;
+}
+
+.analyze-error-alert {
+  margin-top: 8px;
+}
+
+.analyze-error-title {
+  word-break: break-all;
 }
 
 .drawer-text {

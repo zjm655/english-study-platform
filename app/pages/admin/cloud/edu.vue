@@ -5,7 +5,9 @@
     <div class="page-header">
       <div>
         <h2 class="page-title">智能科教平台</h2>
-        <p class="page-desc">口语评测（配音/跟读打分）· 本地埋点估算</p>
+        <p class="page-desc">
+          口语评测（配音/跟读打分）· 精确埋点统计（P1-D 起，切换点 2026-08-15）
+        </p>
       </div>
       <div class="header-actions">
         <el-radio-group v-model="days" @change="fetchData">
@@ -55,8 +57,8 @@
     <!-- 估算面板 -->
     <section class="panel">
       <header class="panel-head">
-        <h3 class="panel-title">本地埋点估算明细</h3>
-        <span class="panel-note">基于 api_call_log 统计</span>
+        <h3 class="panel-title">评测鉴权调用明细</h3>
+        <span class="panel-note">基于 cloud_service_call_log 精确统计（service=edu）</span>
       </header>
       <el-table
         v-if="data?.estimate.byPath.length"
@@ -70,21 +72,23 @@
           </template>
         </el-table-column>
         <el-table-column prop="method" label="方法" width="80" />
-        <el-table-column prop="count" label="调用次数" width="100" align="right">
+        <el-table-column prop="count" label="成功调用次数" width="120" align="right">
           <template #default="{ row }">{{ row.count.toLocaleString() }}</template>
         </el-table-column>
         <el-table-column prop="unitPrice" label="单价(元)" width="100" align="right">
           <template #default="{ row }">￥{{ row.unitPrice }}</template>
         </el-table-column>
-        <el-table-column prop="estimatedCost" label="估算费用" width="110" align="right">
+        <el-table-column prop="estimatedCost" label="费用" width="110" align="right">
           <template #default="{ row }">￥{{ row.estimatedCost.toFixed(3) }}</template>
         </el-table-column>
       </el-table>
       <el-empty v-else description="范围内无调用记录" :image-size="64" />
       <p class="estimate-note">
-        ⚠️ 基于本地 API 调用埋点估算，仅供参考。官方计费 0.004 元/次（失败不计费），此处仅统计
-        evaluation/auth（获取 warrantId 鉴权）成功调用；recording/*/analyze 仅将前端评测结果
-        入库、后端不调用评测平台，不计费。鉴权失败/重复鉴权次数已从估算中剔除。
+        ℹ️ 精确口径（2026-08-15 P1-D 起）：统计 evaluation/auth
+        换证成功（service=edu，operation=warrant， success=1），官方计费 0.004
+        元/次（失败不计费）。recording/*/analyze 仅将前端评测结果入库、后端不调用
+        评测平台，不计费。失败调用可在「日志管理 → 云服务调用日志」按 service=edu 筛选查看。
+        切换前历史数据不可比（此前为 api_call_log 代理估算）。
       </p>
     </section>
   </div>

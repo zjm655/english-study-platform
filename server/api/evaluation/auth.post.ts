@@ -13,6 +13,7 @@
 import crypto from 'node:crypto'
 import { serverFetch } from '#server/utils/request'
 import { query } from '#server/utils/db'
+import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { networkInterfaces } from 'node:os'
 import { readGuestKey } from '#server/utils/guest'
 import { checkGuestEvalLimit, invalidateGuestEvalQuotaEntry } from '#server/utils/guestEvalLimit'
@@ -154,6 +155,7 @@ export default defineEventHandler(
     }
 
     // ── 请求阿里云鉴权接口 ──
+    const callStart = Date.now()
     try {
       const body = new URLSearchParams({
         appid: appId,
@@ -174,6 +176,14 @@ export default defineEventHandler(
       // serverFetch 透明返回原生 Response，非 2xx 不会抛异常，需显式检查
       if (!resp.ok) {
         logger.error('[evaluation auth] 阿里云 HTTP 错误:', resp.status)
+        // P1-D：评测鉴权云调用入 DB 埋点（service=edu；requestId 经请求上下文自动携带）
+        void logCloudServiceCall({
+          service: 'edu',
+          operation: 'warrant',
+          success: false,
+          durationMs: Date.now() - callStart,
+          errorMessage: `HTTP ${resp.status}`,
+        })
         return validateError(`评测服务异常（${resp.status}）`, 502)
       }
       const respData = (await resp.json()) as {
@@ -188,8 +198,24 @@ export default defineEventHandler(
 
       if (respData.code !== 0) {
         logger.error('[evaluation auth] 阿里云返回错误:', respData)
+        // P1-D：业务码失败埋点（success=false）
+        void logCloudServiceCall({
+          service: 'edu',
+          operation: 'warrant',
+          success: false,
+          durationMs: Date.now() - callStart,
+          errorMessage: (respData.message || '评测鉴权失败').substring(0, 500),
+        })
         return validateError(respData.message || '获取评测授权失败', 502)
       }
+
+      // P1-D：换证成功埋点（success=true）
+      void logCloudServiceCall({
+        service: 'edu',
+        operation: 'warrant',
+        success: true,
+        durationMs: Date.now() - callStart,
+      })
 
       // 记录本次评测鉴权发放（作为每日额度计数依据，fire-and-forget 不阻塞响应）。
       // 见 quotaChecker.checkDailyQuota：额度按 eval_auth_log 发放次数统计，
@@ -210,7 +236,16 @@ export default defineEventHandler(
         userId,
       })
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err)
       logger.error('[evaluation auth] 请求阿里云鉴权接口失败:', err)
+      // P1-D：异常分支埋点（success=false）
+      void logCloudServiceCall({
+        service: 'edu',
+        operation: 'warrant',
+        success: false,
+        durationMs: callStart ? Date.now() - callStart : 0,
+        errorMessage: errMsg.substring(0, 500),
+      })
       return validateError('评测授权服务暂时不可用', 502)
     }
   },

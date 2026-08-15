@@ -22,6 +22,12 @@ export const adminApiCallLogListSchema = z.object({
   statusCodeGroup: z
     .enum(['success', '4xx', '5xx'], { message: 'statusCodeGroup 必须为 success/4xx/5xx' })
     .optional(),
+  businessCode: z.coerce
+    .number()
+    .int()
+    .min(0, 'businessCode 不能小于 0')
+    .max(599, 'businessCode 不能大于 599')
+    .optional(),
   pathKeyword: z.string().max(100, '路径关键词不能超过 100 字').optional(),
   userId: z.coerce.number().int().min(1, 'userId 不能小于 1').optional(),
   startDate: z
@@ -45,8 +51,8 @@ export const adminCloudServiceLogListSchema = z.object({
     .optional()
     .default(20),
   service: z
-    .enum(['deepseek', 'tts', 'oss', 'nls', 'bss', 'aiContent'], {
-      message: 'service 必须为 deepseek/tts/oss/nls/bss/aiContent',
+    .enum(['deepseek', 'tts', 'oss', 'nls', 'bss', 'edu'], {
+      message: 'service 必须为 deepseek/tts/oss/nls/bss/edu',
     })
     .optional(),
   success: z.coerce

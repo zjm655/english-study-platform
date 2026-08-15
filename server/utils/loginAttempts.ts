@@ -1,3 +1,6 @@
+import { logAlertEvent } from '#server/utils/alertEventLog'
+import { fileLog } from '#server/utils/fileLogger'
+
 // server/utils/loginAttempts.ts
 // 登录连续失败计数（进程内内存态，镜像 rateLimiter 的 windowMap 模式）。
 //
@@ -44,7 +47,7 @@ export function getFailCount(account: string): number {
   return entry.count
 }
 
-/** 记录一次登录失败：计数 +1，刷新时间戳 */
+/** 记录一次登录失败：计数 +1，刷新时间戳；达到验证码阈值时写安全事件（P2：审计留痕） */
 export function recordFail(account: string): void {
   const entry = failMap.get(account)
   if (!entry) {
@@ -53,6 +56,19 @@ export function recordFail(account: string): void {
   } else {
     entry.count += 1
     entry.ts = Date.now()
+  }
+  if (entry && entry.count >= CAPTCHA_THRESHOLD) {
+    fileLog('auth', 'warn', '[login] 登录失败达到验证码阈值', {
+      account,
+      count: entry.count,
+    })
+    void logAlertEvent({
+      source: 'security',
+      level: 'warn',
+      code: 'login_brute_force',
+      message: `账号登录失败 ${entry.count} 次，触发验证码`,
+      context: { account, count: entry.count },
+    })
   }
 }
 

@@ -29,6 +29,9 @@ const { tableRef, selectedRows, selectedIds, onSelectionChange, clear, canSelect
 const detailVisible = ref(false)
 const detailRow = ref<CloudServiceLogItem | null>(null)
 
+// 实时 / 归档 Tab（P2-B：归档明细只读浏览）
+const activeTab = ref<'current' | 'archive'>('current')
+
 async function loadList() {
   const res = await execute({
     page: page.value,
@@ -99,7 +102,7 @@ function serviceTagType(s: string): TagType {
     nls: 'warning',
     tts: 'info',
     bss: 'danger',
-    aiContent: 'primary',
+    edu: 'primary',
   }
   return map[s] ?? 'info'
 }
@@ -122,7 +125,7 @@ onMounted(() => {
     <div class="page-header">
       <div>
         <h2 class="page-title">云服务调用日志</h2>
-        <p class="page-desc">查看 DeepSeek / OSS / NLS / TTS / BSS / 智能科教等云服务的调用记录</p>
+        <p class="page-desc">查看 DeepSeek / OSS / NLS / TTS / BSS / 智能科教（edu）等云服务的调用记录</p>
       </div>
     </div>
 
@@ -156,7 +159,7 @@ onMounted(() => {
           <el-option label="OSS" value="oss" />
           <el-option label="NLS" value="nls" />
           <el-option label="BSS" value="bss" />
-          <el-option label="智能科教" value="aiContent" />
+          <el-option label="智能科教" value="edu" />
         </el-select>
         <el-select
           v-model="filterSuccess"
@@ -198,23 +201,25 @@ onMounted(() => {
 
     <!-- 列表 -->
     <el-card class="table-card" shadow="never">
-      <AdminBatchBar
-        :count="selectedRows.length"
-        :off-page-count="offPageCount"
-        :rows="selectedRows"
-        :row-label="(r) => r.operation"
-        @clear="clear"
-        @remove="removeRow"
-      >
-        <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
-      </AdminBatchBar>
+      <el-tabs v-model="activeTab">
+        <el-tab-pane label="实时日志" name="current">
+          <AdminBatchBar
+            :count="selectedRows.length"
+            :off-page-count="offPageCount"
+            :rows="selectedRows"
+            :row-label="(r) => r.operation"
+            @clear="clear"
+            @remove="removeRow"
+          >
+            <el-button type="primary" size="small" @click="handleExportSelected">导出选中</el-button>
+          </AdminBatchBar>
 
-      <el-table
-        ref="tableRef"
-        v-loading="isLoading"
-        :data="list"
-        stripe
-        row-key="id"
+          <el-table
+            ref="tableRef"
+            v-loading="isLoading"
+            :data="list"
+            stripe
+            row-key="id"
         @selection-change="onSelectionChange"
       >
         <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
@@ -225,6 +230,11 @@ onMounted(() => {
           </template>
         </el-table-column>
         <el-table-column prop="operation" label="Operation" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="requestId" label="RequestId" width="90" align="center">
+          <template #default="{ row }">
+            <span class="text-muted">{{ row.requestId || '-' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="success" label="Success" width="90" align="center">
           <template #default="{ row }">
             <el-tag :type="row.success ? 'success' : 'info'" size="small">
@@ -234,6 +244,11 @@ onMounted(() => {
         </el-table-column>
         <el-table-column prop="durationMs" label="Duration" width="100" align="center">
           <template #default="{ row }">{{ row.durationMs }}ms</template>
+        </el-table-column>
+        <el-table-column prop="bizDurationMs" label="BizDuration" width="110" align="center">
+          <template #default="{ row }">
+            <span class="text-muted">{{ row.bizDurationMs != null ? row.bizDurationMs + 'ms' : '-' }}</span>
+          </template>
         </el-table-column>
         <el-table-column prop="promptTokens" label="PromptTokens" width="120" align="center">
           <template #default="{ row }">{{ row.promptTokens ?? '-' }}</template>
@@ -282,6 +297,11 @@ onMounted(() => {
           @size-change="handleSizeChange"
         />
       </div>
+        </el-tab-pane>
+        <el-tab-pane label="归档明细" name="archive">
+          <AdminArchiveList table="cloud_service_call_log_archive" />
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
 
     <!-- 详情 Drawer -->
@@ -292,12 +312,16 @@ onMounted(() => {
           <el-tag :type="serviceTagType(detailRow.service)" size="small">{{ detailRow.service }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="Operation">{{ detailRow.operation }}</el-descriptions-item>
+        <el-descriptions-item label="RequestId">{{ detailRow.requestId || '-' }}</el-descriptions-item>
         <el-descriptions-item label="Success">
           <el-tag :type="detailRow.success ? 'success' : 'info'" size="small">
             {{ detailRow.success ? '是' : '否' }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="DurationMs">{{ detailRow.durationMs }}ms</el-descriptions-item>
+        <el-descriptions-item label="BizDurationMs">
+          {{ detailRow.bizDurationMs != null ? detailRow.bizDurationMs + 'ms' : '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="PromptTokens">{{ detailRow.promptTokens ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="CompletionTokens">{{ detailRow.completionTokens ?? '-' }}</el-descriptions-item>
         <el-descriptions-item label="TotalTokens">{{ detailRow.totalTokens ?? '-' }}</el-descriptions-item>

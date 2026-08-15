@@ -48,7 +48,9 @@ export function fillDailyTrendZeros(
  * 运营统计聚合看板（单一端点，一次返回全部 widget 数据）
  * GET /api/admin/stats?days=7
  *
- * 错误率口径：HTTP 状态码 >= 400。
+ * 错误率口径（2026-08-15 起切换为双维度，见 2026-08-15-log-monitoring-rehearsal.md P0-B）：
+ *   总错误 = HTTP 状态码 >= 400 或 业务码 >= 400（业务拒绝经 HTTP 200 + 业务码返回，
+ *   此前被漏计；历史数据不回填，跨时段对比注意口径切换点）。
  * 业务错误率口径：business_code != 200 且非 NULL（从 beforeResponse 钩子捕获的 body.code）。
  * 未认证调用数以 user_id IS NULL 补充安全视角。
  */
@@ -73,11 +75,12 @@ export default defineEventHandler(async (event) => {
   const rangeCond = 'createdAt >= DATE_SUB(CURDATE(), INTERVAL ? DAY)'
 
   // 1. 概览指标（单行聚合；SUM/ROUND 返回 DECIMAL 字符串，统一 Number 转换）
+  //    错误判定（双维度）：status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400)
   const summaryRows = await query<Record<string, string | number | null>>(
     `SELECT
        COUNT(*) AS totalCalls,
        ROUND(AVG(duration_ms)) AS avgDuration,
-       ROUND(SUM(status_code >= 400) / COUNT(*) * 100, 2) AS errorRate,
+       ROUND(SUM(status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400)) / COUNT(*) * 100, 2) AS errorRate,
        ROUND(SUM(business_code IS NOT NULL AND business_code != 200)
              / NULLIF(SUM(business_code IS NOT NULL), 0) * 100, 2) AS businessErrorRate,
        COUNT(DISTINCT user_id) AS activeUsers,
@@ -109,7 +112,7 @@ export default defineEventHandler(async (event) => {
   const trendRows = await query<Record<string, string | number>>(
     `SELECT DATE_FORMAT(createdAt, '%Y-%m-%d') AS date,
             COUNT(*) AS count,
-            SUM(status_code >= 400) AS errorCount,
+            SUM(status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400)) AS errorCount,
             ROUND(AVG(duration_ms)) AS avgDuration
      FROM api_call_log
      WHERE ${rangeCond}
@@ -136,11 +139,11 @@ export default defineEventHandler(async (event) => {
     avgDuration: Number(r.avgDuration),
   }))
 
-  // 4. 错误路径分布 Top 10（HTTP ≥ 400）
+  // 4. 错误路径分布 Top 10（HTTP ≥ 400 或 业务码 ≥ 400，双维度同错误率口径）
   const errRows = await query<Record<string, string | number>>(
     `SELECT path, method, COUNT(*) AS count, ROUND(AVG(duration_ms)) AS avgDuration
      FROM api_call_log
-     WHERE ${rangeCond} AND status_code >= 400
+     WHERE ${rangeCond} AND (status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400))
      GROUP BY path, method
      ORDER BY count DESC
      LIMIT 10`,

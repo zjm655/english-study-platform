@@ -497,7 +497,16 @@ export async function queryMonthlySpendTrend(months: number): Promise<MonthlyTre
     }
     return { success: true, items }
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err)
     logger.error('[bss] 查询月度趋势失败:', err)
-    return { success: false, error: String(err) }
+    // P0-G：聚合查询失败分支补记埋点（原仅 logger.error，云日志页看不到）
+    void logCloudServiceCall({
+      service: 'bss',
+      operation: 'queryMonthlySpendTrend',
+      success: false,
+      durationMs: 0,
+      errorMessage: errMsg.substring(0, 500),
+    })
+    return { success: false, error: errMsg }
   }
 }

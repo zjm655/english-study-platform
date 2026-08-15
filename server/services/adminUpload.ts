@@ -13,7 +13,9 @@ import { recognizeSpeech } from './sttFiletrans'
 import { moderateText } from './contentModeration'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { logger } from '#shared/utils/logger'
-import { fileLog } from '#server/utils/fileLogger'
+import { fileLog, fileLogError } from '#server/utils/fileLogger'
+import { requestContext } from '#server/utils/requestContext'
+import { logAlertEvent } from '#server/utils/alertEventLog'
 import type { AdminUploadItemResult } from '#shared/types/adminUpload'
 import type { ResultSetHeader } from 'mysql2'
 
@@ -30,11 +32,22 @@ async function createUploadRecord(
   status: 'queued' | 'processing' = 'processing',
   nlsCheck: number = 0,
   audioOssKey?: string | null,
+  requestId?: string | null,
 ): Promise<number> {
   const [res] = await pool.execute<ResultSetHeader>(
-    `INSERT INTO material_upload_record (user_id, title, text_content, voice, audio_oss_key, is_public, nls_check, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [userId, title, textContent, voice, audioOssKey ?? null, isPublic, nlsCheck, status],
+    `INSERT INTO material_upload_record (user_id, title, text_content, voice, audio_oss_key, is_public, nls_check, status, request_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      userId,
+      title,
+      textContent,
+      voice,
+      audioOssKey ?? null,
+      isPublic,
+      nlsCheck,
+      status,
+      requestId ?? null,
+    ],
   )
   return res.insertId
 }
@@ -73,9 +86,20 @@ export interface ProcessAdminMaterialParams {
   nlsCheck?: boolean
   /** 标题模式：'ai'（默认，title 为空时 AI 生成）| 'manual'（仅用传入 title）| 'text_filename'（文本文件名）| 'audio_filename'（音频文件名）| 'inline'（正文首个 `# ` 行） */
   titleMode?: 'ai' | 'manual' | 'text_filename' | 'audio_filename' | 'inline'
+  /** 触发请求短 ID（8 位）：流水线内云埋点经请求上下文自动携带 */
+  requestId?: string | null
 }
 
 export async function processAdminMaterial(
+  params: ProcessAdminMaterialParams,
+): Promise<AdminUploadItemResult> {
+  return requestContext.run({ requestId: params.requestId ?? null }, () =>
+    processAdminMaterialInner(params),
+  )
+}
+
+/** 流水线主体（由 processAdminMaterial 在 requestId 上下文中执行，外部不直接调用） */
+async function processAdminMaterialInner(
   params: ProcessAdminMaterialParams,
 ): Promise<AdminUploadItemResult> {
   const {
@@ -137,7 +161,7 @@ export async function processAdminMaterial(
   let committed = false
   let committedSegmentId = 0
 
-  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 */
+  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 + 文件留痕 */
   async function fail(message: string): Promise<void> {
     try {
       if (segmentMediaId !== null) {
@@ -150,6 +174,17 @@ export async function processAdminMaterial(
     for (const key of uploadedKeys) {
       void deleteObject(key)
     }
+    // P0-G：任务级失败文件留痕（与 materialJob 同口径，requestId 上下文内可互查）
+    fileLogError('db', '[admin upload] 任务失败', JSON.stringify({ recordId, userId, message }))
+    // P1：任务失败事件落库（alert_event，未来告警通道数据源；requestId 经请求上下文自动携带）
+    void logAlertEvent({
+      source: 'task_fail',
+      level: 'error',
+      code: 'task_fail',
+      message: `管理端材料任务失败: ${message}`,
+      userId,
+      context: { recordId },
+    })
   }
 
   try {
@@ -304,13 +339,25 @@ export async function processAdminMaterial(
     const vocabAudios = await mapWithConcurrency(vocabulary, 4, async (vocab) => {
       // 词汇发音走带重试版：失败会被静默跳过（该词永久无发音），瞬时性故障值得重试
       const vocabTts = await ttsWithRetry(vocab.word)
-      if (!vocabTts.success || !vocabTts.audio) return { vocab, media: null }
+      if (!vocabTts.success || !vocabTts.audio) {
+        // P0-G：词汇音频失败不再静默——哪个词永久无发音必须有痕（与 materialJob 同口径）
+        fileLog('tts', 'warn', '[admin upload] 词汇音频生成失败（跳过，media=null）', {
+          word: vocab.word,
+          error: vocabTts.error ?? '未知原因',
+        })
+        return { vocab, media: null }
+      }
       const vocabKey = `audio/vocab/${randomUUID()}.mp3`
       try {
         await uploadWithKey(vocabTts.audio, vocabKey)
         uploadedKeys.push(vocabKey)
-      } catch {
+      } catch (err) {
         // 词汇音频上传失败不影响整体
+        fileLog('oss', 'warn', '[admin upload] 词汇音频上传失败（跳过，media=null）', {
+          word: vocab.word,
+          key: vocabKey,
+          error: err instanceof Error ? err.message : String(err),
+        })
         return { vocab, media: null }
       }
       return { vocab, media: { key: vocabKey, size: vocabTts.audio.length } }
@@ -410,7 +457,6 @@ export async function enqueueAdminMaterial(
   params: Omit<ProcessAdminMaterialParams, 'existingRecordId'>,
 ): Promise<AdminUploadItemResult & { recordId?: number }> {
   const { userId, textContent, title, voice, isPublic } = params
-
   // 轻校验：拒绝时不产生记录（与同步时代行为一致）。入队阶段无 audioOssKey 概念，
   // 仅无音频 Buffer 时拒绝对话——带音频时主音频不依赖 TTS 合成，允许对话文本
   if (!params.audioBuffer && isDialogueText(textContent)) {
@@ -439,6 +485,7 @@ export async function enqueueAdminMaterial(
       'queued',
       params.nlsCheck ? 1 : 0,
       params.audioOssKey,
+      params.requestId ?? null,
     )
   } catch (err) {
     logger.error('[admin upload] 创建记录失败:', err)
@@ -466,8 +513,10 @@ export async function processAdminBatch(params: {
   bucket: string
   files: Array<{ name: string; content: string }>
   titleMode?: 'ai' | 'manual' | 'text_filename' | 'audio_filename' | 'inline'
+  /** 触发请求短 ID（透传给拆单后的每个任务） */
+  requestId?: string | null
 }): Promise<AdminUploadItemResult[]> {
-  const { userId, unitId, voice, isPublic, bucket, files, titleMode = 'ai' } = params
+  const { userId, unitId, voice, isPublic, bucket, files, titleMode = 'ai', requestId } = params
   const results: AdminUploadItemResult[] = []
 
   for (let i = 0; i < files.length; i++) {
@@ -514,6 +563,7 @@ export async function processAdminBatch(params: {
       voice,
       isPublic,
       bucket,
+      requestId,
     })
     results.push({ ...result, index: i, notice })
   }

@@ -216,7 +216,7 @@
       <!-- 录音记录（可筛选 + 审核门禁详情） -->
       <div class="section">
         <h3 class="section-title">录音记录</h3>
-        <UserRecordingPanel :user-id="userId" />
+        <AdminUserRecordingPanel :user-id="userId" />
       </div>
 
       <!-- 操作日志 -->

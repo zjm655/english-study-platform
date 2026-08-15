@@ -95,6 +95,7 @@ export const useEvaluationPipeline = () => {
       audioPath: ctx.audioPath,
       score: null,
       analyzeStatus: 'failed',
+      analyzeError: null,
       feedback: null,
       recognizedText: null,
       wordScores: null,
@@ -105,9 +106,12 @@ export const useEvaluationPipeline = () => {
   }
 
   /** 标记录音分析失败：优先用后端返回的 Recording，异常/非 200 时回退本地构造。 */
-  async function markFailed(ctx: RecordingContext): Promise<Recording> {
+  async function markFailed(
+    ctx: RecordingContext,
+    error?: { errorCode?: string; errorMessage?: string },
+  ): Promise<Recording> {
     try {
-      const failRes = await markAnalyzeFail({ id: ctx.recordingId })
+      const failRes = await markAnalyzeFail({ id: ctx.recordingId, error })
       if (failRes?.code === 200 && failRes.data) {
         return failRes.data
       }
@@ -140,7 +144,11 @@ export const useEvaluationPipeline = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '保存评测结果失败'
       logger.error('[EvaluationPipeline] 保存评测结果失败:', err)
-      const recording = await markFailed(params)
+      // P2-A：失败原因结构化上报（analyze-fail → recording.analyze_error）
+      const recording = await markFailed(params, {
+        errorCode: 'eval_save_failed',
+        errorMessage,
+      })
       return { success: false, recording, errorMessage }
     }
   }
@@ -159,7 +167,11 @@ export const useEvaluationPipeline = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '评测失败'
       logger.error('[EvaluationPipeline] 离线评测失败:', err)
-      const recording = await markFailed(params)
+      // P2-A：失败原因结构化上报（analyze-fail → recording.analyze_error）
+      const recording = await markFailed(params, {
+        errorCode: 'eval_offline_failed',
+        errorMessage,
+      })
       return { success: false, recording, errorMessage }
     } finally {
       isLoading.value = false

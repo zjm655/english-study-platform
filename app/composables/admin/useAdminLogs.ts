@@ -6,6 +6,7 @@ import {
   cleanLogs,
   getLogArchiveStats,
   purgeLogArchive,
+  getArchiveList,
 } from '~/api/admin/logs'
 import type {
   ApiCallLogListQuery,
@@ -16,6 +17,7 @@ import type {
   ReviewAccessLogListQuery,
   ReviewAccessLogListResult,
   LogArchiveStatsResult,
+  ArchiveListResult,
 } from '#shared/types/adminLogs'
 import type { AdminOperationLogListResult } from '#shared/types/adminOperationLog'
 
@@ -98,6 +100,18 @@ export const usePurgeLogArchive = () => {
     success: '',
     clientFail: '删除归档失败',
     serverFail: '服务器异常，删除归档失败',
+    error: '网络异常，请检查网络',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 归档表只读浏览（P2-B：分页列表，静默加载，失败不打断页面主流程） */
+export const useArchiveList = () => {
+  const cfg = createResCfg<{ table: string; page: number; pageSize: number }, ArchiveListResult>({
+    handle: (payload) => getArchiveList(payload),
+    success: '',
+    clientFail: '获取归档日志失败',
+    serverFail: '服务器异常，获取归档日志失败',
     error: '网络异常，请检查网络',
   })
   return useHandleRes(cfg)

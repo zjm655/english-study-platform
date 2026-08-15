@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
     return validateError('处理队列已满，请稍后再试', 400)
   }
 
-  const result = await reprocessRecord(id, unitId)
+  const result = await reprocessRecord(id, unitId, (event.context.requestId as string) ?? null)
   if (!result.ok) {
     return validateError(result.reason ?? '重处理失败', result.code ?? 400)
   }

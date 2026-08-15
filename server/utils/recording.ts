@@ -35,5 +35,6 @@ export function rowToRecording(
     duration: row.duration !== null ? Number(row.duration) : null,
     createdAt: row.createdAt,
     analyzeStatus: (row.analyze_status ?? 'pending') as 'pending' | 'failed' | 'success',
+    analyzeError: row.analyze_error ?? null,
   }
 }

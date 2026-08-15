@@ -37,6 +37,7 @@ export const ARCHIVABLE_TABLES: Record<string, ArchiveTableCfg> = {
       'id',
       'service',
       'operation',
+      'request_id',
       'success',
       'duration_ms',
       'prompt_tokens',

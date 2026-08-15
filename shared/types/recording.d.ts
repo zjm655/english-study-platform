@@ -15,6 +15,7 @@ export interface Recording {
   audioPath: string | null
   score: number | null // 综合评分 0-100
   analyzeStatus: 'pending' | 'failed' | 'success' // 新增
+  analyzeError: string | null // 评测失败原因（analyze-fail 结构化上报，P2-A）
   feedback: string | null // AI整体评价
   recognizedText: string | null
   wordScores: WordScore[] | null
