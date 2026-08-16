@@ -22,6 +22,7 @@ const {
   mockModerateText,
   mockCompareTextSimilarity,
   mockFileLog,
+  mockGetUploadLimits,
 } = vi.hoisted(() => {
   const mockTextToSpeech = vi.fn()
   const mockUploadWithKey = vi.fn()
@@ -37,6 +38,7 @@ const {
   const mockModerateText = vi.fn()
   const mockCompareTextSimilarity = vi.fn()
   const mockFileLog = vi.fn()
+  const mockGetUploadLimits = vi.fn()
   return {
     mockTextToSpeech: mockTextToSpeech,
     mockUploadWithKey: mockUploadWithKey,
@@ -52,6 +54,7 @@ const {
     mockModerateText: mockModerateText,
     mockCompareTextSimilarity: mockCompareTextSimilarity,
     mockFileLog: mockFileLog,
+    mockGetUploadLimits: mockGetUploadLimits,
   }
 })
 
@@ -79,6 +82,12 @@ vi.mock('#server/utils/db', () => ({
   pool: { execute: mockPoolExecute },
   withTransaction: mockWithTransaction,
 }))
+// 文本长度校验依赖 getUploadLimits（sys_config），mock 返回受控档位（默认值）；
+// validateUploadText 为纯函数，保留真实实现
+vi.mock('#server/utils/uploadLimitChecker', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#server/utils/uploadLimitChecker')>()
+  return { ...actual, getUploadLimits: mockGetUploadLimits }
+})
 vi.mock('#server/utils/fileLogger', () => ({
   fileLog: mockFileLog,
   fileLogError: vi.fn(),
@@ -94,6 +103,18 @@ const FAKE_AUDIO = Buffer.from('fake-mp3-data')
 
 function setupDefaults() {
   mockIsUploadQueueFull.mockResolvedValue(false)
+  mockGetUploadLimits.mockResolvedValue({
+    maxAudioDurationUser: 180,
+    maxAudioDurationAdmin: 600,
+    maxAudioSizeUser: 2097152,
+    maxAudioSizeAdmin: 5242880,
+    recordingMaxSize: 52428800,
+    uploadQueueMax: 50,
+    minTextUser: 10,
+    maxTextUser: 5000,
+    minTextAdmin: 10,
+    maxTextAdmin: 5000,
+  })
   mockPoolExecute.mockImplementation(async (sql: string) => {
     if (sql.startsWith('INSERT')) return [{ insertId: 1, affectedRows: 1 }]
     return [[]]
@@ -681,5 +702,64 @@ describe('processAdminBatch', () => {
       expect.stringContaining('50字符'),
       expect.objectContaining({ fileName: `${longName}.txt` }),
     )
+  })
+
+  it('文本超过上限：拒绝该文件（不建记录不入队）', async () => {
+    setupDefaults()
+
+    const result = await processAdminBatch({
+      userId: 1,
+      unitId: 1,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      files: [{ name: 'too-long.txt', content: 'a'.repeat(5001) }],
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.success).toBe(false)
+    expect(result[0]!.error).toContain('5000')
+    // 拒绝路径不建记录（无 INSERT 调用）
+    expect(
+      mockPoolExecute.mock.calls.some(([sql]) => String(sql).trimStart().startsWith('INSERT')),
+    ).toBe(false)
+  })
+
+  it('文本少于下限：拒绝该文件', async () => {
+    setupDefaults()
+
+    const result = await processAdminBatch({
+      userId: 1,
+      unitId: 1,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      files: [{ name: 'too-short.txt', content: 'hi' }],
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.success).toBe(false)
+    expect(result[0]!.error).toContain('10')
+    expect(
+      mockPoolExecute.mock.calls.some(([sql]) => String(sql).trimStart().startsWith('INSERT')),
+    ).toBe(false)
+  })
+
+  it('文本校验在标题提取之后执行：inline 提取后正文过短也拒绝', async () => {
+    setupDefaults()
+
+    const result = await processAdminBatch({
+      userId: 1,
+      unitId: 1,
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      files: [{ name: 'title-only.txt', content: '# A Very Long Title Line Here\nhi' }],
+      titleMode: 'inline',
+    })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.success).toBe(false)
+    expect(result[0]!.error).toContain('10')
   })
 })

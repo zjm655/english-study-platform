@@ -15,4 +15,12 @@ export interface UploadLimits {
   recordingMaxSize: number
   /** 上传队列待处理深度上限 */
   uploadQueueMax: number
+  /** 普通用户材料文本最少字符数 */
+  minTextUser: number
+  /** 普通用户材料文本最多字符数 */
+  maxTextUser: number
+  /** 管理员材料文本最少字符数 */
+  minTextAdmin: number
+  /** 管理员材料文本最多字符数 */
+  maxTextAdmin: number
 }

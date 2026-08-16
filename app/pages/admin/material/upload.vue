@@ -37,9 +37,9 @@
               v-model="textContent"
               type="textarea"
               :rows="6"
-              maxlength="5000"
+              :maxlength="maxTextAdmin"
               show-word-limit
-              placeholder="输入英文材料原文（10-5000 字符）"
+              :placeholder="`输入英文材料原文（${minTextAdmin}-${maxTextAdmin} 字符）`"
             />
             <div class="text-file-row">
               <el-upload
@@ -97,9 +97,9 @@
               <div class="nls-switch-row">
                 <el-switch
                   v-model="nlsCheck"
-                  @change="handleNlsChange"
                   active-text="开启语音校对"
                   inactive-text="关闭"
+                  @change="handleNlsChange"
                 />
                 <span class="nls-tip">
                   开启后上传时对音频做语音识别，核验音频内容与材料文本一致（消耗 NLS 额度）
@@ -285,6 +285,13 @@ const maxAudioDurationAdmin = computed(
 const maxAudioSizeAdmin = computed(
   () => uploadLimits.value?.maxAudioSizeAdmin ?? UPLOAD_LIMITS_FALLBACK.maxAudioSizeAdmin,
 )
+// 文本长度限制（sys_config 管理员档，运营可调；composable 未就绪时降级内置默认）
+const minTextAdmin = computed(
+  () => uploadLimits.value?.minTextAdmin ?? UPLOAD_LIMITS_FALLBACK.minTextAdmin,
+)
+const maxTextAdmin = computed(
+  () => uploadLimits.value?.maxTextAdmin ?? UPLOAD_LIMITS_FALLBACK.maxTextAdmin,
+)
 
 /** 秒 → 分钟展示文案（整数直显，非整数保留 1 位小数） */
 function formatDurationMin(sec: number): string {
@@ -357,8 +364,13 @@ async function handleTextFileChange(file: UploadFile) {
   if (!raw) return
   try {
     const content = await raw.text()
-    // 与文本域 maxlength 保持一致，避免超长文件撑爆输入框
-    textContent.value = content.slice(0, 5000)
+    // 超限不静默截断：提示并截断到上限（用户可继续编辑精简；提交时还有预校验 + 后端兜底）
+    if (content.length > maxTextAdmin.value) {
+      toastWarning(`文本超过上限（${maxTextAdmin.value} 字符），已截断，请精简`)
+      textContent.value = content.slice(0, maxTextAdmin.value)
+    } else {
+      textContent.value = content
+    }
     textFileName.value = raw.name
   } catch {
     toastWarning('读取文本文件失败，请重试或手动粘贴内容')
@@ -395,11 +407,12 @@ async function handleSubmit() {
   fd.append('isPublic', isPublic.value ? '1' : '0')
 
   if (mode.value === 'single') {
-    if (textContent.value.trim().length < 10) {
-      toastWarning('材料文本不能少于 10 个字符')
+    const trimmedText = textContent.value.trim()
+    if (trimmedText.length < minTextAdmin.value || trimmedText.length > maxTextAdmin.value) {
+      toastWarning(`材料文本需 ${minTextAdmin.value}-${maxTextAdmin.value} 个字符`)
       return
     }
-    fd.append('textContent', textContent.value.trim())
+    fd.append('textContent', trimmedText)
     fd.append('titleMode', titleMode.value)
     if (titleMode.value === 'manual') {
       if (!title.value.trim()) {

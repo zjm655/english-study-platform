@@ -13,6 +13,7 @@
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { getDeepseekParams } from '#server/utils/deepseekConfig'
+import { getUploadLimits } from '#server/utils/uploadLimitChecker'
 import { withQueue } from './serviceQueue'
 
 // ==================== 导出类型 ====================
@@ -73,8 +74,8 @@ interface DeepSeekConfig {
   baseUrl: string
 }
 
-/** 输入文本最大长度 */
-const MAX_TEXT_LENGTH = 5000
+/** 输入文本最大长度：读取上传配置管理员档（sys_config upload_max_text_admin，运营可调；AI 调用均来自上传链路，user 档 ≤ admin 档恒成立） */
+// const MAX_TEXT_LENGTH = 5000
 
 /** 词汇数量范围 */
 const MIN_VOCAB = 1
@@ -234,13 +235,14 @@ export async function generateLearningContent(text: string): Promise<AiContentRe
  * 等分支会在 return error 前补记 success=false，保证 cloud_service_call_log 与业务结果一致。
  */
 async function generateLearningContentOnce(text: string): Promise<AiContentResult> {
-  // 1. 校验输入
+  // 1. 校验输入（上限读取上传配置管理员档，查库失败兜底默认 5000，不阻断 AI 链路）
   const trimmed = text.trim()
   if (!trimmed) {
     return { success: false, error: '文本不能为空' }
   }
-  if (trimmed.length > MAX_TEXT_LENGTH) {
-    return { success: false, error: `文本长度超过限制（最大 ${MAX_TEXT_LENGTH} 字符）` }
+  const maxText = (await getUploadLimits()).maxTextAdmin
+  if (trimmed.length > maxText) {
+    return { success: false, error: `文本长度超过限制（最大 ${maxText} 字符）` }
   }
 
   // 2. 读取配置

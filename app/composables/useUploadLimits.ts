@@ -13,6 +13,10 @@ export const UPLOAD_LIMITS_FALLBACK: UploadLimits = {
   maxAudioSizeAdmin: 5242880,
   recordingMaxSize: 52428800,
   uploadQueueMax: 50,
+  minTextUser: 10,
+  maxTextUser: 5000,
+  minTextAdmin: 10,
+  maxTextAdmin: 5000,
 }
 
 /** 公开只读接口（无鉴权，游客白名单），见 server/api/config/upload-limits.get.ts */

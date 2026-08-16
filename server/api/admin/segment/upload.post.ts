@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFormData } from 'h3'
 import { validateSuccess, validateError } from '#server/utils/validate'
 import { enqueueAdminMaterial, processAdminBatch } from '#server/services/adminUpload'
-import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { getUploadLimits, validateUploadText } from '#server/utils/uploadLimitChecker'
 import { uploadWithKey, deleteObject } from '#server/utils/oss'
 import { extractAudioMeta } from '#server/utils/audioMeta'
 import { resolveUploadTitle } from '#server/utils/textParser'
@@ -52,11 +52,12 @@ export default defineEventHandler(async (event) => {
     const audio = formData.get('audio') as File | null
 
     const trimmedText = textContent?.trim() ?? ''
-    if (trimmedText.length < 10) {
-      return validateError('材料文本不能少于10个字符', 400)
-    }
-    if (trimmedText.length > 5000) {
-      return validateError('材料文本不能超过5000个字符', 400)
+
+    // 文本长度校验（sys_config 动态上下限，管理员档；原硬编码 10/5000 已抽离）
+    const limits = await getUploadLimits()
+    const rawCheck = validateUploadText(trimmedText, limits, 'admin')
+    if (!rawCheck.ok) {
+      return validateError(rawCheck.message, 400)
     }
 
     // 标题模式解析（同步段）：manual 必须填写标题；inline 提取 # 首行并清理正文；text_filename/audio_filename 用对应文件名（去扩展名）；ai 交流水线生成
@@ -67,11 +68,13 @@ export default defineEventHandler(async (event) => {
       titleMode: validTitleMode,
       title,
       fileName,
-      textContent: trimmedText,
+      textContent: rawCheck.text,
     })
     const resolvedText = resolved.textContent.trim()
-    if (resolvedText.length < 10) {
-      return validateError('提取标题后正文不能少于10个字符', 400)
+    // 标题提取后正文可能变短，再校验一次下限（上限不会超：提取只减不增）
+    const bodyCheck = validateUploadText(resolvedText, limits, 'admin')
+    if (!bodyCheck.ok) {
+      return validateError(bodyCheck.message, 400)
     }
 
     let audioBuffer: Buffer | undefined

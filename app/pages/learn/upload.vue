@@ -38,8 +38,13 @@ const VOICE_OPTIONS = [
 
 const selectedVoice = ref<string>('en-US-AriaNeural')
 
-const MAX_TEXT_LENGTH = 5000
-const MIN_TEXT_LENGTH = 10
+// 文本长度限制来自 sys_config（管理端可调，普通用户档）：composable 未就绪时降级内置默认
+const maxTextLength = computed(
+  () => uploadLimits.value?.maxTextUser ?? UPLOAD_LIMITS_FALLBACK.maxTextUser,
+)
+const minTextLength = computed(
+  () => uploadLimits.value?.minTextUser ?? UPLOAD_LIMITS_FALLBACK.minTextUser,
+)
 
 // 上传限制来自 sys_config（管理端可调）：composable 未就绪/拉取失败时降级内置静态默认
 const { limits: uploadLimits } = useUploadLimits()
@@ -53,11 +58,11 @@ function formatSizeMB(bytes: number): string {
   return `${Number.isInteger(mb) ? mb : mb.toFixed(1)}MB`
 }
 
-const textTooLong = computed(() => textContent.value.length > MAX_TEXT_LENGTH)
+const textTooLong = computed(() => textContent.value.length > maxTextLength.value)
 const canSubmit = computed(
   () =>
     !isLoading.value &&
-    textContent.value.length >= MIN_TEXT_LENGTH &&
+    textContent.value.length >= minTextLength.value &&
     !textTooLong.value &&
     (!audioFile.value || audioFile.value.size <= maxAudioSize.value),
 )
@@ -270,14 +275,14 @@ async function handleSubmit() {
           type="textarea"
           :rows="8"
           placeholder="请输入英文学习材料..."
-          :maxlength="MAX_TEXT_LENGTH"
+          :maxlength="maxTextLength"
           show-word-limit
         />
         <div
-          v-if="textContent.length > 0 && textContent.length < MIN_TEXT_LENGTH"
+          v-if="textContent.length > 0 && textContent.length < minTextLength"
           class="form-hint error"
         >
-          至少输入 {{ MIN_TEXT_LENGTH }} 个字符
+          至少输入 {{ minTextLength }} 个字符
         </div>
       </div>
 

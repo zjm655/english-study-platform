@@ -8,7 +8,7 @@ import { pool, withTransaction } from '#server/utils/db'
 import { mapWithConcurrency } from '#server/utils/concurrency'
 import { withQueue } from './serviceQueue'
 import { isUploadQueueFull } from './materialJob'
-import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { getUploadLimits, validateUploadText } from '#server/utils/uploadLimitChecker'
 import { recognizeSpeech } from './sttFiletrans'
 import { moderateText } from './contentModeration'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
@@ -519,6 +519,9 @@ export async function processAdminBatch(params: {
   const { userId, unitId, voice, isPublic, bucket, files, titleMode = 'ai', requestId } = params
   const results: AdminUploadItemResult[] = []
 
+  // 文本长度限制（sys_config 管理员档；batch 此前无长度校验，抽离后与 single 链路同口径）
+  const limits = await getUploadLimits()
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i]!
 
@@ -531,6 +534,14 @@ export async function processAdminBatch(params: {
       continue
     }
 
+    // 文本长度校验（原始文本，管理员档）：超限拒绝该文件（与 single 模式一致，不再静默截断）
+    const rawCheck = validateUploadText(textContent, limits, 'admin')
+    if (!rawCheck.ok) {
+      results.push({ index: i, success: false, error: `文件 ${file.name} ${rawCheck.message}` })
+      continue
+    }
+    textContent = rawCheck.text
+
     // 标题模式：inline 取正文首个 `# ` 行；text_filename 取文本文件名去扩展名（超 50 截取并提示）；
     // manual（批量不提供）与 audio_filename（批量无音频）与 ai → title=null（流水线 AI 生成）
     let title: string | null = null
@@ -539,6 +550,13 @@ export async function processAdminBatch(params: {
       const inline = extractInlineTitle(textContent)
       title = inline.title
       textContent = inline.textContent // 用提取后的正文
+      // 标题提取后正文可能变短，再校验一次下限（上限不会超：提取只减不增）
+      const bodyCheck = validateUploadText(textContent, limits, 'admin')
+      if (!bodyCheck.ok) {
+        results.push({ index: i, success: false, error: `文件 ${file.name} ${bodyCheck.message}` })
+        continue
+      }
+      textContent = bodyCheck.text
     } else if (titleMode === 'text_filename') {
       const raw = file.name.replace(/\.[^.]+$/, '')
       if (raw.length > 50) {

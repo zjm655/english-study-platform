@@ -7,11 +7,10 @@ import { ALLOWED_VOICES } from './common'
 export const TITLE_MODES = ['ai', 'manual', 'text_filename', 'audio_filename', 'inline'] as const
 
 // 材料上传校验（普通用户）
+// 长度上下限（min/max 字符数）由服务端 handler 按 sys_config 动态校验（管理员/用户分档），
+// schema 只做非空基础校验——zod 是静态的，无法读运行时配置
 export const uploadMaterialSchema = z.object({
-  textContent: z
-    .string()
-    .min(10, '材料文本不能少于10个字符')
-    .max(5000, '材料文本不能超过5000个字符'),
+  textContent: z.string().min(1, '材料文本不能为空'),
   isPublic: z.coerce.number().refine((v) => v === 0 || v === 1, 'isPublic 必须为 0 或 1'),
   voice: z.enum(ALLOWED_VOICES).optional().default('en-US-AriaNeural'),
   titleMode: z.enum(TITLE_MODES).optional().default('ai'),

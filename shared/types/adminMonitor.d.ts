@@ -65,21 +65,6 @@ export interface SttMonitorStat {
   todayFallbacks: number
 }
 
-/** 告警事件近 1 小时统计（P4-C2，DB 查询 + 60s 缓存） */
-export interface AlertEventSummary {
-  /** 近 1 小时各 source 计数（键为事件源） */
-  countsBySource: Record<string, number>
-  /** 最近 5 条事件摘要（source/code/message/createdAt） */
-  recent: Array<{
-    id: number
-    source: string
-    level: string
-    code: string | null
-    message: string | null
-    createdAt: string
-  }>
-}
-
 /** GET /api/admin/monitor 聚合快照（均为进程内实时状态，多实例部署仅反映本实例） */
 export interface AdminMonitorSnapshot {
   queues: QueueStatItem[]
@@ -88,7 +73,6 @@ export interface AdminMonitorSnapshot {
   buffers: LogBufferStat[]
   rateLimiter: RateLimiterStats
   stt: SttMonitorStat
-  alertEvents: AlertEventSummary
   /** 快照生成时刻（ISO 字符串，服务器时间） */
   serverTime: string
 }

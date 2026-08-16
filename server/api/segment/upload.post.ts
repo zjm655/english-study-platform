@@ -6,7 +6,7 @@ import {
   updateRecordFailed,
   isUploadQueueFull,
 } from '#server/services/materialJob'
-import { getUploadLimits } from '#server/utils/uploadLimitChecker'
+import { getUploadLimits, validateUploadText } from '#server/utils/uploadLimitChecker'
 import { uploadWithKey, deleteObject } from '#server/utils/oss'
 import { extractAudioMeta } from '#server/utils/audioMeta'
 import { resolveUploadTitle } from '#server/utils/textParser'
@@ -56,7 +56,15 @@ export default defineEventHandler(
 
     if (!textContent) return validateError('材料文本不能为空')
 
-    // 3.5 标题模式解析（同步段）：manual 必须填写标题；inline 提取 # 首行并清理正文；text_filename/audio_filename 用对应文件名（去扩展名）；ai 交流水线生成
+    // 3.5 文本长度校验（sys_config 动态上下限，管理员/用户分档；原 zod 静态 10~5000 已放宽为基础非空校验）
+    const limits = await getUploadLimits()
+    const textRole = isAdmin ? ('admin' as const) : ('user' as const)
+    const rawCheck = validateUploadText(textContent, limits, textRole)
+    if (!rawCheck.ok) {
+      return validateError(rawCheck.message)
+    }
+
+    // 3.6 标题模式解析（同步段）：manual 必须填写标题；inline 提取 # 首行并清理正文；text_filename/audio_filename 用对应文件名（去扩展名）；ai 交流水线生成
     if (parsed.data.titleMode === 'manual' && !title?.trim()) {
       return validateError('请填写标题（手动模式）')
     }
@@ -64,11 +72,13 @@ export default defineEventHandler(
       titleMode: parsed.data.titleMode,
       title,
       fileName,
-      textContent: textContent.trim(),
+      textContent: rawCheck.text,
     })
     const resolvedText = resolved.textContent.trim()
-    if (resolvedText.length < 10) {
-      return validateError('提取标题后正文不能少于10个字符')
+    // 标题提取后正文可能变短，再校验一次下限（上限不会超：提取只减不增）
+    const bodyCheck = validateUploadText(resolvedText, limits, textRole)
+    if (!bodyCheck.ok) {
+      return validateError(bodyCheck.message)
     }
 
     // 4. 入队深度防御

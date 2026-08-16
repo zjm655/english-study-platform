@@ -18,6 +18,21 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#server/utils/cloudServiceLog', () => ({ logCloudServiceCall: mocks.mockLog }))
 vi.mock('#server/utils/deepseekConfig', () => ({ getDeepseekParams: mocks.mockGetParams }))
 vi.mock('#server/utils/fileLogger', () => ({ fileLog: mocks.mockFileLog, fileLogError: vi.fn() }))
+// aiContent 输入上限读取上传配置管理员档（getUploadLimits 查 sys_config），mock 返回默认档位
+vi.mock('#server/utils/uploadLimitChecker', () => ({
+  getUploadLimits: vi.fn().mockResolvedValue({
+    maxAudioDurationUser: 180,
+    maxAudioDurationAdmin: 600,
+    maxAudioSizeUser: 2097152,
+    maxAudioSizeAdmin: 5242880,
+    recordingMaxSize: 52428800,
+    uploadQueueMax: 50,
+    minTextUser: 10,
+    maxTextUser: 5000,
+    minTextAdmin: 10,
+    maxTextAdmin: 5000,
+  }),
+}))
 vi.mock('./serviceQueue', () => ({
   withQueue: mocks.mockWithQueue ?? ((_k: string, fn: () => Promise<unknown>) => fn()),
 }))
