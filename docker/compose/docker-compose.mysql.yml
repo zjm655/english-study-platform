@@ -17,7 +17,9 @@ services:
       context: ../..
       dockerfile: docker/Dockerfile
       target: migrator
-    container_name: nuxt-migrate
+    # 独立栈专用容器名（避免与主栈 docker-compose.yml 的 nuxt-migrate 撞名——
+    # 两栈互斥，勿同时部署）
+    container_name: nuxt-migrate-standalone
     restart: 'no'
     env_file:
       - ../env/.env.migrate
@@ -33,7 +35,8 @@ services:
 
   db:
     image: mysql:8.0
-    container_name: nuxt-mysql
+    # 独立栈专用容器名（与主栈 docker-compose.yml 的 nuxt-mysql 互斥）
+    container_name: nuxt-mysql-standalone
     restart: unless-stopped
     env_file:
       - ../env/.env.mysql

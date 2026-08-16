@@ -30,14 +30,10 @@ build/
 # 系统文件
 .DS_Store
 
-# 环境变量文件（敏感信息不进镜像，仅保留 .example 模板）
+# 环境变量文件（敏感信息不进镜像；.env.* 通配已覆盖 docker/env/ 下全部实文件，仅保留 .example 模板）
 .env
 .env.*
 !.env.example
-# Docker 部署专用环境变量（真实值不进镜像）
-docker/env/.env
-docker/env/.env.mysql
-docker/env/.env.redis
 
 # IDE 配置
 .vscode/

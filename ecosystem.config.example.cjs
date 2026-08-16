@@ -14,6 +14,9 @@ module.exports = {
         NODE_ENV: 'production',
         // 生产端口（devServer 的 5173 仅开发生效，生产 Nitro 默认 3000）
         PORT: '3000',
+        // 是否信任 X-Forwarded-For（P3-A）：pm2 直连部署必须 'false'（无 nginx 覆盖 XFF，
+        // 信任链头会取客户端伪造值击穿 IP 级限流）；若前面有 nginx 且已覆盖 XFF 则可为 'true'
+        NUXT_TRUST_PROXY: 'false',
         // JWT密钥
         // 文件日志保留天数（logs/ 下超期 .log 文件在服务启动时自动清理）；留空默认 30
         NUXT_LOG_RETENTION_DAYS: '30',
@@ -48,9 +51,8 @@ module.exports = {
         NUXT_AI_CONTENT_APP_SECRET: '',
         NUXT_AI_CONTENT_ACCESS_KEY_ID: '',
         NUXT_AI_CONTENT_ACCESS_KEY_SECRET: '',
-        NUXT_AICONTENT_AUTH_URL: '',
-        NUXT_AICONTENT_TEST_AUTH_URL: '',
-        NUXT_AICONTENT_ENGINE_LINKS: '',
+        // 评测鉴权接口地址（段名 AI_CONTENT 驼峰拆分，勿写成 AICONTENT——否则注入无效、恒用默认值）
+        NUXT_AI_CONTENT_AUTH_URL: '',
         // 云产品调用与账单查询
         NUXT_BSS_ACCESS_KEY_ID: '',
         NUXT_BSS_ACCESS_KEY_SECRET: '',
