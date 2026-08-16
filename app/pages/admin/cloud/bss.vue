@@ -235,13 +235,13 @@
 
 <script setup lang="ts">
 import { Refresh, WarningFilled } from '@element-plus/icons-vue'
-import { use, graphic, init } from 'echarts/core'
+import { use, init } from 'echarts/core'
 import { PieChart, LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { BssStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudBss, useChartResize } from '~/composables/admin'
+import { useAdminCloudBss, useChartResize, buildLineChartOption } from '~/composables/admin'
 
 use([
   PieChart,
@@ -371,36 +371,22 @@ function renderTrendChart() {
   if (!trendChartRef.value || !hasTrend.value) return
   if (!trendChart) trendChart = init(trendChartRef.value)
   const items = data.value!.monthlyTrend.items!
-  trendChart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 55, right: 20, top: 20, bottom: 30 },
-    xAxis: {
-      type: 'category',
-      data: items.map((i) => i.billingCycle),
-      axisLabel: { fontSize: 11 },
-    },
-    yAxis: {
-      type: 'value',
-      name: '实付(元)',
-      axisLabel: { fontSize: 11 },
-      splitLine: { show: false },
-    },
-    series: [
-      {
-        name: '实付金额',
-        type: 'line',
-        data: items.map((i) => i.paymentAmount),
-        smooth: true,
-        itemStyle: { color: '#67C23A' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(103,194,58,0.25)' },
-            { offset: 1, color: 'rgba(103,194,58,0.02)' },
-          ]),
+  // P4-D4：折线 option 收敛到 buildLineChartOption 工厂（TECH_DEBT #3；Pie/Bar 保留页面内）
+  trendChart.setOption(
+    buildLineChartOption({
+      xData: items.map((i) => i.billingCycle),
+      yName: '实付(元)',
+      series: [{ name: '实付金额', data: items.map((i) => i.paymentAmount), color: '#67C23A' }],
+      overrides: {
+        grid: { left: 55, right: 20, top: 20, bottom: 30 },
+        xAxis: {
+          type: 'category',
+          data: items.map((i) => i.billingCycle),
+          axisLabel: { fontSize: 11 },
         },
       },
-    ],
-  })
+    }),
+  )
 }
 
 onMounted(() => fetchData())

@@ -99,13 +99,18 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
-import { use, graphic, init } from 'echarts/core'
+import { use, init } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { NlsStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudNls, useCloudTrend, useChartResize } from '~/composables/admin'
+import {
+  useAdminCloudNls,
+  useCloudTrend,
+  useChartResize,
+  buildLineChartOption,
+} from '~/composables/admin'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -153,54 +158,39 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
   if (!trendChart) {
     trendChart = init(trendChartRef.value)
   }
-  trendChart.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['识别次数', '识别音频时长'], bottom: 0, textStyle: { fontSize: 11 } },
-    grid: { left: 50, right: 60, top: 20, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
-    },
-    yAxis: [
-      { type: 'value', name: '识别次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
-      {
-        type: 'value',
-        name: '时长(分钟)',
-        axisLabel: { fontSize: 11 },
-        splitLine: { show: false },
-      },
-    ],
-    series: [
-      {
-        name: '识别次数',
-        type: 'line',
-        data: callCounts,
-        smooth: true,
-        itemStyle: { color: '#409EFF' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(64,158,255,0.25)' },
-            { offset: 1, color: 'rgba(64,158,255,0.02)' },
-          ]),
+  // P4-D4：option 构造收敛到 buildLineChartOption 工厂（TECH_DEBT #3）
+  trendChart.setOption(
+    buildLineChartOption({
+      xData: dates,
+      series: [
+        { name: '识别次数', data: callCounts },
+        {
+          name: '识别音频时长',
+          data: totalDurations.map((ms) => ms / 60_000),
+          color: '#E6A23C',
+          yAxisIndex: 1,
         },
+      ],
+      overrides: {
+        legend: { data: ['识别次数', '识别音频时长'], bottom: 0, textStyle: { fontSize: 11 } },
+        grid: { left: 50, right: 60, top: 20, bottom: 40 },
+        yAxis: [
+          {
+            type: 'value',
+            name: '识别次数',
+            axisLabel: { fontSize: 11 },
+            splitLine: { show: false },
+          },
+          {
+            type: 'value',
+            name: '时长(分钟)',
+            axisLabel: { fontSize: 11 },
+            splitLine: { show: false },
+          },
+        ],
       },
-      {
-        name: '识别音频时长',
-        type: 'line',
-        yAxisIndex: 1,
-        data: totalDurations.map((ms) => ms / 60_000),
-        smooth: true,
-        itemStyle: { color: '#E6A23C' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(230,162,60,0.25)' },
-            { offset: 1, color: 'rgba(230,162,60,0.02)' },
-          ]),
-        },
-      },
-    ],
-  })
+    }),
+  )
 }
 
 onMounted(() => fetchData())

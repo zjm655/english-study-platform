@@ -12,8 +12,8 @@
 import { query } from '#server/utils/db'
 import type { RowDataPacket } from 'mysql2'
 
-/** phase 编号与字符串标识的映射（recording 表 phase 列：3=配音，4=影子跟读） */
-const PHASE_MAP = {
+/** phase 编号与字符串标识的映射（recording 表 phase 列：3=配音，4=影子跟读；auth.post 游客发放复用，P4 review） */
+export const PHASE_MAP = {
   dubbing: 3,
   shadow: 4,
 } as const

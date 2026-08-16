@@ -63,10 +63,10 @@ export interface ArchiveListResult {
   pageSize: number
 }
 
-/** 告警事件列表项（对应 alert_event 表，A1 事件可见性） */
+/** 告警事件列表项（对应 alert_event 表，A1 事件可见性；source 从 ALERT_EVENT_SOURCES 推导，P4-D2） */
 export interface AlertEventItem {
   id: number
-  source: 'client_error' | 'log_queue' | 'task_fail' | 'cloud_health' | 'security'
+  source: import('../utils/alertEvents').AlertEventSource
   level: 'error' | 'warn'
   code: string | null
   message: string | null

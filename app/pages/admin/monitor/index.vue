@@ -161,6 +161,51 @@
           </el-progress>
         </div>
       </section>
+
+      <!-- 告警事件（P4-C2：近 1 小时计数 + 最近事件，60s 缓存） -->
+      <section class="panel">
+        <header class="panel-head">
+          <h3 class="panel-title">告警事件</h3>
+          <span class="panel-sub">
+            近 1 小时各来源计数（60s 缓存）
+            <el-link type="primary" class="events-link" href="/admin/logs/events"
+              >查看全部 →</el-link
+            >
+          </span>
+        </header>
+        <div v-if="snapshot" class="events-body">
+          <div class="events-counts">
+            <div v-for="(label, key) in EVENT_SOURCE_LABELS" :key="key" class="event-count-item">
+              <span class="event-count-label">{{ label }}</span>
+              <span
+                class="event-count-value"
+                :class="{ 'num-warning': (snapshot.alertEvents.countsBySource[key] ?? 0) > 0 }"
+              >
+                {{ snapshot.alertEvents.countsBySource[key] ?? 0 }}
+              </span>
+            </div>
+          </div>
+          <el-empty
+            v-if="snapshot.alertEvents.recent.length === 0"
+            description="近 1 小时无事件"
+            :image-size="48"
+          />
+          <ul v-else class="event-list">
+            <li v-for="ev in snapshot.alertEvents.recent" :key="ev.id" class="event-item">
+              <el-tag
+                :type="ev.level === 'error' ? 'danger' : 'warning'"
+                size="small"
+                effect="plain"
+              >
+                {{ EVENT_SOURCE_LABELS[ev.source] ?? ev.source }}
+              </el-tag>
+              <span class="event-code">{{ ev.code || '-' }}</span>
+              <span class="event-msg">{{ ev.message || '-' }}</span>
+              <span class="event-time">{{ formatTime(ev.createdAt) }}</span>
+            </li>
+          </ul>
+        </div>
+      </section>
     </div>
 
     <!-- 语音识别 STT -->
@@ -301,6 +346,15 @@ function formatTime(iso: string): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
+
+/** 告警事件来源标签（P4-C2；键与 shared ALERT_EVENT_SOURCES 一致） */
+const EVENT_SOURCE_LABELS: Record<string, string> = {
+  client_error: '前端错误',
+  log_queue: '埋点队列',
+  task_fail: '任务失败',
+  cloud_health: '云健康',
+  security: '安全事件',
+}
 </script>
 
 <style scoped>
@@ -437,6 +491,80 @@ function formatTime(iso: string): string {
   font-weight: 700;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
+}
+
+/* ===== 告警事件（P4-C2） ===== */
+.events-link {
+  margin-left: 8px;
+  font-size: 12px;
+}
+
+.events-counts {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.event-count-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 76px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.event-count-label {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.event-count-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.event-code {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+.event-msg {
+  color: var(--text-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.event-time {
+  font-size: 12px;
+  color: var(--text-3);
+  flex-shrink: 0;
 }
 
 /* ===== 缓冲 ===== */

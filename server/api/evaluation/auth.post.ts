@@ -17,7 +17,11 @@ import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { networkInterfaces } from 'node:os'
 import { readGuestKey } from '#server/utils/guest'
 import { getClientIp } from '#server/utils/clientIp'
-import { checkGuestEvalLimit, invalidateGuestEvalQuotaEntry } from '#server/utils/guestEvalLimit'
+import {
+  checkGuestEvalLimit,
+  invalidateGuestEvalQuotaEntry,
+  PHASE_MAP,
+} from '#server/utils/guestEvalLimit'
 import { checkGuestEvalByIp } from '#server/utils/guestIpGuard'
 
 /**
@@ -125,7 +129,9 @@ export default defineEventHandler(
 
     const timestamp = Math.floor(Date.now() / 1000).toString()
     // 获取客户端 IP（P3-A：统一 getClientIp 信任链），若为回环地址则使用机器真实 IP
-    const requestIp = getClientIp(event) === 'unknown' ? '' : getClientIp(event)
+    // （review 修复：单次调用取值，'unknown' 哨兵不跨文件耦合）
+    const rawIp = getClientIp(event)
+    const requestIp = rawIp === 'unknown' ? '' : rawIp
     const userClientIp =
       requestIp &&
       requestIp !== '127.0.0.1' &&
@@ -230,10 +236,10 @@ export default defineEventHandler(
       // 记录本次评测鉴权发放（作为每日额度计数依据，fire-and-forget 不阻塞响应）。
       // 见 quotaChecker.checkDailyQuota：额度按 eval_auth_log 发放次数统计，
       // 从服务端侧堵死「不回写 analyze 即可绕过额度」的刷量问题。
-      // P3-B：游客发放写入 phase（3/4），游客额度按发放计数且保持每阶段语义（迁移 039）
+      // P3-B：游客发放写入 phase（3/4，复用 guestEvalLimit.PHASE_MAP），游客额度按发放计数且保持每阶段语义（迁移 039）
       query('INSERT INTO eval_auth_log (user_id, phase) VALUES (?, ?)', [
         userId,
-        isGuest ? (guestPhase === 'shadow' ? 4 : 3) : null,
+        isGuest ? PHASE_MAP[guestPhase] : null,
       ]).catch((err) => {
         logger.error('[evaluation auth] 记录鉴权发放失败:', err)
       })

@@ -96,13 +96,18 @@
 
 <script setup lang="ts">
 import { Refresh } from '@element-plus/icons-vue'
-import { use, graphic, init } from 'echarts/core'
+import { use, init } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { EduStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudEdu, useCloudTrend, useChartResize } from '~/composables/admin'
+import {
+  useAdminCloudEdu,
+  useCloudTrend,
+  useChartResize,
+  buildLineChartOption,
+} from '~/composables/admin'
 
 use([LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
@@ -146,36 +151,14 @@ function renderTrendChart(dates: string[], callCounts: number[]) {
   if (!trendChart) {
     trendChart = init(trendChartRef.value)
   }
-  trendChart.setOption({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 45, right: 20, top: 20, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
-    },
-    yAxis: {
-      type: 'value',
-      name: '调用次数',
-      axisLabel: { fontSize: 11 },
-      splitLine: { show: false },
-    },
-    series: [
-      {
-        name: '评测调用',
-        type: 'line',
-        data: callCounts,
-        smooth: true,
-        itemStyle: { color: '#409EFF' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(64,158,255,0.25)' },
-            { offset: 1, color: 'rgba(64,158,255,0.02)' },
-          ]),
-        },
-      },
-    ],
-  })
+  // P4-D4：option 构造收敛到 buildLineChartOption 工厂（TECH_DEBT #3）
+  trendChart.setOption(
+    buildLineChartOption({
+      xData: dates,
+      yName: '调用次数',
+      series: [{ name: '评测调用', data: callCounts }],
+    }),
+  )
 }
 
 onMounted(() => fetchData())

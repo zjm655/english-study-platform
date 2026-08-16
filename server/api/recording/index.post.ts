@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { withTransaction } from '#server/utils/db'
+import { getClientIp } from '#server/utils/clientIp'
+import { checkGuestUploadByIp, checkGuestUploadByFp } from '#server/utils/guestIpGuard'
 import { uploadWithKey, signUrl, deleteObject, RECORDING_EXPIRE } from '#server/utils/oss'
 import { validateError, validateSuccess } from '#server/utils/validate'
 import { uploadRecordingSchema } from '#shared/schemas/user'
@@ -68,6 +70,13 @@ export default defineEventHandler(
     const { recordingMaxSize } = await getUploadLimits()
     if (file.size > recordingMaxSize) {
       return validateError(`文件大小超过限制(${Math.round(recordingMaxSize / 1024 / 1024)}MB)`)
+    }
+
+    // 4.5 游客每日上传配额（P4-A1：IP 50 次/日 + 指纹 20 次/日，防换指纹无限灌库；登录用户不限）
+    if (fingerprint) {
+      if (!checkGuestUploadByIp(getClientIp(event)) || !checkGuestUploadByFp(fingerprint)) {
+        return validateError('今日录音上传次数已用完，登录后可无限使用', 429)
+      }
     }
 
     // 5. MIME 类型白名单校验

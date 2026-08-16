@@ -2,6 +2,7 @@
 // 管理员日志管理 schema（api_call_log / cloud_service_call_log / admin_operation_log / review_access_log 四子页）。
 import { z } from 'zod'
 import { REVIEW_TARGET_TYPES, REVIEW_REASON_CATEGORIES } from '../utils/permission'
+import { ALERT_EVENT_SOURCES } from '../utils/alertEvents'
 import type { QueryInput } from './helpers'
 
 /** api_call_log 列表查询校验 */
@@ -141,11 +142,11 @@ export const adminArchiveListSchema = z.object({
     .optional(),
 })
 
-/** 告警事件列表查询校验（A1，P3-H 从端点内联移入 shared） */
+/** 告警事件列表查询校验（A1，P3-H 从端点内联移入 shared；source 枚举从 ALERT_EVENT_SOURCES 推导，P4-D2 单点化） */
 export const adminAlertEventListSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  source: z.enum(['client_error', 'log_queue', 'task_fail', 'cloud_health', 'security']).optional(),
+  source: z.enum(ALERT_EVENT_SOURCES).optional(),
   level: z.enum(['error', 'warn']).optional(),
   startDate: z
     .string()

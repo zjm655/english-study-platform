@@ -94,6 +94,11 @@ async function cleanupMergedGuests(startedAt: Date): Promise<number> {
         `DELETE FROM user_fav_word WHERE user_id IN (${ids.map(() => '?').join(',')})`,
         ids,
       )
+      // P4-B1：连带清理评测鉴权发放记录（游客换证孤儿行，防表膨胀与全局闸门计数污染）
+      await conn.execute(
+        `DELETE FROM eval_auth_log WHERE user_id IN (${ids.map(() => '?').join(',')})`,
+        ids,
+      )
 
       // 物理删除游客行
       const [result] = await conn.execute<ResultSetHeader>(
@@ -152,6 +157,8 @@ async function cleanupExpiredGuests(startedAt: Date, retentionDays: number): Pro
       await conn.execute(`DELETE FROM user_progress WHERE user_id IN (${placeholders})`, ids)
       await conn.execute(`DELETE FROM user_fav_segment WHERE user_id IN (${placeholders})`, ids)
       await conn.execute(`DELETE FROM user_fav_word WHERE user_id IN (${placeholders})`, ids)
+      // P4-B1：连带清理评测鉴权发放记录（孤儿行随游客行一并删除）
+      await conn.execute(`DELETE FROM eval_auth_log WHERE user_id IN (${placeholders})`, ids)
 
       // 物理删除游客行
       const [result] = await conn.execute<ResultSetHeader>(

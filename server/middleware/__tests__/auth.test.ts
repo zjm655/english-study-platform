@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => {
     data: undefined,
   })
   ;(globalThis as any).verifyToken = mockVerifyToken
-  ;(globalThis as any).getRequestIP = () => '127.0.0.1'
+  // getRequestIP 已随 P3-A 收口到 getClientIp（显式 import h3），不再走 globalThis；
+  // 测试 event 无 node.req 时 getClientIp 返回 'unknown'（限流 mock 已放行，语义无影响）
   return { mockVerifyToken, mockQuery, mockDeleteCookie, mockGetUserPermissions }
 })
 

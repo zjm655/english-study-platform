@@ -3,14 +3,12 @@
 //
 // 批量写入模式（P3-I 重构）：内存队列逻辑统一收敛到 batchQueue 工厂；
 // requestId 经请求上下文自动填充（getCurrentRequestId）。
-// 事件源枚举：client_error（前端错误上报）/ log_queue（埋点队列丢弃）/ task_fail（任务失败）/
-//            cloud_health（云服务健康事件）/ security（安全事件）。
+// 事件源枚举单点收敛在 shared/utils/alertEvents.ts（P4-D2）。
 import { createBatchQueue } from '#server/utils/batchQueue'
 import { getCurrentRequestId } from '#server/utils/requestContext'
+import type { AlertEventSource } from '#shared/utils/alertEvents'
 
-/** 事件来源（与迁移 037 alert_event.source 枚举一致；varchar 无 CHECK 约束，新增值无需迁移） */
-export type AlertEventSource =
-  'client_error' | 'log_queue' | 'task_fail' | 'cloud_health' | 'security'
+export type { AlertEventSource }
 /** 事件级别 */
 export type AlertEventLevel = 'error' | 'warn'
 

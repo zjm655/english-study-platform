@@ -89,13 +89,18 @@
 
 <script setup lang="ts">
 import { Refresh, WarningFilled } from '@element-plus/icons-vue'
-import { use, graphic, init } from 'echarts/core'
+import { use, init } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { DeepSeekStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudDeepseek, useCloudTrend, useChartResize } from '~/composables/admin'
+import {
+  useAdminCloudDeepseek,
+  useCloudTrend,
+  useChartResize,
+  buildLineChartOption,
+} from '~/composables/admin'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -133,49 +138,29 @@ function renderTrendChart(dates: string[], callCounts: number[], totalTokens: nu
   if (!trendChart) {
     trendChart = init(trendChartRef.value)
   }
-  trendChart.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['调用次数', 'Token 用量'], bottom: 0, textStyle: { fontSize: 11 } },
-    grid: { left: 50, right: 60, top: 20, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
-    },
-    yAxis: [
-      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
-      { type: 'value', name: 'Token', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
-    ],
-    series: [
-      {
-        name: '调用次数',
-        type: 'line',
-        data: callCounts,
-        smooth: true,
-        itemStyle: { color: '#409EFF' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(64,158,255,0.25)' },
-            { offset: 1, color: 'rgba(64,158,255,0.02)' },
-          ]),
-        },
+  // P4-D4：option 构造收敛到 buildLineChartOption 工厂（TECH_DEBT #3；双 Y 轴经 overrides）
+  trendChart.setOption(
+    buildLineChartOption({
+      xData: dates,
+      series: [
+        { name: '调用次数', data: callCounts },
+        { name: 'Token 用量', data: totalTokens, color: '#67C23A', yAxisIndex: 1 },
+      ],
+      overrides: {
+        legend: { data: ['调用次数', 'Token 用量'], bottom: 0, textStyle: { fontSize: 11 } },
+        grid: { left: 50, right: 60, top: 20, bottom: 40 },
+        yAxis: [
+          {
+            type: 'value',
+            name: '调用次数',
+            axisLabel: { fontSize: 11 },
+            splitLine: { show: false },
+          },
+          { type: 'value', name: 'Token', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
+        ],
       },
-      {
-        name: 'Token 用量',
-        type: 'line',
-        yAxisIndex: 1,
-        data: totalTokens,
-        smooth: true,
-        itemStyle: { color: '#67C23A' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(103,194,58,0.25)' },
-            { offset: 1, color: 'rgba(103,194,58,0.02)' },
-          ]),
-        },
-      },
-    ],
-  })
+    }),
+  )
 }
 
 onMounted(() => fetchData())

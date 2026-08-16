@@ -15,6 +15,9 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const list = ref<ArchiveLogRow[]>([])
+// P4-D1：日期筛选（端点已支持，前端补传）
+const filterStartDate = ref('')
+const filterEndDate = ref('')
 
 function formatDate(s: unknown) {
   if (!s) return '-'
@@ -37,11 +40,25 @@ async function loadList() {
     table: props.table,
     page: page.value,
     pageSize: pageSize.value,
+    startDate: filterStartDate.value || undefined,
+    endDate: filterEndDate.value || undefined,
   })
   if (res?.code === 200 && res.data) {
     list.value = res.data.list
     total.value = res.data.total
   }
+}
+
+function handleSearch() {
+  page.value = 1
+  loadList()
+}
+
+function handleReset() {
+  filterStartDate.value = ''
+  filterEndDate.value = ''
+  page.value = 1
+  loadList()
 }
 
 function handleSizeChange() {
@@ -56,6 +73,27 @@ onMounted(() => {
 
 <template>
   <div class="admin-archive-list">
+    <!-- 筛选栏（P4-D1） -->
+    <div class="filter-bar">
+      <el-date-picker
+        v-model="filterStartDate"
+        type="date"
+        placeholder="开始日期"
+        format="YYYY-MM-DD"
+        value-format="YYYY-MM-DD"
+        class="filter-item"
+      />
+      <el-date-picker
+        v-model="filterEndDate"
+        type="date"
+        placeholder="结束日期"
+        format="YYYY-MM-DD"
+        value-format="YYYY-MM-DD"
+        class="filter-item"
+      />
+      <el-button size="small" type="primary" @click="handleSearch">查询</el-button>
+      <el-button size="small" @click="handleReset">重置</el-button>
+    </div>
     <el-table v-loading="isLoading" :data="list" stripe row-key="id" size="small">
       <!-- api_call_log_archive -->
       <template v-if="props.table === 'api_call_log_archive'">
@@ -64,6 +102,17 @@ onMounted(() => {
           <template #default="{ row }">{{ row.method }}</template>
         </el-table-column>
         <el-table-column prop="path" label="Path" min-width="180" show-overflow-tooltip />
+        <!-- P4-D1：补 RoutePattern / IP（排障关键列） -->
+        <el-table-column
+          prop="routePattern"
+          label="RoutePattern"
+          min-width="160"
+          show-overflow-tooltip
+        >
+          <template #default="{ row }">
+            <span class="text-muted">{{ row.routePattern || '-' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="Status" width="80" align="center">
           <template #default="{ row }">
             <el-tag :type="statusTagType(row.statusCode)" size="small">{{ row.statusCode }}</el-tag>
@@ -88,6 +137,9 @@ onMounted(() => {
         </el-table-column>
         <el-table-column prop="userId" label="UserId" width="80" align="center">
           <template #default="{ row }">{{ row.userId ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column label="IP" width="130">
+          <template #default="{ row }">{{ row.ip || '-' }}</template>
         </el-table-column>
         <el-table-column prop="errorMessage" label="Error" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">
@@ -130,6 +182,16 @@ onMounted(() => {
               row.bizDurationMs != null ? row.bizDurationMs + 'ms' : '-'
             }}</span>
           </template>
+        </el-table-column>
+        <!-- P4-D1：补 token 三列（成本归因关键字段） -->
+        <el-table-column prop="promptTokens" label="Prompt" width="95" align="center">
+          <template #default="{ row }">{{ row.promptTokens ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="completionTokens" label="Completion" width="105" align="center">
+          <template #default="{ row }">{{ row.completionTokens ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="totalTokens" label="Total" width="90" align="center">
+          <template #default="{ row }">{{ row.totalTokens ?? '-' }}</template>
         </el-table-column>
         <el-table-column prop="errorMessage" label="Error" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">
@@ -190,6 +252,17 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.filter-item {
+  width: 150px;
+}
+
 .pagination-row {
   display: flex;
   justify-content: flex-end;

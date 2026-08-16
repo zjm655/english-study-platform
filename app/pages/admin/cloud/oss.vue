@@ -178,13 +178,18 @@
 
 <script setup lang="ts">
 import { Refresh, WarningFilled } from '@element-plus/icons-vue'
-import { use, graphic, init } from 'echarts/core'
+import { use, init } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import type { OssStatResult } from '#shared/types/adminCloud'
-import { useAdminCloudOss, useCloudTrend, useChartResize } from '~/composables/admin'
+import {
+  useAdminCloudOss,
+  useCloudTrend,
+  useChartResize,
+  buildLineChartOption,
+} from '~/composables/admin'
 
 use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -219,49 +224,34 @@ function renderTrendChart(dates: string[], callCounts: number[], totalDurations:
   if (!trendChart) {
     trendChart = init(trendChartRef.value)
   }
-  trendChart.setOption({
-    tooltip: { trigger: 'axis' },
-    legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0, textStyle: { fontSize: 11 } },
-    grid: { left: 50, right: 60, top: 20, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: dates,
-      axisLabel: { fontSize: 11, formatter: (v: string) => (v.length >= 10 ? v.slice(5) : v) },
-    },
-    yAxis: [
-      { type: 'value', name: '调用次数', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
-      { type: 'value', name: '耗时(ms)', axisLabel: { fontSize: 11 }, splitLine: { show: false } },
-    ],
-    series: [
-      {
-        name: '调用次数',
-        type: 'line',
-        data: callCounts,
-        smooth: true,
-        itemStyle: { color: '#409EFF' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(64,158,255,0.25)' },
-            { offset: 1, color: 'rgba(64,158,255,0.02)' },
-          ]),
-        },
+  // P4-D4：option 构造收敛到 buildLineChartOption 工厂（TECH_DEBT #3）
+  trendChart.setOption(
+    buildLineChartOption({
+      xData: dates,
+      series: [
+        { name: '调用次数', data: callCounts },
+        { name: '总耗时(ms)', data: totalDurations, color: '#E6A23C', yAxisIndex: 1 },
+      ],
+      overrides: {
+        legend: { data: ['调用次数', '总耗时(ms)'], bottom: 0, textStyle: { fontSize: 11 } },
+        grid: { left: 50, right: 60, top: 20, bottom: 40 },
+        yAxis: [
+          {
+            type: 'value',
+            name: '调用次数',
+            axisLabel: { fontSize: 11 },
+            splitLine: { show: false },
+          },
+          {
+            type: 'value',
+            name: '耗时(ms)',
+            axisLabel: { fontSize: 11 },
+            splitLine: { show: false },
+          },
+        ],
       },
-      {
-        name: '总耗时(ms)',
-        type: 'line',
-        yAxisIndex: 1,
-        data: totalDurations,
-        smooth: true,
-        itemStyle: { color: '#E6A23C' },
-        areaStyle: {
-          color: new graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(230,162,60,0.25)' },
-            { offset: 1, color: 'rgba(230,162,60,0.02)' },
-          ]),
-        },
-      },
-    ],
-  })
+    }),
+  )
 }
 
 function formatBytes(bytes?: number): string {
