@@ -11,6 +11,9 @@ import { isUploadQueueFull } from './materialJob'
 import { getUploadLimits, validateUploadText } from '#server/utils/uploadLimitChecker'
 import { recognizeSpeech } from './sttFiletrans'
 import { moderateText } from './contentModeration'
+import { getAdminModerationEnabled } from '#server/utils/moderationConfig'
+import { PipelineSnapshotBuilder } from '#server/utils/pipelineSnapshot'
+import { annotateSpeakers } from './speakerAnnotator'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { logger } from '#shared/utils/logger'
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
@@ -160,9 +163,11 @@ async function processAdminMaterialInner(
   // 事务提交后置真：segment 已引用资源，此后任何写失败都不得走 fail()
   let committed = false
   let committedSegmentId = 0
+  // 流水线快照：累计各阶段结果，失败/成功终端一次性写 pipeline_snapshot 供诊断页回溯
+  const snapshot = new PipelineSnapshotBuilder()
 
-  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 + 文件留痕 */
-  async function fail(message: string): Promise<void> {
+  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 + 文件留痕 + 落快照 */
+  async function fail(message: string, failedStage?: string): Promise<void> {
     try {
       if (segmentMediaId !== null) {
         await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
@@ -170,6 +175,16 @@ async function processAdminMaterialInner(
       await updateRecordFailed(recordId, message)
     } catch (err) {
       logger.error('[admin upload] 失败状态写入异常:', err)
+    }
+    // 快照标注失败点并落库（失败现场回溯）；failedStage 缺省 'pipeline'
+    snapshot.setFailed(failedStage ?? 'pipeline', message)
+    try {
+      await pool.execute('UPDATE material_upload_record SET pipeline_snapshot = ? WHERE id = ?', [
+        snapshot.toJSON(),
+        recordId,
+      ])
+    } catch (err) {
+      logger.error('[admin upload] 快照落库失败:', err)
     }
     for (const key of uploadedKeys) {
       void deleteObject(key)
@@ -188,6 +203,22 @@ async function processAdminMaterialInner(
   }
 
   try {
+    // 2.0 文本内容审核（第 1 步，与用户端 materialJob 一致）：主文本 DeepSeek 审核（受开关控制），随后标记主音频来源分支
+    const hasUserAudio = Boolean(audioBuffer || audioOssKey)
+    const adminModerationOn = await getAdminModerationEnabled()
+    if (adminModerationOn) {
+      const modText = await moderateText(textContent, { allowDialogue: hasUserAudio })
+      snapshot.add('moderation_text', modText.safe, modText.safe ? null : { reason: modText.reason })
+      if (!modText.safe) {
+        const msg = `材料内容不合规: ${modText.reason ?? '未知原因'}`
+        await fail(msg, 'moderation_text')
+        return { index: 0, success: false, error: '材料内容不合规' }
+      }
+    }
+    if (hasUserAudio) {
+      snapshot.add('user_audio', true, {})
+    }
+
     // 2. 音频处理
     // 主音频来源优先级：同步段刚上传的 audioBuffer → 已持久化的 audioOssKey（重处理复用，需下载）→ TTS 合成。
     // 持久化路径（buffer/key）绝不 push 进 uploadedKeys：失败时保留对象供重处理复用，不重复上传。
@@ -215,9 +246,10 @@ async function processAdminMaterialInner(
       // 无音频：TTS 生成（带自动重试）
       const ttsResult = await ttsWithRetry(textContent, voice)
       if (!ttsResult.success || !ttsResult.audio) {
-        await fail('音频生成失败')
+        await fail('音频生成失败', 'tts_main')
         return { index: 0, success: false, error: '音频生成失败' }
       }
+      snapshot.add('tts_main', true, { audioBytes: ttsResult.audio.length })
       audioBuffer_ = ttsResult.audio
       mediaType = 'tts'
 
@@ -227,15 +259,12 @@ async function processAdminMaterialInner(
         uploadedKeys.push(ossKey)
       } catch (err) {
         logger.error('[admin upload] OSS 上传失败:', err)
-        await fail('文件上传失败')
+        await fail('文件上传失败', 'upload')
         return { index: 0, success: false, error: '文件上传失败' }
       }
     }
 
-    // 3.5 可选 NLS 语音校对（仅开启且本任务使用用户音频——同步 buffer 或持久化复用——时生效）：
-    // 仿 materialJob 的 STT 链路——识别 → 音频文本审核 → 与材料文本相似度对比。
-    // 消耗 NLS 额度（filetrans 每日 2h 免费 / flash 按量），任一失败整单失败并走清理栈。
-    const hasUserAudio = Boolean(audioBuffer || audioOssKey)
+    // 3.5 DeepSeek NLS 语音校对（顺序在文本审核之后）：STT 识别 → 转写单独审核 → 音文相似度
     if (nlsCheck && hasUserAudio) {
       const sttFormat = ['wav', 'aac', 'opus', 'mp4'].includes(ext)
         ? (ext as 'wav' | 'aac' | 'opus' | 'mp4')
@@ -247,22 +276,55 @@ async function processAdminMaterialInner(
       })
       if (!sttResult.success) {
         const msg = `音频识别失败: ${sttResult.error ?? '未知原因'}`
-        await fail(msg)
+        await fail(msg, 'stt')
         return { index: 0, success: false, error: '音频识别失败' }
       }
-      const recognizedText = sttResult.text ?? ''
-      if (recognizedText.trim()) {
-        const mod2 = await moderateText(recognizedText)
-        if (!mod2.safe) {
-          const msg = `音频内容不合规: ${mod2.reason ?? '未知原因'}`
-          await fail(msg)
-          return { index: 0, success: false, error: '音频内容不合规' }
+      const nlsText = (sttResult.text ?? '').trim()
+      snapshot.add('stt', true, { text: nlsText ? nlsText.slice(0, 200) : '' })
+      // 转写尽早落库（供诊断/审计/重处理复用）：后续相似度等校验失败时也保留转写现场，避免诊断页「有识别无转写」
+      if (nlsText) {
+        try {
+          await pool.execute('UPDATE material_upload_record SET nls_transcript = ? WHERE id = ?', [
+            nlsText,
+            recordId,
+          ])
+        } catch (err) {
+          logger.error('[admin upload] 转写落库失败:', err)
         }
-        const sim = compareTextSimilarity(textContent, recognizedText)
+      }
+      // 转写单独审核（主文本已在上一步 2.0 审核）；仅在开关开启且有转写时执行
+      if (adminModerationOn && nlsText) {
+        const modNls = await moderateText(nlsText, { allowDialogue: true })
+        snapshot.add('moderation_nls', modNls.safe, modNls.safe ? null : { reason: modNls.reason })
+        if (!modNls.safe) {
+          const msg = `材料内容不合规: ${modNls.reason ?? '未知原因'}`
+          await fail(msg, 'moderation_nls')
+          return { index: 0, success: false, error: '材料内容不合规' }
+        }
+      }
+      if (nlsText) {
+        const sim = compareTextSimilarity(textContent, nlsText)
+        snapshot.add('similarity', sim.passed, { score: Number((sim.score * 100).toFixed(0)) })
         if (!sim.passed) {
           const msg = `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`
-          await fail(msg)
+          await fail(msg, 'similarity')
           return { index: 0, success: false, error: '音频内容与材料文本不匹配' }
+        }
+        // B：审核通过后对 NLS 对话文本自动标注说话人（结果仅落 speaker_annotated，不改写正文）
+        try {
+          const spk = await annotateSpeakers(nlsText, textContent)
+          snapshot.add('speaker_annotate', spk.dialogue, {
+            dialogue: spk.dialogue,
+            annotated: spk.annotated ? true : false,
+          })
+          if (spk.dialogue && spk.annotated) {
+            await pool.execute('UPDATE material_upload_record SET speaker_annotated = ? WHERE id = ?', [
+              spk.annotated,
+              recordId,
+            ])
+          }
+        } catch (err) {
+          logger.error('[admin upload] 说话人标注失败（不阻塞）:', err)
         }
       }
       logger.info(`[admin upload] NLS 校对通过 record=${recordId}`)
@@ -281,16 +343,16 @@ async function processAdminMaterialInner(
     const limits = await getUploadLimits()
     const meta = await extractAudioMeta(audioBuffer_)
     if (!meta) {
-      await fail('无法解析音频信息')
+      await fail('无法解析音频信息', 'media_check')
       return { index: 0, success: false, error: '无法解析音频信息' }
     }
 
     if (meta.duration > limits.maxAudioDurationAdmin) {
-      await fail(`音频时长超限: ${meta.duration.toFixed(1)}s`)
+      await fail(`音频时长超限: ${meta.duration.toFixed(1)}s`, 'media_check')
       return { index: 0, success: false, error: `音频时长超限` }
     }
     if (meta.size > limits.maxAudioSizeAdmin) {
-      await fail(`音频大小超限`)
+      await fail(`音频大小超限`, 'media_check')
       return { index: 0, success: false, error: '音频大小超限' }
     }
 
@@ -307,12 +369,24 @@ async function processAdminMaterialInner(
     ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
       const msg = `AI 内容生成失败: ${aiResult.error ?? '未知原因'}`
-      await fail(msg)
+      await fail(msg, 'ai_content')
       return { index: 0, success: false, error: msg }
     }
 
     const vocabulary = aiResult.vocabulary!
     const questions = aiResult.questions!
+    snapshot.add('ai_content', true, {
+      vocabCount: vocabulary.length,
+      questionCount: questions.length,
+      translation: aiResult.translation ?? '',
+      vocabulary: vocabulary.map((v) => ({
+        word: v.word,
+        phonetic: v.phonetic ?? '',
+        meaning: v.meaning,
+        exampleSentence: v.exampleSentence ?? '',
+      })),
+      questions,
+    })
 
     // 7. 标题处理：title 优先 → AI 结果（仅 ai 模式）→ 文本截取降级
     let finalTitle: string
@@ -332,6 +406,7 @@ async function processAdminMaterialInner(
       // 非 ai 模式（manual/text_filename/audio_filename/inline）未提供标题：直接文本截取
       finalTitle = fallbackTitle
     }
+    snapshot.add('title', Boolean(finalTitle), { title: finalTitle })
 
     // 8. 词汇音频（TTS + OSS）——事务外受限并发预生成
     // 绝不放在事务内：TTS(WebSocket) 与 OSS 上传是耗时网络 I/O，会长时间占用连接池连接。
@@ -361,6 +436,13 @@ async function processAdminMaterialInner(
         return { vocab, media: null }
       }
       return { vocab, media: { key: vocabKey, size: vocabTts.audio.length } }
+    })
+    const vocabTtsBroken = vocabAudios.filter((x) => !x.media).length
+    snapshot.add('vocab_tts', vocabTtsBroken === 0, {
+      total: vocabAudios.length,
+      ok: vocabAudios.length - vocabTtsBroken,
+      failed: vocabTtsBroken,
+      items: vocabAudios.map(({ vocab, media }) => ({ word: vocab.word, audio: Boolean(media) })),
     })
 
     // 9. 全部入库（短事务，仅纯 DB 写，不含任何网络 I/O）
@@ -412,12 +494,20 @@ async function processAdminMaterialInner(
 
       return newSegmentId
     })
+    snapshot.add('persist', true, { segmentId })
 
     // 9. 更新记录为成功（提交后 OSS 对象归业务所有，不再由清理栈管理）
     committed = true
     committedSegmentId = segmentId
     uploadedKeys.length = 0
     await updateRecordSuccess(recordId, segmentId)
+    // 成功快照落库（failedAt/finalError 保持 null，诊断页展示各阶段）
+    await pool
+      .execute('UPDATE material_upload_record SET pipeline_snapshot = ? WHERE id = ?', [
+        snapshot.toJSON(),
+        recordId,
+      ])
+      .catch((e) => logger.error('[admin upload] 成功快照落库失败:', e))
     if (finalTitle !== fallbackTitle) {
       await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [
         finalTitle,

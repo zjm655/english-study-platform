@@ -46,6 +46,8 @@ export interface AdminMaterialRecordDetail {
   audioUrl?: string | null
   /** 音频时长（秒） */
   duration?: number | null
+  /** NLS 语音识别转写文本（开启 NLS 且识别成功后写入；未开启/失败为 null） */
+  nls_transcript?: string | null
 }
 
 /** 管理员上传记录列表响应 */
@@ -54,4 +56,44 @@ export interface AdminMaterialRecordListResult {
   total: number
   page: number
   pageSize: number
+}
+
+/** 单个快照阶段（诊断页展示） */
+export interface PipelineStageView {
+  name: string
+  ok: boolean
+  detail?: Record<string, unknown> | null
+  error?: string | null
+}
+
+/** 流水线快照（material_upload_record.pipeline_snapshot 解析后） */
+export interface PipelineSnapshotView {
+  stages: PipelineStageView[]
+  failedAt?: string | null
+  finalError?: string | null
+}
+
+/** 管理员上传记录诊断详情（诊断页数据） */
+export interface AdminMaterialRecordDiag {
+  id: number
+  title: string
+  status: MaterialUploadStatus
+  source: 'user' | 'admin'
+  nls_check: number
+  text_content: string
+  voice: string
+  error_message: string | null
+  nls_transcript: string | null
+  speaker_annotated: string | null
+  pipeline_snapshot: PipelineSnapshotView | null
+  audioUrl?: string | null
+  username: string
+  createdAt: string
+  updatedAt: string
+  /** 成功时的学习产物（从 segment 取） */
+  segment?: {
+    translation: string | null
+    questions: unknown | null
+    vocabulary: Array<Record<string, unknown>>
+  } | null
 }

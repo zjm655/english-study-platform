@@ -12,6 +12,8 @@
 import { randomUUID } from 'node:crypto'
 import type { ResultSetHeader } from 'mysql2'
 import { moderateText } from './contentModeration'
+import { annotateSpeakers } from './speakerAnnotator'
+import { PipelineSnapshotBuilder } from '#server/utils/pipelineSnapshot'
 import { recognizeSpeech } from './sttFiletrans'
 import { compareTextSimilarity } from '#server/utils/textSimilarity'
 import { extractAudioMeta } from '#server/utils/audioMeta'
@@ -127,9 +129,11 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
   // 事务提交后置真：segment 已引用资源，此后任何写失败都不得走 fail()（禁 media/删 OSS/翻转 failed）
   let committed = false
   let committedSegmentId = 0
+  // 流水线快照：累计各阶段结果，失败/成功终端一次性写 pipeline_snapshot
+  const snapshot = new PipelineSnapshotBuilder()
 
-  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 + 文件留痕 */
-  async function fail(message: string): Promise<void> {
+  /** 失败收尾：标记 record + 禁用 media + 清理 OSS 孤儿 + 文件留痕 + 落快照 */
+  async function fail(message: string, failedStage?: string): Promise<void> {
     try {
       if (segmentMediaId !== null) {
         await pool.execute('UPDATE media SET status = 0 WHERE id = ?', [segmentMediaId])
@@ -137,6 +141,15 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
       await updateRecordFailed(recordId, message)
     } catch (err) {
       logger.error('[material job] 失败状态写入异常:', err)
+    }
+    snapshot.setFailed(failedStage ?? 'pipeline', message)
+    try {
+      await pool.execute('UPDATE material_upload_record SET pipeline_snapshot = ? WHERE id = ?', [
+        snapshot.toJSON(),
+        recordId,
+      ])
+    } catch (err) {
+      logger.error('[material job] 快照落库失败:', err)
     }
     for (const key of uploadedKeys) {
       void deleteObject(key)
@@ -171,8 +184,9 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
     const mod1 = await moderateText(textContent, {
       allowDialogue: Boolean(params.audioBuffer?.length || params.audioOssKey),
     })
+    snapshot.add('moderation_text', mod1.safe, mod1.safe ? null : { reason: mod1.reason })
     if (!mod1.safe) {
-      return await fail(`材料内容不合规: ${mod1.reason}`)
+      return await fail(`材料内容不合规: ${mod1.reason}`, 'moderation_text')
     }
 
     // ===== Step 2: 音频处理 =====
@@ -216,28 +230,69 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
       }
     }
 
-    /** 用户音频链路 STT → 音频文本审核 → 文本相似度（原 2c-2e；持久化两条路径共用）。返回错误文案（null=通过） */
-    const runSttChain = async (buf: Buffer): Promise<string | null> => {
+    /** 用户音频链路 STT → 音频文本审核 → 文本相似度（原 2c-2e；持久化两条路径共用）。返回错误文案+阶段（null=通过） */
+    const runSttChain = async (
+      buf: Buffer,
+    ): Promise<{ error: string; stage: string } | null> => {
       const sttResult = await recognizeSpeech({
         audioBuffer: buf,
         format: extToFormat(params.audioFileName ?? ''),
         ossKey,
       })
       if (!sttResult.success) {
-        return `音频识别失败: ${sttResult.error}`
+        return { error: `音频识别失败: ${sttResult.error}`, stage: 'stt' }
       }
       const recognizedText = sttResult.text ?? ''
       if (recognizedText.trim()) {
+        const recognizedTrimmed = recognizedText.trim()
+        snapshot.add('stt', true, { text: recognizedText.slice(0, 200) })
+        // 转写尽早落库（供诊断/审计/重处理复用）：后续相似度等校验失败也保留转写现场
+        try {
+          await pool.execute('UPDATE material_upload_record SET nls_transcript = ? WHERE id = ?', [
+            recognizedTrimmed,
+            recordId,
+          ])
+        } catch (err) {
+          logger.error('[material job] 转写落库失败:', err)
+        }
         const mod2 = await moderateText(recognizedText)
+        snapshot.add('moderation_nls', mod2.safe, mod2.safe ? null : { reason: mod2.reason })
         if (!mod2.safe) {
-          return `音频内容不合规: ${mod2.reason}`
+          return { error: `音频内容不合规: ${mod2.reason}`, stage: 'moderation_nls' }
         }
         const sim = compareTextSimilarity(textContent, recognizedText)
+        snapshot.add('similarity', sim.passed, { score: Number((sim.score * 100).toFixed(0)) })
         if (!sim.passed) {
-          return `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`
+          return {
+            error: `音频内容与材料文本不匹配（相似度 ${(sim.score * 100).toFixed(0)}%）`,
+            stage: 'similarity',
+          }
+        }
+        // B：审核通过后对 NLS 对话文本自动标注说话人（仅落 speaker_annotated，不改写正文）
+        try {
+          const spk = await annotateSpeakers(recognizedText, textContent)
+          snapshot.add('speaker_annotate', spk.dialogue, {
+            dialogue: spk.dialogue,
+            annotated: spk.annotated ? true : false,
+            skipped: spk.skipped,
+          })
+          if (spk.dialogue && spk.annotated) {
+            await pool.execute('UPDATE material_upload_record SET speaker_annotated = ? WHERE id = ?', [
+              spk.annotated,
+              recordId,
+            ])
+          }
+        } catch (err) {
+          logger.error('[material job] 说话人标注失败（不阻塞）:', err)
         }
       }
       return null
+    }
+
+    // 主音频来源分支标记：用户音频路径（TTS 路径已记 tts_main）
+    const hasUserAudioMk = Boolean(params.audioBuffer?.length || params.audioOssKey)
+    if (hasUserAudioMk) {
+      snapshot.add('user_audio', true, {})
     }
 
     if (params.audioBuffer && params.audioBuffer.length > 0) {
@@ -246,39 +301,40 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
       mediaType = 'user_material'
 
       const metaErr = await checkAudioMeta(audioBuffer)
-      if (metaErr) return await fail(metaErr)
+      if (metaErr) return await fail(metaErr, 'media_check')
 
-      const sttErr = await runSttChain(audioBuffer)
-      if (sttErr) return await fail(sttErr)
+      const sttRes = await runSttChain(audioBuffer)
+      if (sttRes) return await fail(sttRes.error, sttRes.stage)
     } else if (params.audioOssKey) {
       // 2b. 重处理复用：下载已持久化的主音频（audioFileName 缺失，STT format 经 extToFormat 兜底 mp3）
       try {
         audioBuffer = await downloadObject(params.audioOssKey)
       } catch (err) {
         logger.error('[material job] 原音频下载失败:', err)
-        return await fail('原音频不可用，请重新上传含音频的材料')
+        return await fail('原音频不可用，请重新上传含音频的材料', 'media_check')
       }
       mediaType = 'user_material'
 
       const metaErr = await checkAudioMeta(audioBuffer)
-      if (metaErr) return await fail(metaErr)
+      if (metaErr) return await fail(metaErr, 'media_check')
 
-      const sttErr = await runSttChain(audioBuffer)
-      if (sttErr) return await fail(sttErr)
+      const sttRes = await runSttChain(audioBuffer)
+      if (sttRes) return await fail(sttRes.error, sttRes.stage)
     } else {
       // 2c. 无音频：TTS 生成（带自动重试；合成后同样校验元数据再上传）
       const ttsResult = await ttsWithRetry(textContent, voice)
       if (!ttsResult.success || !ttsResult.audio) {
-        return await fail(`音频生成失败: ${ttsResult.error ?? '未知原因'}`)
+        return await fail(`音频生成失败: ${ttsResult.error ?? '未知原因'}`, 'tts_main')
       }
+      snapshot.add('tts_main', true, { audioBytes: ttsResult.audio.length })
       audioBuffer = ttsResult.audio
       mediaType = 'tts'
 
       const metaErr = await checkAudioMeta(audioBuffer)
-      if (metaErr) return await fail(metaErr)
+      if (metaErr) return await fail(metaErr, 'media_check')
 
       if (!(await uploadMainAudio(audioBuffer))) {
-        return await fail('文件上传失败')
+        return await fail('文件上传失败', 'upload')
       }
     }
 
@@ -308,11 +364,23 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
       presetTitle ? Promise.resolve(null) : generateTitle(textContent),
     ])
     if (!aiResult.success || !aiResult.vocabulary || !aiResult.questions) {
-      return await fail(`AI 内容生成失败: ${aiResult.error ?? '未知原因'}`)
+      return await fail(`AI 内容生成失败: ${aiResult.error ?? '未知原因'}`, 'ai_content')
     }
 
     const vocabulary: NonNullable<typeof aiResult.vocabulary> = aiResult.vocabulary
     const questions: NonNullable<typeof aiResult.questions> = aiResult.questions
+    snapshot.add('ai_content', true, {
+      vocabCount: vocabulary.length,
+      questionCount: questions.length,
+      translation: aiResult.translation ?? '',
+      vocabulary: vocabulary.map((v) => ({
+        word: v.word,
+        phonetic: v.phonetic ?? '',
+        meaning: v.meaning,
+        exampleSentence: v.exampleSentence ?? '',
+      })),
+      questions,
+    })
 
     const fallbackTitle = textContent.length > 50 ? textContent.slice(0, 50) + '...' : textContent
     let title: string
@@ -328,6 +396,7 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
       })
       title = fallbackTitle
     }
+    snapshot.add('title', Boolean(title), { title })
 
     // ===== Step 5: 词汇音频（TTS + OSS）——事务外受限并发预生成 =====
     // TTS/OSS 为耗时网络 I/O，绝不放事务内；词汇音频失败则 media=null 静默跳过
@@ -354,6 +423,13 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
         return { vocab, media: null }
       }
       return { vocab, media: { key: vocabKey, size: vocabTts.audio.length } }
+    })
+    const vocabTtsBroken = vocabAudios.filter((x) => !x.media).length
+    snapshot.add('vocab_tts', vocabTtsBroken === 0, {
+      total: vocabAudios.length,
+      ok: vocabAudios.length - vocabTtsBroken,
+      failed: vocabTtsBroken,
+      items: vocabAudios.map(({ vocab, media }) => ({ word: vocab.word, audio: Boolean(media) })),
     })
 
     // ===== Step 6: 全部入库（短事务，仅纯 DB 写） =====
@@ -408,14 +484,22 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
       })
     } catch (err) {
       logger.error('[material job] 事务失败:', err)
-      return await fail('入库失败')
+      return await fail('入库失败', 'persist')
     }
+    snapshot.add('persist', true, { segmentId })
 
     // 成功收尾：入库完成后 OSS 对象归业务所有，不再由清理栈管理
     committed = true
     committedSegmentId = segmentId
     uploadedKeys.length = 0
     await updateRecordSuccess(recordId, segmentId)
+    // 成功快照落库（failedAt/finalError 保持 null）
+    await pool
+      .execute('UPDATE material_upload_record SET pipeline_snapshot = ? WHERE id = ?', [
+        snapshot.toJSON(),
+        recordId,
+      ])
+      .catch((e) => logger.error('[material job] 成功快照落库失败:', e))
     if (title !== fallbackTitle) {
       await pool.execute('UPDATE material_upload_record SET title = ? WHERE id = ?', [
         title,

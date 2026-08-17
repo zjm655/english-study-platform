@@ -1,5 +1,6 @@
 <template>
-  <div class="record-list-page">
+  <div>
+    <div v-if="!isDiag" class="record-list-page">
     <div class="page-header">
       <div>
         <h2 class="page-title">上传记录管理</h2>
@@ -96,10 +97,15 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="失败原因" min-width="140" show-overflow-tooltip>
+        <el-table-column label="诊断结果" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">
-            <span v-if="row.error_message" class="error-msg">{{ row.error_message }}</span>
-            <span v-else class="text-muted">-</span>
+            <el-link
+              :type="row.status === 'failed' ? 'danger' : 'primary'"
+              @click="navigateTo(`/admin/material/records/${row.id}/diag`)"
+              class="diag-link"
+            >
+              {{ row.status === 'failed' && row.error_message ? row.error_message : '查看诊断' }}
+            </el-link>
           </template>
         </el-table-column>
         <el-table-column label="上传者" width="120">
@@ -235,6 +241,18 @@
             readonly
           />
         </div>
+        <div class="detail-section">
+          <div class="detail-section__title">NLS 转写</div>
+          <template v-if="detail.nls_transcript">
+            <el-input
+              :model-value="detail.nls_transcript"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 8 }"
+              readonly
+            />
+          </template>
+          <span v-else class="detail-section__empty">未开启 NLS / 无转写</span>
+        </div>
         <div v-if="detail.status === 'success'" class="detail-section">
           <div class="detail-section__title">音频试听</div>
           <AudioPlayer
@@ -327,6 +345,8 @@
       @confirm="handleAudition"
     />
   </div>
+    <NuxtPage />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -356,6 +376,10 @@ definePageMeta({
 })
 
 useSeoMeta({ title: '上传记录 - 管理后台' })
+
+const route = useRoute()
+// 诊断子路由（/admin/material/records/:id()/diag）存在 :id 参数；列表路由无。用于分流渲染<NuxtPage/>。
+const isDiag = computed(() => typeof route.params.id !== 'undefined')
 
 // 筛选条件
 const filterStatus = ref('')
@@ -769,6 +793,11 @@ onMounted(() => {
   font-weight: 600;
   color: var(--text-1);
   margin-bottom: 8px;
+}
+
+.detail-section__empty {
+  font-size: 13px;
+  color: var(--text-4);
 }
 
 .audition-locked {

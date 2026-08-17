@@ -2,6 +2,8 @@ import {
   getAdminMaterialRecordList,
   getAdminMaterialRecordStatuses,
   getAdminMaterialRecordDetail,
+  getAdminMaterialRecordDiag,
+  adoptSpeakerAnnotation,
   deleteAdminMaterialRecord,
   batchAdminMaterialRecords,
   reprocessAdminMaterialRecord,
@@ -11,6 +13,7 @@ import type {
   AdminMaterialRecordListQuery,
   AdminMaterialRecordListResult,
   AdminMaterialRecordDetail,
+  AdminMaterialRecordDiag,
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
 import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
@@ -47,6 +50,30 @@ export const useAdminMaterialRecordDetail = () => {
     handle: getAdminMaterialRecordDetail,
     success: '',
     clientFail: '获取详情失败',
+    serverFail: '服务器异常',
+    error: '网络异常',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员上传记录诊断详情 */
+export const useAdminMaterialRecordDiag = () => {
+  const cfg = createResCfg<number, AdminMaterialRecordDiag>({
+    handle: getAdminMaterialRecordDiag,
+    success: '',
+    clientFail: '获取诊断详情失败',
+    serverFail: '服务器异常',
+    error: '网络异常',
+  })
+  return useHandleRes(cfg)
+}
+
+/** 管理员采用说话人标注 */
+export const useAdoptSpeakerAnnotation = () => {
+  const cfg = createResCfg<number, null>({
+    handle: adoptSpeakerAnnotation,
+    success: '已采用说话人标注作为正文',
+    clientFail: '采用失败',
     serverFail: '服务器异常',
     error: '网络异常',
   })

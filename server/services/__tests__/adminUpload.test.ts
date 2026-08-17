@@ -21,6 +21,8 @@ const {
   mockRecognizeSpeech,
   mockModerateText,
   mockCompareTextSimilarity,
+  mockGetAdminModerationEnabled,
+  mockAnnotateSpeakers,
   mockFileLog,
   mockGetUploadLimits,
 } = vi.hoisted(() => {
@@ -37,6 +39,8 @@ const {
   const mockRecognizeSpeech = vi.fn()
   const mockModerateText = vi.fn()
   const mockCompareTextSimilarity = vi.fn()
+  const mockGetAdminModerationEnabled = vi.fn()
+  const mockAnnotateSpeakers = vi.fn()
   const mockFileLog = vi.fn()
   const mockGetUploadLimits = vi.fn()
   return {
@@ -53,6 +57,8 @@ const {
     mockRecognizeSpeech: mockRecognizeSpeech,
     mockModerateText: mockModerateText,
     mockCompareTextSimilarity: mockCompareTextSimilarity,
+    mockGetAdminModerationEnabled: mockGetAdminModerationEnabled,
+    mockAnnotateSpeakers: mockAnnotateSpeakers,
     mockFileLog: mockFileLog,
     mockGetUploadLimits: mockGetUploadLimits,
   }
@@ -75,6 +81,10 @@ vi.mock('../aiContent', () => ({
 // NLS 校对链路：STT 识别 / 音频文本审核 / 相似度对比
 vi.mock('../sttFiletrans', () => ({ recognizeSpeech: mockRecognizeSpeech }))
 vi.mock('../contentModeration', () => ({ moderateText: mockModerateText }))
+vi.mock('#server/utils/moderationConfig', () => ({
+  getAdminModerationEnabled: mockGetAdminModerationEnabled,
+}))
+vi.mock('../speakerAnnotator', () => ({ annotateSpeakers: mockAnnotateSpeakers }))
 vi.mock('#server/utils/textSimilarity', () => ({
   compareTextSimilarity: mockCompareTextSimilarity,
 }))
@@ -149,6 +159,11 @@ function setupDefaults() {
     const mockConn = { execute: vi.fn().mockResolvedValue([{ insertId: 100 }]) }
     return fn(mockConn)
   })
+  // 管理员主审核默认开启且审核通过（fail-closed 由用例覆盖）
+  mockGetAdminModerationEnabled.mockResolvedValue(true)
+  mockModerateText.mockResolvedValue({ safe: true, reason: null })
+  // 说话人标注默认非对话（不写 speaker_annotated）
+  mockAnnotateSpeakers.mockResolvedValue({ dialogue: false, annotated: null })
 }
 
 // ============ processAdminMaterial ============
@@ -418,8 +433,23 @@ describe('processAdminMaterial', () => {
     expect(mockRecognizeSpeech).toHaveBeenCalledWith(
       expect.objectContaining({ format: 'mp3', ossKey: expect.any(String) }),
     )
-    expect(mockModerateText).toHaveBeenCalledWith('recognized text here')
+    // 文本内容审核第 1 步：主文本单独审核
+    expect(mockModerateText).toHaveBeenCalledWith(
+      'Audio with nls check enabled.',
+      { allowDialogue: true },
+    )
+    // 转写单独审核（不再把文本+转写合并送审）
+    expect(mockModerateText).toHaveBeenCalledWith(
+      'recognized text here',
+      { allowDialogue: true },
+    )
     expect(mockCompareTextSimilarity).toHaveBeenCalled()
+    // 转写落库
+    expect(
+      mockPoolExecute.mock.calls.some(([sql, args]) =>
+        String(sql).includes('nls_transcript') && String(args?.[0]).includes('recognized text here'),
+      ),
+    ).toBe(true)
     // 事务内 segment INSERT 含 nls_check=1
     const segInsert = mockWithTransaction.mock.calls[0]![0].toString()
     expect(segInsert).toContain('nls_check')
@@ -471,6 +501,221 @@ describe('processAdminMaterial', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('不匹配')
+  })
+
+  it('相似度不匹配失败：nls_transcript 仍已落库 + failedAt=similarity + similarity 阶段 ok=false', async () => {
+    setupDefaults()
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: 'completely different audio' })
+    mockModerateText.mockResolvedValue({ safe: true, reason: null })
+    mockCompareTextSimilarity.mockReturnValue({ passed: false, score: 0.3 })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Expected text content.',
+      title: 'Sim Fail Snap',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+      nlsCheck: true,
+    })
+
+    expect(result.success).toBe(false)
+    // 转写在提前后仍落库（不再因相似度提前 return 而缺失）
+    const tUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('SET nls_transcript'),
+    )
+    expect(tUpdate).toBeTruthy()
+    // 快照精确标注失败点阶段 + 显式 similarity 阶段
+    const snapUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('pipeline_snapshot'),
+    )
+    expect(snapUpdate).toBeTruthy()
+    const snap = JSON.parse(String(snapUpdate![1]![0]))
+    expect(snap.failedAt).toBe('similarity')
+    const simStage = snap.stages.find((s: { name: string }) => s.name === 'similarity')
+    expect(simStage?.ok).toBe(false)
+  })
+
+  it('NLS+音频成功：快照含完整流水线阶段（ai_content 产物 / title / vocab_tts / persist / similarity）', async () => {
+    setupDefaults()
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: 'Hi there. Hello.' })
+    mockModerateText.mockResolvedValue({ safe: true, reason: null })
+    mockCompareTextSimilarity.mockReturnValue({ passed: true, score: 0.95 })
+    mockAnnotateSpeakers.mockResolvedValue({ dialogue: false, annotated: null })
+
+    await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'An annotated english dialogue.',
+      title: 'NLS Full Snap',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+      nlsCheck: true,
+    })
+
+    const snapUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('pipeline_snapshot'),
+    )
+    const snap = JSON.parse(String(snapUpdate![1]![0]))
+    const names = snap.stages.map((s: { name: string }) => s.name)
+    expect(names).toEqual(
+      expect.arrayContaining(['moderation_text', 'user_audio', 'stt', 'moderation_nls', 'similarity', 'speaker_annotate', 'ai_content', 'title', 'vocab_tts', 'persist']),
+    )
+    // 文本内容审核为第 1 步
+    expect(names[0]).toBe('moderation_text')
+    const ai = snap.stages.find((s: { name: string }) => s.name === 'ai_content')
+    expect(ai.ok).toBe(true)
+    expect(Array.isArray(ai.detail.vocabulary)).toBe(true)
+    expect(Array.isArray(ai.detail.questions)).toBe(true)
+    // 语音标注非对话：ok=false 且非终态 → 属于「异常」而非失败（由前端按非终态判定着色）
+    expect(snap.failedAt ?? null).toBeNull()
+  })
+
+  it('管理员主审核开启：中文/非英文主文本被拒绝', async () => {
+    setupDefaults()
+    mockModerateText.mockResolvedValue({ safe: false, reason: '内容非英文，疑似字幕/中文格式' })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: '这是一段中文材料，用于英语学习平台。',
+      title: '中文材料',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('材料内容不合规')
+    expect(mockModerateText).toHaveBeenCalled()
+    expect(mockGenerateLearningContent).not.toHaveBeenCalled()
+  })
+
+  it('admin_moderation_enabled=0：跳过主文本 DeepSeek 审核（即使判定不合规也放行）', async () => {
+    setupDefaults()
+    mockGetAdminModerationEnabled.mockResolvedValue(false)
+    mockModerateText.mockResolvedValue({ safe: false, reason: '内容不合规' })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: '正常英文材料 Some English learning text.',
+      title: 'Toggle Off',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockModerateText).not.toHaveBeenCalled()
+  })
+
+  it('开关开启且 DeepSeek 不可用：拒绝（fail-closed），不落 segment', async () => {
+    setupDefaults()
+    mockModerateText.mockResolvedValue({ safe: false, reason: '内容审核服务暂时不可用' })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Some English text.',
+      title: 'Test',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('材料内容不合规')
+    expect(mockGenerateLearningContent).not.toHaveBeenCalled()
+  })
+
+  it('NLS+音频：文本内容审核为第 1 步，主文本不合规 → 整单失败（转写不再合并送审）', async () => {
+    setupDefaults()
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: '这是中文转写内容' })
+    mockModerateText.mockResolvedValue({ safe: false, reason: '音频为中文，非英文材料' })
+
+    const result = await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Audio with chinese transcript.',
+      title: 'NLS Mod Reject',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+      nlsCheck: true,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('材料内容不合规')
+    // 文本内容审核第 1 步：首调用为主体文本（不再把文本+转写合并送审）
+    expect(mockModerateText).toHaveBeenNthCalledWith(
+      1,
+      'Audio with chinese transcript.',
+      { allowDialogue: true },
+    )
+    expect(mockGenerateLearningContent).not.toHaveBeenCalled()
+  })
+
+  it('NLS+音频且审核通过：触发说话人标注并写 speaker_annotated（不改写 text_content）', async () => {
+    setupDefaults()
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: 'Hi there. Hello.' })
+    mockCompareTextSimilarity.mockReturnValue({ passed: true, score: 0.95 })
+    mockAnnotateSpeakers.mockResolvedValue({ dialogue: true, annotated: 'A: Hi there.\nB: Hello.' })
+
+    await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'An annotated english dialogue.',
+      title: 'NLS Spk',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+      audioBuffer: FAKE_AUDIO,
+      audioFileName: 'test.mp3',
+      nlsCheck: true,
+    })
+
+    expect(mockAnnotateSpeakers).toHaveBeenCalled()
+    const spkUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('speaker_annotated'),
+    )
+    expect(spkUpdate).toBeTruthy()
+    // 不改写 text_content
+    const textUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('SET text_content'),
+    )
+    expect(textUpdate).toBeFalsy()
+  })
+
+  it('审核失败：写 pipeline_snapshot（含失败点与原因）', async () => {
+    setupDefaults()
+    mockModerateText.mockResolvedValue({ safe: false, reason: '内容不合规' })
+
+    await processAdminMaterial({
+      userId: 1,
+      unitId: 1,
+      textContent: 'Some text.',
+      title: 'Snap',
+      voice: 'en-US-AriaNeural',
+      isPublic: 1,
+      bucket: 'test-bucket',
+    })
+
+    const snapUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('pipeline_snapshot'),
+    )
+    expect(snapUpdate).toBeTruthy()
+    const snap = JSON.parse(String(snapUpdate![1]![0]))
+    expect(snap.failedAt).toBeTruthy()
+    expect(snap.finalError).toContain('材料内容不合规')
   })
 
   it('AI 内容生成失败：返回 error 与 error_message 均透传具体原因', async () => {

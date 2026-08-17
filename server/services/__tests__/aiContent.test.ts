@@ -53,12 +53,12 @@ const VALID_CONTENT = JSON.stringify({
   questions: [{ question: 'Q?', options: ['A. x', 'B. y', 'C. z', 'D. w'], answer: 'A. x' }],
 })
 
-/** 构造 DeepSeek HTTP 200 响应（content 由调用方指定） */
-function okJsonResponse(content: string) {
+/** 构造 DeepSeek HTTP 200 响应（content 由调用方指定；finishReason 可选，用于观测空内容根因） */
+function okJsonResponse(content: string, finishReason?: string) {
   return {
     ok: true,
     json: async () => ({
-      choices: [{ message: { content } }],
+      choices: [{ message: { content }, ...(finishReason ? { finish_reason: finishReason } : {}) }],
       usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
     }),
     text: async () => '',
@@ -104,7 +104,8 @@ describe('generateLearningContent', () => {
     const res = await generateLearningContent('Hello world.')
 
     expect(res.success).toBe(false)
-    expect(res.error).toBe('AI 未返回有效内容')
+    // 空内容错误文案追加根因后缀（如 choices=1），此处断言前缀即可
+    expect(res.error).toContain('未返回有效内容')
     const failed = failureLogs().find((e) => e.operation === 'generateContent')
     expect(failed).toBeTruthy()
     expect(failed!.errorMessage).toContain('未返回有效内容')
@@ -164,6 +165,27 @@ describe('generateLearningContent', () => {
     const body = JSON.parse(options.body)
     expect(body.max_tokens).toBe(4000)
   })
+
+  it('content 为空且 finish_reason=content_filter：error 透传根因，便于区分过滤/截断/真空', async () => {
+    mocks.mockServerFetch.mockResolvedValue(okJsonResponse('', 'content_filter'))
+
+    const res = await generateLearningContent('Hello world.')
+
+    expect(res.success).toBe(false)
+    expect(res.error).toContain('content_filter')
+    const failed = failureLogs().find((e) => e.operation === 'generateContent')
+    expect(failed).toBeTruthy()
+    expect(failed!.errorMessage).toContain('content_filter')
+  })
+
+  it('content 为空且 finish_reason=length：error 透传截断原因', async () => {
+    mocks.mockServerFetch.mockResolvedValue(okJsonResponse('', 'length'))
+
+    const res = await generateLearningContent('Hello world.')
+
+    expect(res.success).toBe(false)
+    expect(res.error).toContain('length')
+  })
 })
 
 describe('generateTitle', () => {
@@ -173,7 +195,7 @@ describe('generateTitle', () => {
     const res = await generateTitle('Hello world.')
 
     expect(res.success).toBe(false)
-    expect(res.error).toBe('AI 未返回有效内容')
+    expect(res.error).toContain('未返回有效内容')
     expect(mocks.mockServerFetch).toHaveBeenCalledTimes(2)
     const failed = failureLogs().find((e) => e.operation === 'generateTitle')
     expect(failed).toBeTruthy()

@@ -67,6 +67,12 @@ export default defineEventHandler(async (event) => {
     invalidateDeepseekConfigCache()
   }
 
+  // 使管理员审核开关缓存失效
+  if (key === 'admin_moderation_enabled') {
+    const { invalidateAdminModerationCache } = await import('#server/utils/moderationConfig')
+    invalidateAdminModerationCache()
+  }
+
   // 使游客音频限流配置缓存失效
   if (key === 'guest_daily_audio_limit') {
     const { invalidateGuestAudioLimitCache } = await import('#server/utils/guestOssLimit')

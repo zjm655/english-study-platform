@@ -320,16 +320,28 @@ async function generateLearningContentOnce(text: string): Promise<AiContentResul
     const content: string = data?.choices?.[0]?.message?.content ?? ''
 
     if (!content) {
-      logger.error('[aiContent] API 返回空内容')
+      // 观测空内容根因：finish_reason 可区分「max_tokens 截断(length) / 内容过滤(content_filter) /
+      // 真真空(首条为空)」；choices 为空数组表示上游未返回任何候选项。
+      const firstReason =
+        data &&
+        Array.isArray(data.choices) &&
+        data.choices[0] &&
+        typeof data.choices[0].finish_reason === 'string'
+          ? data.choices[0].finish_reason
+          : null
+      const detail = firstReason
+        ? `finish_reason=${firstReason}`
+        : `choices=${Array.isArray(data?.choices) ? data.choices.length : 0}`
+      logger.error(`[aiContent] API 返回空内容 (${detail})`)
       // 补记失败埋点：HTTP 200 但业务无结果，与业务返回值保持一致
       void logCloudServiceCall({
         service: 'deepseek',
         operation: 'generateContent',
         success: false,
         durationMs: Date.now() - callStart,
-        errorMessage: 'AI 未返回有效内容',
+        errorMessage: `AI 未返回有效内容 (${detail})`,
       })
-      return { success: false, error: 'AI 未返回有效内容' }
+      return { success: false, error: `AI 未返回有效内容 (${detail})` }
     }
 
     // 4. 解析 JSON 响应
@@ -530,16 +542,26 @@ async function generateTitleOnce(text: string): Promise<GenerateTitleResult> {
     let title: string = data?.choices?.[0]?.message?.content ?? ''
 
     if (!title) {
-      logger.error('[aiContent] 标题生成返回空内容')
+      const firstReason =
+        data &&
+        Array.isArray(data.choices) &&
+        data.choices[0] &&
+        typeof data.choices[0].finish_reason === 'string'
+          ? data.choices[0].finish_reason
+          : null
+      const detail = firstReason
+        ? `finish_reason=${firstReason}`
+        : `choices=${Array.isArray(data?.choices) ? data.choices.length : 0}`
+      logger.error(`[aiContent] 标题生成返回空内容 (${detail})`)
       // 补记失败埋点：HTTP 200 但业务无结果，与业务返回值保持一致
       void logCloudServiceCall({
         service: 'deepseek',
         operation: 'generateTitle',
         success: false,
         durationMs: Date.now() - callStart,
-        errorMessage: 'AI 未返回有效内容',
+        errorMessage: `AI 未返回有效内容 (${detail})`,
       })
-      return { success: false, error: 'AI 未返回有效内容' }
+      return { success: false, error: `AI 未返回有效内容 (${detail})` }
     }
 
     // 清洗：去除引号、换行、前后空格

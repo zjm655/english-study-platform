@@ -3,6 +3,7 @@ import type {
   AdminMaterialRecordListQuery,
   AdminMaterialRecordListResult,
   AdminMaterialRecordDetail,
+  AdminMaterialRecordDiag,
   AdminMaterialRecordReprocessPayload,
 } from '#shared/types/adminMaterialRecord'
 import type { AuditionPayload, AuditionResult } from '#shared/types/adminPermission'
@@ -26,6 +27,18 @@ export const getAdminMaterialRecordList = (options: AdminMaterialRecordListQuery
 /** 管理员获取上传记录详情 */
 export const getAdminMaterialRecordDetail = (id: number) => {
   return request.json<AdminMaterialRecordDetail>(`${adminMaterialRecordPath}/${id}`)
+}
+
+/** 管理员获取上传记录诊断详情（快照/说话人标注/音频/成功时学习产物） */
+export const getAdminMaterialRecordDiag = (id: number) => {
+  return request.json<AdminMaterialRecordDiag>(`${adminMaterialRecordPath}/${id}/diag`)
+}
+
+/** 管理员采用说话人标注（回写 text_content） */
+export const adoptSpeakerAnnotation = (id: number) => {
+  return request.json<null>(`${adminMaterialRecordPath}/${id}/speaker-annotate`, {
+    method: 'POST',
+  })
 }
 
 /** 批量查询上传任务状态（轮询轻接口，可查所有用户记录） */

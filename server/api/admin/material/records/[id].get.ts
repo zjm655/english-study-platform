@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
     }
   >(
     `SELECT r.id, r.user_id, r.title, r.text_content, r.voice,
-            r.is_public, r.nls_check, r.status, r.error_message, r.segment_id,
+            r.nls_transcript, r.is_public, r.nls_check, r.status, r.error_message, r.segment_id,
             r.createdAt, r.updatedAt,
             COALESCE(u.account, '已注销用户') AS username,
             u.role,
@@ -62,6 +62,7 @@ export default defineEventHandler(async (event) => {
     updatedAt: row.updatedAt,
     audioUrl,
     duration: row.media_duration ? Number(row.media_duration) : null,
+    nls_transcript: row.nls_transcript ?? null,
   }
 
   return validateSuccess(detail, '获取详情成功')

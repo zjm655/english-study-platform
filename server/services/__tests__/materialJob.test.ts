@@ -19,6 +19,8 @@ const {
   mockGenerateTitle,
   mockPoolExecute,
   mockWithTransaction,
+  mockCompareTextSimilarity,
+  mockAnnotateSpeakers,
   mockFileLog,
 } = vi.hoisted(() => ({
   mockModerateText: vi.fn(),
@@ -33,10 +35,16 @@ const {
   mockGenerateTitle: vi.fn(),
   mockPoolExecute: vi.fn(),
   mockWithTransaction: vi.fn(),
+  mockCompareTextSimilarity: vi.fn(),
+  mockAnnotateSpeakers: vi.fn(),
   mockFileLog: vi.fn(),
 }))
 
 vi.mock('../contentModeration', () => ({ moderateText: mockModerateText }))
+vi.mock('../speakerAnnotator', () => ({ annotateSpeakers: mockAnnotateSpeakers }))
+vi.mock('#server/utils/textSimilarity', () => ({
+  compareTextSimilarity: mockCompareTextSimilarity,
+}))
 vi.mock('../sttFiletrans', () => ({ recognizeSpeech: mockRecognizeSpeech }))
 vi.mock('../tts', () => ({ textToSpeech: mockTextToSpeech }))
 vi.mock('../ttsRetry', () => ({ ttsWithRetry: mockTtsWithRetry }))
@@ -84,6 +92,8 @@ function setupDefaults() {
     return [{ affectedRows: 1 }]
   })
   mockModerateText.mockResolvedValue({ safe: true, reason: null })
+  mockAnnotateSpeakers.mockResolvedValue({ dialogue: false, annotated: null })
+  mockCompareTextSimilarity.mockReturnValue({ passed: true, score: 0.95 })
   mockTextToSpeech.mockResolvedValue({ success: true, audio: FAKE_AUDIO })
   mockTtsWithRetry.mockResolvedValue({ success: true, audio: FAKE_AUDIO })
   mockUploadWithKey.mockResolvedValue(undefined)
@@ -169,6 +179,45 @@ describe('runMaterialJob', () => {
       mockUploadWithKey.mock.calls.every(([, key]) => !String(key).startsWith('audio/material/')),
     ).toBe(true)
     expect(recordStatusUpdates().some((s) => s.includes("'success'"))).toBe(true)
+    // NLS 转写落库（供审计 / 前端查看）
+    const modPersist = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('nls_transcript'),
+    )
+    expect(modPersist).toBeTruthy()
+  })
+
+  it('用户音频链路 NLS 审核通过且为对话：写 speaker_annotated（不改写 text_content）', async () => {
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: 'Hi there. Hello.' })
+    mockAnnotateSpeakers.mockResolvedValue({ dialogue: true, annotated: 'A: Hi there.\nB: Hello.' })
+
+    await runMaterialJob({ ...BASE_PARAMS, audioBuffer: FAKE_AUDIO, audioFileName: 'user.mp3' })
+
+    const spkUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('speaker_annotated'),
+    )
+    expect(spkUpdate).toBeTruthy()
+  })
+
+  it('用户音频链路相似度不匹配：nls_transcript 仍已落库 + failedAt=similarity + similarity 阶段 ok=false', async () => {
+    mockRecognizeSpeech.mockResolvedValue({ success: true, text: 'completely different audio' })
+    mockModerateText.mockResolvedValue({ safe: true, reason: null })
+    mockCompareTextSimilarity.mockReturnValue({ passed: false, score: 0.3 })
+
+    await runMaterialJob({ ...BASE_PARAMS, audioBuffer: FAKE_AUDIO, audioFileName: 'user.mp3' })
+
+    // 转写在提前后仍落库（不再因相似度提前 return 而缺失）
+    const tUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('SET nls_transcript'),
+    )
+    expect(tUpdate).toBeTruthy()
+    const snapUpdate = mockPoolExecute.mock.calls.find(([sql]) =>
+      String(sql).includes('pipeline_snapshot'),
+    )
+    const snap = JSON.parse(String(snapUpdate![1]![0]))
+    expect(snap.failedAt).toBe('similarity')
+    const simStage = snap.stages.find((s: { name: string }) => s.name === 'similarity')
+    expect(simStage?.ok).toBe(false)
+    expect(recordStatusUpdates().some((s) => s.includes("'failed'"))).toBe(true)
   })
 
   it('用户音频时长超限：meta 前移校验，不触发 OSS 上传与 STT（不烧 filetrans 额度）', async () => {
