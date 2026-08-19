@@ -11,9 +11,10 @@ services:
     restart: unless-stopped
     env_file:
       - ../env/.env.redis
-    # $$ 转义由 compose 保留为 $，容器内 shell 从环境变量展开 REDIS_PASSWORD；
-    # 密码不入 redis.conf，避免配置文件落盘明文
-    command: redis-server /usr/local/etc/redis/redis.conf --requirepass $$REDIS_PASSWORD
+    # 关键：command 必须用 sh -c 显式走 shell，才能把 $$REDIS_PASSWORD 展开为 .env.redis 里的密码值。
+    # （若直接写 redis-server ... --requirepass $$REDIS_PASSWORD，compose 按数组拆分、不经 shell，
+    #    redis 收到的是字面量 $REDIS_PASSWORD，导致 WRONGPASS）
+    command: sh -c "redis-server /usr/local/etc/redis/redis.conf --requirepass \"$$REDIS_PASSWORD\""
     volumes:
       - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis-data:/data
