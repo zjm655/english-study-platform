@@ -1,8 +1,8 @@
 // server/utils/rateLimiter.ts
 // 内存滑动窗口限流器：每个 IP 按 route 分级限制请求频率
-// 不引入 Redis，单机部署足够
+// 滑窗计数器为进程内存实现，单机部署足够；开关配置读取经 configStore（双 Adapter）
 
-import { query } from '#server/utils/db'
+import { getSysConfigKeys } from '#server/utils/configStore'
 
 interface RateLimitConfig {
   /** 时间窗口（毫秒） */
@@ -80,10 +80,6 @@ const DEFAULT_SWITCHES: RateLimitSwitches = {
   uploadWindow: 60,
 }
 
-/** 缓存 sys_config 中的限流开关（TTL 5min） */
-let cachedSwitches: { value: RateLimitSwitches; expireAt: number } | null = null
-const SWITCH_CACHE_TTL = 5 * 60 * 1000
-
 /** 判断是否为上传材料路径（用户/管理员上传共用同一套独立限流配置） */
 function isUploadPath(path: string): boolean {
   return path === '/api/segment/upload' || path === '/api/admin/segment/upload'
@@ -118,40 +114,38 @@ function getConfig(path: string, cfg: RateLimitSwitches): RateLimitConfig {
   return DEFAULT_CONFIG
 }
 
-/** 读取限流开关配置（带 5min 内存缓存，仿 quotaChecker 的 cachedLimit 模式） */
+/** 读取限流开关配置（经 configStore 双 Adapter 批量读取，缓存语义由 configStore 承载；缺键走默认值） */
 export async function getRateLimitConfig(): Promise<RateLimitSwitches> {
-  if (cachedSwitches && Date.now() < cachedSwitches.expireAt) {
-    return cachedSwitches.value
-  }
   try {
-    const rows = await query<{ config_key: string; config_value: string }>(
-      `SELECT config_key, config_value FROM sys_config WHERE config_key IN ('rate_limit_enabled', 'rate_limit_ip_level', 'rate_limit_user_level', 'rate_limit_upload_enabled', 'rate_limit_upload_max', 'rate_limit_upload_window')`,
-    )
-    const map = new Map(rows.map((r) => [r.config_key, r.config_value]))
-    const parseBool = (key: string) => map.get(key) === '1'
+    const map = await getSysConfigKeys([
+      'rate_limit_enabled',
+      'rate_limit_ip_level',
+      'rate_limit_user_level',
+      'rate_limit_upload_enabled',
+      'rate_limit_upload_max',
+      'rate_limit_upload_window',
+    ])
+    // 缺键（DB 无此配置）时回退默认值，与读取失败同语义
+    const parseBool = (key: string, def: boolean) => {
+      const v = map.get(key)
+      return v === undefined ? def : v === '1'
+    }
     const parsePositiveInt = (key: string, def: number) => {
       const v = Number(map.get(key))
       return Number.isFinite(v) && v > 0 ? v : def
     }
-    const value: RateLimitSwitches = {
-      enabled: parseBool('rate_limit_enabled'),
-      ipLevel: parseBool('rate_limit_ip_level'),
-      userLevel: parseBool('rate_limit_user_level'),
-      uploadEnabled: parseBool('rate_limit_upload_enabled'),
-      uploadMax: parsePositiveInt('rate_limit_upload_max', 10),
-      uploadWindow: parsePositiveInt('rate_limit_upload_window', 60),
+    return {
+      enabled: parseBool('rate_limit_enabled', DEFAULT_SWITCHES.enabled),
+      ipLevel: parseBool('rate_limit_ip_level', DEFAULT_SWITCHES.ipLevel),
+      userLevel: parseBool('rate_limit_user_level', DEFAULT_SWITCHES.userLevel),
+      uploadEnabled: parseBool('rate_limit_upload_enabled', DEFAULT_SWITCHES.uploadEnabled),
+      uploadMax: parsePositiveInt('rate_limit_upload_max', DEFAULT_SWITCHES.uploadMax),
+      uploadWindow: parsePositiveInt('rate_limit_upload_window', DEFAULT_SWITCHES.uploadWindow),
     }
-    cachedSwitches = { value, expireAt: Date.now() + SWITCH_CACHE_TTL }
-    return value
   } catch {
-    // 查询失败时返回默认全开，不阻塞业务
+    // 读取失败时返回默认全开，不阻塞业务
     return DEFAULT_SWITCHES
   }
-}
-
-/** 使限流开关缓存失效（管理员修改配置后调用） */
-export function invalidateRateLimitCache(): void {
-  cachedSwitches = null
 }
 
 /**

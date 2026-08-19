@@ -1,20 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// rateLimiter 有模块级 windowMap（滑动窗口状态）与 cachedSwitches（5min 缓存），
-// 测试之间会互相污染。每个用例前 vi.resetModules() 并动态重新 import，保证干净状态。
+// rateLimiter 有模块级 windowMap（滑动窗口状态），测试之间会互相污染。
+// 每个用例前 vi.resetModules() 并动态重新 import，保证干净状态。
+// 配置读取已接入 configStore（模块内不再自建缓存），mock getSysConfigKeys 返回固定 Map。
 
-const { mockQuery } = vi.hoisted(() => ({
-  mockQuery: vi.fn(),
+const { mockGetSysConfigKeys } = vi.hoisted(() => ({
+  mockGetSysConfigKeys: vi.fn(),
 }))
 
-vi.mock('#server/utils/db', () => ({ query: mockQuery }))
+vi.mock('#server/utils/configStore', () => ({ getSysConfigKeys: mockGetSysConfigKeys }))
 
 beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
 })
 
-// 每次拿到带干净 windowMap / cachedSwitches 的模块实例
+// 每次拿到带干净 windowMap 的模块实例
 async function loadLimiter() {
   return await import('../rateLimiter')
 }
@@ -33,14 +34,16 @@ const FULL_CFG = {
 
 describe('getRateLimitConfig - 开关读取', () => {
   it('全开 → 返回全 true + 上传默认 10/60', async () => {
-    mockQuery.mockResolvedValueOnce([
-      { config_key: 'rate_limit_enabled', config_value: '1' },
-      { config_key: 'rate_limit_ip_level', config_value: '1' },
-      { config_key: 'rate_limit_user_level', config_value: '1' },
-      { config_key: 'rate_limit_upload_enabled', config_value: '1' },
-      { config_key: 'rate_limit_upload_max', config_value: '10' },
-      { config_key: 'rate_limit_upload_window', config_value: '60' },
-    ])
+    mockGetSysConfigKeys.mockResolvedValueOnce(
+      new Map([
+        ['rate_limit_enabled', '1'],
+        ['rate_limit_ip_level', '1'],
+        ['rate_limit_user_level', '1'],
+        ['rate_limit_upload_enabled', '1'],
+        ['rate_limit_upload_max', '10'],
+        ['rate_limit_upload_window', '60'],
+      ]),
+    )
     const { getRateLimitConfig } = await loadLimiter()
     const cfg = await getRateLimitConfig()
     expect(cfg).toEqual({
@@ -54,14 +57,16 @@ describe('getRateLimitConfig - 开关读取', () => {
   })
 
   it('enabled=0 → 全局关，但 uploadEnabled 仍可独立为 true', async () => {
-    mockQuery.mockResolvedValueOnce([
-      { config_key: 'rate_limit_enabled', config_value: '0' },
-      { config_key: 'rate_limit_ip_level', config_value: '1' },
-      { config_key: 'rate_limit_user_level', config_value: '1' },
-      { config_key: 'rate_limit_upload_enabled', config_value: '1' },
-      { config_key: 'rate_limit_upload_max', config_value: '5' },
-      { config_key: 'rate_limit_upload_window', config_value: '120' },
-    ])
+    mockGetSysConfigKeys.mockResolvedValueOnce(
+      new Map([
+        ['rate_limit_enabled', '0'],
+        ['rate_limit_ip_level', '1'],
+        ['rate_limit_user_level', '1'],
+        ['rate_limit_upload_enabled', '1'],
+        ['rate_limit_upload_max', '5'],
+        ['rate_limit_upload_window', '120'],
+      ]),
+    )
     const { getRateLimitConfig } = await loadLimiter()
     const cfg = await getRateLimitConfig()
     expect(cfg).toEqual({
@@ -75,22 +80,24 @@ describe('getRateLimitConfig - 开关读取', () => {
   })
 
   it('uploadEnabled=0 → 上传限流关，全局仍开', async () => {
-    mockQuery.mockResolvedValueOnce([
-      { config_key: 'rate_limit_enabled', config_value: '1' },
-      { config_key: 'rate_limit_ip_level', config_value: '1' },
-      { config_key: 'rate_limit_user_level', config_value: '1' },
-      { config_key: 'rate_limit_upload_enabled', config_value: '0' },
-      { config_key: 'rate_limit_upload_max', config_value: '10' },
-      { config_key: 'rate_limit_upload_window', config_value: '60' },
-    ])
+    mockGetSysConfigKeys.mockResolvedValueOnce(
+      new Map([
+        ['rate_limit_enabled', '1'],
+        ['rate_limit_ip_level', '1'],
+        ['rate_limit_user_level', '1'],
+        ['rate_limit_upload_enabled', '0'],
+        ['rate_limit_upload_max', '10'],
+        ['rate_limit_upload_window', '60'],
+      ]),
+    )
     const { getRateLimitConfig } = await loadLimiter()
     const cfg = await getRateLimitConfig()
     expect(cfg.uploadEnabled).toBe(false)
     expect(cfg.enabled).toBe(true)
   })
 
-  it('query 抛错 → 回退默认全开（含上传默认 10/60）', async () => {
-    mockQuery.mockRejectedValueOnce(new Error('db down'))
+  it('configStore 缺键（Map 为空）→ 回退默认全开（含上传默认 10/60）', async () => {
+    mockGetSysConfigKeys.mockResolvedValueOnce(new Map())
     const { getRateLimitConfig } = await loadLimiter()
     const cfg = await getRateLimitConfig()
     expect(cfg).toEqual({
@@ -103,22 +110,44 @@ describe('getRateLimitConfig - 开关读取', () => {
     })
   })
 
-  it('缓存：连续两次调用只查一次 db；invalidateRateLimitCache 后再调用会再查一次', async () => {
-    mockQuery.mockResolvedValue([
-      { config_key: 'rate_limit_enabled', config_value: '1' },
-      { config_key: 'rate_limit_ip_level', config_value: '1' },
-      { config_key: 'rate_limit_user_level', config_value: '1' },
-      { config_key: 'rate_limit_upload_enabled', config_value: '1' },
-      { config_key: 'rate_limit_upload_max', config_value: '10' },
-      { config_key: 'rate_limit_upload_window', config_value: '60' },
+  it('configStore 抛错 → 回退默认全开（含上传默认 10/60）', async () => {
+    mockGetSysConfigKeys.mockRejectedValueOnce(new Error('configStore down'))
+    const { getRateLimitConfig } = await loadLimiter()
+    const cfg = await getRateLimitConfig()
+    expect(cfg).toEqual({
+      enabled: true,
+      ipLevel: true,
+      userLevel: true,
+      uploadEnabled: true,
+      uploadMax: 10,
+      uploadWindow: 60,
+    })
+  })
+
+  it('模块内无缓存：每次调用都委托 configStore（缓存语义由 configStore 承载）', async () => {
+    mockGetSysConfigKeys.mockResolvedValue(
+      new Map([
+        ['rate_limit_enabled', '1'],
+        ['rate_limit_ip_level', '1'],
+        ['rate_limit_user_level', '1'],
+        ['rate_limit_upload_enabled', '1'],
+        ['rate_limit_upload_max', '10'],
+        ['rate_limit_upload_window', '60'],
+      ]),
+    )
+    const { getRateLimitConfig } = await loadLimiter()
+    await getRateLimitConfig()
+    await getRateLimitConfig()
+    expect(mockGetSysConfigKeys).toHaveBeenCalledTimes(2)
+    // 批量读取一次传入全部 6 键
+    expect(mockGetSysConfigKeys.mock.calls[0]![0]).toEqual([
+      'rate_limit_enabled',
+      'rate_limit_ip_level',
+      'rate_limit_user_level',
+      'rate_limit_upload_enabled',
+      'rate_limit_upload_max',
+      'rate_limit_upload_window',
     ])
-    const { getRateLimitConfig, invalidateRateLimitCache } = await loadLimiter()
-    await getRateLimitConfig()
-    await getRateLimitConfig()
-    expect(mockQuery).toHaveBeenCalledTimes(1)
-    invalidateRateLimitCache()
-    await getRateLimitConfig()
-    expect(mockQuery).toHaveBeenCalledTimes(2)
   })
 })
 

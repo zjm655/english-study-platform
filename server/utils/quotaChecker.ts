@@ -4,10 +4,11 @@
  * 设计要点：
  * - 查询 eval_auth_log 表窗口内的评测鉴权发放次数，对比 sys_config 中的 daily_eval_limit / eval_limit_window
  * - 管理员 / 超管不受限制
- * - 内存缓存 config 值（TTL 5min），避免每次请求查 sys_config
+ * - 配置读取经 configStore（双 Adapter，Redis 10s / 内存降级 5min），不再模块内自建缓存
  * - 在评测鉴权（evaluation/auth）之前调用，拦截超限请求避免无效阿里云调用
  */
 import { query } from '#server/utils/db'
+import { getSysConfigKeys } from '#server/utils/configStore'
 import { isAdminOrAbove } from '#shared/utils/role'
 import type { EvalGateSnapshot } from '#shared/types/adminMonitor'
 
@@ -19,36 +20,19 @@ export interface QuotaResult {
   windowSec: number
 }
 
-/** 缓存 sys_config 中的评测额度配置 */
-let cachedConfig: { limit: number; windowSec: number; expireAt: number } | null = null
-const CACHE_TTL = 5 * 60 * 1000 // 5 分钟
-
-/** 获取评测额度配置（带缓存） */
+/** 获取评测额度配置（经 configStore 批量读取，缺键走默认值） */
 async function getEvalConfig(): Promise<{ limit: number; windowSec: number }> {
-  if (cachedConfig && Date.now() < cachedConfig.expireAt) {
-    return { limit: cachedConfig.limit, windowSec: cachedConfig.windowSec }
-  }
   try {
-    const rows = await query<{ config_key: string; config_value: string }>(
-      `SELECT config_key, config_value FROM sys_config WHERE config_key IN ('daily_eval_limit', 'eval_limit_window')`,
-    )
-    const map = new Map(rows.map((r) => [r.config_key, r.config_value]))
+    const map = await getSysConfigKeys(['daily_eval_limit', 'eval_limit_window'])
     const rawLimit = parseInt(map.get('daily_eval_limit') ?? '20', 10)
     const rawWindow = parseInt(map.get('eval_limit_window') ?? '86400', 10)
     const limit = isNaN(rawLimit) || rawLimit < 0 ? 20 : rawLimit
     const windowSec = isNaN(rawWindow) || rawWindow < 1 ? 86400 : rawWindow
-    cachedConfig = { limit, windowSec, expireAt: Date.now() + CACHE_TTL }
     return { limit, windowSec }
   } catch {
-    // 查询失败时返回默认值，不阻塞业务
+    // 读取失败时返回默认值，不阻塞业务
     return { limit: 20, windowSec: 86400 }
   }
-}
-
-/** 使缓存失效（管理员修改配置后调用） */
-export function invalidateQuotaCache(): void {
-  cachedConfig = null
-  cachedGateConfig = null
 }
 
 /**
@@ -95,25 +79,17 @@ export interface EvalGateResult {
   limit: number
 }
 
-let cachedGateConfig: { max: number; windowSec: number; expireAt: number } | null = null
-
+/** 获取评测并发闸门配置（经 configStore 批量读取，缺键走默认值） */
 async function getGateConfig(): Promise<{ max: number; windowSec: number }> {
-  if (cachedGateConfig && Date.now() < cachedGateConfig.expireAt) {
-    return { max: cachedGateConfig.max, windowSec: cachedGateConfig.windowSec }
-  }
   try {
-    const rows = await query<{ config_key: string; config_value: string }>(
-      `SELECT config_key, config_value FROM sys_config WHERE config_key IN ('eval_gate_max', 'eval_gate_window')`,
-    )
-    const map = new Map(rows.map((r) => [r.config_key, r.config_value]))
+    const map = await getSysConfigKeys(['eval_gate_max', 'eval_gate_window'])
     const rawMax = parseInt(map.get('eval_gate_max') ?? '20', 10)
     const rawWindow = parseInt(map.get('eval_gate_window') ?? '300', 10)
     const max = isNaN(rawMax) || rawMax < 0 ? 20 : rawMax
     const windowSec = isNaN(rawWindow) || rawWindow < 1 ? 300 : rawWindow
-    cachedGateConfig = { max, windowSec, expireAt: Date.now() + CACHE_TTL }
     return { max, windowSec }
   } catch {
-    // 查询失败不阻塞业务：按默认值处理
+    // 读取失败不阻塞业务：按默认值处理
     return { max: 20, windowSec: 300 }
   }
 }
@@ -141,7 +117,7 @@ export async function checkEvalGate(): Promise<EvalGateResult> {
  * 评测闸门实时快照（监控专用，与 checkEvalGate 平行共存，类型契约在 #shared/types/adminMonitor）：
  * 无论 max 是否为 0 都真实计数——监控要看真实活跃数；
  * checkEvalGate 的 max<=0 短路不查库是评测鉴权热路径的快路径，不得合并。
- * 配置复用 getGateConfig 的 5min 缓存，sys_config 查询不被监控轮询放大。
+ * 配置复用 getGateConfig 的 configStore 缓存（Redis 10s / 内存降级 5min），sys_config 查询不被监控轮询放大。
  */
 export async function getEvalGateSnapshot(): Promise<EvalGateSnapshot> {
   const { max, windowSec } = await getGateConfig()
