@@ -231,9 +231,7 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
     }
 
     /** 用户音频链路 STT → 音频文本审核 → 文本相似度（原 2c-2e；持久化两条路径共用）。返回错误文案+阶段（null=通过） */
-    const runSttChain = async (
-      buf: Buffer,
-    ): Promise<{ error: string; stage: string } | null> => {
+    const runSttChain = async (buf: Buffer): Promise<{ error: string; stage: string } | null> => {
       const sttResult = await recognizeSpeech({
         audioBuffer: buf,
         format: extToFormat(params.audioFileName ?? ''),
@@ -277,10 +275,10 @@ async function runMaterialJobInner(params: MaterialJobParams): Promise<void> {
             skipped: spk.skipped,
           })
           if (spk.dialogue && spk.annotated) {
-            await pool.execute('UPDATE material_upload_record SET speaker_annotated = ? WHERE id = ?', [
-              spk.annotated,
-              recordId,
-            ])
+            await pool.execute(
+              'UPDATE material_upload_record SET speaker_annotated = ? WHERE id = ?',
+              [spk.annotated, recordId],
+            )
           }
         } catch (err) {
           logger.error('[material job] 说话人标注失败（不阻塞）:', err)

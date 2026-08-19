@@ -20,15 +20,21 @@ describe('mapAdminModerationEnabled', () => {
   })
 
   it('值为 1 → true', () => {
-    expect(mapAdminModerationEnabled([{ config_key: 'admin_moderation_enabled', config_value: '1' }])).toBe(true)
+    expect(
+      mapAdminModerationEnabled([{ config_key: 'admin_moderation_enabled', config_value: '1' }]),
+    ).toBe(true)
   })
 
   it('值为 0 → false', () => {
-    expect(mapAdminModerationEnabled([{ config_key: 'admin_moderation_enabled', config_value: '0' }])).toBe(false)
+    expect(
+      mapAdminModerationEnabled([{ config_key: 'admin_moderation_enabled', config_value: '0' }]),
+    ).toBe(false)
   })
 
   it('非法值（非 1）→ false', () => {
-    expect(mapAdminModerationEnabled([{ config_key: 'admin_moderation_enabled', config_value: 'abc' }])).toBe(false)
+    expect(
+      mapAdminModerationEnabled([{ config_key: 'admin_moderation_enabled', config_value: 'abc' }]),
+    ).toBe(false)
   })
 })
 

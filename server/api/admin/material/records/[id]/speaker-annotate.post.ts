@@ -27,10 +27,7 @@ export default defineEventHandler(async (event) => {
     return validateError('该记录暂无说话人标注，无法采用', 400)
   }
 
-  await query(`UPDATE material_upload_record SET text_content = ? WHERE id = ?`, [
-    annotated,
-    id,
-  ])
+  await query(`UPDATE material_upload_record SET text_content = ? WHERE id = ?`, [annotated, id])
 
   await logAdminOperation(user.id, 'material.speaker_annotate', 'material_upload_record', id, {
     title: rows[0]!.title,

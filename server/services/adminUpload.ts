@@ -208,7 +208,11 @@ async function processAdminMaterialInner(
     const adminModerationOn = await getAdminModerationEnabled()
     if (adminModerationOn) {
       const modText = await moderateText(textContent, { allowDialogue: hasUserAudio })
-      snapshot.add('moderation_text', modText.safe, modText.safe ? null : { reason: modText.reason })
+      snapshot.add(
+        'moderation_text',
+        modText.safe,
+        modText.safe ? null : { reason: modText.reason },
+      )
       if (!modText.safe) {
         const msg = `材料内容不合规: ${modText.reason ?? '未知原因'}`
         await fail(msg, 'moderation_text')
@@ -318,10 +322,10 @@ async function processAdminMaterialInner(
             annotated: spk.annotated ? true : false,
           })
           if (spk.dialogue && spk.annotated) {
-            await pool.execute('UPDATE material_upload_record SET speaker_annotated = ? WHERE id = ?', [
-              spk.annotated,
-              recordId,
-            ])
+            await pool.execute(
+              'UPDATE material_upload_record SET speaker_annotated = ? WHERE id = ?',
+              [spk.annotated, recordId],
+            )
           }
         } catch (err) {
           logger.error('[admin upload] 说话人标注失败（不阻塞）:', err)

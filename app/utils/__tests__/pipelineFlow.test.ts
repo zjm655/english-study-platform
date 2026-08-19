@@ -3,7 +3,10 @@ import { deriveStageStatuses, derivePipelineFlow } from '../pipelineFlow'
 import type { PipelineSnapshotLike, FlowNode, FlowDecision, FlowStage } from '../pipelineFlow'
 
 /** 便捷构造快照 */
-function snap(stages: Array<{ name: string; ok?: boolean }>, failedAt?: string | null): PipelineSnapshotLike {
+function snap(
+  stages: Array<{ name: string; ok?: boolean }>,
+  failedAt?: string | null,
+): PipelineSnapshotLike {
   return {
     stages: stages.map((s) => ({ name: s.name, ok: s.ok ?? true })),
     failedAt: failedAt ?? null,
@@ -25,7 +28,12 @@ function findDecision(chain: FlowNode[], key: string): FlowDecision {
 describe('deriveStageStatuses（线性四态）', () => {
   it('成功记录全绿，未执行阶段灰', () => {
     const nodes = deriveStageStatuses(
-      snap([{ name: 'moderation_text' }, { name: 'stt' }, { name: 'similarity' }, { name: 'persist' }]),
+      snap([
+        { name: 'moderation_text' },
+        { name: 'stt' },
+        { name: 'similarity' },
+        { name: 'persist' },
+      ]),
       'success',
     )
     expect(statusByName(nodes, 'stt')).toBe('success')
@@ -34,7 +42,15 @@ describe('deriveStageStatuses（线性四态）', () => {
 
   it('相似度失败：相似度红、后置灰、前置绿', () => {
     const nodes = deriveStageStatuses(
-      snap([{ name: 'moderation_text' }, { name: 'stt' }, { name: 'moderation_nls' }, { name: 'similarity', ok: false }], 'similarity'),
+      snap(
+        [
+          { name: 'moderation_text' },
+          { name: 'stt' },
+          { name: 'moderation_nls' },
+          { name: 'similarity', ok: false },
+        ],
+        'similarity',
+      ),
       'failed',
     )
     expect(statusByName(nodes, 'similarity')).toBe('failed')
@@ -44,7 +60,14 @@ describe('deriveStageStatuses（线性四态）', () => {
 
   it('非阻塞异常（说话人标注 ok=false）→ exception，后续正常', () => {
     const nodes = deriveStageStatuses(
-      snap([{ name: 'moderation_text' }, { name: 'stt' }, { name: 'similarity' }, { name: 'speaker_annotate', ok: false }, { name: 'ai_content' }, { name: 'persist' }]),
+      snap([
+        { name: 'moderation_text' },
+        { name: 'stt' },
+        { name: 'similarity' },
+        { name: 'speaker_annotate', ok: false },
+        { name: 'ai_content' },
+        { name: 'persist' },
+      ]),
       'success',
     )
     expect(statusByName(nodes, 'speaker_annotate')).toBe('exception')
@@ -55,7 +78,13 @@ describe('deriveStageStatuses（线性四态）', () => {
 describe('derivePipelineFlow（决策树分叉）', () => {
   it('无用户音频（tts_main）：走 TTS 分支，用户音频分支整支未走(灰)，NLS 不入链', () => {
     const chain = derivePipelineFlow(
-      snap([{ name: 'moderation_text' }, { name: 'tts_main' }, { name: 'ai_content' }, { name: 'vocab_tts' }, { name: 'persist' }]),
+      snap([
+        { name: 'moderation_text' },
+        { name: 'tts_main' },
+        { name: 'ai_content' },
+        { name: 'vocab_tts' },
+        { name: 'persist' },
+      ]),
       'success',
     )
     expect(chain[0]!.kind).toBe('stage')
@@ -74,13 +103,16 @@ describe('derivePipelineFlow（决策树分叉）', () => {
 
   it('有用户音频 + 开启 NLS：走用户音频分支，NLS=on，STT 链各阶段按快照着色，TTS 分支灰', () => {
     const chain = derivePipelineFlow(
-      snap([
-        { name: 'moderation_text' },
-        { name: 'user_audio' },
-        { name: 'stt' },
-        { name: 'moderation_nls' },
-        { name: 'similarity', ok: false }, // 相似度失败
-      ], 'similarity'),
+      snap(
+        [
+          { name: 'moderation_text' },
+          { name: 'user_audio' },
+          { name: 'stt' },
+          { name: 'moderation_nls' },
+          { name: 'similarity', ok: false }, // 相似度失败
+        ],
+        'similarity',
+      ),
       'failed',
     )
     const audio = findDecision(chain, 'audio_source')
@@ -95,14 +127,21 @@ describe('derivePipelineFlow（决策树分叉）', () => {
     const off = nls.branches.find((b) => b.key === 'off')!
     expect(on.taken).toBe(true)
     expect(on.status).toBe('failed')
-    const simStage = on.nodes.find((n) => n.kind === 'stage' && (n as FlowStage).key === 'similarity')
+    const simStage = on.nodes.find(
+      (n) => n.kind === 'stage' && (n as FlowStage).key === 'similarity',
+    )
     expect((simStage as FlowStage).status).toBe('failed')
     expect(off.taken).toBe(false)
   })
 
   it('有用户音频 + 未开启 NLS：NLS=off（直接用音频），无 STT 阶段', () => {
     const chain = derivePipelineFlow(
-      snap([{ name: 'moderation_text' }, { name: 'user_audio' }, { name: 'ai_content' }, { name: 'persist' }]),
+      snap([
+        { name: 'moderation_text' },
+        { name: 'user_audio' },
+        { name: 'ai_content' },
+        { name: 'persist' },
+      ]),
       'success',
     )
     const audio = findDecision(chain, 'audio_source')

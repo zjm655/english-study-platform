@@ -3,7 +3,10 @@ import { derivePipelineFlow } from '../pipelineFlow'
 import { layoutFlow } from '../flowLayout'
 import type { PipelineSnapshotLike } from '../pipelineFlow'
 
-function snap(stages: Array<{ name: string; ok?: boolean }>, failedAt?: string | null): PipelineSnapshotLike {
+function snap(
+  stages: Array<{ name: string; ok?: boolean }>,
+  failedAt?: string | null,
+): PipelineSnapshotLike {
   return {
     stages: stages.map((s) => ({ name: s.name, ok: s.ok ?? true })),
     failedAt: failedAt ?? null,
@@ -11,7 +14,11 @@ function snap(stages: Array<{ name: string; ok?: boolean }>, failedAt?: string |
   }
 }
 
-function diagram(stages: Array<{ name: string; ok?: boolean }>, status: string, failedAt?: string | null) {
+function diagram(
+  stages: Array<{ name: string; ok?: boolean }>,
+  status: string,
+  failedAt?: string | null,
+) {
   return layoutFlow(derivePipelineFlow(snap(stages, failedAt), status), status)
 }
 
@@ -78,7 +85,8 @@ describe('layoutFlow', () => {
     )
     expect(d.nodes.find((n) => n.id === 'audio_source')!.kind).toBe('decision')
     expect(d.nodes.find((n) => n.id === 'nls')!.kind).toBe('decision')
-    const labelOf = (from: string, to: string) => d.edges.find((e) => e.from === from && e.to === to)?.label
+    const labelOf = (from: string, to: string) =>
+      d.edges.find((e) => e.from === from && e.to === to)?.label
     expect(labelOf('audio_source', 'tts_main')).toBe('TTS←无用户音频')
     expect(labelOf('audio_source', 'nls')).toBe('有用户音频')
     expect(labelOf('nls', 'stt')).toBe('是')
@@ -103,15 +111,22 @@ describe('layoutFlow', () => {
     // 是（nls→stt）：锚点不在菱形内部矩形（向内缩 10px 的近似矩形）
     const yes = d.edges.find((e) => e.from === 'nls' && e.to === 'stt')!.labelAnchor!
     const inDiamondInterior =
-      yes.x >= nls.x + 10 && yes.x <= nls.x + nls.w - 10 && yes.y >= nls.y + 10 && yes.y <= nls.y + nls.h - 10
+      yes.x >= nls.x + 10 &&
+      yes.x <= nls.x + nls.w - 10 &&
+      yes.y >= nls.y + 10 &&
+      yes.y <= nls.y + nls.h - 10
     expect(inDiamondInterior).toBe(false)
     // 是：也不落在 stt 节点矩形上
-    const inStt = yes.x >= stt.x && yes.x <= stt.x + stt.w && yes.y >= stt.y && yes.y <= stt.y + stt.h
+    const inStt =
+      yes.x >= stt.x && yes.x <= stt.x + stt.w && yes.y >= stt.y && yes.y <= stt.y + stt.h
     expect(inStt).toBe(false)
     // 否（nls→ai_content）：锚点不在 speaker_annotate 节点矩形上
     const no = d.edges.find((e) => e.from === 'nls' && e.to === 'ai_content')!.labelAnchor!
     const inSpeaker =
-      no.x >= speaker.x && no.x <= speaker.x + speaker.w && no.y >= speaker.y && no.y <= speaker.y + speaker.h
+      no.x >= speaker.x &&
+      no.x <= speaker.x + speaker.w &&
+      no.y >= speaker.y &&
+      no.y <= speaker.y + speaker.h
     expect(inSpeaker).toBe(false)
     // 否：落在右侧垂直连接器附近（x≈720）
     expect(no.x).toBe(720)
@@ -129,7 +144,12 @@ describe('layoutFlow', () => {
       ],
       'success',
     )
-    expect(d.lanes.map((l) => l.label)).toEqual(['输入与审核', '音频与 NLS 校对', 'AI 内容生成', '持久化'])
+    expect(d.lanes.map((l) => l.label)).toEqual([
+      '输入与审核',
+      '音频与 NLS 校对',
+      'AI 内容生成',
+      '持久化',
+    ])
     expect(d.nodes.find((n) => n.id === 'moderation_text')!.lane).toBe(0)
     expect(d.nodes.find((n) => n.id === 'stt')!.lane).toBe(1)
     expect(d.nodes.find((n) => n.id === 'ai_content')!.lane).toBe(2)

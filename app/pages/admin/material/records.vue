@@ -1,350 +1,358 @@
 <template>
   <div>
     <div v-if="!isDiag" class="record-list-page">
-    <div class="page-header">
-      <div>
-        <h2 class="page-title">上传记录管理</h2>
-        <p class="page-desc">
-          查看所有用户上传和管理员上传的材料处理记录，支持按状态、来源、时间范围筛选。
-        </p>
+      <div class="page-header">
+        <div>
+          <h2 class="page-title">上传记录管理</h2>
+          <p class="page-desc">
+            查看所有用户上传和管理员上传的材料处理记录，支持按状态、来源、时间范围筛选。
+          </p>
+        </div>
       </div>
-    </div>
 
-    <!-- 筛选栏 -->
-    <el-card class="filter-card" shadow="never">
-      <div class="filter-bar">
-        <el-select
-          v-model="filterStatus"
-          class="filter-item filter-item--narrow"
-          clearable
-          placeholder="状态"
-          @change="handleSearch"
-        >
-          <el-option label="全部" value="" />
-          <el-option label="排队中" value="queued" />
-          <el-option label="处理中" value="processing" />
-          <el-option label="成功" value="success" />
-          <el-option label="失败" value="failed" />
-        </el-select>
-        <el-select
-          v-model="filterSource"
-          class="filter-item filter-item--narrow"
-          @change="handleSearch"
-        >
-          <el-option label="全部来源" value="all" />
-          <el-option label="用户上传" value="user" />
-          <el-option label="管理员上传" value="admin" />
-        </el-select>
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          format="YYYY-MM-DD"
-          value-format="YYYY-MM-DD"
-          class="filter-item filter-item--date"
-          :shortcuts="dateShortcuts"
-        />
-        <el-button type="primary" @click="handleSearch">查询</el-button>
-        <el-button @click="handleReset">重置</el-button>
-      </div>
-    </el-card>
-
-    <!-- 列表 -->
-    <el-card class="table-card" shadow="never">
-      <AdminBatchBar
-        :count="selectedRows.length"
-        :off-page-count="offPageCount"
-        :rows="selectedRows"
-        :row-label="(r) => r.title"
-        @clear="clear"
-        @remove="removeRow"
-      >
-        <el-tooltip
-          content="重试单次上限 20 条，请减少选择"
-          placement="top"
-          :disabled="selectedFailedIds.length <= 20"
-        >
-          <el-button
-            type="warning"
-            size="small"
-            :disabled="selectedFailedIds.length === 0 || selectedFailedIds.length > 20"
-            @click="openBatchReprocess"
+      <!-- 筛选栏 -->
+      <el-card class="filter-card" shadow="never">
+        <div class="filter-bar">
+          <el-select
+            v-model="filterStatus"
+            class="filter-item filter-item--narrow"
+            clearable
+            placeholder="状态"
+            @change="handleSearch"
           >
-            批量重试（仅失败 {{ selectedFailedIds.length }} 条）
-          </el-button>
-        </el-tooltip>
-        <el-button size="small" @click="handleBatchExport">导出选中</el-button>
-        <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
-      </AdminBatchBar>
+            <el-option label="全部" value="" />
+            <el-option label="排队中" value="queued" />
+            <el-option label="处理中" value="processing" />
+            <el-option label="成功" value="success" />
+            <el-option label="失败" value="failed" />
+          </el-select>
+          <el-select
+            v-model="filterSource"
+            class="filter-item filter-item--narrow"
+            @change="handleSearch"
+          >
+            <el-option label="全部来源" value="all" />
+            <el-option label="用户上传" value="user" />
+            <el-option label="管理员上传" value="admin" />
+          </el-select>
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            class="filter-item filter-item--date"
+            :shortcuts="dateShortcuts"
+          />
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </div>
+      </el-card>
 
-      <el-table
-        ref="tableRef"
-        v-loading="isLoading"
-        :data="list"
-        stripe
-        row-key="id"
-        @selection-change="onSelectionChange"
-      >
-        <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
-        <el-table-column label="状态" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small">
-              {{ statusTagText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="诊断结果" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-link
-              :type="row.status === 'failed' ? 'danger' : 'primary'"
-              @click="navigateTo(`/admin/material/records/${row.id}/diag`)"
-              class="diag-link"
-            >
-              {{ row.status === 'failed' && row.error_message ? row.error_message : '查看诊断' }}
-            </el-link>
-          </template>
-        </el-table-column>
-        <el-table-column label="上传者" width="120">
-          <template #default="{ row }">
-            <AdminUserLink :user-id="row.userId" :label="row.username" />
-          </template>
-        </el-table-column>
-        <el-table-column label="来源" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="sourceTagType(row.source)" size="small">
-              {{ sourceTagText(row.source) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="公开" width="70" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.is_public ? 'success' : 'info'" size="small">
-              {{ row.is_public ? '公开' : '私有' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="NLS 校验" width="90" align="center">
-          <template #default="{ row }">
-            <el-tooltip
-              v-if="row.nls_check === 1"
-              content="该任务开启 NLS 语音校对（管理员上传音频时可选，重处理沿用）"
-              placement="top"
-            >
-              <el-tag type="warning" size="small">已开启</el-tag>
-            </el-tooltip>
-            <span v-else class="text-muted">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="时间" width="160">
-          <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="220" align="center" fixed="right">
-          <template #default="{ row }: any">
-            <el-button type="primary" link size="small" @click="openDetail(row.id)">详情</el-button>
+      <!-- 列表 -->
+      <el-card class="table-card" shadow="never">
+        <AdminBatchBar
+          :count="selectedRows.length"
+          :off-page-count="offPageCount"
+          :rows="selectedRows"
+          :row-label="(r) => r.title"
+          @clear="clear"
+          @remove="removeRow"
+        >
+          <el-tooltip
+            content="重试单次上限 20 条，请减少选择"
+            placement="top"
+            :disabled="selectedFailedIds.length <= 20"
+          >
             <el-button
-              v-if="row.status === 'failed'"
               type="warning"
-              link
               size="small"
-              @click="openReprocess(row)"
+              :disabled="selectedFailedIds.length === 0 || selectedFailedIds.length > 20"
+              @click="openBatchReprocess"
             >
-              重处理
+              批量重试（仅失败 {{ selectedFailedIds.length }} 条）
             </el-button>
-            <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+          </el-tooltip>
+          <el-button size="small" @click="handleBatchExport">导出选中</el-button>
+          <el-button type="danger" size="small" @click="handleBatchDelete">批量删除</el-button>
+        </AdminBatchBar>
+
+        <el-table
+          ref="tableRef"
+          v-loading="isLoading"
+          :data="list"
+          stripe
+          row-key="id"
+          @selection-change="onSelectionChange"
+        >
+          <el-table-column type="selection" width="46" reserve-selection :selectable="canSelect" />
+          <el-table-column prop="id" label="ID" width="60" />
+          <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag :type="statusTagType(row.status)" size="small">
+                {{ statusTagText(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="诊断结果" min-width="140" show-overflow-tooltip>
+            <template #default="{ row }">
+              <el-link
+                :type="row.status === 'failed' ? 'danger' : 'primary'"
+                @click="navigateTo(`/admin/material/records/${row.id}/diag`)"
+                class="diag-link"
+              >
+                {{ row.status === 'failed' && row.error_message ? row.error_message : '查看诊断' }}
+              </el-link>
+            </template>
+          </el-table-column>
+          <el-table-column label="上传者" width="120">
+            <template #default="{ row }">
+              <AdminUserLink :user-id="row.userId" :label="row.username" />
+            </template>
+          </el-table-column>
+          <el-table-column label="来源" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag :type="sourceTagType(row.source)" size="small">
+                {{ sourceTagText(row.source) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="公开" width="70" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.is_public ? 'success' : 'info'" size="small">
+                {{ row.is_public ? '公开' : '私有' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="NLS 校验" width="90" align="center">
+            <template #default="{ row }">
+              <el-tooltip
+                v-if="row.nls_check === 1"
+                content="该任务开启 NLS 语音校对（管理员上传音频时可选，重处理沿用）"
+                placement="top"
+              >
+                <el-tag type="warning" size="small">已开启</el-tag>
+              </el-tooltip>
+              <span v-else class="text-muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="时间" width="160">
+            <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="220" align="center" fixed="right">
+            <template #default="{ row }: any">
+              <el-button type="primary" link size="small" @click="openDetail(row.id)"
+                >详情</el-button
+              >
+              <el-button
+                v-if="row.status === 'failed'"
+                type="warning"
+                link
+                size="small"
+                @click="openReprocess(row)"
+              >
+                重处理
+              </el-button>
+              <el-button type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            </template>
+          </el-table-column>
+          <template #empty>
+            <el-empty description="暂无上传记录" :image-size="80" />
           </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty description="暂无上传记录" :image-size="80" />
-        </template>
-      </el-table>
+        </el-table>
 
-      <div class="pagination-row">
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :total="total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next, jumper"
-          background
-          @current-change="() => loadList()"
-          @size-change="handleSizeChange"
-        />
-      </div>
-    </el-card>
-
-    <!-- 详情弹窗 -->
-    <el-dialog
-      v-model="detailVisible"
-      title="上传记录详情"
-      width="640px"
-      :close-on-click-modal="false"
-    >
-      <div v-if="detail" class="detail-body">
-        <el-descriptions :column="2" border size="small">
-          <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
-          <el-descriptions-item label="标题">{{ detail.title }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="statusTagType(detail.status)" size="small">
-              {{ statusTagText(detail.status) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="来源">
-            <el-tag :type="sourceTagType(detail.source)" size="small">
-              {{ sourceTagText(detail.source) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="上传者">{{ detail.username }}</el-descriptions-item>
-          <el-descriptions-item label="音色">{{ detail.voice }}</el-descriptions-item>
-          <el-descriptions-item label="公开">
-            <el-tag :type="detail.is_public ? 'success' : 'info'" size="small">
-              {{ detail.is_public ? '公开' : '私有' }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="NLS 校验">
-            <el-tag v-if="detail.nls_check === 1" type="warning" size="small">已开启</el-tag>
-            <span v-else>-</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="片段ID">
-            <el-link
-              v-if="detail.segment_id != null"
-              type="primary"
-              @click="navigateTo(`/admin/material/${detail.segment_id}`)"
-            >
-              {{ detail.segment_id }}
-            </el-link>
-            <span v-else>-</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{
-            formatDate(detail.createdAt)
-          }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{
-            formatDate(detail.updatedAt)
-          }}</el-descriptions-item>
-          <el-descriptions-item
-            v-if="detail.status === 'failed' && detail.error_message"
-            label="失败原因"
-            :span="2"
-          >
-            <div class="admin-pre-text error-msg">{{ detail.error_message }}</div>
-          </el-descriptions-item>
-        </el-descriptions>
-        <div class="detail-section">
-          <div class="detail-section__title">材料原文</div>
-          <el-input
-            :model-value="detail.text_content"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 12 }"
-            readonly
+        <div class="pagination-row">
+          <el-pagination
+            v-model:current-page="page"
+            v-model:page-size="pageSize"
+            :total="total"
+            :page-sizes="[10, 20, 50]"
+            layout="total, sizes, prev, pager, next, jumper"
+            background
+            @current-change="() => loadList()"
+            @size-change="handleSizeChange"
           />
         </div>
-        <div class="detail-section">
-          <div class="detail-section__title">NLS 转写</div>
-          <template v-if="detail.nls_transcript">
+      </el-card>
+
+      <!-- 详情弹窗 -->
+      <el-dialog
+        v-model="detailVisible"
+        title="上传记录详情"
+        width="640px"
+        :close-on-click-modal="false"
+      >
+        <div v-if="detail" class="detail-body">
+          <el-descriptions :column="2" border size="small">
+            <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
+            <el-descriptions-item label="标题">{{ detail.title }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="statusTagType(detail.status)" size="small">
+                {{ statusTagText(detail.status) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="来源">
+              <el-tag :type="sourceTagType(detail.source)" size="small">
+                {{ sourceTagText(detail.source) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="上传者">{{ detail.username }}</el-descriptions-item>
+            <el-descriptions-item label="音色">{{ detail.voice }}</el-descriptions-item>
+            <el-descriptions-item label="公开">
+              <el-tag :type="detail.is_public ? 'success' : 'info'" size="small">
+                {{ detail.is_public ? '公开' : '私有' }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="NLS 校验">
+              <el-tag v-if="detail.nls_check === 1" type="warning" size="small">已开启</el-tag>
+              <span v-else>-</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="片段ID">
+              <el-link
+                v-if="detail.segment_id != null"
+                type="primary"
+                @click="navigateTo(`/admin/material/${detail.segment_id}`)"
+              >
+                {{ detail.segment_id }}
+              </el-link>
+              <span v-else>-</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="创建时间">{{
+              formatDate(detail.createdAt)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="更新时间">{{
+              formatDate(detail.updatedAt)
+            }}</el-descriptions-item>
+            <el-descriptions-item
+              v-if="detail.status === 'failed' && detail.error_message"
+              label="失败原因"
+              :span="2"
+            >
+              <div class="admin-pre-text error-msg">{{ detail.error_message }}</div>
+            </el-descriptions-item>
+          </el-descriptions>
+          <div class="detail-section">
+            <div class="detail-section__title">材料原文</div>
             <el-input
-              :model-value="detail.nls_transcript"
+              :model-value="detail.text_content"
               type="textarea"
-              :autosize="{ minRows: 2, maxRows: 8 }"
+              :autosize="{ minRows: 4, maxRows: 12 }"
               readonly
             />
-          </template>
-          <span v-else class="detail-section__empty">未开启 NLS / 无转写</span>
-        </div>
-        <div v-if="detail.status === 'success'" class="detail-section">
-          <div class="detail-section__title">音频试听</div>
-          <AudioPlayer
-            v-if="detail.audioUrl"
-            :src="detail.audioUrl"
-            :duration="detail.duration ?? undefined"
-          />
-          <template v-else>
-            <!-- 非公开用户材料被门禁扣留：有审核权限者可填理由解锁试听 -->
-            <div v-if="can(PERMISSIONS.REVIEW)" class="audition-locked">
+          </div>
+          <div class="detail-section">
+            <div class="detail-section__title">NLS 转写</div>
+            <template v-if="detail.nls_transcript">
+              <el-input
+                :model-value="detail.nls_transcript"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 8 }"
+                readonly
+              />
+            </template>
+            <span v-else class="detail-section__empty">未开启 NLS / 无转写</span>
+          </div>
+          <div v-if="detail.status === 'success'" class="detail-section">
+            <div class="detail-section__title">音频试听</div>
+            <AudioPlayer
+              v-if="detail.audioUrl"
+              :src="detail.audioUrl"
+              :duration="detail.duration ?? undefined"
+            />
+            <template v-else>
+              <!-- 非公开用户材料被门禁扣留：有审核权限者可填理由解锁试听 -->
+              <div v-if="can(PERMISSIONS.REVIEW)" class="audition-locked">
+                <el-alert
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  title="非公开用户材料——需填写理由后试听"
+                  description="查看非公开用户材料将记录访问者、时间与理由用于隐私审计，请勿滥用。"
+                />
+                <el-button
+                  type="primary"
+                  plain
+                  class="audition-locked__btn"
+                  @click="auditionVisible = true"
+                >
+                  <el-icon><Unlock /></el-icon><span>填理由解锁试听</span>
+                </el-button>
+              </div>
               <el-alert
-                type="warning"
+                v-else
+                type="info"
                 :closable="false"
                 show-icon
-                title="非公开用户材料——需填写理由后试听"
-                description="查看非公开用户材料将记录访问者、时间与理由用于隐私审计，请勿滥用。"
+                title="非公开用户材料暂不支持试听"
+                description="仅管理员上传或公开材料可试听；查看非公开用户材料需审核权限。"
               />
-              <el-button
-                type="primary"
-                plain
-                class="audition-locked__btn"
-                @click="auditionVisible = true"
-              >
-                <el-icon><Unlock /></el-icon><span>填理由解锁试听</span>
-              </el-button>
-            </div>
-            <el-alert
-              v-else
-              type="info"
-              :closable="false"
-              show-icon
-              title="非公开用户材料暂不支持试听"
-              description="仅管理员上传或公开材料可试听；查看非公开用户材料需审核权限。"
-            />
-          </template>
+            </template>
+          </div>
         </div>
-      </div>
-      <template #footer>
-        <el-button @click="detailVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 重处理弹窗（单条 / 批量共用） -->
-    <el-dialog
-      v-model="reprocessVisible"
-      :title="reprocessMode === 'single' ? '重处理失败记录' : '批量重试失败记录'"
-      width="440px"
-      :close-on-click-modal="false"
-    >
-      <el-form label-width="80px">
-        <template v-if="reprocessMode === 'single'">
-          <el-form-item label="记录ID">
-            <el-input :model-value="reprocessRecord?.id" disabled />
-          </el-form-item>
-          <el-form-item label="标题">
-            <el-input :model-value="reprocessRecord?.title" disabled />
-          </el-form-item>
+        <template #footer>
+          <el-button @click="detailVisible = false">关闭</el-button>
         </template>
-        <el-form-item v-else label="选中记录">
-          <span>{{ selectedFailedIds.length }} 条失败记录（非失败/状态已变更的记录将被跳过）</span>
-        </el-form-item>
-        <el-form-item label="目标单元">
-          <el-select
-            v-model="reprocessUnitId"
-            filterable
-            placeholder="选择目标单元"
-            style="width: 280px"
-          >
-            <el-option
-              v-for="u in reprocessUnitOptions"
-              :key="u.id"
-              :label="u.id === 0 ? `${u.title}（系统保留）` : u.title"
-              :value="u.id"
-            />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="reprocessVisible = false">取消</el-button>
-        <el-button type="primary" :loading="isReprocessing || isBatching" @click="handleReprocess">
-          确认重处理
-        </el-button>
-      </template>
-    </el-dialog>
+      </el-dialog>
 
-    <!-- 审核门禁：填理由试听弹窗（records 与 material 编辑页复用同一组件） -->
-    <AuditionReasonDialog
-      v-model="auditionVisible"
-      :loading="isAuditioning"
-      @confirm="handleAudition"
-    />
-  </div>
+      <!-- 重处理弹窗（单条 / 批量共用） -->
+      <el-dialog
+        v-model="reprocessVisible"
+        :title="reprocessMode === 'single' ? '重处理失败记录' : '批量重试失败记录'"
+        width="440px"
+        :close-on-click-modal="false"
+      >
+        <el-form label-width="80px">
+          <template v-if="reprocessMode === 'single'">
+            <el-form-item label="记录ID">
+              <el-input :model-value="reprocessRecord?.id" disabled />
+            </el-form-item>
+            <el-form-item label="标题">
+              <el-input :model-value="reprocessRecord?.title" disabled />
+            </el-form-item>
+          </template>
+          <el-form-item v-else label="选中记录">
+            <span
+              >{{ selectedFailedIds.length }} 条失败记录（非失败/状态已变更的记录将被跳过）</span
+            >
+          </el-form-item>
+          <el-form-item label="目标单元">
+            <el-select
+              v-model="reprocessUnitId"
+              filterable
+              placeholder="选择目标单元"
+              style="width: 280px"
+            >
+              <el-option
+                v-for="u in reprocessUnitOptions"
+                :key="u.id"
+                :label="u.id === 0 ? `${u.title}（系统保留）` : u.title"
+                :value="u.id"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="reprocessVisible = false">取消</el-button>
+          <el-button
+            type="primary"
+            :loading="isReprocessing || isBatching"
+            @click="handleReprocess"
+          >
+            确认重处理
+          </el-button>
+        </template>
+      </el-dialog>
+
+      <!-- 审核门禁：填理由试听弹窗（records 与 material 编辑页复用同一组件） -->
+      <AuditionReasonDialog
+        v-model="auditionVisible"
+        :loading="isAuditioning"
+        @confirm="handleAudition"
+      />
+    </div>
     <NuxtPage />
   </div>
 </template>

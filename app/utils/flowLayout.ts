@@ -105,10 +105,7 @@ function elbowTo(from: FlowDiagramNode, to: FlowDiagramNode): FlowPoint[] {
 /**
  * 布局主流程（derivePipelineFlow 输出形状固定）。
  */
-export function layoutFlow(
-  tree: FlowNode[],
-  recordStatus: string | null | undefined,
-): FlowDiagram {
+export function layoutFlow(tree: FlowNode[], recordStatus: string | null | undefined): FlowDiagram {
   const stageStatus = new Map<string, StageStatus>()
   const walk = (nodes: FlowNode[]) => {
     for (const n of nodes) {
@@ -124,13 +121,11 @@ export function layoutFlow(
 
   // 分支走向（供泳道/占位判断，布局始终展示两分支结构）
   const audio = tree.find((n) => n.kind === 'decision' && n.key === 'audio_source') as
-    | FlowDecision
-    | undefined
+    FlowDecision | undefined
   const userBranch = audio?.branches.find((b) => b.key === 'user')
   const userTaken = userBranch?.taken ?? false
   const nlsD = userBranch?.nodes.find((n) => n.kind === 'decision' && n.key === 'nls') as
-    | FlowDecision
-    | undefined
+    FlowDecision | undefined
   const nlsOn = nlsD?.branches.find((b) => b.key === 'on')?.taken ?? false
 
   // ---------- 泳道 ----------
@@ -140,8 +135,7 @@ export function layoutFlow(
     { index: 2, label: 'AI 内容生成', y: 740, h: 220 },
     { index: 3, label: '持久化', y: 980, h: 180 },
   ]
-  const rowY = (lane: number, row: number, h = NODE_H) =>
-    lanes[lane]!.y + PAD + row * (h + VGAP)
+  const rowY = (lane: number, row: number, h = NODE_H) => lanes[lane]!.y + PAD + row * (h + VGAP)
 
   // 主链列 / 分支列 阶段盒子
   const stageNode = (
@@ -185,7 +179,18 @@ export function layoutFlow(
   })
 
   const nodes: FlowDiagramNode[] = [
-    { id: 'start', kind: 'start', label: '开始', status: 'not_started', reached: true, x: COL_C, y: rowY(0, 0, START_H), w: NODE_W, h: START_H, lane: 0 },
+    {
+      id: 'start',
+      kind: 'start',
+      label: '开始',
+      status: 'not_started',
+      reached: true,
+      x: COL_C,
+      y: rowY(0, 0, START_H),
+      w: NODE_W,
+      h: START_H,
+      lane: 0,
+    },
     stageNode('moderation_text', '文本内容审核', 0, 1, 'center'),
     diamond('audio_source', '主音频来源', 0, 2, 'center'),
     stageNode('tts_main', '主音频 TTS', 1, 0, 'left'),
@@ -198,7 +203,18 @@ export function layoutFlow(
     stageNode('title', '标题生成', 2, 1, 'center'),
     stageNode('vocab_tts', '词汇音频生成', 2, 2, 'center'),
     stageNode('persist', '入库', 3, 0, 'center'),
-    { id: 'end', kind: 'end', label: endReached ? '完成' : '未到达', status: endReached ? 'success' : 'not_started', reached: endReached, x: COL_C, y: rowY(3, 1, END_H), w: NODE_W, h: END_H, lane: 3 },
+    {
+      id: 'end',
+      kind: 'end',
+      label: endReached ? '完成' : '未到达',
+      status: endReached ? 'success' : 'not_started',
+      reached: endReached,
+      x: COL_C,
+      y: rowY(3, 1, END_H),
+      w: NODE_W,
+      h: END_H,
+      lane: 3,
+    },
   ]
   const byId = (id: string) => nodes.find((n) => n.id === id)!
 
@@ -222,7 +238,16 @@ export function layoutFlow(
     const a = byId(from)
     const b = byId(to)
     const reached = a.reached && b.reached && !(a.kind === 'stage' && a.status === 'failed')
-    const e: FlowDiagramEdge = { id: `${from}:${to}`, from, to, label, kind, reached, points, ...(labelAnchor ? { labelAnchor } : {}) }
+    const e: FlowDiagramEdge = {
+      id: `${from}:${to}`,
+      from,
+      to,
+      label,
+      kind,
+      reached,
+      points,
+      ...(labelAnchor ? { labelAnchor } : {}),
+    }
     edges.push(e)
     return e
   }

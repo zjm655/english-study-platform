@@ -88,7 +88,9 @@ async function save() {
       <el-form-item label="管理员上传审核">
         <el-switch v-model="adminModerationEnabled" active-text="启用" inactive-text="关闭" />
         <div class="form-tip">
-          管理员上传材料时以 DeepSeek 审核（要求英文、非字幕时间轴，服务不可用即拒绝）作为主闸门；关闭后仅保留正则与 NLS 相似度校验。
+          管理员上传材料时以 DeepSeek
+          审核（要求英文、非字幕时间轴，服务不可用即拒绝）作为主闸门；关闭后仅保留正则与 NLS
+          相似度校验。
         </div>
       </el-form-item>
       <el-form-item label="内容生成超时">

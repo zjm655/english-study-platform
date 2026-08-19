@@ -52,7 +52,9 @@ describe('annotateSpeakers', () => {
   })
 
   it('dialogue=true 但标注为空：annotated 为 null', async () => {
-    mocks.mockServerFetch.mockResolvedValue(okJson(JSON.stringify({ dialogue: true, annotated: '' })))
+    mocks.mockServerFetch.mockResolvedValue(
+      okJson(JSON.stringify({ dialogue: true, annotated: '' })),
+    )
     const res = await annotateSpeakers('a', 'b')
     expect(res.dialogue).toBe(true)
     expect(res.annotated).toBeNull()

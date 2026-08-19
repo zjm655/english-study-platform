@@ -1,20 +1,27 @@
 <template>
-  <svg :viewBox="`0 0 ${diagram.width} ${diagram.height}`" class="flow-svg" role="img" aria-label="材料上传流水线流程图">
+  <svg
+    :viewBox="`0 0 ${diagram.width} ${diagram.height}`"
+    class="flow-svg"
+    role="img"
+    aria-label="材料上传流水线流程图"
+  >
     <defs>
-      <marker id="flow-arrow-reached" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <marker
+        id="flow-arrow-reached"
+        markerWidth="8"
+        markerHeight="8"
+        refX="7"
+        refY="3"
+        orient="auto"
+        markerUnits="userSpaceOnUse"
+      >
         <path d="M0,0 L7,3 L0,6 Z" class="flow-arrow-reached" />
       </marker>
     </defs>
 
     <!-- 泳道背景 -->
     <g v-for="lane in diagram.lanes" :key="lane.index">
-      <rect
-        :x="0"
-        :y="lane.y"
-        :width="diagram.width"
-        :height="lane.h"
-        class="flow-lane-bg"
-      />
+      <rect :x="0" :y="lane.y" :width="diagram.width" :height="lane.h" class="flow-lane-bg" />
       <text :x="10" :y="lane.y + 20" class="flow-lane-label">{{ lane.label }}</text>
     </g>
 
@@ -43,7 +50,14 @@
         :transform="`translate(${edgeBarPos(edge).x}, ${edgeBarPos(edge).y})`"
         class="flow-edge-label"
       >
-        <rect :x="-4" :y="-13" :width="edge.label.length * 12 + 8" :height="20" rx="4" class="flow-edge-label-bg" />
+        <rect
+          :x="-4"
+          :y="-13"
+          :width="edge.label.length * 12 + 8"
+          :height="20"
+          rx="4"
+          class="flow-edge-label-bg"
+        />
         <text x="0" y="1" class="flow-edge-label-text">{{ edge.label }}</text>
       </g>
     </g>

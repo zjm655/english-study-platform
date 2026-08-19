@@ -123,11 +123,7 @@ function branchTakenStatus(taken: boolean, nodes: FlowNode[]): StageStatus {
   return subtreeWorst(nodes)
 }
 
-function stageNode(
-  key: string,
-  label: string,
-  statuses: Map<string, StageStatus>,
-): FlowStage {
+function stageNode(key: string, label: string, statuses: Map<string, StageStatus>): FlowStage {
   return { kind: 'stage', key, label, status: statusOf(statuses, key) }
 }
 
@@ -158,7 +154,10 @@ export function derivePipelineFlow(
         key: 'on',
         label: '开启 NLS → 识别/转写审核/相似度/说话人标注',
         taken: nlsOn,
-        status: branchTakenStatus(nlsOn, sttKeys.map((k) => stageNode(k, STT_LABEL[k] ?? k, statuses))),
+        status: branchTakenStatus(
+          nlsOn,
+          sttKeys.map((k) => stageNode(k, STT_LABEL[k] ?? k, statuses)),
+        ),
         nodes: sttKeys.map((k) => stageNode(k, STT_LABEL[k] ?? k, statuses)),
       },
       {

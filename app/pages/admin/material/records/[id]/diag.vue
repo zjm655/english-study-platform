@@ -23,14 +23,29 @@
         <el-descriptions :column="2">
           <el-descriptions-item label="标题">{{ diag?.title }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="diag?.status === 'success' ? 'success' : diag?.status === 'failed' ? 'danger' : 'warning'" size="small">
+            <el-tag
+              :type="
+                diag?.status === 'success'
+                  ? 'success'
+                  : diag?.status === 'failed'
+                    ? 'danger'
+                    : 'warning'
+              "
+              size="small"
+            >
               {{ statusText }}
             </el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="来源">{{ diag?.source === 'admin' ? '管理员' : '用户' }}</el-descriptions-item>
+          <el-descriptions-item label="来源">{{
+            diag?.source === 'admin' ? '管理员' : '用户'
+          }}</el-descriptions-item>
           <el-descriptions-item label="上传者">{{ diag?.username }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ formatDate(diag?.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ formatDate(diag?.updatedAt) }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{
+            formatDate(diag?.createdAt)
+          }}</el-descriptions-item>
+          <el-descriptions-item label="更新时间">{{
+            formatDate(diag?.updatedAt)
+          }}</el-descriptions-item>
           <el-descriptions-item v-if="diag?.error_message" label="失败原因" :span="2">
             <div class="pre error-text">{{ diag.error_message }}</div>
           </el-descriptions-item>
@@ -41,7 +56,10 @@
       <el-card shadow="never" class="card">
         <template #header><span class="card-title">流水线流程图</span></template>
         <PipelineFlowChart :diagram="diagram" />
-        <p class="page-desc">绿=成功 / 红=失败终点 / 黄=异常(非阻塞) / 灰=未开始或未走分支；失败在失败节点断链，其后未执行阶段与「完成」置灰且不被箭头连通</p>
+        <p class="page-desc">
+          绿=成功 / 红=失败终点 / 黄=异常(非阻塞) /
+          灰=未开始或未走分支；失败在失败节点断链，其后未执行阶段与「完成」置灰且不被箭头连通
+        </p>
       </el-card>
 
       <!-- 上传文本 -->
@@ -94,7 +112,9 @@
           <template v-if="aiContent.questions && aiContent.questions.length">
             <div v-for="(q, qi) in aiContent.questions" :key="qi" class="question-item">
               <div class="question-text">{{ qi + 1 }}. {{ q.question }}</div>
-              <div v-for="(op, oi) in q.options || []" :key="oi" class="question-option">{{ op }}</div>
+              <div v-for="(op, oi) in q.options || []" :key="oi" class="question-option">
+                {{ op }}
+              </div>
               <div class="question-answer">答案：{{ q.answer }}</div>
             </div>
           </template>
@@ -102,7 +122,9 @@
 
           <div v-if="vocabTtsSummary" class="page-desc" style="margin-top: 8px">
             词汇音频：{{ vocabTtsSummary.ok }} / {{ vocabTtsSummary.total }} 生成成功
-            <template v-if="vocabTtsSummary.failed > 0">，{{ vocabTtsSummary.failed }} 个缺失</template>
+            <template v-if="vocabTtsSummary.failed > 0"
+              >，{{ vocabTtsSummary.failed }} 个缺失</template
+            >
           </div>
         </template>
       </el-card>
@@ -118,9 +140,11 @@
           </div>
         </template>
         <div class="pre">{{ diag.speaker_annotated }}</div>
-        <p class="page-desc">「采用」会将该标注文本回写为材料正文（不自动重处理，可另行重处理）。</p>
+        <p class="page-desc">
+          「采用」会将该标注文本回写为材料正文（不自动重处理，可另行重处理）。
+        </p>
       </el-card>
-      </template>
+    </template>
   </div>
 </template>
 
@@ -155,7 +179,10 @@ const statusText = computed(() => {
 
 // ---------- 流水线流程图（SVG：垂直主链 + 菱形判断 + 分支箭头 + 泳道 + 起终点） ----------
 const diagram = computed(() =>
-  layoutFlow(derivePipelineFlow(diag.value?.pipeline_snapshot ?? null, diag.value?.status), diag.value?.status),
+  layoutFlow(
+    derivePipelineFlow(diag.value?.pipeline_snapshot ?? null, diag.value?.status),
+    diag.value?.status,
+  ),
 )
 
 // ---------- DeepSeek 生成内容（来自快照 ai_content / vocab_tts） ----------
@@ -174,12 +201,23 @@ const aiContent = computed<AiStageDetail | null>(() => {
 })
 const vocabTtsDetail = computed(() => {
   const d = diag.value?.pipeline_snapshot?.stages.find((x) => x.name === 'vocab_tts')?.detail as
-    | { total?: number; ok?: number; failed?: number; items?: Array<{ word: string; audio: boolean }> }
+    | {
+        total?: number
+        ok?: number
+        failed?: number
+        items?: Array<{ word: string; audio: boolean }>
+      }
     | undefined
   return d
 })
 const vocabTtsSummary = computed(() =>
-  vocabTtsDetail.value ? { total: vocabTtsDetail.value.total ?? 0, ok: vocabTtsDetail.value.ok ?? 0, failed: vocabTtsDetail.value.failed ?? 0 } : null,
+  vocabTtsDetail.value
+    ? {
+        total: vocabTtsDetail.value.total ?? 0,
+        ok: vocabTtsDetail.value.ok ?? 0,
+        failed: vocabTtsDetail.value.failed ?? 0,
+      }
+    : null,
 )
 function vocabAudioState(word: string): 'ok' | 'missing' | '' {
   const item = vocabTtsDetail.value?.items?.find((x) => x.word === word)

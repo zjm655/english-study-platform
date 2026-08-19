@@ -434,20 +434,18 @@ describe('processAdminMaterial', () => {
       expect.objectContaining({ format: 'mp3', ossKey: expect.any(String) }),
     )
     // 文本内容审核第 1 步：主文本单独审核
-    expect(mockModerateText).toHaveBeenCalledWith(
-      'Audio with nls check enabled.',
-      { allowDialogue: true },
-    )
+    expect(mockModerateText).toHaveBeenCalledWith('Audio with nls check enabled.', {
+      allowDialogue: true,
+    })
     // 转写单独审核（不再把文本+转写合并送审）
-    expect(mockModerateText).toHaveBeenCalledWith(
-      'recognized text here',
-      { allowDialogue: true },
-    )
+    expect(mockModerateText).toHaveBeenCalledWith('recognized text here', { allowDialogue: true })
     expect(mockCompareTextSimilarity).toHaveBeenCalled()
     // 转写落库
     expect(
-      mockPoolExecute.mock.calls.some(([sql, args]) =>
-        String(sql).includes('nls_transcript') && String(args?.[0]).includes('recognized text here'),
+      mockPoolExecute.mock.calls.some(
+        ([sql, args]) =>
+          String(sql).includes('nls_transcript') &&
+          String(args?.[0]).includes('recognized text here'),
       ),
     ).toBe(true)
     // 事务内 segment INSERT 含 nls_check=1
@@ -565,7 +563,18 @@ describe('processAdminMaterial', () => {
     const snap = JSON.parse(String(snapUpdate![1]![0]))
     const names = snap.stages.map((s: { name: string }) => s.name)
     expect(names).toEqual(
-      expect.arrayContaining(['moderation_text', 'user_audio', 'stt', 'moderation_nls', 'similarity', 'speaker_annotate', 'ai_content', 'title', 'vocab_tts', 'persist']),
+      expect.arrayContaining([
+        'moderation_text',
+        'user_audio',
+        'stt',
+        'moderation_nls',
+        'similarity',
+        'speaker_annotate',
+        'ai_content',
+        'title',
+        'vocab_tts',
+        'persist',
+      ]),
     )
     // 文本内容审核为第 1 步
     expect(names[0]).toBe('moderation_text')
@@ -656,11 +665,9 @@ describe('processAdminMaterial', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('材料内容不合规')
     // 文本内容审核第 1 步：首调用为主体文本（不再把文本+转写合并送审）
-    expect(mockModerateText).toHaveBeenNthCalledWith(
-      1,
-      'Audio with chinese transcript.',
-      { allowDialogue: true },
-    )
+    expect(mockModerateText).toHaveBeenNthCalledWith(1, 'Audio with chinese transcript.', {
+      allowDialogue: true,
+    })
     expect(mockGenerateLearningContent).not.toHaveBeenCalled()
   })
 

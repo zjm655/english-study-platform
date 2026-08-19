@@ -34,7 +34,7 @@ const SYSTEM_PROMPT = `你是一个英语学习材料编辑。你会收到一段
  * 行首形如 `<短标签>: 内容`（如 `A: ...` / `Tom: ...` / `Teacher: ...`）
  * 的说话人/角色标记行。纯函数、无副作用，供单元测试。
  */
-const LABEL_LINE_RE = /^\s*([A-Za-z\u4e00-\u9fa5_]{1,16})\s*[:：]\s*\S/mg
+const LABEL_LINE_RE = /^\s*([A-Za-z\u4e00-\u9fa5_]{1,16})\s*[:：]\s*\S/gm
 
 /**
  * 检测上传原文是否已自带说话人/角色标记（对话）。
@@ -103,13 +103,27 @@ export async function annotateSpeakers(
 
     if (!resp.ok) {
       logger.error(`[speakerAnnotate] API 返回 ${resp.status}`)
-      void logCloudServiceCall({ service: 'deepseek', operation: 'speakerAnnotate', success: false, errorMessage: `HTTP ${resp.status}`, durationMs: 0 })
+      void logCloudServiceCall({
+        service: 'deepseek',
+        operation: 'speakerAnnotate',
+        success: false,
+        errorMessage: `HTTP ${resp.status}`,
+        durationMs: 0,
+      })
       return { dialogue: false, annotated: null, skipped: false }
     }
     const data = await resp.json()
-    void logCloudServiceCall({ service: 'deepseek', operation: 'speakerAnnotate', success: true, durationMs: 0 })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'speakerAnnotate',
+      success: true,
+      durationMs: 0,
+    })
     const content: string = data?.choices?.[0]?.message?.content ?? ''
-    const cleaned = content.replace(/```json?\n?/g, '').replace(/```/g, '').trim()
+    const cleaned = content
+      .replace(/```json?\n?/g, '')
+      .replace(/```/g, '')
+      .trim()
     let parsed: Record<string, unknown>
     try {
       parsed = JSON.parse(cleaned)
@@ -118,12 +132,19 @@ export async function annotateSpeakers(
       return { dialogue: false, annotated: null, skipped: false }
     }
     const dialogue = parsed.dialogue === true
-    const annotated = typeof parsed.annotated === 'string' && parsed.annotated.trim()
-      ? parsed.annotated.trim()
-      : null
+    const annotated =
+      typeof parsed.annotated === 'string' && parsed.annotated.trim()
+        ? parsed.annotated.trim()
+        : null
     return { dialogue, annotated, skipped: false }
   } catch (err) {
-    void logCloudServiceCall({ service: 'deepseek', operation: 'speakerAnnotate', success: false, errorMessage: String(err).substring(0, 500), durationMs: 0 })
+    void logCloudServiceCall({
+      service: 'deepseek',
+      operation: 'speakerAnnotate',
+      success: false,
+      errorMessage: String(err).substring(0, 500),
+      durationMs: 0,
+    })
     logger.error('[speakerAnnotate] 调用失败:', err)
     return { dialogue: false, annotated: null, skipped: false }
   }

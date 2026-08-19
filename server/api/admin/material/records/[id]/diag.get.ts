@@ -21,27 +21,25 @@ export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (isNaN(id) || id <= 0) return validateError('无效的记录ID')
 
-  const rows = await query<
-    {
-      id: number
-      title: string
-      text_content: string
-      voice: string
-      status: MaterialUploadStatus
-      error_message: string | null
-      nls_check: number
-      nls_transcript: string | null
-      speaker_annotated: string | null
-      pipeline_snapshot: string | null
-      is_public: number
-      segment_id: number | null
-      createdAt: string
-      updatedAt: string
-      username: string
-      role: number | null
-      media_key: string | null
-    }
-  >(
+  const rows = await query<{
+    id: number
+    title: string
+    text_content: string
+    voice: string
+    status: MaterialUploadStatus
+    error_message: string | null
+    nls_check: number
+    nls_transcript: string | null
+    speaker_annotated: string | null
+    pipeline_snapshot: string | null
+    is_public: number
+    segment_id: number | null
+    createdAt: string
+    updatedAt: string
+    username: string
+    role: number | null
+    media_key: string | null
+  }>(
     `SELECT r.id, r.text_content, r.title, r.voice, r.status, r.error_message,
             r.nls_check, r.nls_transcript, r.speaker_annotated, r.pipeline_snapshot,
             r.is_public, r.segment_id, r.createdAt, r.updatedAt,
@@ -58,7 +56,8 @@ export default defineEventHandler(async (event) => {
   const row = rows[0]!
 
   const canAudition = isAdminOrAbove(row.role) || row.is_public === 1
-  const audioUrl = canAudition && row.media_key ? await signUrl(row.media_key, MATERIAL_EXPIRE) : null
+  const audioUrl =
+    canAudition && row.media_key ? await signUrl(row.media_key, MATERIAL_EXPIRE) : null
 
   let snapshot: PipelineSnapshotView | null = null
   if (row.pipeline_snapshot) {

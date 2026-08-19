@@ -30,7 +30,12 @@ export class PipelineSnapshotBuilder {
   private snapshot: PipelineSnapshot = { stages: [] }
 
   /** 记录一个阶段结果 */
-  add(name: string, ok: boolean, detail?: Record<string, unknown> | null, error?: string | null): void {
+  add(
+    name: string,
+    ok: boolean,
+    detail?: Record<string, unknown> | null,
+    error?: string | null,
+  ): void {
     this.snapshot.stages.push({ name, ok, detail: detail ?? null, error: error ?? null })
   }
 
