@@ -1,12 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }))
-vi.mock('#server/utils/db', () => ({ query: mockQuery }))
+// 计数已接入 rateStore（rl 域固窗，P2）：mock incrWindow 用内存 Map 按 id 模拟
+// 「同 key 连续自增 1/2/3...」语义；configStore 仍 mock 固定 Map（配置读取路径不变）
+const { mockGetSysConfigKeys, mockIncrWindow, incrCounts } = vi.hoisted(() => ({
+  mockGetSysConfigKeys: vi.fn(),
+  mockIncrWindow: vi.fn(),
+  incrCounts: new Map<string, number>(),
+}))
 
-// 每次测试前重置模块注册表，确保 usageMap / cachedLimit 等模块级状态全新
+vi.mock('#server/utils/configStore', () => ({ getSysConfigKeys: mockGetSysConfigKeys }))
+vi.mock('#server/utils/rateStore', () => ({ incrWindow: mockIncrWindow }))
+
+// 每次测试前重置模块注册表与 mock 计数状态，确保用例间干净
 beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()
+  incrCounts.clear()
+  mockIncrWindow.mockImplementation(async (_domain: string, id: string) => {
+    const count = (incrCounts.get(id) ?? 0) + 1
+    incrCounts.set(id, count)
+    return { count, retryAfterSec: 86400 }
+  })
 })
 
 afterEach(() => {
@@ -17,17 +31,22 @@ async function loadModule() {
   return await import('../../utils/guestOssLimit')
 }
 
+/** 配置 mock：guest_daily_audio_limit 经 configStore 返回 */
+function setupLimitMap(limit: string) {
+  mockGetSysConfigKeys.mockResolvedValue(new Map([['guest_daily_audio_limit', limit]]))
+}
+
 describe('checkGuestAudioLimit 游客音频限流', () => {
   it('未超限 → allowed=true, remaining > 0', async () => {
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
+    setupLimitMap('5')
     const { checkGuestAudioLimit } = await loadModule()
     const res = await checkGuestAudioLimit('gk-1')
     expect(res.allowed).toBe(true)
-    expect(res.remaining).toBe(4) // 5 - 0 - 1 = 4
+    expect(res.remaining).toBe(4) // 5 - 1 = 4
   })
 
   it('连续调用逐步递减 remaining', async () => {
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
+    setupLimitMap('5')
     const { checkGuestAudioLimit } = await loadModule()
     const r1 = await checkGuestAudioLimit('gk-1')
     expect(r1).toEqual({ allowed: true, remaining: 4 })
@@ -38,7 +57,7 @@ describe('checkGuestAudioLimit 游客音频限流', () => {
   })
 
   it('达到上限 → allowed=false, remaining=0', async () => {
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
+    setupLimitMap('5')
     const { checkGuestAudioLimit } = await loadModule()
     for (let i = 0; i < 5; i++) await checkGuestAudioLimit('gk-1')
     const blocked = await checkGuestAudioLimit('gk-1')
@@ -47,7 +66,7 @@ describe('checkGuestAudioLimit 游客音频限流', () => {
   })
 
   it('不同 guestKey 独立计数', async () => {
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
+    setupLimitMap('5')
     const { checkGuestAudioLimit } = await loadModule()
     // gk-A 用掉 3 次 → remaining = 5-3 = 2
     for (let i = 0; i < 3; i++) await checkGuestAudioLimit('gk-A')
@@ -61,60 +80,62 @@ describe('checkGuestAudioLimit 游客音频限流', () => {
   })
 
   it('不同日期独立计数（跨天重置）', async () => {
-    // mockResolvedValue 确保跨天 cachedLimit 过期后重新查库也能返回
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
+    setupLimitMap('5')
     const { checkGuestAudioLimit } = await loadModule()
     // 第一天用掉全部 5 次
     for (let i = 0; i < 5; i++) await checkGuestAudioLimit('gk-1')
     const blocked = await checkGuestAudioLimit('gk-1')
     expect(blocked.allowed).toBe(false)
 
-    // 模拟跳到第二天（Date.now 影响 todayKey() 和 cachedLimit TTL）
+    // 模拟跳到第二天（Date.now 影响 todayKey()）
     const tomorrow = Date.now() + 24 * 60 * 60 * 1000
     vi.spyOn(Date, 'now').mockReturnValue(tomorrow)
 
-    // 新的一天 usageMap 键变化，计数重置
+    // 新的一天计数键变化，固窗重开
     const res = await checkGuestAudioLimit('gk-1')
     expect(res.allowed).toBe(true)
     expect(res.remaining).toBe(4)
   })
 
-  it('缓存行为：sys_config 只查一次（5min TTL 内不重复查库）', async () => {
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
+  it('经 rateStore rl 域计数：键=guest-audio-key:{guestKey}:{日期}，窗口 24h', async () => {
+    setupLimitMap('5')
+    const { checkGuestAudioLimit } = await loadModule()
+    await checkGuestAudioLimit('gk-1')
+    expect(mockIncrWindow).toHaveBeenCalledTimes(1)
+    expect(mockIncrWindow).toHaveBeenCalledWith(
+      'rl',
+      expect.stringMatching(/^guest-audio-key:gk-1:\d{4}-\d{2}-\d{2}$/),
+      86400,
+    )
+  })
+
+  it('模块内无配置缓存：每次调用都委托 configStore（缓存语义由 configStore 承载）', async () => {
+    setupLimitMap('5')
     const { checkGuestAudioLimit } = await loadModule()
     await checkGuestAudioLimit('gk-1')
     await checkGuestAudioLimit('gk-2')
     await checkGuestAudioLimit('gk-3')
-    // sys_config 只在首次 getDailyLimit 时查一次
-    expect(mockQuery).toHaveBeenCalledTimes(1)
+    expect(mockGetSysConfigKeys).toHaveBeenCalledTimes(3)
+    // 批量读取一次传入单键
+    expect(mockGetSysConfigKeys.mock.calls[0]![0]).toEqual(['guest_daily_audio_limit'])
   })
 
-  it('invalidateCache 后再次调用会重新查 sys_config', async () => {
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
-    const mod = await loadModule()
-    await mod.checkGuestAudioLimit('gk-1')
-    expect(mockQuery).toHaveBeenCalledTimes(1)
-
-    mod.invalidateGuestAudioLimitCache()
-    await mod.checkGuestAudioLimit('gk-2')
-    expect(mockQuery).toHaveBeenCalledTimes(2)
+  it('配置变更即时生效：configStore 返回新值后下次调用立即采用（无需 invalidate）', async () => {
+    mockGetSysConfigKeys
+      .mockResolvedValueOnce(new Map([['guest_daily_audio_limit', '5']]))
+      .mockResolvedValueOnce(new Map([['guest_daily_audio_limit', '2']]))
+    const { checkGuestAudioLimit } = await loadModule()
+    const r1 = await checkGuestAudioLimit('gk-1')
+    expect(r1.remaining).toBe(4) // limit 5
+    const r2 = await checkGuestAudioLimit('gk-2')
+    expect(r2.remaining).toBe(1) // limit 2 已生效
   })
 
-  it('sys_config 查询失败 → 使用默认限次 20', async () => {
-    mockQuery.mockRejectedValueOnce(new Error('db down'))
+  it('sys_config 读取失败（configStore 异常）→ 使用默认限次 20', async () => {
+    mockGetSysConfigKeys.mockRejectedValueOnce(new Error('configStore down'))
     const { checkGuestAudioLimit } = await loadModule()
     const res = await checkGuestAudioLimit('gk-fail')
     expect(res.allowed).toBe(true)
     expect(res.remaining).toBe(19) // 默认 20 - 1
-  })
-
-  it('getGuestAudioLimitStats 返回跟踪条目数', async () => {
-    mockQuery.mockResolvedValue([{ config_value: '5' }])
-    const mod = await loadModule()
-    expect(mod.getGuestAudioLimitStats().trackedEntries).toBe(0)
-    await mod.checkGuestAudioLimit('gk-1')
-    expect(mod.getGuestAudioLimitStats().trackedEntries).toBe(1)
-    await mod.checkGuestAudioLimit('gk-2')
-    expect(mod.getGuestAudioLimitStats().trackedEntries).toBe(2)
   })
 })

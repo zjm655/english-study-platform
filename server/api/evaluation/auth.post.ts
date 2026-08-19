@@ -86,7 +86,7 @@ export default defineEventHandler(
         return validateError('今日评测次数已用完，登录后可无限使用', 429)
       }
       // P3-C：IP 维度兜底（guest_key 可轮换，防脚本换键绕过每阶段额度）
-      if (!checkGuestEvalByIp(getClientIp(event))) {
+      if (!(await checkGuestEvalByIp(getClientIp(event)))) {
         return validateError('今日评测次数已用完，登录后可无限使用', 429)
       }
       isGuest = true

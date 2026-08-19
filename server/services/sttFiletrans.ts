@@ -15,6 +15,7 @@ import { signUrl } from '#server/utils/oss'
 import { withQueue } from './serviceQueue'
 import { logCloudServiceCall } from '#server/utils/cloudServiceLog'
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
+import { getSysConfigKeys } from '#server/utils/configStore'
 import { deriveNlsQuotaInfo, NLS_DAILY_FREE_QUOTA_MIN } from '#server/utils/nlsQuota'
 import type { NlsQuotaInfo } from '#shared/types/nlsQuota'
 
@@ -244,14 +245,14 @@ export async function fileTransRecognize(fileLink: string): Promise<FileTransRes
 /** 最近一次实际使用的后端（进程内观测值，供监控页对照配置值诊断） */
 let lastUsedBackend: 'filetrans' | 'flash' | null = null
 
-/** 读 stt_backend 配置：每任务一次主键级查询（任务分钟级并行≤2，缓存零收益）；失败保守回 flash */
+/**
+ * 读 stt_backend 配置（任务路径）：经 configStore（Redis 10s / 内存降级 5min）。
+ * 缺键/异常保守回 flash——语义与直读 DB 时逐字一致（仅 'filetrans' 才走标准版）。
+ */
 async function getSttBackend(): Promise<'filetrans' | 'flash'> {
   try {
-    const { query } = await import('#server/utils/db')
-    const rows = await query<{ config_value: string }>(
-      `SELECT config_value FROM sys_config WHERE config_key = 'stt_backend'`,
-    )
-    return rows[0]?.config_value === 'filetrans' ? 'filetrans' : 'flash'
+    const map = await getSysConfigKeys(['stt_backend'])
+    return map.get('stt_backend') === 'filetrans' ? 'filetrans' : 'flash'
   } catch {
     return 'flash'
   }
@@ -337,6 +338,7 @@ export async function getSttMonitorSnapshot(): Promise<SttMonitorSnapshot> {
       `SELECT COUNT(*) AS cnt FROM cloud_service_call_log
        WHERE service = 'nls' AND operation = 'sttFallback' AND createdAt >= CURDATE()`,
     ),
+    // admin 展示路径：按 D-P1-4 直查库展示真相，不走 configStore（监控对照真实配置而非缓存）
     query<{ config_key: string; config_value: string }>(
       `SELECT config_key, config_value FROM sys_config WHERE config_key IN ('stt_backend', 'stt_trial_start_date')`,
     ),
@@ -382,6 +384,7 @@ export async function getNlsQuotaInfo(): Promise<NlsQuotaInfo> {
         `SELECT COALESCE(SUM(biz_duration_ms), 0) AS total FROM cloud_service_call_log
          WHERE service = 'nls' AND operation = 'filetrans' AND success = 1 AND createdAt >= CURDATE()`,
       ),
+      // admin 展示路径：按 D-P1-4 直查库展示真相，不走 configStore（上传页对照真实配置而非缓存）
       query<{ config_value: string }>(
         `SELECT config_value FROM sys_config WHERE config_key = 'stt_backend'`,
       ),

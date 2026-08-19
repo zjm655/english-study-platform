@@ -1,10 +1,10 @@
 // server/utils/cloudServiceLog.ts
 // 云服务调用埋点写入：记录所有第三方云服务调用（DeepSeek / TTS / OSS / NLS / BSS / edu）。
 //
-// 批量写入模式（P3-I 重构）：内存队列逻辑统一收敛到 batchQueue 工厂；
+// 批量写入模式（P3-I 重构）：队列逻辑统一收敛到 queueStore（Redis STREAM + 内存降级）；
 // requestId 经请求上下文自动填充（getCurrentRequestId），调用方显式传入优先。
 // 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程。
-import { createBatchQueue } from '#server/utils/batchQueue'
+import { createQueue } from '#server/utils/queueStore'
 import { getCurrentRequestId } from '#server/utils/requestContext'
 import { logAlertEvent } from '#server/utils/alertEventLog'
 
@@ -30,12 +30,13 @@ export interface CloudServiceCallEntry {
   bizDurationMs?: number | null
 }
 
-// ─── 批量队列（P3-I：由 batchQueue 工厂统一实现）────────────
+// ─── 批量队列（P3-I：由 queueStore 统一实现（Redis STREAM + 内存降级））────────────
 
 const BATCH_SIZE = 50
 const MAX_QUEUE_SIZE = 10_000
 
-const cloudServiceQueue = createBatchQueue<CloudServiceCallEntry>({
+const cloudServiceQueue = createQueue<CloudServiceCallEntry>({
+  namespace: 'cloud_service_call_log',
   batchSize: BATCH_SIZE,
   maxQueueSize: MAX_QUEUE_SIZE,
   errorLabel: '[cloud service log] 批量写入失败:',

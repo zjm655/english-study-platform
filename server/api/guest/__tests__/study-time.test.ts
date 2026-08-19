@@ -57,9 +57,9 @@ vi.mock('#server/services/guestUser', () => ({
 vi.mock('#server/services/studyTime', () => ({
   accumulateStudyTime: mockAccumulateStudyTime,
 }))
-// P3-C：guestIpGuard 为模块级内存态（铸键限频），mock 掉避免跨用例状态残留（同一 IP 一分钟两次铸键会 429）
+// P3-C：铸键限频经 rateStore 计数（P2 起跨重启持久），mock 掉避免测试依赖真实计数状态
 vi.mock('#server/utils/guestIpGuard', () => ({
-  checkGuestKeyIssue: vi.fn().mockReturnValue(true),
+  checkGuestKeyIssue: vi.fn().mockResolvedValue(true),
 }))
 // node:crypto 用真实实现即可（randomUUID）
 

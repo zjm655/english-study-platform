@@ -25,18 +25,21 @@ vi.mock('@alicloud/pop-core', () => ({
 }))
 
 // ===== mock 依赖模块 =====
-const { mockSpeechToText, mockSignUrl, mockLogCloudServiceCall, mockQuery } = vi.hoisted(() => ({
-  mockSpeechToText: vi.fn(),
-  mockSignUrl: vi.fn(),
-  mockLogCloudServiceCall: vi.fn(),
-  mockQuery: vi.fn(),
-}))
+const { mockSpeechToText, mockSignUrl, mockLogCloudServiceCall, mockQuery, mockGetSysConfigKeys } =
+  vi.hoisted(() => ({
+    mockSpeechToText: vi.fn(),
+    mockSignUrl: vi.fn(),
+    mockLogCloudServiceCall: vi.fn(),
+    mockQuery: vi.fn(),
+    mockGetSysConfigKeys: vi.fn(),
+  }))
 
 vi.mock('../speechToText', () => ({ speechToText: mockSpeechToText }))
 vi.mock('#server/utils/oss', () => ({ signUrl: mockSignUrl }))
 vi.mock('#server/utils/cloudServiceLog', () => ({ logCloudServiceCall: mockLogCloudServiceCall }))
 vi.mock('#server/utils/fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
 vi.mock('#server/utils/db', () => ({ query: mockQuery }))
+vi.mock('#server/utils/configStore', () => ({ getSysConfigKeys: mockGetSysConfigKeys }))
 
 // ===== mock useRuntimeConfig =====
 const defaultConfig = {
@@ -56,9 +59,9 @@ async function loadModule() {
   return import('../sttFiletrans')
 }
 
-/** 配置 stt_backend 的 db 桩 */
+/** 配置 stt_backend 的 configStore 桩（任务路径 getSttBackend 经 configStore 读取） */
 function setBackend(backend: string) {
-  mockQuery.mockResolvedValue([{ config_value: backend }])
+  mockGetSysConfigKeys.mockResolvedValue(new Map([['stt_backend', backend]]))
 }
 
 const SUBMIT_OK = { TaskId: 'task-1', StatusCode: 21050000, StatusText: 'SUCCESS' }
@@ -101,8 +104,17 @@ describe('recognizeSpeech 分流', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
-  it('配置查询失败时保守默认 flash', async () => {
-    mockQuery.mockRejectedValue(new Error('db down'))
+  it('配置读取失败（configStore 抛错）时保守默认 flash', async () => {
+    mockGetSysConfigKeys.mockRejectedValue(new Error('configStore down'))
+    const { recognizeSpeech } = await loadModule()
+    const res = await recognizeSpeech({ audioBuffer: Buffer.from('a'), ossKey: 'k.mp3' })
+    expect(res.success).toBe(true)
+    expect(mockSpeechToText).toHaveBeenCalledTimes(1)
+    expect(mockRequest).not.toHaveBeenCalled()
+  })
+
+  it('缺键（空 Map）时保守默认 flash', async () => {
+    mockGetSysConfigKeys.mockResolvedValue(new Map())
     const { recognizeSpeech } = await loadModule()
     const res = await recognizeSpeech({ audioBuffer: Buffer.from('a'), ossKey: 'k.mp3' })
     expect(res.success).toBe(true)
@@ -147,7 +159,7 @@ describe('回退集', () => {
       expect(mockLogCloudServiceCall.mock.calls.some(([e]) => e.operation === 'sttFallback')).toBe(
         true,
       )
-      // 不写回配置：db 只有 SELECT，无 UPDATE
+      // 不写回配置：任务路径配置走 configStore 只读，db 无任何 UPDATE
       expect(
         mockQuery.mock.calls.every(([sql]) => !String(sql).toUpperCase().includes('UPDATE')),
       ).toBe(true)

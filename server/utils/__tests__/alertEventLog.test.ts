@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// alertEventLog 用模块级内存队列 + 定时 flush，mock db.query 隔离落库、
-// mock logger 避免 node 环境下 useRuntimeConfig 未定义；resetModules 保证每例独立状态。
+// alertEventLog 经 queueStore 批量落库（测试环境 mock redisConn=null 走内存降级），
+// mock db.query 隔离落库、mock logger 避免 node 环境下 useRuntimeConfig 未定义；
+// resetModules 保证每例独立状态。
 const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }))
 vi.mock('../db', () => ({ query: mockQuery }))
 vi.mock('../../../shared/utils/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }))
+// queueStore 会动态 import redisConn（连接层）：mock 为 null 走内存降级路径，
+// 兼避免真实加载 redis npm 包拖慢模块加载（全量并行下会超 5s 测试超时）
+vi.mock('#server/utils/redisConn', () => ({ getRedis: () => null }))
 
 beforeEach(() => {
   vi.clearAllMocks()

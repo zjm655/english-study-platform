@@ -2,14 +2,16 @@
  * 游客评测配额检查（server-only）
  *
  * 设计要点（仿 uploadLimitChecker）：
- * - 从 sys_config 读取 guest_daily_eval_limit（默认 1），运营可调
+ * - 从 sys_config 读取 guest_daily_eval_limit（默认 1），运营可调；读取经 configStore
+ *   （缓存语义由 configStore 承载，模块内不再自建配置缓存）
  * - 计数方式（P3-B 改口径）：查 eval_auth_log，按游客 user.id + 当日 + phase 维度统计
  *   「发放次数」——与登录侧同口径（014 迁移已修复登录侧；此前按客户端回写
  *   analyze_status='success' 计数，换证不写回即额度不消耗、云费用可刷）
- * - 内存缓存（TTL 5min），避免每次评测请求都查库
+ * - per-guest 结果缓存（模块内 5min TTL）避免每次评测请求都查 user / eval_auth_log
  * - 查库异常兜底为放行（不阻断评测业务）
  */
 import { query } from '#server/utils/db'
+import { getSysConfigKeys } from '#server/utils/configStore'
 import type { RowDataPacket } from 'mysql2'
 
 /** phase 编号与字符串标识的映射（recording 表 phase 列：3=配音，4=影子跟读；auth.post 游客发放复用，P4 review） */
@@ -20,9 +22,13 @@ export const PHASE_MAP = {
 
 /** 默认每日评测次数上限 */
 const DEFAULT_DAILY_LIMIT = 1
-const CACHE_TTL = 5 * 60 * 1000 // 5 分钟
+const CACHE_TTL = 5 * 60 * 1000 // 5 分钟（per-guest 结果缓存 TTL）
 
-/** 缓存结构：按 guestKey:phase 粒度缓存 */
+/**
+ * per-guest 结果缓存：guestKey:phase → 当日已用次数快照。
+ * 边界说明：这是「阶段二读缓存」（缓存的是按人查询的业务结果，非 sys_config 配置值），
+ * 不属 configStore 接入范围，保留模块内 5min TTL + 容量淘汰。
+ */
 interface CacheEntry {
   used: number
   expireAt: number
@@ -40,24 +46,16 @@ function evictIfFull(): void {
   }
 }
 
-/** 读取 sys_config 中的游客每日评测上限（带缓存） */
+/** 读取 sys_config 中的游客每日评测上限（经 configStore；解析与默认值留在本模块） */
 async function getGuestEvalLimit(): Promise<number> {
-  // 复用全局缓存键，避免每次 check 都查 sys_config
-  if (limitCache && Date.now() < limitCache.expireAt) return limitCache.value
   try {
-    const rows = await query<{ config_value: string }>(
-      "SELECT config_value FROM sys_config WHERE config_key = 'guest_daily_eval_limit'",
-    )
-    const raw = Number(rows[0]?.config_value)
-    const value = !Number.isFinite(raw) || raw <= 0 ? DEFAULT_DAILY_LIMIT : Math.floor(raw)
-    limitCache = { value, expireAt: Date.now() + CACHE_TTL }
-    return value
+    const map = await getSysConfigKeys(['guest_daily_eval_limit'])
+    const raw = Number(map.get('guest_daily_eval_limit'))
+    return !Number.isFinite(raw) || raw <= 0 ? DEFAULT_DAILY_LIMIT : Math.floor(raw)
   } catch {
     return DEFAULT_DAILY_LIMIT
   }
 }
-
-let limitCache: { value: number; expireAt: number } | null = null
 
 /**
  * 检查游客评测配额。
@@ -156,12 +154,6 @@ export async function getGuestEvalQuota(
   } catch {
     return { dubbing: { used: 0, limit }, shadow: { used: 0, limit } }
   }
-}
-
-/** 使配额缓存失效（管理员修改配置或需要强制刷新时调用） */
-export function invalidateGuestEvalLimitCache(): void {
-  cache.clear()
-  limitCache = null
 }
 
 /** 精确清除指定游客的评测配额缓存条目（评测成功后调用，防止限流绕过） */

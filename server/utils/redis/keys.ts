@@ -4,11 +4,11 @@
 //
 // - {env} 段由 NODE_ENV 派生：development → dev，其余（production/test 等）一律 prod；
 //   未来多套生产环境再显式覆盖。派生在每次调用时读取（非 import 期固化），便于测试与热切换。
-// - domain 白名单本期仅 'cfg'（configStore）；'rl'/'fail'/'q' 随 P2 rateStore / P3 queueStore
-//   各自模块落地时再入表，避免本期提前铺设无人消费的域。
+// - domain 白名单：'cfg'（P1 configStore）+ 'rl'/'fail'（P2 rateStore：限流/防爆破计数）+
+//   'q'（P3 queueStore：埋点队列 STREAM，id 段为与真实表名对齐的 namespace）。
 
 /** domain 白名单（as const 保类型字面量，新增域只改此处） */
-export const REDIS_DOMAIN = ['cfg'] as const
+export const REDIS_DOMAIN = ['cfg', 'rl', 'fail', 'q'] as const
 
 /** 合法 domain 类型：白名单外的取值在编译期被拒绝 */
 export type RedisDomain = (typeof REDIS_DOMAIN)[number]

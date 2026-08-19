@@ -38,51 +38,8 @@ export default defineEventHandler(async (event) => {
 
   await query(`UPDATE sys_config SET config_value = ? WHERE config_key = ?`, [value, key])
 
-  // 已接入 configStore 的模块（限流 6 键 + 评测额度/闸门 4 键）：DEL 失效即时生效（失败靠 ≤10s TTL 自愈）
-  if (
-    key.startsWith('rate_limit_') ||
-    key === 'daily_eval_limit' ||
-    key === 'eval_limit_window' ||
-    key.startsWith('eval_gate_')
-  ) {
-    await invalidateSysConfig(key)
-  }
-
-  // 使服务队列并发配置缓存失效（下次入队即读新值并热更 p-queue concurrency）
-  if (key.startsWith('queue_')) {
-    const { invalidateServiceQueueCache } = await import('#server/services/serviceQueue')
-    invalidateServiceQueueCache()
-  }
-
-  // 使上传限制缓存失效（时长/大小/录音上限/队列深度即时生效）
-  if (key.startsWith('upload_')) {
-    const { invalidateUploadLimitCache } = await import('#server/utils/uploadLimitChecker')
-    invalidateUploadLimitCache()
-  }
-
-  // 使 DeepSeek 超时配置缓存失效
-  if (key.startsWith('deepseek_')) {
-    const { invalidateDeepseekConfigCache } = await import('#server/utils/deepseekConfig')
-    invalidateDeepseekConfigCache()
-  }
-
-  // 使管理员审核开关缓存失效
-  if (key === 'admin_moderation_enabled') {
-    const { invalidateAdminModerationCache } = await import('#server/utils/moderationConfig')
-    invalidateAdminModerationCache()
-  }
-
-  // 使游客音频限流配置缓存失效
-  if (key === 'guest_daily_audio_limit') {
-    const { invalidateGuestAudioLimitCache } = await import('#server/utils/guestOssLimit')
-    invalidateGuestAudioLimitCache()
-  }
-
-  // 使游客评测配额配置缓存失效
-  if (key === 'guest_daily_eval_limit') {
-    const { invalidateGuestEvalLimitCache } = await import('#server/utils/guestEvalLimit')
-    invalidateGuestEvalLimitCache()
-  }
+  // 所有 sys_config 键均已在 configStore 体系内：UPDATE 后无条件 DEL 失效即时生效（失败靠 ≤10s TTL 自愈）
+  await invalidateSysConfig(key)
 
   // 审计留痕
   await logAdminOperation(user.id, 'config.update', 'sys_config', 0, { key, value })

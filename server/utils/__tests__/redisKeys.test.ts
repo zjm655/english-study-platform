@@ -36,19 +36,34 @@ describe('redisKey - key 构造', () => {
 
   it('非法 domain 在类型层被拒绝（白名单外编译报错，运行时为纯拼接不拦截）', async () => {
     const { redisKey } = await import('../redis/keys')
-    // @ts-expect-error 'rl' 不在 domain 白名单，类型层应报错（本期仅 'cfg'）
-    const runtime = redisKey('rl', 'x')
+    // @ts-expect-error 'zz' 不在 domain 白名单，类型层应报错（'q' 已随 P3 queueStore 入表）
+    const runtime = redisKey('zz', 'x')
     // 运行时不做白名单拦截（类型层是唯一防线），仅验证纯拼接语义
-    expect(runtime).toBe('ep:prod:rl:x')
+    expect(runtime).toBe('ep:prod:zz:x')
   })
 })
 
 // ============ REDIS_DOMAIN 白名单 ============
 
 describe('REDIS_DOMAIN - 域白名单常量', () => {
-  it("本期白名单仅 'cfg'（rl/fail/q 随 P2/P3 各自模块再入表）", async () => {
+  it("白名单 'cfg'（P1 configStore）+ 'rl'/'fail'（P2 rateStore）+ 'q'（P3 queueStore 埋点队列）", async () => {
     const { REDIS_DOMAIN } = await import('../redis/keys')
-    expect([...REDIS_DOMAIN]).toEqual(['cfg'])
+    expect([...REDIS_DOMAIN]).toEqual(['cfg', 'rl', 'fail', 'q'])
+  })
+
+  it("P2 新增 'rl'/'fail' 域可经 redisKey 构造（rateStore 计数键，NODE_ENV=test → prod 段）", async () => {
+    const { redisKey } = await import('../redis/keys')
+    expect(redisKey('rl', 'ip:1.2.3.4:/api/client-error')).toBe(
+      'ep:prod:rl:ip:1.2.3.4:/api/client-error',
+    )
+    expect(redisKey('fail', 'user:42')).toBe('ep:prod:fail:user:42')
+  })
+
+  it("P3 新增 'q' 域可经 redisKey 构造（queueStore stream 键，namespace 与真实表名对齐）", async () => {
+    const { redisKey } = await import('../redis/keys')
+    expect(redisKey('q', 'api_call_log')).toBe('ep:prod:q:api_call_log')
+    expect(redisKey('q', 'cloud_service_call_log')).toBe('ep:prod:q:cloud_service_call_log')
+    expect(redisKey('q', 'alert_event')).toBe('ep:prod:q:alert_event')
   })
 })
 

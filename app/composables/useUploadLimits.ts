@@ -1,23 +1,13 @@
 // app/composables/useUploadLimits.ts
 import type { UploadLimits } from '#shared/types/uploadLimits'
 import type { ResPayload } from '#shared/types/request'
+import { DEFAULT_UPLOAD_LIMITS } from '#shared/utils/uploadLimits'
 
 /**
- * 内置静态默认值（与后端 sys_config 默认值同源）：
+ * 前端静态回退默认值（单一真相源在 #shared/utils/uploadLimits，与服务端校验兜底同源）：
  * 接口失败/未就绪时静默回退，保证上传前本地预校验始终可用
  */
-export const UPLOAD_LIMITS_FALLBACK: UploadLimits = {
-  maxAudioDurationUser: 180,
-  maxAudioDurationAdmin: 600,
-  maxAudioSizeUser: 2097152,
-  maxAudioSizeAdmin: 5242880,
-  recordingMaxSize: 52428800,
-  uploadQueueMax: 50,
-  minTextUser: 10,
-  maxTextUser: 5000,
-  minTextAdmin: 10,
-  maxTextAdmin: 5000,
-}
+export const UPLOAD_LIMITS_FALLBACK: UploadLimits = DEFAULT_UPLOAD_LIMITS
 
 /** 公开只读接口（无鉴权，游客白名单），见 server/api/config/upload-limits.get.ts */
 const uploadLimitsPath = '/api/config/upload-limits'

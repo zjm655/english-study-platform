@@ -2,12 +2,13 @@
  * 游客音频签名 URL 每日次数限流（server-only）
  *
  * 设计要点（仿 uploadLimitChecker）：
- * - 从 sys_config 读取 guest_daily_audio_limit（默认 20），运营可在管理端调整
- * - 内存计数（Map），按 guestKey + 当日日期维度计数，每日重置
- * - 配置缓存 5 分钟 TTL，避免每次查库
- * - 内存计数重启后重置（可接受，限流目的是控制成本而非精确计数）
+ * - 从 sys_config 读取 guest_daily_audio_limit（默认 20），运营可在管理端调整；
+ *   读取经 configStore（缓存语义由 configStore 承载，模块内不再自建配置缓存）
+ * - 计数经 rateStore 固窗（rl 域，键 = guestKey + 当日日期，TTL 24h，每日自然轮转）；
+ *   Redis 可用时计数跨重启持久，不可用自动降级内存镜像（同固窗语义）
  */
-import { query } from '#server/utils/db'
+import { getSysConfigKeys } from '#server/utils/configStore'
+import { incrWindow } from '#server/utils/rateStore'
 
 /** 默认每日限次（与 029 迁移 seed 值一致） */
 const DEFAULT_DAILY_LIMIT = 20
@@ -15,15 +16,8 @@ const DEFAULT_DAILY_LIMIT = 20
 /** sys_config 配置键 */
 const CONFIG_KEY = 'guest_daily_audio_limit'
 
-/** 缓存 sys_config 中的限次配置 */
-let cachedLimit: { value: number; expireAt: number } | null = null
-const CACHE_TTL = 5 * 60 * 1000 // 5 分钟
-
-/** 内存计数 Map：key = `${guestKey}:${YYYY-MM-DD}`, value = 已用次数 */
-const usageMap = new Map<string, number>()
-
-/** 最大跟踪条目数（防止内存无限增长） */
-const MAX_ENTRIES = 50_000
+/** 日计数窗口（秒）：24h，与日期键配合自然轮转 */
+const DAILY_WINDOW_SEC = 86_400
 
 /** 获取当日日期字符串 YYYY-MM-DD（使用 Date.now() 以便测试 mock） */
 function todayKey(): string {
@@ -34,23 +28,14 @@ function todayKey(): string {
   return `${y}-${m}-${day}`
 }
 
-/** 读取 sys_config 中的每日限次配置（带 5min 缓存） */
+/** 读取 sys_config 中的每日限次配置（经 configStore；解析与默认值留在本模块） */
 async function getDailyLimit(): Promise<number> {
-  if (cachedLimit && Date.now() < cachedLimit.expireAt) {
-    return cachedLimit.value
-  }
   try {
-    const rows = await query<{ config_value: string }>(
-      `SELECT config_value FROM sys_config WHERE config_key = ?`,
-      [CONFIG_KEY],
-    )
-    const raw = rows[0]?.config_value
-    const parsed = parseInt(raw ?? '', 10)
-    const value = isNaN(parsed) || parsed <= 0 ? DEFAULT_DAILY_LIMIT : parsed
-    cachedLimit = { value, expireAt: Date.now() + CACHE_TTL }
-    return value
+    const map = await getSysConfigKeys([CONFIG_KEY])
+    const parsed = parseInt(map.get(CONFIG_KEY) ?? '', 10)
+    return isNaN(parsed) || parsed <= 0 ? DEFAULT_DAILY_LIMIT : parsed
   } catch {
-    // 查询失败返回默认值，不阻塞业务
+    // 读取失败返回默认值，不阻塞业务
     return DEFAULT_DAILY_LIMIT
   }
 }
@@ -63,30 +48,13 @@ export async function checkGuestAudioLimit(
   guestKey: string,
 ): Promise<{ allowed: boolean; remaining: number }> {
   const limit = await getDailyLimit()
-  const key = `${guestKey}:${todayKey()}`
-
-  // 容量上限保护：淘汰最旧键
-  if (usageMap.size >= MAX_ENTRIES) {
-    const oldest = usageMap.keys().next().value
-    if (oldest !== undefined) usageMap.delete(oldest)
-  }
-
-  const used = usageMap.get(key) ?? 0
-  if (used >= limit) {
+  const { count } = await incrWindow(
+    'rl',
+    `guest-audio-key:${guestKey}:${todayKey()}`,
+    DAILY_WINDOW_SEC,
+  )
+  if (count > limit) {
     return { allowed: false, remaining: 0 }
   }
-
-  // 计数 +1
-  usageMap.set(key, used + 1)
-  return { allowed: true, remaining: limit - used - 1 }
-}
-
-/** 使配置缓存失效（管理员修改 guest_daily_audio_limit 后调用） */
-export function invalidateGuestAudioLimitCache(): void {
-  cachedLimit = null
-}
-
-/** 只读探针：当前计数 Map 条目数 */
-export function getGuestAudioLimitStats(): { trackedEntries: number } {
-  return { trackedEntries: usageMap.size }
+  return { allowed: true, remaining: Math.max(0, limit - count) }
 }

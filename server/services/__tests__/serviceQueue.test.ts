@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   withQueue,
   getQueueStats,
-  invalidateServiceQueueCache,
   syncServiceQueueConcurrency,
   __forceEnableForTest,
 } from '../serviceQueue'
@@ -11,27 +10,24 @@ import {
 // ===== serviceQueue 测试 =====
 // 覆盖：VITEST 默认直通 / 并发上限 / 0=直通 / priority / signal 取消 / 配置热更
 
-const { mockQuery } = vi.hoisted(() => ({ mockQuery: vi.fn() }))
+// 配置读取已接入 configStore（模块内不再自建缓存）：mock getSysConfigKeys 返回固定 Map，
+// 每次 withQueue 均重新读取，热更语义 = 改 mock 返回值后下次入队拿到新值
+const { mockGetSysConfigKeys } = vi.hoisted(() => ({ mockGetSysConfigKeys: vi.fn() }))
 
-vi.mock('#server/utils/db', () => ({ query: mockQuery }))
+vi.mock('#server/utils/configStore', () => ({ getSysConfigKeys: mockGetSysConfigKeys }))
 vi.mock('#server/utils/fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
 
-/** 配置 mock：返回各队列并发数 */
+/** 配置 mock：返回各队列并发数（未列出的队列 = 缺键 = 0 = 不限流） */
 function setConcurrency(values: Record<string, number>) {
-  mockQuery.mockResolvedValue(
-    Object.entries(values).map(([name, n]) => ({
-      config_key: `queue_${name}_concurrency`,
-      config_value: String(n),
-    })),
+  mockGetSysConfigKeys.mockResolvedValue(
+    new Map(Object.entries(values).map(([name, n]) => [`queue_${name}_concurrency`, String(n)])),
   )
-  invalidateServiceQueueCache()
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 beforeEach(() => {
   vi.clearAllMocks()
-  invalidateServiceQueueCache()
 })
 
 afterEach(() => {
@@ -42,7 +38,7 @@ describe('withQueue', () => {
   it('VITEST 环境默认直通（不加载配置、不排队）', async () => {
     const result = await withQueue('tts', async () => 'ok')
     expect(result).toBe('ok')
-    expect(mockQuery).not.toHaveBeenCalled()
+    expect(mockGetSysConfigKeys).not.toHaveBeenCalled()
   })
 
   it('并发配置为 0 时直通执行', async () => {
@@ -120,42 +116,22 @@ describe('withQueue', () => {
     expect(executed).not.toHaveBeenCalled()
   })
 
-  it('配置热更：invalidate 后下次入队读新值并更新 concurrency', async () => {
+  it('配置热更：读到新值后下次入队热更 concurrency', async () => {
     __forceEnableForTest(true)
     setConcurrency({ tts: 1 })
-    await withQueue('tts', async () => 'warm') // 触发首次配置加载
+    await withQueue('tts', async () => 'warm') // 触发首次配置读取并热更
     expect(getQueueStats().find((s) => s.name === 'tts')?.concurrency).toBe(1)
 
-    setConcurrency({ tts: 5 }) // 内含 invalidate
+    setConcurrency({ tts: 5 }) // 管理端改配置（configStore 缓存已失效/到期）
     await withQueue('tts', async () => 'reload')
     expect(getQueueStats().find((s) => s.name === 'tts')?.concurrency).toBe(5)
   })
 
-  it('配置查询失败时按不限流处理（不阻塞业务）', async () => {
+  it('配置读取失败时按不限流处理（不阻塞业务）', async () => {
     __forceEnableForTest(true)
-    mockQuery.mockRejectedValue(new Error('db down'))
-    invalidateServiceQueueCache()
+    mockGetSysConfigKeys.mockRejectedValue(new Error('db down'))
     const result = await withQueue('tts', async () => 'still-works')
     expect(result).toBe('still-works')
-  })
-
-  it('刷新在途时 invalidate：在途结果不写缓存，下次入队重新查库', async () => {
-    __forceEnableForTest(true)
-    // 第一次查询挂起，期间发生 invalidate（模拟管理端刚改完配置）
-    let resolveFirst!: (rows: unknown) => void
-    mockQuery.mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
-    invalidateServiceQueueCache()
-
-    const first = withQueue('tts', async () => 'first')
-    await sleep(10) // 确保在途刷新已发起
-    invalidateServiceQueueCache() // 管理端 PUT 新配置
-    resolveFirst([{ config_key: 'queue_tts_concurrency', config_value: '1' }]) // 旧配置返回
-    await first
-
-    // 旧结果不得写缓存：下次入队必须重新查库（拿到新配置 5）
-    mockQuery.mockResolvedValue([{ config_key: 'queue_tts_concurrency', config_value: '5' }])
-    await withQueue('tts', async () => 'second')
-    expect(getQueueStats().find((s) => s.name === 'tts')?.concurrency).toBe(5)
   })
 })
 

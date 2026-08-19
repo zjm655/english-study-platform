@@ -11,22 +11,20 @@
  *
  * 公开端点：错误常发生在登录前，不要求鉴权；body 仅 message/stack/url，无敏感字段约定。
  */
-import { query } from '#server/utils/db'
+import { getSysConfigKeys } from '#server/utils/configStore'
 import { logAlertEvent } from '#server/utils/alertEventLog'
 import { clientErrorReportSchema } from '#shared/schemas/clientError'
 import { validateSuccess, validateError } from '#server/utils/validate'
 
 export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
-  // 总开关（sys_config，查库失败按默认开启处理——旁路能力不阻塞上报）
+  // 总开关（sys_config 经 configStore，读取失败/缺键按默认开启处理——旁路能力不阻塞上报）
   try {
-    const rows = await query<{ config_value: string }>(
-      `SELECT config_value FROM sys_config WHERE config_key = 'client_error_report_enabled'`,
-    )
-    if (rows[0]?.config_value === '0') {
+    const map = await getSysConfigKeys(['client_error_report_enabled'])
+    if (map.get('client_error_report_enabled') === '0') {
       return validateSuccess(null, 'ok') // 已关闭：静默接受，不产生事件
     }
   } catch {
-    // 查库失败不阻断（旁路）
+    // 读取失败不阻断（旁路，默认开）
   }
 
   const parsed = clientErrorReportSchema.safeParse(await readBody(event).catch(() => ({})))

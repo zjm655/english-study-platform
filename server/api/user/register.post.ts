@@ -98,14 +98,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<null>> => {
     ])
   }
 
-  // 转正成功后，清理游客限流内存缓存中的残留条目（防止内存泄漏）
+  // 转正后合并指纹孤儿行数据（历史双通道产生的另一个游客行）
+  // 注：原此处调用 invalidateGuestAudioLimitCache / invalidateGuestEvalLimitCache 清理
+  // 游客限流配置缓存——配置值与用户身份无关，configStore 接入后自管配置一致性，
+  // 失效函数已删除；per-guest 结果缓存有 5min TTL + 容量淘汰自愈，且转正时已清
+  // 游客 cookie，无泄漏风险。
   if (promotedGuestId != null) {
-    const { invalidateGuestAudioLimitCache } = await import('#server/utils/guestOssLimit')
-    const { invalidateGuestEvalLimitCache } = await import('#server/utils/guestEvalLimit')
-    invalidateGuestAudioLimitCache()
-    invalidateGuestEvalLimitCache()
-
-    // 转正后合并指纹孤儿行数据（历史双通道产生的另一个游客行）
     const fingerprint = getRequestHeader(event, 'x-guest-fingerprint')
     if (fingerprint && /^[a-f0-9]{64}$/.test(fingerprint)) {
       try {

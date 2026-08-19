@@ -47,7 +47,7 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
   }
 
   // 4. 连错达阈值：强制图形验证码（用 428 与鉴权失效 401/403 区分，前端据此显示验证码）
-  if (getFailCount(account) >= CAPTCHA_THRESHOLD) {
+  if ((await getFailCount(account)) >= CAPTCHA_THRESHOLD) {
     const captchaOk = await verifyCaptcha(captchaToken ?? '', captchaCode ?? '')
     if (!captchaOk) {
       return validateError('请输入图形验证码', 428)
@@ -57,12 +57,12 @@ export default defineEventHandler(async (event): Promise<ResPayload<LoginRes | n
   // 5. 验证密码
   const isMatch = await bcrypt.compare(password, user.passwordHash)
   if (!isMatch) {
-    recordFail(account)
+    await recordFail(account)
     return validateError('密码错误', 401)
   }
 
   // 6. 登录成功：清零连续失败计数
-  resetFail(account)
+  await resetFail(account)
 
   // 7. 生成 JWT token
   const token = await signToken({ id: user.id, role: user.role })

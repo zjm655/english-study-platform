@@ -2,27 +2,20 @@
 // 游客懒实体化：仅当游客产生首条有价值行为（一期=正数学习时长上报）时才真正 INSERT user 行。
 import type { PoolConnection } from 'mysql2/promise'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { query } from '#server/utils/db'
+import { getSysConfigKeys } from '#server/utils/configStore'
 
 /** 游客单日学习时长上限默认值（秒，=4h）：sys_config 缺失/非法时兑底 */
 const DEFAULT_GUEST_DAILY_CAP = 14400
-const CACHE_TTL = 5 * 60 * 1000
-let cachedCap: { value: number; expireAt: number } | null = null
 
 /**
- * 读游客单日学习时长上限（sys_config 带 5min TTL 缓存，仿 quotaChecker 模式）。
- * 查库失败/非法值兑底默认，不阻断上报。
+ * 读游客单日学习时长上限（经 configStore，Redis 10s / 内存降级 5min，模块内不再自建缓存）。
+ * 读取失败/非法值兑底默认，不阻断上报。
  */
 export async function getGuestDailyStudyCap(): Promise<number> {
-  if (cachedCap && Date.now() < cachedCap.expireAt) return cachedCap.value
   try {
-    const rows = await query<{ config_value: string }>(
-      "SELECT config_value FROM sys_config WHERE config_key = 'guest_daily_study_cap'",
-    )
-    const raw = Number(rows[0]?.config_value)
-    const value = !Number.isFinite(raw) || raw <= 0 ? DEFAULT_GUEST_DAILY_CAP : Math.floor(raw)
-    cachedCap = { value, expireAt: Date.now() + CACHE_TTL }
-    return value
+    const map = await getSysConfigKeys(['guest_daily_study_cap'])
+    const raw = Number(map.get('guest_daily_study_cap'))
+    return !Number.isFinite(raw) || raw <= 0 ? DEFAULT_GUEST_DAILY_CAP : Math.floor(raw)
   } catch {
     return DEFAULT_GUEST_DAILY_CAP
   }

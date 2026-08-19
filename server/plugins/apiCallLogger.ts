@@ -89,7 +89,7 @@ export default defineNitroPlugin((nitroApp) => {
     // 限流检查（IP 级，用户级限流在 auth 中间件中处理；上传路径独立于全局 enabled）
     const rateLimitConfig = await getRateLimitConfig()
     const ip = getClientIp(event)
-    const { allowed, retryAfter } = checkRateLimit(ip, event.path, rateLimitConfig)
+    const { allowed, retryAfter } = await checkRateLimit(ip, event.path, rateLimitConfig)
     if (!allowed) {
       event.node.res.statusCode = 429
       event.node.res.setHeader('Content-Type', 'application/json; charset=utf-8')

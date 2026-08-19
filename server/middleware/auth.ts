@@ -9,7 +9,14 @@ import { getRateLimitConfig, checkUserRateLimit } from '#server/utils/rateLimite
 // 全局服务端中间件：每次请求自动解析 Cookie 中的 JWT
 export default defineEventHandler(async (event) => {
   // 1. 公开路由白名单，这些接口不需要登录
-  const publicPaths = ['/api/user/login', '/api/user/register', '/api/user/captcha']
+  // client-error：前端错误上报设计为公开端点（错误常发生在登录前），handler 内三层防滥用
+  // （IP 限流 + sys_config 总开关 + 内存队列静默吞错），见 client-error.post.ts 注释
+  const publicPaths = [
+    '/api/user/login',
+    '/api/user/register',
+    '/api/user/captcha',
+    '/api/client-error',
+  ]
 
   if (publicPaths.some((p) => event.path === p)) return
   else if (!event.path.startsWith('/api')) return
@@ -146,7 +153,12 @@ export default defineEventHandler(async (event) => {
   // 6. 用户级限流检查（上传路径独立于全局 enabled）
   const rateLimitConfig = await getRateLimitConfig()
   const ip = getClientIp(event)
-  const { allowed, retryAfter } = checkUserRateLimit(ip, event.path, dbUser.id, rateLimitConfig)
+  const { allowed, retryAfter } = await checkUserRateLimit(
+    ip,
+    event.path,
+    dbUser.id,
+    rateLimitConfig,
+  )
   if (!allowed) {
     event.node.res.statusCode = 429
     event.node.res.setHeader('Retry-After', String(retryAfter))

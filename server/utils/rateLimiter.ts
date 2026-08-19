@@ -1,8 +1,10 @@
 // server/utils/rateLimiter.ts
-// 内存滑动窗口限流器：每个 IP 按 route 分级限制请求频率
-// 滑窗计数器为进程内存实现，单机部署足够；开关配置读取经 configStore（双 Adapter）
+// 固定窗口限流器：每个 IP 按 route 分级限制请求频率
+// 计数经 rateStore（Redis 固窗 + 内存降级镜像，D-P2-4）：被拒请求也计数（D-P2-2），
+// retryAfter = 窗口剩余秒数；开关配置读取经 configStore（双 Adapter）
 
 import { getSysConfigKeys } from '#server/utils/configStore'
+import { incrWindow, getRateStoreStats } from '#server/utils/rateStore'
 
 interface RateLimitConfig {
   /** 时间窗口（毫秒） */
@@ -53,23 +55,6 @@ const AUTH_PATHS = new Set(['/api/user/login', '/api/user/register'])
 /** 登录/注册限流配置：10 次/分钟/IP */
 const AUTH_CONFIG: RateLimitConfig = { windowMs: 60_000, maxRequests: 10 }
 
-/** IP -> 时间戳数组 */
-const windowMap = new Map<string, number[]>()
-
-/** 最大跟踪 IP 数（防止内存无限增长） */
-const MAX_ENTRIES = 10_000
-
-/** 达到容量上限时淘汰最旧插入的键（FIFO 近似 LRU），而非拒绝新键——避免 IP 泛洪时误伤正常用户 */
-function evictOldestIfFull(): void {
-  if (windowMap.size >= MAX_ENTRIES) {
-    const oldestKey = windowMap.keys().next().value
-    if (oldestKey !== undefined) windowMap.delete(oldestKey)
-  }
-}
-
-/** 定时清理间隔（每 5 分钟清理一次过期 IP） */
-const CLEANUP_INTERVAL_MS = 5 * 60_000
-
 /** 限流开关默认值（全开，查询失败时回退到此） */
 const DEFAULT_SWITCHES: RateLimitSwitches = {
   enabled: true,
@@ -86,7 +71,7 @@ function isUploadPath(path: string): boolean {
 }
 
 /** 限流键与档位匹配统一按 pathname（strip query）：
- *  防止随机 query 制造无限新桶绕过滑窗限流，并挤爆 windowMap 误伤正常用户 */
+ *  防止随机 query 制造无限新桶绕过限流，并挤爆计数存储误伤正常用户 */
 function stripQuery(path: string): string {
   const i = path.indexOf('?')
   return i === -1 ? path : path.slice(0, i)
@@ -151,12 +136,18 @@ export async function getRateLimitConfig(): Promise<RateLimitSwitches> {
 /**
  * 检查请求是否被限流（IP 级）
  * 上传路径的限流独立于全局 enabled 开关（由 uploadEnabled 控制）。
+ * 计数经 rateStore 固定窗口：被拒请求也计数（incrWindow 无条件自增，D-P2-2），
+ * retryAfter 取 incrWindow 返回的窗口剩余秒数。
  * @param ip   客户端 IP
  * @param path 请求路径
  * @param cfg  限流配置（含全局开关与上传独立配置）
  * @returns 是否允许 + 重试等待秒数
  */
-export function checkRateLimit(ip: string, path: string, cfg: RateLimitSwitches): RateLimitResult {
+export async function checkRateLimit(
+  ip: string,
+  path: string,
+  cfg: RateLimitSwitches,
+): Promise<RateLimitResult> {
   // 限流口径按 endpoint（去 query）：event.path 含 query string
   path = stripQuery(path)
   // 上传路径：独立开关，不受全局 enabled 影响
@@ -170,56 +161,36 @@ export function checkRateLimit(ip: string, path: string, cfg: RateLimitSwitches)
   }
 
   const config = getConfig(path, cfg)
-  const now = Date.now()
-  const windowStart = now - config.windowMs
 
   // IP 级限流键含 path，避免不同路径共享 counter（cross-path 污染）
-  const key = `${ip}:${path}`
+  const id = `ip:${ip}:${path}`
 
-  // 获取或创建该键的时间戳数组
-  let timestamps = windowMap.get(key)
-  if (!timestamps) {
-    // 容量上限保护：淘汰最旧键而非拒绝新键（避免 IP 泛洪时误伤正常用户）
-    evictOldestIfFull()
-    timestamps = []
-    windowMap.set(key, timestamps)
+  // 固窗计数（窗口秒数向上取整保证 ≥1）；超限时计数继续增长（防滥用语义）
+  const { count, retryAfterSec } = await incrWindow('rl', id, Math.ceil(config.windowMs / 1000))
+  if (count > config.maxRequests) {
+    return { allowed: false, retryAfter: retryAfterSec }
   }
-
-  // 清除过期时间戳
-  const valid = timestamps.filter((t) => t > windowStart)
-  windowMap.set(key, valid)
-
-  // 检查是否超限
-  if (valid.length >= config.maxRequests) {
-    const oldest = valid[0]!
-    const retryAfterMs = oldest + config.windowMs - now
-    return {
-      allowed: false,
-      retryAfter: Math.ceil(retryAfterMs / 1000),
-    }
-  }
-
-  // 记录当前请求
-  valid.push(now)
   return { allowed: true }
 }
 
 /**
  * 检查请求是否被限流（用户级）
- * 使用 userId@ip:path 组合键，避免同 IP 多用户、不同路径互相影响。
+ * 使用 user:{userId}@{ip}:{path} 组合键，避免同 IP 多用户、不同路径互相影响。
  * 上传路径的限流独立于全局 enabled 开关（由 uploadEnabled 控制）。
+ * 计数经 rateStore 固定窗口：被拒请求也计数（incrWindow 无条件自增，D-P2-2），
+ * retryAfter 取 incrWindow 返回的窗口剩余秒数。
  * @param ip     客户端 IP
  * @param path   请求路径
  * @param userId 用户 ID
  * @param cfg    限流配置（含全局开关与上传独立配置）
  * @returns 是否允许 + 重试等待秒数
  */
-export function checkUserRateLimit(
+export async function checkUserRateLimit(
   ip: string,
   path: string,
   userId: number,
   cfg: RateLimitSwitches,
-): RateLimitResult {
+): Promise<RateLimitResult> {
   // 限流口径按 endpoint（去 query）：event.path 含 query string
   path = stripQuery(path)
   // 上传路径：独立开关，不受全局 enabled 影响
@@ -233,59 +204,23 @@ export function checkUserRateLimit(
   }
 
   const config = getConfig(path, cfg)
-  const now = Date.now()
-  const windowStart = now - config.windowMs
 
   // 用户级限流键含 path，避免不同路径共享 counter（cross-path 污染）
-  const key = `${userId}@${ip}:${path}`
+  const id = `user:${userId}@${ip}:${path}`
 
-  // 获取或创建该键的时间戳数组
-  let timestamps = windowMap.get(key)
-  if (!timestamps) {
-    // 容量上限保护：淘汰最旧键而非拒绝新键（避免 IP 泛洪时误伤正常用户）
-    evictOldestIfFull()
-    timestamps = []
-    windowMap.set(key, timestamps)
+  // 固窗计数（窗口秒数向上取整保证 ≥1）；超限时计数继续增长（防滥用语义）
+  const { count, retryAfterSec } = await incrWindow('rl', id, Math.ceil(config.windowMs / 1000))
+  if (count > config.maxRequests) {
+    return { allowed: false, retryAfter: retryAfterSec }
   }
-
-  // 清除过期时间戳
-  const valid = timestamps.filter((t) => t > windowStart)
-  windowMap.set(key, valid)
-
-  // 检查是否超限
-  if (valid.length >= config.maxRequests) {
-    const oldest = valid[0]!
-    const retryAfterMs = oldest + config.windowMs - now
-    return {
-      allowed: false,
-      retryAfter: Math.ceil(retryAfterMs / 1000),
-    }
-  }
-
-  // 记录当前请求
-  valid.push(now)
   return { allowed: true }
 }
 
-/** 定时清理：删除所有时间戳均已过期的 IP 条目 */
-function cleanup() {
-  const now = Date.now()
-  // 用最宽松的窗口（DEFAULT_CONFIG）判断过期
-  const threshold = now - DEFAULT_CONFIG.windowMs
-  for (const [ip, timestamps] of windowMap.entries()) {
-    const hasRecent = timestamps.some((t) => t > threshold)
-    if (!hasRecent) {
-      windowMap.delete(ip)
-    }
-  }
-}
-
-// 启动定时清理
-if (typeof setInterval !== 'undefined') {
-  setInterval(cleanup, CLEANUP_INTERVAL_MS)
-}
-
-/** 只读探针：限流滑窗水位快照（键为 ip:path 组合键，命名 trackedKeys 防误读为在线 IP 数） */
+/**
+ * 只读探针：限流计数水位快照（委托 rateStore 内存降级镜像的条目数与软上限；
+ * Redis 激活时 trackedKeys=0 属正常。命名 trackedKeys 防误读为在线 IP 数）
+ */
 export function getRateLimiterStats(): { trackedKeys: number; maxEntries: number } {
-  return { trackedKeys: windowMap.size, maxEntries: MAX_ENTRIES }
+  const { memoryEntries, memoryMaxEntries } = getRateStoreStats()
+  return { trackedKeys: memoryEntries, maxEntries: memoryMaxEntries }
 }

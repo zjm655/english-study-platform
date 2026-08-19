@@ -12,6 +12,10 @@ vi.mock('../../../shared/utils/logger', () => ({
   log: vi.fn(),
 }
 
+// ===== mock redisConn（cloudServiceLog → queueStore 动态 import 的连接层）=====
+// 测试环境无 Redis：getRedis 返回 null 走内存降级；兼避免真实加载 redis npm 包拖慢模块加载
+vi.mock('#server/utils/redisConn', () => ({ getRedis: () => null }))
+
 // ===== mock @alicloud/pop-core =====
 const mockRequest = vi.fn()
 vi.mock('@alicloud/pop-core', () => ({

@@ -10,8 +10,8 @@
 // - 队列粒度 = 云产品（并发配额是云产品的属性，不是接口的属性）。
 //   注册表：tts / nls / deepseek（云产品） + upload（材料上传流水线业务任务）。
 // - OSS 与 DB 显式不接：OSS 无并发瓶颈；DB 连接池（connectionLimit + waitForConnections）本身就是队列。
-// - 并发数来自 sys_config（queue_{name}_concurrency，5min TTL 缓存，管理端 config 页可调，
-//   PUT 后 invalidateServiceQueueCache() 即时失效）；0 或缺失 = 不限流（直通，接入零风险）。
+// - 并发数来自 sys_config（queue_{name}_concurrency，经 configStore 双 Adapter 批量读取，
+//   管理端 PUT 后 DEL 即时失效、失败 ≤10s TTL 自愈）；0 或缺失 = 不限流（直通，接入零风险）。
 // - 队列永远不是任务的持久化真相源——进程重启队列即空，上传任务真相在 material_upload_record，
 //   由 server/plugins/02.queueRecovery.ts 启动扫描兜底。
 // - 埋点口径：cloud_service_call_log.duration_ms 只计执行不计排队（各服务函数的计时起点
@@ -27,7 +27,7 @@ export type ServiceQueueName = 'tts' | 'nls' | 'deepseek' | 'upload'
 const QUEUE_NAMES: ServiceQueueName[] = ['tts', 'nls', 'deepseek', 'upload']
 
 /**
- * 测试短路：Vitest 下 withQueue 直通执行任务，不加载 p-queue 调度与 DB 配置链，
+ * 测试短路：Vitest 下 withQueue 直通执行任务，不加载 p-queue 调度与 configStore 配置链，
  * 保护真实加载 tts.ts/speechToText.ts 等模块链的既有测试（仿 fileLogger 的 IS_TEST 先例）。
  * serviceQueue 自身的单测通过 __forceEnableForTest() 显式开启真实路径。
  */
@@ -36,14 +36,6 @@ let forceEnabledInTest = false
 
 /** 队列实例注册表（懒创建，模块作用域零副作用：无定时器、不碰 useRuntimeConfig） */
 const queues = new Map<ServiceQueueName, PQueue>()
-
-/** 并发配置缓存（TTL 5min，仿 quotaChecker 模式） */
-let cachedConcurrency: { values: Map<ServiceQueueName, number>; expireAt: number } | null = null
-const CACHE_TTL = 5 * 60 * 1000
-/** 单飞（single-flight）：并发冷缓存时共享同一次刷新，避免重复查询与竞态 */
-let refreshInFlight: Promise<Map<ServiceQueueName, number>> | null = null
-/** 失效代数：invalidate 时 +1，在途刷新完成时代数不符则不写缓存（防旧配置覆盖新失效） */
-let cacheGeneration = 0
 
 /** 等待告警：任务在队列中等待超过该时长则记文件日志（节流：每队列每分钟至多一条） */
 const WAIT_WARN_MS = 10_000
@@ -58,27 +50,23 @@ function getQueue(name: ServiceQueueName): PQueue {
   return q
 }
 
+/** 单飞（single-flight）：并发入队时共享同一次配置读取，避免重复调用 configStore 与并发动态 import 竞态 */
+let refreshInFlight: Promise<Map<ServiceQueueName, number>> | null = null
+
 /**
- * 读取并应用并发配置（惰性 TTL 刷新 + 单飞）。
- * db 用动态 import：测试直通路径与未触发刷新时完全不加载 db 模块链。
- * 查询失败时沿用旧缓存值（若有），绝不用全 0 覆盖有效配置解除限流。
+ * 读取并应用并发配置（经 configStore 双 Adapter 批量读取，缓存语义由 configStore 承载：
+ * Redis 可用 10s 抖动 TTL / 不可用内存 5min TTL；管理端 PUT 后 DEL 即时失效）。
+ * configStore 用动态 import：测试直通路径与未触发刷新时完全不加载 db/redis 模块链。
+ * 读取失败时本次按不限流处理（0=直通），不阻塞业务；队列实例保持既有并发不回退。
  */
 async function refreshConcurrency(): Promise<Map<ServiceQueueName, number>> {
-  if (cachedConcurrency && Date.now() < cachedConcurrency.expireAt) {
-    return cachedConcurrency.values
-  }
   if (refreshInFlight) {
     return refreshInFlight
   }
   refreshInFlight = (async () => {
-    const gen = cacheGeneration
     try {
-      const { query } = await import('#server/utils/db')
-      const keys = QUEUE_NAMES.map((n) => `'queue_${n}_concurrency'`).join(', ')
-      const rows = await query<{ config_key: string; config_value: string }>(
-        `SELECT config_key, config_value FROM sys_config WHERE config_key IN (${keys})`,
-      )
-      const map = new Map(rows.map((r) => [r.config_key, r.config_value]))
+      const { getSysConfigKeys } = await import('#server/utils/configStore')
+      const map = await getSysConfigKeys(QUEUE_NAMES.map((n) => `queue_${n}_concurrency`))
       const values = new Map<ServiceQueueName, number>()
       for (const name of QUEUE_NAMES) {
         const raw = parseInt(map.get(`queue_${name}_concurrency`) ?? '0', 10)
@@ -89,14 +77,9 @@ async function refreshConcurrency(): Promise<Map<ServiceQueueName, number>> {
         const n = values.get(name) ?? 0
         getQueue(name).concurrency = n > 0 ? n : Infinity
       }
-      // 刷新期间若发生过 invalidate（管理端刚改完配置），本次结果已旧：不写缓存，下次重新查库
-      if (gen === cacheGeneration) {
-        cachedConcurrency = { values, expireAt: Date.now() + CACHE_TTL }
-      }
       return values
     } catch {
-      // 查询失败：优先沿用旧值（不延长 TTL，下次仍重试）；无旧值则本次按不限流处理，不写缓存
-      if (cachedConcurrency) return cachedConcurrency.values
+      // 读取失败：本次按不限流处理（0=直通），不阻塞业务；队列实例保持既有并发不回退
       const fallback = new Map<ServiceQueueName, number>()
       for (const name of QUEUE_NAMES) fallback.set(name, 0)
       return fallback
@@ -107,16 +90,10 @@ async function refreshConcurrency(): Promise<Map<ServiceQueueName, number>> {
   return refreshInFlight
 }
 
-/** 使配置缓存失效（管理端修改 queue_* 配置后调用，下次入队即读新值并热更） */
-export function invalidateServiceQueueCache(): void {
-  cachedConcurrency = null
-  cacheGeneration++
-}
-
 /**
  * 确保并发配置已加载并热更到队列实例（供 GET /api/admin/monitor 在读水位前调用）。
- * 背景：配置为惰性加载——只在首次 withQueue 时读库；服务刚重启且无云调用时队列实例
- * 保持初始 Infinity，getQueueStats 会误报「不限流」。本函数走 TTL 缓存，监控轮询不放大查询。
+ * 背景：配置为惰性加载——只在首次 withQueue 时读取；服务刚重启且无云调用时队列实例
+ * 保持初始 Infinity，getQueueStats 会误报「不限流」。读取走 configStore 缓存，监控轮询不放大查询。
  */
 export async function syncServiceQueueConcurrency(): Promise<void> {
   if (IS_TEST && !forceEnabledInTest) return

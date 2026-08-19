@@ -1,10 +1,10 @@
 // server/utils/apiCallLog.ts
 // API 调用埋点写入：运营统计模块的数据源，记录全量 /api 请求。
 //
-// 批量写入模式（P3-I 重构）：内存队列逻辑统一收敛到 batchQueue 工厂；
+// 批量写入模式（P3-I 重构）：队列逻辑统一收敛到 queueStore（Redis STREAM + 内存降级）；
 // 本文件保留 entry 类型 / 诊断截断工具 / 对外导出名（调用方零改动）。
 // 写埋点失败【静默吞错】——埋点是旁路能力，绝不阻塞业务流程。
-import { createBatchQueue } from '#server/utils/batchQueue'
+import { createQueue } from '#server/utils/queueStore'
 import { logAlertEvent } from '#server/utils/alertEventLog'
 
 /** 单条埋点记录 */
@@ -44,12 +44,13 @@ export function truncateDiag(text: string | null | undefined, max: number): stri
   return text.slice(0, max - TRUNCATED_MARK.length) + TRUNCATED_MARK
 }
 
-// ─── 批量队列（P3-I：由 batchQueue 工厂统一实现）────────────
+// ─── 批量队列（P3-I：由 queueStore 统一实现（Redis STREAM + 内存降级））────────────
 
 const BATCH_SIZE = 100
 const MAX_QUEUE_SIZE = 10_000
 
-const apiCallQueue = createBatchQueue<ApiCallEntry>({
+const apiCallQueue = createQueue<ApiCallEntry>({
+  namespace: 'api_call_log',
   batchSize: BATCH_SIZE,
   maxQueueSize: MAX_QUEUE_SIZE,
   errorLabel: '[api call log] 批量写入失败:',

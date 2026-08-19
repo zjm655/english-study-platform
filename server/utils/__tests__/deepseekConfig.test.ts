@@ -3,19 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   mapRowsToDeepseekParams,
   getDeepseekParams,
-  invalidateDeepseekConfigCache,
   DEFAULT_DEEPSEEK_TIMEOUT_MS,
   DEFAULT_DEEPSEEK_TITLE_TIMEOUT_MS,
   DEFAULT_DEEPSEEK_CONTENT_MAX_TOKENS,
   DEFAULT_DEEPSEEK_TITLE_MAX_TOKENS,
 } from '../deepseekConfig'
 
-// 模块内部用 query 查 sys_config，mock 掉 db.query 即可隔离逻辑（不依赖真实 DB）
-const { mockQuery } = vi.hoisted(() => ({
-  mockQuery: vi.fn(),
+// 配置读取已接入 configStore（模块内不再自建缓存），mock getSysConfigKeys 返回固定 Map
+const { mockGetSysConfigKeys } = vi.hoisted(() => ({
+  mockGetSysConfigKeys: vi.fn(),
 }))
 
-vi.mock('#server/utils/db', () => ({ query: mockQuery }))
+vi.mock('#server/utils/configStore', () => ({ getSysConfigKeys: mockGetSysConfigKeys }))
 
 /** 完整合法的 sys_config 行（与 033 迁移 seed 同键，取非默认值验证真实解析） */
 const FULL_ROWS = [
@@ -25,10 +24,11 @@ const FULL_ROWS = [
   { config_key: 'deepseek_title_max_tokens', config_value: '350' },
 ]
 
+/** configStore 返回形态：原始字符串 Map（缺键不在其中，调用方走默认值） */
+const fullMap = () => new Map(FULL_ROWS.map((r) => [r.config_key, r.config_value]))
+
 beforeEach(() => {
   vi.clearAllMocks()
-  // 模块级缓存需在每条用例前清掉避免互相污染
-  invalidateDeepseekConfigCache()
 })
 
 // ============ 纯映射函数 ============
@@ -131,33 +131,44 @@ describe('mapRowsToDeepseekParams - max_tokens 非法值兜底', () => {
   })
 })
 
-// ============ getDeepseekParams（mock query，不依赖真实 DB） ============
+// ============ getDeepseekParams（mock configStore，不依赖真实 DB/Redis） ============
 
-describe('getDeepseekParams - 缓存与旁路兜底', () => {
-  it('首次查库解析，TTL 内二次调用不再查库', async () => {
-    mockQuery.mockResolvedValue(FULL_ROWS)
+describe('getDeepseekParams - configStore 读取与旁路兜底', () => {
+  it('一次批量传入全部 4 键并正确解析', async () => {
+    mockGetSysConfigKeys.mockResolvedValueOnce(fullMap())
+    const params = await getDeepseekParams()
+    expect(params.contentTimeoutMs).toBe(90000)
+    expect(params.titleTimeoutMs).toBe(45000)
+    expect(params.contentMaxTokens).toBe(6000)
+    expect(params.titleMaxTokens).toBe(350)
+    expect(mockGetSysConfigKeys).toHaveBeenCalledTimes(1)
+    expect(mockGetSysConfigKeys.mock.calls[0]![0]).toEqual([
+      'deepseek_timeout_ms',
+      'deepseek_title_timeout_ms',
+      'deepseek_max_tokens',
+      'deepseek_title_max_tokens',
+    ])
+  })
+
+  it('模块内无缓存：每次调用都委托 configStore（缓存语义由 configStore 承载）', async () => {
+    mockGetSysConfigKeys.mockResolvedValue(fullMap())
     const first = await getDeepseekParams()
     const second = await getDeepseekParams()
-    expect(first.contentTimeoutMs).toBe(90000)
-    expect(first.titleTimeoutMs).toBe(45000)
-    expect(first.contentMaxTokens).toBe(6000)
-    expect(first.titleMaxTokens).toBe(350)
     expect(second).toEqual(first)
-    expect(mockQuery).toHaveBeenCalledTimes(1)
+    expect(mockGetSysConfigKeys).toHaveBeenCalledTimes(2)
   })
 
-  it('invalidateDeepseekConfigCache 后重新查库', async () => {
-    mockQuery.mockResolvedValue(FULL_ROWS)
+  it('配置变更即时生效：configStore 返回新值后下次调用立即采用（无需 invalidate）', async () => {
+    mockGetSysConfigKeys
+      .mockResolvedValueOnce(fullMap())
+      .mockResolvedValueOnce(new Map([['deepseek_timeout_ms', '200000']]))
     await getDeepseekParams()
-    invalidateDeepseekConfigCache()
-    mockQuery.mockResolvedValue([{ config_key: 'deepseek_timeout_ms', config_value: '200000' }])
     const params = await getDeepseekParams()
     expect(params.contentTimeoutMs).toBe(200000)
-    expect(mockQuery).toHaveBeenCalledTimes(2)
   })
 
-  it('查库异常时返回全默认值（旁路不阻断业务）', async () => {
-    mockQuery.mockRejectedValue(new Error('db down'))
+  it('configStore 异常时返回全默认值（旁路不阻断业务）', async () => {
+    mockGetSysConfigKeys.mockRejectedValue(new Error('configStore down'))
     await expect(getDeepseekParams()).resolves.toEqual({
       contentTimeoutMs: DEFAULT_DEEPSEEK_TIMEOUT_MS,
       titleTimeoutMs: DEFAULT_DEEPSEEK_TITLE_TIMEOUT_MS,
@@ -166,10 +177,10 @@ describe('getDeepseekParams - 缓存与旁路兜底', () => {
     })
   })
 
-  it('查库异常不写缓存：恢复后下次调用读到真实配置', async () => {
-    mockQuery.mockRejectedValueOnce(new Error('db down'))
+  it('configStore 异常恢复后下次调用读到真实配置', async () => {
+    mockGetSysConfigKeys.mockRejectedValueOnce(new Error('configStore down'))
     await getDeepseekParams()
-    mockQuery.mockResolvedValue(FULL_ROWS)
+    mockGetSysConfigKeys.mockResolvedValueOnce(fullMap())
     const params = await getDeepseekParams()
     expect(params.contentTimeoutMs).toBe(90000)
   })

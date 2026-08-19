@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
     event.node.res.statusCode = 429
     return validateError('今日音频播放次数已用完，登录后可无限使用', 429)
   }
-  if (!checkGuestAudioByIp(getClientIp(event))) {
+  if (!(await checkGuestAudioByIp(getClientIp(event)))) {
     event.node.res.statusCode = 429
     return validateError('今日音频播放次数已用完，登录后可无限使用', 429)
   }

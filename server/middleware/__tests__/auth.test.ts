@@ -38,7 +38,7 @@ vi.mock('#server/utils/rateLimiter', () => ({
   getRateLimitConfig: vi
     .fn()
     .mockResolvedValue({ enabled: false, ipLevel: false, userLevel: false }),
-  checkUserRateLimit: vi.fn().mockReturnValue({ allowed: true }),
+  checkUserRateLimit: vi.fn().mockResolvedValue({ allowed: true }),
 }))
 
 // isPublicReadPath 在中间件内是 Nitro 自动导入：挂真实实现（纯函数，无需 mock）

@@ -16,7 +16,7 @@ import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
 
 /** 每用户权限缓存 TTL（60s）——管理员请求高频，避免每次查库；授权后精确失效。 */
 const PERM_CACHE_TTL = 60 * 1000
-/** userId -> { 权限键集合, 过期时间戳 }（仿 rateLimiter.ts 的 cachedSwitches 模式） */
+/** userId -> { 权限键集合, 过期时间戳 }（进程内 TTL 缓存，命中免查库） */
 const permCache = new Map<number, { perms: Set<string>; expireAt: number }>()
 
 /**

@@ -74,7 +74,10 @@ export default defineEventHandler(
 
     // 4.5 游客每日上传配额（P4-A1：IP 50 次/日 + 指纹 20 次/日，防换指纹无限灌库；登录用户不限）
     if (fingerprint) {
-      if (!checkGuestUploadByIp(getClientIp(event)) || !checkGuestUploadByFp(fingerprint)) {
+      if (
+        !(await checkGuestUploadByIp(getClientIp(event))) ||
+        !(await checkGuestUploadByFp(fingerprint))
+      ) {
         return validateError('今日录音上传次数已用完，登录后可无限使用', 429)
       }
     }

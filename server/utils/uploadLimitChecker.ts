@@ -3,26 +3,14 @@
  *
  * 设计要点（仿 quotaChecker）：
  * - 原硬编码常量（时长/大小/录音上限/队列深度）抽入 sys_config，运营可在管理端调整
- * - 内存缓存（TTL 5min），避免每次上传请求都查 sys_config
- * - 查库异常 / 键缺失 / 非法值一律兜底为默认值，旁路读取绝不阻断上传业务
+ * - 配置读取经 configStore（getSysConfigKeys 一次批量 10 键，缓存语义由 configStore 承载）
+ * - 读取异常 / 键缺失 / 非法值一律兜底为默认值，旁路读取绝不阻断上传业务
  * - 契约类型 UploadLimits 定义于 #shared/types/uploadLimits，前端预校验与单测共用
+ * - 默认值单一真相源在 #shared/utils/uploadLimits（前端回退共用同一份，改默认值须同步迁移 seed）
  */
-import { query } from '#server/utils/db'
+import { getSysConfigKeys } from '#server/utils/configStore'
+import { DEFAULT_UPLOAD_LIMITS } from '#shared/utils/uploadLimits'
 import type { UploadLimits } from '#shared/types/uploadLimits'
-
-/** 各配置项默认值（与 024/040 迁移 seed 值一致，查库失败时整体兜底） */
-export const DEFAULT_UPLOAD_LIMITS: UploadLimits = {
-  maxAudioDurationUser: 180,
-  maxAudioDurationAdmin: 600,
-  maxAudioSizeUser: 2 * 1024 * 1024,
-  maxAudioSizeAdmin: 5 * 1024 * 1024,
-  recordingMaxSize: 50 * 1024 * 1024,
-  uploadQueueMax: 50,
-  minTextUser: 10,
-  maxTextUser: 5000,
-  minTextAdmin: 10,
-  maxTextAdmin: 5000,
-}
 
 /** sys_config 中的 10 个配置键（与 024/040_upload_text_limits.sql seed 一致） */
 const UPLOAD_LIMIT_KEYS = [
@@ -38,12 +26,10 @@ const UPLOAD_LIMIT_KEYS = [
   'upload_max_text_admin',
 ] as const
 
-/** 缓存 sys_config 中的上传限制配置 */
-let cachedLimits: { limits: UploadLimits; expireAt: number } | null = null
-const CACHE_TTL = 5 * 60 * 1000 // 5 分钟
+/** 缓存已收敛至 configStore（模块内不再自建缓存） */
 
 /**
- * 纯映射函数：sys_config 行 → UploadLimits（导出供单测覆盖解析/兜底逻辑，不触发查库）
+ * 纯映射函数：sys_config 行 → UploadLimits（导出供单测覆盖解析/兜底逻辑，不触发读取）
  * 单键粒度兜底：缺键 / NaN / 0 / 负数均回退到对应默认值
  */
 export function mapRowsToUploadLimits(
@@ -74,21 +60,17 @@ export function mapRowsToUploadLimits(
   }
 }
 
-/** 获取上传限制配置（带缓存） */
+/** 获取上传限制配置（经 configStore 一次批量读取；解析与默认值兜底留在本模块） */
 export async function getUploadLimits(): Promise<UploadLimits> {
-  if (cachedLimits && Date.now() < cachedLimits.expireAt) {
-    return cachedLimits.limits
-  }
   try {
-    const rows = await query<{ config_key: string; config_value: string }>(
-      `SELECT config_key, config_value FROM sys_config WHERE config_key IN (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [...UPLOAD_LIMIT_KEYS],
-    )
-    const limits = mapRowsToUploadLimits(rows)
-    cachedLimits = { limits, expireAt: Date.now() + CACHE_TTL }
-    return limits
+    const map = await getSysConfigKeys([...UPLOAD_LIMIT_KEYS])
+    const rows = [...map.entries()].map(([config_key, config_value]) => ({
+      config_key,
+      config_value,
+    }))
+    return mapRowsToUploadLimits(rows)
   } catch {
-    // 查询失败时返回全默认值，不阻塞上传业务（也不写缓存，下次仍尝试查库）
+    // 读取失败时返回全默认值，不阻塞上传业务
     return { ...DEFAULT_UPLOAD_LIMITS }
   }
 }
@@ -119,9 +101,4 @@ export function validateUploadText(
     return { ok: false, message: `材料文本不能超过${max}个字符` }
   }
   return { ok: true, text: trimmed }
-}
-
-/** 使缓存失效（管理员修改 upload_ 前缀配置后调用） */
-export function invalidateUploadLimitCache(): void {
-  cachedLimits = null
 }
