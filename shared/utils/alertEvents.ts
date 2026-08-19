@@ -11,6 +11,7 @@ export const ALERT_EVENT_SOURCES = [
   'task_fail',
   'cloud_health',
   'security',
+  'redis_health',
 ] as const
 
 /** 告警事件源类型 */

@@ -11,7 +11,7 @@
 
 CREATE TABLE `alert_event` (
   `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT,
-  `source` varchar(20) NOT NULL COMMENT '事件来源: client_error/log_queue/task_fail/cloud_health',
+  `source` varchar(20) NOT NULL COMMENT '事件来源: client_error/log_queue/task_fail/cloud_health/security/redis_health',
   `level` varchar(10) NOT NULL DEFAULT 'error' COMMENT '级别: error/warn',
   `code` varchar(50) NULL DEFAULT NULL COMMENT '事件码: client_js_error/client_unhandledrejection/log_queue_dropped/task_fail 等',
   `message` varchar(500) NULL DEFAULT NULL COMMENT '事件概要（截断500）',

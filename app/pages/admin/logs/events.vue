@@ -30,6 +30,7 @@ const SOURCE_LABELS: Record<string, string> = {
   task_fail: '任务失败',
   cloud_health: '云健康',
   security: '安全事件',
+  redis_health: 'Redis 健康',
 }
 
 function sourceTagType(source: string) {
