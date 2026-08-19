@@ -65,6 +65,36 @@ export interface SttMonitorStat {
   todayFallbacks: number
 }
 
+/** Redis INFO 摘要 */
+export interface RedisInfoSummary {
+  version?: string
+  usedMemoryBytes?: number
+  maxMemoryBytes?: number
+  connectedClients?: number
+  /** 距上次成功 RDB 保存的秒数 */
+  rdbLastBgsaveAgoSec?: number
+  rdbBgsaveInProgress?: boolean
+}
+/** 单域 key 统计 */
+export interface RedisDomainStat {
+  /** 该域 key 总数 */
+  keys: number
+  /** 将过期（TTL>0）数 */
+  expiring: number
+  /** 无 TTL（TTL=-1）数 */
+  noTtl: number
+}
+/** Redis 健康状态（并入 AdminMonitorSnapshot.redis） */
+export interface RedisMonitorStat {
+  /** 是否配置了 NUXT_REDIS_HOST */
+  configured: boolean
+  /** getRedis 就绪 */
+  online: boolean
+  info: RedisInfoSummary | null
+  /** 按 redisKey 域分组统计（key: 域名字符串） */
+  domains: Record<string, RedisDomainStat> | null
+}
+
 /** GET /api/admin/monitor 聚合快照（均为进程内实时状态，多实例部署仅反映本实例） */
 export interface AdminMonitorSnapshot {
   queues: QueueStatItem[]
@@ -73,6 +103,7 @@ export interface AdminMonitorSnapshot {
   buffers: LogBufferStat[]
   rateLimiter: RateLimiterStats
   stt: SttMonitorStat
+  redis: RedisMonitorStat
   /** 快照生成时刻（ISO 字符串，服务器时间） */
   serverTime: string
 }

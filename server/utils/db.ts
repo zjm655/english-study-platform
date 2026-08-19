@@ -3,6 +3,10 @@
 import mysql, { type PoolConnection } from 'mysql2/promise'
 
 const config = useRuntimeConfig().db
+
+/** 应用连接池上限（mysqlMonitor 展示用；全项目唯一来源） */
+export const DB_POOL_LIMIT = 10
+
 export const pool = mysql.createPool({
   host: config.host || 'localhost',
   port: Number(config.port) || 3306, // 转为数字，提供默认值
@@ -10,7 +14,7 @@ export const pool = mysql.createPool({
   password: config.password || '',
   database: config.database || 'nuxt4_demo',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: DB_POOL_LIMIT,
 })
 
 /** 泛型查询封装，避免调用方使用类型断言 */

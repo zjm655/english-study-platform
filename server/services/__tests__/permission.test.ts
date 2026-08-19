@@ -9,7 +9,11 @@ import {
   writeReviewAccessLog,
   auditionUnlock,
 } from '../permission'
-import { PERMISSIONS } from '#shared/utils/permission'
+import {
+  PERMISSIONS,
+  GRANTABLE_PERMISSIONS,
+  DEFAULT_ADMIN_PERMISSIONS,
+} from '#shared/utils/permission'
 import { ROLE_USER, ROLE_ADMIN, ROLE_SUPER_ADMIN } from '#shared/utils/role'
 
 // 单元测试：细粒度权限运行时（缓存 / 守卫 / 审计留痕 / 门禁解锁）。
@@ -230,5 +234,21 @@ describe('auditionUnlock - 门禁解锁「校验→留痕→签名」', () => {
     mockQuery.mockRejectedValueOnce(new Error('insert failed'))
     await expect(auditionUnlock(event, base)).rejects.toThrow()
     expect(mockSignUrl).not.toHaveBeenCalled()
+  })
+})
+
+// ============ ops_backup 运维备份权限（P4 后续 spec 任务 3） ============
+
+describe('ops_backup 运维备份权限', () => {
+  it('权限键存在且值为 ops_backup', () => {
+    expect(PERMISSIONS.OPS_BACKUP).toBe('ops_backup')
+  })
+
+  it('可被授权：grant_permissions 之外均可授予（GRANTABLE_PERMISSIONS 含 ops_backup）', () => {
+    expect(GRANTABLE_PERMISSIONS).toContain(PERMISSIONS.OPS_BACKUP)
+  })
+
+  it('不随存量管理员默认权限下放（仅超管显式授予）', () => {
+    expect(DEFAULT_ADMIN_PERMISSIONS).not.toContain(PERMISSIONS.OPS_BACKUP)
   })
 })

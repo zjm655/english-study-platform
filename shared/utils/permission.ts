@@ -23,6 +23,8 @@ export const PERMISSIONS = {
   MANAGE_NOTICES: 'manage_notices',
   /** 授权管理：改角色 + 授予权限（超管隐式持有，不通过权限表下放） */
   GRANT_PERMISSIONS: 'grant_permissions',
+  /** 运维备份：触发 Redis RDB 备份（超管隐式持有，不默认下放） */
+  OPS_BACKUP: 'ops_backup',
 } as const
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS]
@@ -41,6 +43,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   [PERMISSIONS.VIEW_AUDIT]: '审计查看',
   [PERMISSIONS.MANAGE_NOTICES]: '公告管理',
   [PERMISSIONS.GRANT_PERMISSIONS]: '授权管理',
+  [PERMISSIONS.OPS_BACKUP]: '运维备份',
 }
 
 /**

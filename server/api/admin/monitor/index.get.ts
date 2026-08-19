@@ -5,6 +5,7 @@ import { getSttMonitorSnapshot } from '#server/services/sttFiletrans'
 import { getApiCallLogStats } from '#server/utils/apiCallLog'
 import { getCloudServiceLogStats } from '#server/utils/cloudServiceLog'
 import { getRateLimiterStats } from '#server/utils/rateLimiter'
+import { getRedisMonitorStat } from '#server/services/redisMonitor'
 import { validateSuccess } from '#server/utils/validate'
 import { ensurePermission } from '#server/services/permission'
 import { PERMISSIONS } from '#shared/utils/permission'
@@ -43,6 +44,7 @@ export default defineEventHandler(
       ],
       rateLimiter: getRateLimiterStats(),
       stt,
+      redis: await getRedisMonitorStat(),
       serverTime: new Date().toISOString(),
     })
   },
