@@ -41,6 +41,13 @@ export default defineNuxtConfig({
       password: '',
       database: 'nuxt4_demo',
     },
+    // Redis 连接（env 注入：NUXT_REDIS_HOST / NUXT_REDIS_PORT / NUXT_REDIS_PASSWORD）
+    // 留空 = 未配置 Redis = 优雅降级到内存态（D5）；对象式连接（node-redis createClient({ socket:{host,port}, password })），非 URL 字符串
+    redis: {
+      host: '',
+      port: '',
+      password: '',
+    },
     oss: {
       region: 'oss-cn-wuhan-lr',
       bucket: 'nick-img-bucket-xxxxxx-from-xxx',
