@@ -1,7 +1,6 @@
 # ====================================================================
-# 单独 redis 服务 compose（预留，多实例部署场景）
-# 当前系统为单实例内存态（限流滑窗/埋点缓冲/服务队列均在进程内），
-# 未来水平扩展将限流滑窗/埋点缓冲外置到 redis 时启用此文件
+# 单独 redis 服务 compose
+# Redis 引入已立项，此文件供 P0 起本地验证（D8 本地单点）
 # 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.redis.yml up -d
 # 前置：复制 docker/env/.env.redis.example -> .env.redis 并填值（REDIS_PASSWORD）
 # ====================================================================
@@ -12,11 +11,21 @@ services:
     restart: unless-stopped
     env_file:
       - ../env/.env.redis
-    command: sh -c "redis-server --appendonly yes --requirepass $$REDIS_PASSWORD"
+    # $$ 转义由 compose 保留为 $，容器内 shell 从环境变量展开 REDIS_PASSWORD；
+    # 密码不入 redis.conf，避免配置文件落盘明文
+    command: redis-server /usr/local/etc/redis/redis.conf --requirepass $$REDIS_PASSWORD
     volumes:
+      - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis-data:/data
     ports:
       - '6379:6379'
+    # 健康检查：redis-cli 带密码 ping，返回 PONG 视为健康（对齐 mysql 风格）
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a $$REDIS_PASSWORD ping | grep PONG || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - app-net
 
