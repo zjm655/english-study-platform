@@ -25,29 +25,39 @@ import { flushOssPlaybackLog } from '#server/utils/ossPlaybackLog'
 import { flushAlertEventLog, logAlertEvent } from '#server/utils/alertEventLog'
 import { getClientIp } from '#server/utils/clientIp'
 import { checkRateLimit, getRateLimitConfig } from '#server/utils/rateLimiter'
+import { shouldLogRateLimitHit } from '#server/utils/rateLimitHitThrottle'
 import { fileLogError, cleanupOldLogs } from '#server/utils/fileLogger'
+import { withClusterLock } from '#server/utils/redis/clusterLock'
 
 /** 隐私红线：认证类路径不记录 error_stack（堆栈可能携带请求参数，防账号/密码泄漏） */
 const STACK_EXCLUDED_PATHS = new Set(['/api/user/login', '/api/user/register', '/api/user/captcha'])
-
-/** P3-F：限流命中事件节流（每 IP 10 分钟 1 条；Map 有界防内存膨胀） */
-const RATE_LIMIT_EVENT_INTERVAL_MS = 10 * 60 * 1000
-const RATE_LIMIT_EVENT_MAP_MAX = 10_000
-const rateLimitHitEvents = new Map<string, number>()
 
 export default defineNitroPlugin((nitroApp) => {
   // 启动时清理过期文件日志（一次性 fire-and-forget）：
   // Nitro 的 runNitroPlugins 不 await 插件 Promise（既有陷阱，见 02.queueRecovery），
   // 此处 void 掉且 cleanupOldLogs 内部全程吞错，绝不阻塞启动。
   const retentionDays = Number(useRuntimeConfig().logRetentionDays) || 30
-  void cleanupOldLogs(retentionDays)
+  // 分布式锁（P4 缺口 #2）：多实例下两个实例同时启动会重复清理同一批文件日志，锁保证仅一个实例执行
+  void withClusterLock(
+    'file-log-cleanup',
+    async () => {
+      await cleanupOldLogs(retentionDays)
+    },
+    { ttlMs: 30 * 60 * 1000 },
+  )
 
   // 文件日志每日定时清理（P0-C′）：长跑不重启时 logs/ 不再无限增长（磁盘风险）。
   // 与埋点队列定时器同模式：unref 不阻止进程退出；保留天数仍取 NUXT_LOG_RETENTION_DAYS；
   // 单实例进程内定时器与 TECH_DEBT #1 约束兼容（水平扩展前外置）。
   const dailyCleanupTimer = setInterval(
     () => {
-      void cleanupOldLogs(retentionDays)
+      void withClusterLock(
+        'file-log-cleanup',
+        async () => {
+          await cleanupOldLogs(retentionDays)
+        },
+        { ttlMs: 30 * 60 * 1000 },
+      )
     },
     24 * 60 * 60 * 1000,
   )
@@ -108,14 +118,9 @@ export default defineNitroPlugin((nitroApp) => {
       event.context._apiLogBusinessCode = 429
       record(event, 429)
       // P3-F：限流命中安全事件（游客侧违规可观测，联动告警事件页）；
-      // 节流：每 IP 10 分钟最多 1 条（内存 Map，防事件风暴）
-      const now = Date.now()
-      const lastHit = rateLimitHitEvents.get(ip)
-      if (!lastHit || now - lastHit >= RATE_LIMIT_EVENT_INTERVAL_MS) {
-        rateLimitHitEvents.set(ip, now)
-        if (rateLimitHitEvents.size > RATE_LIMIT_EVENT_MAP_MAX) {
-          rateLimitHitEvents.clear()
-        }
+      // P4：节流外置到 rateStore 固定窗口计数（Redis + 内存双 Adapter，多实例共享去重），
+      // 每 IP 10 分钟最多 1 条，防事件风暴
+      if (await shouldLogRateLimitHit(ip)) {
         void logAlertEvent({
           source: 'security',
           level: 'warn',

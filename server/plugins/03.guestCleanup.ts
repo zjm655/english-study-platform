@@ -10,6 +10,7 @@
 // 避免误删启动窗口期新建的游客行。
 import { query, withTransaction } from '#server/utils/db'
 import { fileLog } from '#server/utils/fileLogger'
+import { withClusterLock } from '#server/utils/redis/clusterLock'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 
 /** 每批处理的行数上限 */
@@ -19,29 +20,37 @@ export default defineNitroPlugin(() => {
   const startedAt = new Date()
   void (async () => {
     try {
-      // 从 sys_config 读取游客数据保留天数，默认 180 天，最低 30 天
-      const cfgRows = await query<{ config_value: string }>(
-        "SELECT config_value FROM sys_config WHERE config_key = 'guest_retention_days'",
+      // 分布式锁（P4 缺口 #2）：多实例下两个实例同时启动会重复清理同一批游客行（重复 DELETE /
+      // 重复 fileLog），锁保证同一启动周期仅一个实例执行；TTL 取宽值覆盖清理全程。
+      await withClusterLock(
+        'guest-cleanup',
+        async () => {
+          // 从 sys_config 读取游客数据保留天数，默认 180 天，最低 30 天
+          const cfgRows = await query<{ config_value: string }>(
+            "SELECT config_value FROM sys_config WHERE config_key = 'guest_retention_days'",
+          )
+          const rawDays = cfgRows[0] ? parseInt(cfgRows[0].config_value, 10) : 180
+          const retentionDays = isNaN(rawDays) || rawDays < 30 ? 180 : rawDays
+
+          logger.info(`[guestCleanup] 启动清理，保留天数=${retentionDays}`)
+          await fileLog('db', 'info', `[guestCleanup] 启动清理，retentionDays=${retentionDays}`)
+
+          // 阶段一：清理已合并的游客行
+          const mergedCount = await cleanupMergedGuests(startedAt)
+
+          // 阶段二：清理过期未合并的游客行
+          const expiredCount = await cleanupExpiredGuests(startedAt, retentionDays)
+
+          if (mergedCount > 0 || expiredCount > 0) {
+            logger.info(`[guestCleanup] 清理完成：已合并=${mergedCount}行，过期=${expiredCount}行`)
+          }
+          await fileLog('db', 'info', `[guestCleanup] 清理完成`, {
+            merged: mergedCount,
+            expired: expiredCount,
+          })
+        },
+        { ttlMs: 30 * 60 * 1000 },
       )
-      const rawDays = cfgRows[0] ? parseInt(cfgRows[0].config_value, 10) : 180
-      const retentionDays = isNaN(rawDays) || rawDays < 30 ? 180 : rawDays
-
-      logger.info(`[guestCleanup] 启动清理，保留天数=${retentionDays}`)
-      await fileLog('db', 'info', `[guestCleanup] 启动清理，retentionDays=${retentionDays}`)
-
-      // 阶段一：清理已合并的游客行
-      const mergedCount = await cleanupMergedGuests(startedAt)
-
-      // 阶段二：清理过期未合并的游客行
-      const expiredCount = await cleanupExpiredGuests(startedAt, retentionDays)
-
-      if (mergedCount > 0 || expiredCount > 0) {
-        logger.info(`[guestCleanup] 清理完成：已合并=${mergedCount}行，过期=${expiredCount}行`)
-      }
-      await fileLog('db', 'info', `[guestCleanup] 清理完成`, {
-        merged: mergedCount,
-        expired: expiredCount,
-      })
     } catch (err) {
       // 清理失败不阻塞服务启动
       logger.error('[guestCleanup] 启动清理失败:', err)

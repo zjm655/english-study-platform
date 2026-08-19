@@ -1,5 +1,5 @@
 // server/services/serviceQueue.ts
-// 云产品级内存并发队列框架（单机进程内存态）。
+// 云产品级并发队列框架（本地 p-queue 排队/优先级 + Redis 分布式信号量跨实例全局闸门）。
 //
 // 三层流量治理职责链（各管各的，勿混淆）：
 //   1. rateLimiter    —— 防滥用（按 IP/用户滑窗计数，拒绝型，入口层）
@@ -16,10 +16,13 @@
 //   由 server/plugins/02.queueRecovery.ts 启动扫描兜底。
 // - 埋点口径：cloud_service_call_log.duration_ms 只计执行不计排队（各服务函数的计时起点
 //   必须位于队列 acquire 之后，即包裹在 withQueue 的 task 内部）。
-// - 水平扩展约束：与限流滑窗/埋点队列同属模块级进程内存态，多实例部署时实际并发 ≈ N × 配置
-//  （见 AGENTS.md 单机内存态条款）；将来外置为 Redis/BullMQ 时仅需替换本模块内部实现。
+// - 水平扩展（P4 已外置并发闸门）：本地 p-queue 按配置限流 + 排队/优先级；其上叠加 Redis
+//   分布式信号量（server/utils/redis/semaphore.ts，key 经 redisKey('sem', name)）作为跨实例
+//   全局并发闸门，多实例总并发受配置约束；Redis 不可用/失败自动 bypass 退回进程内闸门
+//   （fail-open，功能不中断）。
 import PQueue from 'p-queue'
 import { fileLog } from '#server/utils/fileLogger'
+import { acquireSlot, releaseSlot } from '#server/utils/redis/semaphore'
 
 /** 已注册的队列名（新增服务 = 此处加名字 + 迁移插 sys_config key + config 页加输入框） */
 export type ServiceQueueName = 'tts' | 'nls' | 'deepseek' | 'upload'
@@ -40,6 +43,11 @@ const queues = new Map<ServiceQueueName, PQueue>()
 /** 等待告警：任务在队列中等待超过该时长则记文件日志（节流：每队列每分钟至多一条） */
 const WAIT_WARN_MS = 10_000
 const warnThrottle = new Map<ServiceQueueName, number>()
+
+/** 全局信号量租约：执行中任务占用的 Redis List 元素 TTL（防崩溃卡死，超时自动回收名额） */
+const SEMAPHORE_LEASE_MS = 5 * 60 * 1000
+/** 全局闸门无名额时的轮询重试间隔（配合本地 p-queue 的排队语义） */
+const SEMAPHORE_RETRY_MS = 200
 
 function getQueue(name: ServiceQueueName): PQueue {
   let q = queues.get(name)
@@ -143,7 +151,21 @@ export async function withQueue<T>(
           })
         }
       }
-      return task()
+      // 本地 p-queue 已按配置限流，此处再叠加 Redis 分布式信号量作为「跨实例全局闸门」：
+      // 多实例部署时各实例共享同一把 Redis 信号量，保证跨实例总并发不超过配置；
+      // 无名额则轮询等待（配合本地排队）；Redis 不可用/失败时 acquireSlot 返回
+      // SEMAPHORE_BYPASS_TOKEN 直接放行（bypass），行为退出现状「进程内闸门」，功能不中断。
+      const max = values.get(name) ?? 0 // 已加载；此处 values.get(name) > 0 有保证（见上方 <=0 直通）
+      let token = await acquireSlot(name, max, SEMAPHORE_LEASE_MS)
+      while (token === null) {
+        await new Promise((r) => setTimeout(r, SEMAPHORE_RETRY_MS))
+        token = await acquireSlot(name, max, SEMAPHORE_LEASE_MS)
+      }
+      try {
+        return await task()
+      } finally {
+        await releaseSlot(name, token)
+      }
     },
     { priority: options.priority ?? 0, signal: options.signal },
   ) as Promise<T>

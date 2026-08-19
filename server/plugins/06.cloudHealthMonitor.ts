@@ -6,15 +6,15 @@
 // - cloud_health_window_min（默认 5）：检测窗口（分钟）
 // - cloud_health_fail_threshold_pct（默认 50）：窗口失败率阈值（%）
 // - cloud_health_min_failures（默认 5）：窗口最少失败条数（防低频误报）
-// 去重：同一 service 30 分钟内已报过骤升事件则跳过（查 alert_event 最近记录）。
+// 去重：同一 service 30 分钟固窗内仅首次骤升写告警（P4 经 rateStore 固窗计数跨实例共享）。
 // 单实例进程内定时器与 TECH_DEBT #1 约束兼容；异常吞错（旁路原则）。
 import { query } from '#server/utils/db'
 import { logAlertEvent } from '#server/utils/alertEventLog'
 import { fileLogError } from '#server/utils/fileLogger'
+import { shouldReportCloudHealthSpike } from '#server/utils/cloudHealthDedup'
+import { withClusterLock } from '#server/utils/redis/clusterLock'
 
 const TICK_INTERVAL_MS = 5 * 60 * 1000
-/** 同 service 骤升事件去重窗口（毫秒） */
-const DEDUP_WINDOW_MS = 30 * 60 * 1000
 
 function clampInt(raw: string | undefined, fallback: number, min: number, max: number): number {
   const n = Number.parseInt(raw ?? '', 10)
@@ -35,46 +35,51 @@ export default defineNitroPlugin(() => {
       const thresholdPct = clampInt(cfg.get('cloud_health_fail_threshold_pct'), 50, 1, 100)
       const minFailures = clampInt(cfg.get('cloud_health_min_failures'), 5, 1, 1000)
 
-      // 2. 窗口内按 service 分组统计（COUNT + 失败数；trial 行不参与：service='nls' 的
-      //    createToken/sttFallback 为诊断行，保持全量统计即可——骤升看的是整体失败占比）
-      const rows = await query<{ service: string; total: number | string; fails: number | string }>(
-        `SELECT service, COUNT(*) AS total, SUM(success = 0) AS fails
-         FROM cloud_service_call_log
-         WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
-         GROUP BY service`,
-        [windowMin],
+      // 分布式锁（P4 缺口 #2）：多实例下同一 tick 仅一个实例扫描骤升并写告警，防重复写 alert_event
+      await withClusterLock(
+        'cloud-health',
+        async () => {
+          // 2. 窗口内按 service 分组统计（COUNT + 失败数；trial 行不参与：service='nls' 的
+          //    createToken/sttFallback 为诊断行，保持全量统计即可——骤升看的是整体失败占比）
+          const rows = await query<{
+            service: string
+            total: number | string
+            fails: number | string
+          }>(
+            `SELECT service, COUNT(*) AS total, SUM(success = 0) AS fails
+           FROM cloud_service_call_log
+           WHERE createdAt >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+           GROUP BY service`,
+            [windowMin],
+          )
+
+          for (const row of rows) {
+            const total = Number(row.total ?? 0)
+            const fails = Number(row.fails ?? 0)
+            if (total < 1 || fails < minFailures) continue
+            const rate = (fails / total) * 100
+            if (rate < thresholdPct) continue
+
+            // 3. 去重：rateStore 固窗计数（evt 域）跨实例共享，30 分钟内同 service 仅首次骤升写告警
+            if (await shouldReportCloudHealthSpike(row.service)) {
+              void logAlertEvent({
+                source: 'cloud_health',
+                level: 'error',
+                code: 'cloud_failure_rate_spike',
+                message: `云服务 ${row.service} 失败率骤升：${rate.toFixed(1)}%（${fails}/${total}，窗口 ${windowMin} 分钟）`,
+                context: {
+                  service: row.service,
+                  windowMin,
+                  failCount: fails,
+                  totalCount: total,
+                  rate: Math.round(rate * 10) / 10,
+                },
+              })
+            }
+          }
+        },
+        { ttlMs: 15 * 60 * 1000 },
       )
-
-      for (const row of rows) {
-        const total = Number(row.total ?? 0)
-        const fails = Number(row.fails ?? 0)
-        if (total < 1 || fails < minFailures) continue
-        const rate = (fails / total) * 100
-        if (rate < thresholdPct) continue
-
-        // 3. 去重：30 分钟内同 service 已报过骤升则跳过
-        const recent = await query<{ cnt: number | string }>(
-          `SELECT COUNT(*) AS cnt FROM alert_event
-           WHERE source = 'cloud_health' AND context->>'$.service' = ?
-             AND createdAt >= DATE_SUB(NOW(), INTERVAL ${DEDUP_WINDOW_MS / 60_000} MINUTE)`,
-          [row.service],
-        )
-        if (Number(recent[0]?.cnt ?? 0) > 0) continue
-
-        void logAlertEvent({
-          source: 'cloud_health',
-          level: 'error',
-          code: 'cloud_failure_rate_spike',
-          message: `云服务 ${row.service} 失败率骤升：${rate.toFixed(1)}%（${fails}/${total}，窗口 ${windowMin} 分钟）`,
-          context: {
-            service: row.service,
-            windowMin,
-            failCount: fails,
-            totalCount: total,
-            rate: Math.round(rate * 10) / 10,
-          },
-        })
-      }
     } catch (err) {
       // 旁路能力：失败仅留痕
       fileLogError('db', '[cloud health] 骤升检测失败', err instanceof Error ? err : String(err))

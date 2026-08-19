@@ -46,9 +46,9 @@ describe('redisKey - key 构造', () => {
 // ============ REDIS_DOMAIN 白名单 ============
 
 describe('REDIS_DOMAIN - 域白名单常量', () => {
-  it("白名单 'cfg'（P1 configStore）+ 'rl'/'fail'（P2 rateStore）+ 'q'（P3 queueStore 埋点队列）", async () => {
+  it("白名单 'cfg'（P1 configStore）+ 'rl'/'fail'（P2 rateStore）+ 'q'（P3 queueStore 埋点队列）+ 'evt'/'lock'/'sem'（P4 事件节流/分布式锁/信号量）", async () => {
     const { REDIS_DOMAIN } = await import('../redis/keys')
-    expect([...REDIS_DOMAIN]).toEqual(['cfg', 'rl', 'fail', 'q'])
+    expect([...REDIS_DOMAIN]).toEqual(['cfg', 'rl', 'fail', 'q', 'evt', 'lock', 'sem'])
   })
 
   it("P2 新增 'rl'/'fail' 域可经 redisKey 构造（rateStore 计数键，NODE_ENV=test → prod 段）", async () => {

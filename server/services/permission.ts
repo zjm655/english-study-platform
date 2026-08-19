@@ -13,11 +13,21 @@ import {
   type ReviewReasonCategory,
 } from '#shared/utils/permission'
 import { signUrl, MATERIAL_EXPIRE } from '#server/utils/oss'
+import { publish, subscribe, buildChannel } from '#server/utils/redis/pubsub'
 
 /** 每用户权限缓存 TTL（60s）——管理员请求高频，避免每次查库；授权后精确失效。 */
 const PERM_CACHE_TTL = 60 * 1000
 /** userId -> { 权限键集合, 过期时间戳 }（进程内 TTL 缓存，命中免查库） */
 const permCache = new Map<number, { perms: Set<string>; expireAt: number }>()
+
+/** 跨实例失效通道（P4）：授权/改角色时 PUBLISH，其余实例收到后清本实例缓存 */
+const PERM_INVALIDATE_CHANNEL = buildChannel('perm-invalidate')
+
+// 跨实例失效：他实例失效事件清本实例缓存；懒连接不阻塞模块加载（Redis 不可用静默跳过）
+subscribe(PERM_INVALIDATE_CHANNEL, (payload) => {
+  const uid = payload?.userId
+  if (typeof uid === 'number') permCache.delete(uid)
+})
 
 /**
  * 读取某用户的权限键集合（带 60s 每用户内存缓存）。
@@ -39,6 +49,9 @@ export async function getUserPermissions(userId: number): Promise<Set<string>> {
 /** 使某用户权限缓存失效（授权 / 改角色后调用，确保即时生效不等 TTL）。 */
 export function invalidateUserPermissions(userId: number): void {
   permCache.delete(userId)
+  // P4 跨实例失效：广播失效事件，其余实例收到后同步清缓存（fire-and-forget；
+  // publish 内部已静默降级不抛错，.catch 为兜底）
+  void publish(PERM_INVALIDATE_CHANNEL, { userId }).catch(() => {})
 }
 
 /** 已挂载到 event.context 的用户（auth 中间件注入 role + permissions） */

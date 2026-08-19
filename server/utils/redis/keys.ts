@@ -5,10 +5,12 @@
 // - {env} 段由 NODE_ENV 派生：development → dev，其余（production/test 等）一律 prod；
 //   未来多套生产环境再显式覆盖。派生在每次调用时读取（非 import 期固化），便于测试与热切换。
 // - domain 白名单：'cfg'（P1 configStore）+ 'rl'/'fail'（P2 rateStore：限流/防爆破计数）+
-//   'q'（P3 queueStore：埋点队列 STREAM，id 段为与真实表名对齐的 namespace）。
+//   'q'（P3 queueStore：埋点队列 STREAM，id 段为与真实表名对齐的 namespace）+
+//   'evt'（P4 rateLimitHitThrottle：告警/事件节流计数）+ 'lock'（P4 定时器分布式锁）+
+//   'sem'（P4 serviceQueue 分布式信号量）。
 
 /** domain 白名单（as const 保类型字面量，新增域只改此处） */
-export const REDIS_DOMAIN = ['cfg', 'rl', 'fail', 'q'] as const
+export const REDIS_DOMAIN = ['cfg', 'rl', 'fail', 'q', 'evt', 'lock', 'sem'] as const
 
 /** 合法 domain 类型：白名单外的取值在编译期被拒绝 */
 export type RedisDomain = (typeof REDIS_DOMAIN)[number]
@@ -28,10 +30,17 @@ export const TTL = {
 } as const
 
 /**
+ * env 段派生：development → dev，其余（production/test 等）一律 prod。
+ * 每次调用时读取（非 import 期固化），便于测试与热切换；key 与 pubsub 通道共用的单一真相源。
+ */
+export function redisEnv(): 'dev' | 'prod' {
+  return process.env.NODE_ENV === 'development' ? 'dev' : 'prod'
+}
+
+/**
  * key 构造器：ep:{env}:{domain}:{id}。
- * env 段调用时派生；domain 白名单外的取值由类型层拒绝（运行时为纯拼接，不重复拦截）。
+ * env 段调用时经 redisEnv() 派生；domain 白名单外的取值由类型层拒绝（运行时为纯拼接，不重复拦截）。
  */
 export function redisKey(domain: RedisDomain, id: string): string {
-  const env = process.env.NODE_ENV === 'development' ? 'dev' : 'prod'
-  return `ep:${env}:${domain}:${id}`
+  return `ep:${redisEnv()}:${domain}:${id}`
 }

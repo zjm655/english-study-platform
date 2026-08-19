@@ -20,7 +20,7 @@ beforeEach(() => {
 })
 
 describe('queueRecovery 启动恢复插件', () => {
-  it('恢复 UPDATE 带 createdAt < 启动时刻 条件，只标记重启前遗留任务', async () => {
+  it('恢复 UPDATE 带 createdAt < 启动时刻 + queued/processing 分流 + processing 宽限条件', async () => {
     mockQuery.mockResolvedValue({ affectedRows: 2 })
     const before = new Date()
     const plugin = (await import('../02.queueRecovery')).default as unknown as () => void
@@ -30,12 +30,20 @@ describe('queueRecovery 启动恢复插件', () => {
     const after = new Date()
 
     const [sql, params] = mockQuery.mock.calls[0]! as [string, unknown[]]
-    expect(sql).toContain(`status IN ('queued', 'processing')`)
+    // 多实例安全：queued 立即失败；processing 仅当 updatedAt 心跳陈旧（宽限期内未触碰）才失败
+    expect(sql).toContain(`status = 'queued'`)
+    expect(sql).toContain('updatedAt < ?')
     expect(sql).toContain('createdAt < ?')
     const startedAt = params[0] as Date
     expect(startedAt).toBeInstanceOf(Date)
     expect(startedAt.getTime()).toBeGreaterThanOrEqual(before.getTime())
     expect(startedAt.getTime()).toBeLessThanOrEqual(after.getTime())
+    // params[1] 为 startedAt - GRACE_MS（10 分钟宽限 ±1 分钟容差，避免直接读取 GRACE_MS 常量）
+    const grace = params[1] as Date
+    expect(grace).toBeInstanceOf(Date)
+    const offset = startedAt.getTime() - grace.getTime()
+    expect(offset).toBeGreaterThan(9 * 60 * 1000)
+    expect(offset).toBeLessThan(11 * 60 * 1000)
   })
 
   it('查询失败（如迁移未执行）不向外抛出，插件本体不阻塞启动', async () => {

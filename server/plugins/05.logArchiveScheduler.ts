@@ -10,6 +10,7 @@
 import { query } from '#server/utils/db'
 import { archiveLogs, ARCHIVABLE_TABLES } from '#server/services/logArchive'
 import { fileLog, fileLogError } from '#server/utils/fileLogger'
+import { withClusterLock } from '#server/utils/redis/clusterLock'
 
 const TICK_INTERVAL_MS = 24 * 60 * 60 * 1000
 
@@ -48,16 +49,23 @@ export default defineNitroPlugin(() => {
       if (lastRunDate && daysBetween(lastRunDate, today) < intervalDays) return // 未到执行间隔
       lastRunDate = today
 
-      for (const table of Object.keys(ARCHIVABLE_TABLES)) {
-        const moved = await archiveLogs(table, retentionDays)
-        if (moved > 0) {
-          fileLog(
-            'db',
-            'info',
-            `[log archive] 自动归档 ${table} 迁入 ${moved} 行（保留 ${retentionDays} 天）`,
-          )
-        }
-      }
+      // 分布式锁（P4 缺口 #2）：多实例下同一 tick 仅一个实例执行归档，防重复迁移
+      await withClusterLock(
+        'log-archive',
+        async () => {
+          for (const table of Object.keys(ARCHIVABLE_TABLES)) {
+            const moved = await archiveLogs(table, retentionDays)
+            if (moved > 0) {
+              fileLog(
+                'db',
+                'info',
+                `[log archive] 自动归档 ${table} 迁入 ${moved} 行（保留 ${retentionDays} 天）`,
+              )
+            }
+          }
+        },
+        { ttlMs: 30 * 60 * 1000 },
+      )
     } catch (err) {
       // 自动归档是旁路能力：失败仅留痕，不影响业务
       fileLogError('db', '[log archive] 自动归档失败', err instanceof Error ? err : String(err))

@@ -10,6 +10,12 @@
 // 插件本体保持同步签名，异步逻辑用内部 IIFE 承载（fire-and-forget，失败仅记日志）。
 import { query } from '#server/utils/db'
 
+// 多实例安全恢复的宽限期：processing 记录在此窗口内未被触碰（updatedAt 心跳陈旧）
+// 才视为上一实例中断遗留，允许本实例标记 failed。
+// 须大于流水线阶段间最大写入间隔；活跃 processing（updatedAt 新）
+// 可能正被另一实例执行，不得误标。
+const GRACE_MS = 10 * 60 * 1000
+
 export default defineNitroPlugin(() => {
   const startedAt = new Date()
   void (async () => {
@@ -17,8 +23,9 @@ export default defineNitroPlugin(() => {
       const result = (await query(
         `UPDATE material_upload_record
          SET status = 'failed', error_message = '服务重启中断，请重新提交或重处理'
-         WHERE status IN ('queued', 'processing') AND createdAt < ?`,
-        [startedAt],
+         WHERE createdAt < ?
+           AND ((status = 'queued') OR (status = 'processing' AND updatedAt < ?))`,
+        [startedAt, new Date(startedAt.getTime() - GRACE_MS)],
       )) as unknown as { affectedRows?: number }
       const affected = result?.affectedRows ?? 0
       if (affected > 0) {

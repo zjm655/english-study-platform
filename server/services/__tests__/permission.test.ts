@@ -22,8 +22,19 @@ const { mockQuery, mockSignUrl, mockReadBody } = vi.hoisted(() => ({
   mockReadBody: vi.fn(),
 }))
 
+// P4 跨实例失效：mock 掉 pubsub（含真实 redis 包），验证 invalidate 广播事件
+const { mockPublish, mockSubscribe } = vi.hoisted(() => ({
+  mockPublish: vi.fn().mockResolvedValue(undefined),
+  mockSubscribe: vi.fn(),
+}))
+
 vi.mock('#server/utils/db', () => ({ query: mockQuery }))
 vi.mock('#server/utils/oss', () => ({ signUrl: mockSignUrl, MATERIAL_EXPIRE: 2100 }))
+vi.mock('#server/utils/redis/pubsub', () => ({
+  publish: mockPublish,
+  subscribe: mockSubscribe,
+  buildChannel: (n: string) => `ep:test:${n}`,
+}))
 vi.mock('h3', () => ({
   readBody: mockReadBody,
   getRequestIP: () => '10.0.0.1',
@@ -82,6 +93,14 @@ describe('getUserPermissions - 每用户 60s 缓存', () => {
     invalidateUserPermissions(1002)
     await getUserPermissions(1002)
     expect(mockQuery).toHaveBeenCalledTimes(2)
+  })
+
+  it('P4 跨实例失效：invalidate 时向 perm-invalidate 通道广播失效事件', async () => {
+    invalidateUserPermissions(1002)
+    // publish 为 fire-and-forget（异步），立即断言已触发
+    expect(mockPublish).toHaveBeenCalledTimes(1)
+    expect(mockPublish.mock.calls[0]?.[0]).toBe('ep:test:perm-invalidate')
+    expect(mockPublish.mock.calls[0]?.[1]).toEqual({ userId: 1002 })
   })
 
   it('TTL（60s）过期后重新查库', async () => {

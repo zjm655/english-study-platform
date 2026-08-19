@@ -12,10 +12,16 @@ import {
 
 // 配置读取已接入 configStore（模块内不再自建缓存）：mock getSysConfigKeys 返回固定 Map，
 // 每次 withQueue 均重新读取，热更语义 = 改 mock 返回值后下次入队拿到新值
-const { mockGetSysConfigKeys } = vi.hoisted(() => ({ mockGetSysConfigKeys: vi.fn() }))
+const { mockGetSysConfigKeys, mockGetRedis } = vi.hoisted(() => ({
+  mockGetSysConfigKeys: vi.fn(),
+  mockGetRedis: vi.fn(),
+}))
 
 vi.mock('#server/utils/configStore', () => ({ getSysConfigKeys: mockGetSysConfigKeys }))
 vi.mock('#server/utils/fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.fn() }))
+// Redis 不可用 → acquireSlot 返回 bypass token，本文件测试专注本地 p-queue 语义，
+// 全局信号量行为在 server/utils/__tests__/semaphore.test.ts 单独覆盖
+vi.mock('#server/utils/redisConn', () => ({ getRedis: mockGetRedis }))
 
 /** 配置 mock：返回各队列并发数（未列出的队列 = 缺键 = 0 = 不限流） */
 function setConcurrency(values: Record<string, number>) {
@@ -28,9 +34,15 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Redis 视为不可用：acquireSlot 返回 bypass token，全局闸门旁路
+  mockGetRedis.mockReturnValue(null)
+  // 兜底：即便 vitest 偶发经未 mock 路径加载真实 db/redisConn 链路，顶层 useRuntimeConfig
+  // （node 环境未定义）也不再崩溃（redisConn.test.ts 同款 stubGlobal 先例）
+  vi.stubGlobal('useRuntimeConfig', () => ({ db: {}, redis: {} }))
 })
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   __forceEnableForTest(false)
 })
 
