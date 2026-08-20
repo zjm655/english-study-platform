@@ -1,0 +1,161 @@
+# ====================================================================
+# 单机综合 compose：mariadb + redis + nuxt app 同一内网（开发/单机部署）
+# 拓扑：三服务同 compose 网络 app-net，app 经容器名访问 db/redis：
+#   NUXT_DB_HOST=db（mariadb:3306）、NUXT_REDIS_HOST=redis（redis:6379）
+#   db/redis 不映射任何宿主机端口（不暴露外网），仅 compose 内网可达
+#   app 映射宿主机 5555 端口（5555:3000），作为唯一对外入口
+# 启动顺序：db 健康 -> migrate 一次性迁移跑完退出 -> app 启动（redis 就绪后）
+# 使用（从项目根运行）：
+#   前置：复制并填值 4 个 env（密码项 db/app/redis 须互相一致）：
+#     docker/env/.env.mariadb.example -> .env.mariadb（db 初始化 + root 密码）
+#     docker/env/.env.redis.example   -> .env.redis（redis requirepass 密码）
+#     docker/env/.env.migrate.example -> .env.migrate（迁移连接）
+#     docker/env/.env.app.example     -> .env.app（业务配置 + DB/Redis 密码）
+#   注意：.env.app 里的 NUXT_DB_HOST/PORT、NUXT_REDIS_HOST/PORT 会被下方
+#         environment 覆盖为容器名（db/redis），无需手工改。
+#   APP_IMAGE：app 镜像，默认本地 english-platform:latest
+#     本地构建：docker build -f docker/Dockerfile --target runner -t english-platform:latest .
+#     或用 ACR 镜像：$env:APP_IMAGE='crpi-xxx.cn-xxx.personal.cr.aliyuncs.com/命名空间/english-platform:v1'
+#   拉起：docker compose -f docker/compose/docker-compose.single.yml up -d
+#   访问：http://localhost:5555
+# ====================================================================
+services:
+  # ------------------------------------------------------------------
+  # migrate: 数据库迁移一次性任务（migrator 目标，含源码 + tsx）
+  # db 不映射端口，宿主机无法直连，迁移必须在 compose 内网容器内执行
+  # 等 db 健康后跑 npm run migrate，跑完即退（restart: "no"）
+  # ------------------------------------------------------------------
+  migrate:
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+      target: migrator
+    container_name: nuxt-migrate
+    restart: 'no'
+    env_file:
+      - ../env/.env.migrate
+    environment:
+      # 覆盖为容器名（compose 网络内 db 即 mariadb 容器）
+      NUXT_DB_HOST: db
+      NUXT_DB_PORT: '3306'
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  # ------------------------------------------------------------------
+  # app: Nuxt 生产应用（Dockerfile runner target）
+  # 等迁移完成后启动；DB/Redis 均以容器名接线（同 compose 网络内）
+  # ------------------------------------------------------------------
+  app:
+    image: ${APP_IMAGE:-english-platform:latest}
+    container_name: nuxt-app
+    restart: unless-stopped
+    env_file:
+      - ../env/.env.app
+    environment:
+      # 覆盖为容器名（优先级高于 env_file）：内网接线
+      NUXT_DB_HOST: db
+      NUXT_DB_PORT: '3306'
+      NUXT_REDIS_HOST: redis
+      NUXT_REDIS_PORT: '6379'
+    ports:
+      # 唯一对外入口：宿主机 5555 -> 容器 3000
+      - '5555:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    # 健康检查对齐 Dockerfile runner 目标（alpine wget 探测 /）
+    healthcheck:
+      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - app-net
+
+  # ------------------------------------------------------------------
+  # db: MariaDB 10.11 数据库（低内存配置，适配 2G 机器）
+  # 不映射端口：仅 compose 内网 db:3306 可达，不暴露外网
+  # ------------------------------------------------------------------
+  db:
+    image: mariadb:10.11
+    container_name: nuxt-mariadb
+    restart: unless-stopped
+    env_file:
+      - ../env/.env.mariadb
+    environment:
+      # 时区对齐应用：mariadb 镜像默认 UTC，datetime 默认值会写 UTC，与本地差 8 小时
+      TZ: Asia/Shanghai
+    command:
+      - mysqld
+      - --innodb-buffer-pool-size=134217728
+      - --max-connections=50
+      - --performance-schema=OFF
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'mariadb-admin ping -h 127.0.0.1 -uroot -p$$MARIADB_ROOT_PASSWORD --silent || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-net
+
+  # ------------------------------------------------------------------
+  # redis: Redis 7 缓存（requirepass 密码对齐 app 的 NUXT_REDIS_PASSWORD）
+  # 不映射端口：仅 compose 内网 redis:6379 可达，不暴露外网
+  # ------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: nuxt-redis
+    restart: unless-stopped
+    env_file:
+      - ../env/.env.redis
+    # 关键：command 必须用 sh -c 显式走 shell，才能把 $$REDIS_PASSWORD 展开为密码值
+    command: sh -c "redis-server /usr/local/etc/redis/redis.conf --requirepass \"$$REDIS_PASSWORD\""
+    volumes:
+      - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli -a $$REDIS_PASSWORD ping | grep PONG || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-net
+
+volumes:
+  mariadb-data:
+  redis-data:
+
+networks:
+  app-net:
+    driver: bridge
