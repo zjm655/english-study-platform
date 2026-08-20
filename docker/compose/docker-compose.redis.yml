@@ -1,8 +1,12 @@
 # ====================================================================
 # 单独 redis 服务 compose
 # Redis 引入已立项，此文件供 P0 起本地验证（D8 本地单点）
+# 多机部署（机器 A = nginx + redis + nuxt×2，机器 B = mariadb + nuxt×2）：
+#   - 端口仅绑定内网 IP（REDIS_BIND_IP，机器 A 内网 IP），仅内网可达、不映射公网
+#   - 内存受限（256M，适配 2G 机器，与 redis.conf maxmemory 256mb 对齐）
+#   - requirepass 密码已对齐 app 的 NUXT_REDIS_PASSWORD（经 REDIS_PASSWORD 注入）
 # 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.redis.yml up -d
-# 前置：复制 docker/env/.env.redis.example -> .env.redis 并填值（REDIS_PASSWORD）
+# 前置：复制 docker/env/.env.redis.example -> .env.redis 并填值（REDIS_PASSWORD、REDIS_BIND_IP）
 # ====================================================================
 services:
   redis:
@@ -19,7 +23,14 @@ services:
       - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis-data:/data
     ports:
-      - '6379:6379'
+      # 仅绑定内网 IP（REDIS_BIND_IP = 机器 A 内网 IP），内网互访，不暴露公网
+      - '${REDIS_BIND_IP}:6379:6379'
+    # 资源限制：内存 256M、CPU 0.25 核（多机部署 2G 小机器，防止 Redis 抢占内存）
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
     # 健康检查：redis-cli 带密码 ping，返回 PONG 视为健康（对齐 mysql 风格）
     healthcheck:
       test: ['CMD-SHELL', 'redis-cli -a $$REDIS_PASSWORD ping | grep PONG || exit 1']

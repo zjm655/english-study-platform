@@ -1,8 +1,12 @@
 # ====================================================================
 # 生产全量部署 compose：migrate(一次性) + app + db(mysql) + nginx
+# 【标注】单机全栈参考——多机部署改用独立 compose（mariadb / nuxt-app / redis / nginx，
+#         见 docker/ARCHITECTURE.md）；本文件不再作为多机部署入口（db 仍为 MySQL 8）
 # 启动顺序：db 健康 -> migrate 跑完退出 -> app 启动 -> nginx 就绪
 # 适用单机部署场景，一条命令拉起完整应用栈（含自动迁移）
 # 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.yml up -d
+# 镜像获取：本地/CI 构建 Dockerfile runner 目标镜像 -> push 镜像仓库 ->
+#           服务器 docker compose up -d 时自动 pull，规避服务器本地构建内存不足
 # 前置：复制 docker/env/.env.app.example -> .env.app 并填值（app 配置）；
 #       复制 docker/env/.env.migrate.example -> .env.migrate 并填值（migrate 配置）；
 #       复制 docker/env/.env.mysql.example -> .env.mysql 并填值（mysql 独立配置）
@@ -34,13 +38,16 @@ services:
   # ------------------------------------------------------------------
   # app: Nuxt 生产应用（Dockerfile runner target）
   # 等迁移完成后启动，通过 env_file 注入业务配置
+  # 多副本已解锁（P0-P4 外置完成）：不设 container_name，deploy.replicas=2
+  # nginx 经 compose 服务名 `app` DNS 轮询到多副本，default.conf 无需改
   # ------------------------------------------------------------------
   app:
     build:
       context: ../..
       dockerfile: docker/Dockerfile
       target: runner
-    container_name: nuxt-app
+    deploy:
+      replicas: 2
     restart: unless-stopped
     env_file:
       - ../env/.env.app

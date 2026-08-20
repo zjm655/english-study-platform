@@ -1,0 +1,48 @@
+# ====================================================================
+# Nginx 多机四实例负载均衡模板（.template 后缀，非 .conf，不会被 nginx 直接 include）
+# 用途：机器 A 的 nginx 网关跨机负载均衡到 4 个 Nuxt 实例——
+#   机器 A 2 实例（NODE_A_IP:3001/3002）+ 机器 B 2 实例（NODE_B_IP:3001/3002）
+#
+# 渲染机制：nginx 官方镜像（nginx:alpine）自带 envsubst，
+#   compose 的 command 会把本模板中的 ${NODE_A_IP}/${NODE_B_IP} 替换为环境变量值，
+#   渲染输出为同目录 multi-node-upstream.conf（nginx 自动 include /etc/nginx/conf.d/*.conf）。
+#   NODE_A_IP/NODE_B_IP 由 compose 的 environment 注入，部署时无需手工改本文件。
+#   注意 envsubst 必须显式指定变量清单（见 nginx.compose.yml command），
+#   否则会把 $host/$remote_addr 等 nginx 内建变量一并替换为空，导致配置损坏。
+#
+# 一致性约束（重要）：本模板的 upstream 名与 default.conf 相同（nuxt_app）——
+#   部署时二选一：使用本模板则不再启用 default.conf 的同名 upstream
+#   （两文件同时定义 upstream nuxt_app 会重复定义导致 nginx 启动失败）。
+# ====================================================================
+
+# 上游应用服务：4 个后端实例（默认轮询策略）
+upstream nuxt_app {
+    # 被动健康检查：max_fails=3 连续 3 次失败即自动摘除该实例，
+    # fail_timeout=30s 内不再向其转发，30s 后自动恢复探测（无需主动健康检查插件）
+    server ${NODE_A_IP}:3001 max_fails=3 fail_timeout=30s;
+    server ${NODE_A_IP}:3002 max_fails=3 fail_timeout=30s;
+    server ${NODE_B_IP}:3001 max_fails=3 fail_timeout=30s;
+    server ${NODE_B_IP}:3002 max_fails=3 fail_timeout=30s;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://nuxt_app;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        # P3-A：覆盖（而非追加）X-Forwarded-For 为可信对端 $remote_addr——
+        # $proxy_add_x_forwarded_for 会把客户端伪造的 XFF 排链首，h3 取链首导致 IP 限流可伪造绕过
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # WebSocket 支持（评测 SDK 等可能用到）
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        # 超时设置（评测/上传等长连接场景）
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+}
