@@ -4,12 +4,14 @@
 #   NUXT_DB_HOST=db（mariadb:3306）、NUXT_REDIS_HOST=redis（redis:6379）
 #   db/redis 不映射任何宿主机端口（不暴露外网），仅 compose 内网可达
 #   app 映射宿主机 5555 端口（5555:3000），作为唯一对外入口
-# 启动顺序：db 健康 -> migrate 一次性迁移跑完退出 -> app 启动（redis 就绪后）
+# 启动顺序：db 健康 -> app 启动（redis 就绪后）
+# 迁移说明：本版不内置 migrate 服务（避免服务器现场构建/推送大镜像），建表用 SQL 导入：
+#   服务器本机执行：docker compose -f compose/docker-compose.single.yml exec -T db \
+#     mariadb -uroot -p<root密码> <库名> < 表结构.sql（先本地跑迁移或用迁移 SQL 导出）
 # 使用（从项目根运行）：
-#   前置：复制并填值 4 个 env（密码项 db/app/redis 须互相一致）：
+#   前置：复制并填值 3 个 env（密码项 db/app/redis 须互相一致）：
 #     docker/env/.env.mariadb.example -> .env.mariadb（db 初始化 + root 密码）
 #     docker/env/.env.redis.example   -> .env.redis（redis requirepass 密码）
-#     docker/env/.env.migrate.example -> .env.migrate（迁移连接）
 #     docker/env/.env.app.example     -> .env.app（业务配置 + DB/Redis 密码）
 #   注意：.env.app 里的 NUXT_DB_HOST/PORT、NUXT_REDIS_HOST/PORT 会被下方
 #         environment 覆盖为容器名（db/redis），无需手工改。
@@ -21,32 +23,9 @@
 # ====================================================================
 services:
   # ------------------------------------------------------------------
-  # migrate: 数据库迁移一次性任务（migrator 目标，含源码 + tsx）
-  # db 不映射端口，宿主机无法直连，迁移必须在 compose 内网容器内执行
-  # 等 db 健康后跑 npm run migrate，跑完即退（restart: "no"）
-  # ------------------------------------------------------------------
-  migrate:
-    build:
-      context: ../..
-      dockerfile: docker/Dockerfile
-      target: migrator
-    container_name: nuxt-migrate
-    restart: 'no'
-    env_file:
-      - ../env/.env.migrate
-    environment:
-      # 覆盖为容器名（compose 网络内 db 即 mariadb 容器）
-      NUXT_DB_HOST: db
-      NUXT_DB_PORT: '3306'
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - app-net
-
-  # ------------------------------------------------------------------
   # app: Nuxt 生产应用（Dockerfile runner target）
-  # 等迁移完成后启动；DB/Redis 均以容器名接线（同 compose 网络内）
+  # 等 db/redis 健康后启动；DB/Redis 均以容器名接线（同 compose 网络内）
+  # 迁移：本版不跑 migrate（服务器零构建），建表用 SQL 导入——见文件头说明
   # ------------------------------------------------------------------
   app:
     image: ${APP_IMAGE:-english-platform:latest}
@@ -64,8 +43,8 @@ services:
       # 唯一对外入口：宿主机 5555 -> 容器 3000
       - '5555:3000'
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
       redis:
         condition: service_healthy
     deploy:
