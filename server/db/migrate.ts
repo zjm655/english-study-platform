@@ -1,8 +1,12 @@
+/**
+ * 数据库迁移脚本：Node 24 原生运行（type stripping，无需 tsx），npm run migrate。
+ * 纯独立脚本：仅依赖 mysql2 + ./collation + Node 内置模块，不依赖 Nuxt/server utils。
+ */
 import mysql from 'mysql2/promise'
 import { readdir, readFile, access } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { resolveCollation, applyCollation } from './collation'
+import { resolveCollation, applyCollation } from './collation.ts'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 

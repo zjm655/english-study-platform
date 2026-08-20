@@ -57,9 +57,9 @@ export async function mergeGuestData(
        SELECT ?, src.checkin_date, src.checked_in, src.study_seconds, src.segments_completed
        FROM user_checkin_log src WHERE src.user_id = ?
        ON DUPLICATE KEY UPDATE
-         study_seconds = study_seconds + VALUES(study_seconds),
-         checked_in = GREATEST(checked_in, VALUES(checked_in)),
-         segments_completed = segments_completed + VALUES(segments_completed)`,
+         study_seconds = user_checkin_log.study_seconds + VALUES(study_seconds),
+         checked_in = GREATEST(user_checkin_log.checked_in, VALUES(checked_in)),
+         segments_completed = user_checkin_log.segments_completed + VALUES(segments_completed)`,
       [targetUserId, guestId],
     )
 
@@ -78,12 +78,12 @@ export async function mergeGuestData(
        SELECT ?, src.segment_id, src.phase1_done, src.phase2_done, src.phase3_done, src.phase3_score, src.phase4_done, src.phase4_score
        FROM user_progress src WHERE src.user_id = ? AND src.deleted_at IS NULL
        ON DUPLICATE KEY UPDATE
-         phase1_done = phase1_done OR VALUES(phase1_done),
-         phase2_done = phase2_done OR VALUES(phase2_done),
-         phase3_done = phase3_done OR VALUES(phase3_done),
-         phase3_score = IFNULL(GREATEST(IFNULL(phase3_score, 0), IFNULL(VALUES(phase3_score), 0)), phase3_score),
-         phase4_done = phase4_done OR VALUES(phase4_done),
-         phase4_score = IFNULL(GREATEST(IFNULL(phase4_score, 0), IFNULL(VALUES(phase4_score), 0)), phase4_score)`,
+         phase1_done = user_progress.phase1_done OR VALUES(phase1_done),
+         phase2_done = user_progress.phase2_done OR VALUES(phase2_done),
+         phase3_done = user_progress.phase3_done OR VALUES(phase3_done),
+         phase3_score = IFNULL(GREATEST(IFNULL(user_progress.phase3_score, 0), IFNULL(VALUES(phase3_score), 0)), user_progress.phase3_score),
+         phase4_done = user_progress.phase4_done OR VALUES(phase4_done),
+         phase4_score = IFNULL(GREATEST(IFNULL(user_progress.phase4_score, 0), IFNULL(VALUES(phase4_score), 0)), user_progress.phase4_score)`,
       [targetUserId, guestId],
     )
 
@@ -124,12 +124,12 @@ export async function mergeGuestData(
          SELECT ?, src.segment_id, src.phase1_done, src.phase2_done, src.phase3_done, src.phase3_score, src.phase4_done, src.phase4_score
          FROM user_progress src WHERE src.user_id = ? AND src.deleted_at IS NULL
          ON DUPLICATE KEY UPDATE
-           phase1_done = phase1_done OR VALUES(phase1_done),
-           phase2_done = phase2_done OR VALUES(phase2_done),
-           phase3_done = phase3_done OR VALUES(phase3_done),
-           phase3_score = IFNULL(GREATEST(IFNULL(phase3_score, 0), IFNULL(VALUES(phase3_score), 0)), phase3_score),
-           phase4_done = phase4_done OR VALUES(phase4_done),
-           phase4_score = IFNULL(GREATEST(IFNULL(phase4_score, 0), IFNULL(VALUES(phase4_score), 0)), phase4_score)`,
+           phase1_done = user_progress.phase1_done OR VALUES(phase1_done),
+           phase2_done = user_progress.phase2_done OR VALUES(phase2_done),
+           phase3_done = user_progress.phase3_done OR VALUES(phase3_done),
+           phase3_score = IFNULL(GREATEST(IFNULL(user_progress.phase3_score, 0), IFNULL(VALUES(phase3_score), 0)), user_progress.phase3_score),
+           phase4_done = user_progress.phase4_done OR VALUES(phase4_done),
+           phase4_score = IFNULL(GREATEST(IFNULL(user_progress.phase4_score, 0), IFNULL(VALUES(phase4_score), 0)), user_progress.phase4_score)`,
         [targetUserId, fingerprintGuestId],
       )
       // 迁移收藏（并集，已存在则跳过）
@@ -149,9 +149,9 @@ export async function mergeGuestData(
          SELECT ?, src.checkin_date, src.checked_in, src.study_seconds, src.segments_completed
          FROM user_checkin_log src WHERE src.user_id = ?
          ON DUPLICATE KEY UPDATE
-           study_seconds = study_seconds + VALUES(study_seconds),
-           checked_in = GREATEST(checked_in, VALUES(checked_in)),
-           segments_completed = segments_completed + VALUES(segments_completed)`,
+           study_seconds = user_checkin_log.study_seconds + VALUES(study_seconds),
+           checked_in = GREATEST(user_checkin_log.checked_in, VALUES(checked_in)),
+           segments_completed = user_checkin_log.segments_completed + VALUES(segments_completed)`,
         [targetUserId, fingerprintGuestId],
       )
       // 累加汇总学习时长
@@ -206,12 +206,12 @@ export async function mergeFingerprintOrphan(
        SELECT ?, src.segment_id, src.phase1_done, src.phase2_done, src.phase3_done, src.phase3_score, src.phase4_done, src.phase4_score
        FROM user_progress src WHERE src.user_id = ? AND src.deleted_at IS NULL
        ON DUPLICATE KEY UPDATE
-         phase1_done = phase1_done OR VALUES(phase1_done),
-         phase2_done = phase2_done OR VALUES(phase2_done),
-         phase3_done = phase3_done OR VALUES(phase3_done),
-         phase3_score = IFNULL(GREATEST(IFNULL(phase3_score, 0), IFNULL(VALUES(phase3_score), 0)), phase3_score),
-         phase4_done = phase4_done OR VALUES(phase4_done),
-         phase4_score = IFNULL(GREATEST(IFNULL(phase4_score, 0), IFNULL(VALUES(phase4_score), 0)), phase4_score)`,
+         phase1_done = user_progress.phase1_done OR VALUES(phase1_done),
+         phase2_done = user_progress.phase2_done OR VALUES(phase2_done),
+         phase3_done = user_progress.phase3_done OR VALUES(phase3_done),
+         phase3_score = IFNULL(GREATEST(IFNULL(user_progress.phase3_score, 0), IFNULL(VALUES(phase3_score), 0)), user_progress.phase3_score),
+         phase4_done = user_progress.phase4_done OR VALUES(phase4_done),
+         phase4_score = IFNULL(GREATEST(IFNULL(user_progress.phase4_score, 0), IFNULL(VALUES(phase4_score), 0)), user_progress.phase4_score)`,
       [targetUserId, orphanId],
     )
     // 迁移收藏
@@ -227,7 +227,7 @@ export async function mergeFingerprintOrphan(
     await conn.execute(
       `INSERT INTO user_checkin_log (user_id, checkin_date, checked_in, study_seconds, segments_completed)
        SELECT ?, src.checkin_date, src.checked_in, src.study_seconds, src.segments_completed FROM user_checkin_log src WHERE src.user_id = ?
-       ON DUPLICATE KEY UPDATE study_seconds = study_seconds + VALUES(study_seconds), checked_in = GREATEST(checked_in, VALUES(checked_in)), segments_completed = segments_completed + VALUES(segments_completed)`,
+       ON DUPLICATE KEY UPDATE study_seconds = user_checkin_log.study_seconds + VALUES(study_seconds), checked_in = GREATEST(user_checkin_log.checked_in, VALUES(checked_in)), segments_completed = user_checkin_log.segments_completed + VALUES(segments_completed)`,
       [targetUserId, orphanId],
     )
     // 累加学习时长

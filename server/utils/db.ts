@@ -41,7 +41,7 @@ export async function withTransaction<T>(fn: (conn: PoolConnection) => Promise<T
 
 /**
  * 数据库初始化说明：
- * 首次启动前，请运行 `npx tsx server/db/migrate.ts` 执行数据库迁移。
+ * 首次启动前，请运行 `npm run migrate`（Node 24 原生执行，无需 tsx）执行数据库迁移。
  * 数据库结构通过 server/db/migrations/ 目录中的迁移文件管理，
  * 禁止直接通过命令行或可视化工具修改数据库结构。
  */

@@ -10,7 +10,7 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "test": "vitest",
-    "migrate": "tsx server/db/migrate.ts",
+    "migrate": "node server/db/migrate.ts",
     "typecheck": "nuxt typecheck",
     "lint": "eslint .",
     "format:check": "prettier --check ."
@@ -48,7 +48,6 @@
     "eslint-config-prettier": "^10.1.8",
     "happy-dom": "^20.10.6",
     "prettier": "^3.9.6",
-    "tsx": "^4.23.1",
     "typescript": "5.8.2",
     "unplugin-auto-import": "^21.0.0",
     "vitest": "^4.1.10",

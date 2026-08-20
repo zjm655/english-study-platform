@@ -53,7 +53,7 @@ describe('mergeGuestData 合并', () => {
     expect(latchSql).toContain('merged_into_user_id IS NULL')
     // log 合并：同日累加时长
     const logSql = sqlAt(2)
-    expect(logSql).toContain('study_seconds = study_seconds + VALUES(study_seconds)')
+    expect(logSql).toContain('study_seconds = user_checkin_log.study_seconds + VALUES(study_seconds)')
     // stats 累加
     expect(sqlAt(3)).toContain(
       'total_study_seconds = t.total_study_seconds + g.total_study_seconds',

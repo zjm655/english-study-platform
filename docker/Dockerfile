@@ -5,7 +5,7 @@
 #   - dev:      开发模式，源码挂载热重载，端口 5173
 #   - builder:  生产构建阶段，产出 .output 自包含产物
 #   - runner:   生产运行阶段，仅拷贝 .output，不依赖 node_modules
-#   - migrator: 数据库迁移一次性任务，基于 builder（有源码+tsx），跑完即退
+#   - migrator: 数据库迁移一次性任务，独立轻量阶段（node + mysql2，无 tsx），跑完即退
 # 项目背景：nitro.externals.trace 默认 true，.output 运行时不依赖 node_modules
 # ====================================================================
 
@@ -61,11 +61,13 @@ CMD ["node", ".output/server/index.mjs"]
 
 # --------------------------------------------------------------------
 # migrator 阶段：数据库迁移一次性任务 target
-# 基于 builder（已有完整源码 + tsx + node_modules），CMD 执行 npm run migrate
+# 独立轻量阶段：不继承 builder 的 node_modules/.output，只 COPY 迁移最小文件集
+# + 仅装 mysql2（纯 JS 运行时依赖，无原生编译），CMD 用 Node 24 原生
+#   type stripping 直接运行 .ts（无需 tsx），镜像体积 ~1G -> 数十 MB
 # compose 中作为 depends_on 的服务，跑完即退（restart: "no"）
-# 迁移源码（server/db/migrate.ts）依赖 tsx 运行，故不能并入 runner 镜像
-# 注：migrator 镜像只本地使用不上传，复用 builder 缓存比独立轻量化更务实
-#     （独立阶段在 node --import tsx 的 loader 解析上有环境兼容问题）
 # --------------------------------------------------------------------
-FROM builder AS migrator
-CMD ["npm", "run", "migrate"]
+FROM node:24-alpine AS migrator
+WORKDIR /app
+COPY server/db ./server/db
+RUN npm install mysql2@^3.22.6
+CMD ["node", "server/db/migrate.ts"]

@@ -2,7 +2,7 @@
  * 迁移排序规则（collation）配置模块。
  *
  * 设计意图：
- * - 迁移由独立 tsx 进程（migrate.ts）在项目运行前执行，因此 collation 配置
+ * - 迁移由 Node 24 原生运行（migrate.ts，type stripping，不依赖 tsx）在项目运行前执行，因此 collation 配置
  *   绝不能走 Nuxt runtimeConfig，必须直接读 .env / process.env（由 migrate.ts
  *   的 loadEnv 注入），改 .env 即生效，无需运行或构建项目。
  * - 本模块为纯函数、无副作用：不建立数据库连接、不读文件、import 不触发任何迁移

@@ -41,10 +41,10 @@ services:
       - --performance-schema=OFF
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-    # 仅绑定机器 B 内网 IP 的 3306 端口，A 机 nuxt 经该内网 IP 访问；
-    # 仅内网可达、不映射公网（MARIADB_BIND_IP 取自 .env.mariadb）
+    # 仅绑定机器 B 内网 IP 的 3307 端口（错开标准 3306 防占用/降扫描噪音），A 机 nuxt 经该内网 IP 访问；
+    # 仅内网可达、不映射公网（MARIADB_BIND_IP 取自 .env.mariadb）；容器内仍 3306
     ports:
-      - '${MARIADB_BIND_IP}:3306:3306'
+      - '${MARIADB_BIND_IP}:3307:3306'
     deploy:
       resources:
         limits:

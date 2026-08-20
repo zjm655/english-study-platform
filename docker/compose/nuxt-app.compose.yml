@@ -33,7 +33,7 @@ services:
       NUXT_DB_HOST: ${NODE_B_IP}
       NUXT_DB_PORT: '3306'
       NUXT_REDIS_HOST: ${NODE_A_IP}
-      NUXT_REDIS_PORT: '6379'
+      NUXT_REDIS_PORT: '6380'
     ports:
       # 仅内网可达：本机内网 IP:3001 -> 容器 3000
       - '${NODE_LOCAL_IP}:3001:3000'
@@ -63,7 +63,7 @@ services:
       NUXT_DB_HOST: ${NODE_B_IP}
       NUXT_DB_PORT: '3306'
       NUXT_REDIS_HOST: ${NODE_A_IP}
-      NUXT_REDIS_PORT: '6379'
+      NUXT_REDIS_PORT: '6380'
     ports:
       # 仅内网可达：本机内网 IP:3002 -> 容器 3000
       - '${NODE_LOCAL_IP}:3002:3000'
