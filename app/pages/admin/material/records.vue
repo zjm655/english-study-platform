@@ -101,8 +101,8 @@
             <template #default="{ row }">
               <el-link
                 :type="row.status === 'failed' ? 'danger' : 'primary'"
-                @click="navigateTo(`/admin/material/records/${row.id}/diag`)"
                 class="diag-link"
+                @click="navigateTo(`/admin/material/records/${row.id}/diag`)"
               >
                 {{ row.status === 'failed' && row.error_message ? row.error_message : '查看诊断' }}
               </el-link>
