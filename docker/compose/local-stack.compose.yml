@@ -14,10 +14,12 @@
 #   1) 复制 docker/env/.env.app.example -> .env.app 并填值（业务配置 + DB/Redis 密码）
 #   2) 插值变量（compose 的 ${} 只从 shell / --env-file 读，不读 .env.app）经 .env.acr 传入：
 #      ACR_REGISTRY / ACR_NAMESPACE / IMAGE_TAG（app 镜像）
-#      NODE_A_IP（机器 A 内网 IP，运行 Redis） / NODE_B_IP（机器 B 内网 IP，运行 MariaDB）
 #      NODE_LOCAL_IP（本机内网 IP，nginx 5555 端口绑定地址）
-# 数据库/Redis 分机：机器 B 跑 mariadb.compose.yml、机器 A 跑 docker-compose.redis.yml，
-#   app 经 NUXT_DB_HOST=机器B内网IP / NUXT_REDIS_HOST=机器A内网IP 跨机访问。
+#   3) DB/Redis 连接信息由 .env.app 直接填写（不再被 compose 覆盖）：
+#      NUXT_DB_HOST=机器B内网IP、NUXT_DB_PORT=3307（宿主机映射端口）
+#      NUXT_REDIS_HOST=机器A内网IP、NUXT_REDIS_PORT=6380（宿主机映射端口）
+# 数据库/Redis 分机：机器 B 跑 mariadb.compose.yml、机器 A 跑 docker-compose.redis.yml
+#   （均映射宿主机内网 IP:3307 / :6380），app 在 .env.app 里直写对端内网 IP 跨机访问。
 # ====================================================================
 services:
   # ------------------------------------------------------------------
@@ -28,6 +30,9 @@ services:
     image: nginx:alpine
     container_name: nuxt-nginx
     restart: unless-stopped
+    # 关键：删除镜像内置 default.conf（欢迎页）——它监听 80 且字母序排在 local-app-upstream.conf
+    # 之前，两文件同时监听 80 时请求会打到欢迎页导致代理不生效
+    command: /bin/sh -c "rm -f /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
     volumes:
       - ../nginx/conf.d/local-app-upstream.conf:/etc/nginx/conf.d/local-app-upstream.conf:ro
     ports:
@@ -54,15 +59,10 @@ services:
     image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/english-platform:${IMAGE_TAG}
     restart: unless-stopped
     env_file:
-      # 业务配置唯一事实源（含 NUXT_DB_PASSWORD / NUXT_REDIS_PASSWORD 等密码项）
+      # 业务配置唯一事实源（含 NUXT_DB_HOST/PORT/PASSWORD、NUXT_REDIS_HOST/PORT/PASSWORD 等全部连接信息）
+      # 注意：NUXT_DB_PORT 须为宿主机映射端口 3307，NUXT_REDIS_PORT 须为宿主机映射端口 6380
+      #       （两中间件映射端口已错开，与 mariadb/redis compose 定义一致）
       - ../env/.env.app
-    environment:
-      # 内网接线覆盖（environment 优先级高于 env_file）：
-      # DB 在机器 B（NODE_B_IP）、Redis 在机器 A（NODE_A_IP）；密码类不从这覆盖，走 .env.app
-      NUXT_DB_HOST: ${NODE_B_IP}
-      NUXT_DB_PORT: '3307'
-      NUXT_REDIS_HOST: ${NODE_A_IP}
-      NUXT_REDIS_PORT: '6380'
     deploy:
       resources:
         limits:
@@ -83,11 +83,6 @@ services:
     restart: unless-stopped
     env_file:
       - ../env/.env.app
-    environment:
-      NUXT_DB_HOST: ${NODE_B_IP}
-      NUXT_DB_PORT: '3307'
-      NUXT_REDIS_HOST: ${NODE_A_IP}
-      NUXT_REDIS_PORT: '6380'
     deploy:
       resources:
         limits:
