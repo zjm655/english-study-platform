@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 # ====================================================================
 # Nuxt 4 全栈英语学习平台 — 多阶段多 target Dockerfile
-# 支持 dev / builder / runner / migrator 四种目标，配合不同 compose 文件使用：
+# 支持 dev / builder / runner 三种目标，配合不同 compose 文件使用：
 #   - dev:      开发模式，源码挂载热重载，端口 5173
 #   - builder:  生产构建阶段，产出 .output 自包含产物
 #   - runner:   生产运行阶段，仅拷贝 .output，不依赖 node_modules
-#   - migrator: 数据库迁移一次性任务，独立轻量阶段（node + mysql2，无 tsx），跑完即退
 # 项目背景：nitro.externals.trace 默认 true，.output 运行时不依赖 node_modules
+# 迁移说明：不构建迁移镜像——DB 与 app 独立部署，迁移在 DB 机裸跑 node server/db/migrate.ts（Node 24 原生）
 # ====================================================================
 
 # --------------------------------------------------------------------
@@ -58,16 +58,3 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1
 CMD ["node", ".output/server/index.mjs"]
-
-# --------------------------------------------------------------------
-# migrator 阶段：数据库迁移一次性任务 target
-# 独立轻量阶段：不继承 builder 的 node_modules/.output，只 COPY 迁移最小文件集
-# + 仅装 mysql2（纯 JS 运行时依赖，无原生编译），CMD 用 Node 24 原生
-#   type stripping 直接运行 .ts（无需 tsx），镜像体积 ~1G -> 数十 MB
-# compose 中作为 depends_on 的服务，跑完即退（restart: "no"）
-# --------------------------------------------------------------------
-FROM node:24-alpine AS migrator
-WORKDIR /app
-COPY server/db ./server/db
-RUN npm install mysql2@^3.22.6
-CMD ["node", "server/db/migrate.ts"]

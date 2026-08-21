@@ -2,9 +2,9 @@
 # MariaDB 10.11 数据库 compose（DB 机部署；低内存配置适配 2G 机器）
 # 端口宿主映射 3307（容器内 3306，全接口绑定——安全由云防火墙白名单控制，仅放行对端内网 IP 的 3307）
 # NUXT_DB_COLLATION 须 utf8mb4_unicode_ci（MariaDB 不支持 0900_ai_ci）
-# 使用：docker compose -f docker/compose/mariadb.compose.yml up -d
-# 前置：复制 docker/env/.env.mariadb.example -> .env.mariadb 并填值
-# 迁移：在 DB 机执行（migrator 容器或 npm run migrate，NUXT_DB_HOST 指向本机内网 IP）
+# 使用：docker compose -f docker/db/docker-compose.yml up -d
+# 前置：复制 docker/db/.env.mariadb.example -> .env.mariadb 并填值
+# 迁移：在 DB 机裸跑 node server/db/migrate.ts（Node 24 原生，不构建镜像；NUXT_DB_HOST 指向本机内网 IP）
 # ====================================================================
 services:
   # db：MariaDB 10.11（配置自包含于 .env.mariadb；单实例，container_name 固定）
@@ -13,7 +13,7 @@ services:
     container_name: nuxt-mariadb
     restart: unless-stopped
     env_file:
-      - ../env/.env.mariadb
+      - ./.env.mariadb
     # 低内存参数（2G 机器友好）：
     # --innodb-buffer-pool-size=134217728   128M 缓冲池（默认 128M，显式声明便于调整）
     # --max-connections=50                  连接数收紧，防内存超限

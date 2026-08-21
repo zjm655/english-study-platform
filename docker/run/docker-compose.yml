@@ -3,7 +3,8 @@
 # 职责：compose 只描述本机栈，不感知集群机器——5555 全接口绑定（安全由宿主机
 # 防火墙/云安全组控制，仅放行入口层来源 IP）；跨机入口由宿主机全局 nginx（宝塔）
 # 负责（加机器只改宝塔配置/DNS）；DB/Redis 地址在 .env.app 直接填写。
-# 使用：export IMAGE_TAG=v1.1.0 && docker compose -f docker/compose/local-stack.compose.yml up -d
+# 使用：docker compose --env-file ./env/.env.acr -f docker/run/docker-compose.yml up -d
+#   （.env.acr 含 ACR_REGISTRY/ACR_NAMESPACE/IMAGE_TAG，缺失变量 compose 直接报错防呆）
 # ====================================================================
 services:
   # nginx：本机网关 5555 -> 本机 app-1/app-2（挂载 local-app-upstream.conf）
@@ -14,7 +15,7 @@ services:
     # 删除镜像内置 default.conf（欢迎页监听 80 会抢占代理，两文件冲突）
     command: /bin/sh -c "rm -f /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
     volumes:
-      - ../nginx/conf.d/local-app-upstream.conf:/etc/nginx/conf.d/local-app-upstream.conf:ro
+      - ./nginx/conf.d/local-app-upstream.conf:/etc/nginx/conf.d/local-app-upstream.conf:ro
     ports:
       - '5555:80'   # 全接口绑定；安全由云防火墙白名单控制（仅放行入口层来源 IP）
     depends_on:
@@ -32,11 +33,11 @@ services:
 
   # app-1/app-2：本机 2 个 Nuxt 实例（ACR runner 镜像，无端口映射，纯内网）
   app-1:
-    image: crpi-sxzt8kc60va1i0tz.cn-hangzhou.personal.cr.aliyuncs.com/aliyun-docker-zjm655/english-platform:${IMAGE_TAG}
+    image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/english-platform:${IMAGE_TAG}
     restart: unless-stopped
     env_file:
-      # 业务配置唯一事实源（.env.app，含 DB/Redis 连接信息；NUXT_DB_PORT=3307、NUXT_REDIS_PORT=6380）
-      - ../env/.env.app
+      # 业务配置唯一事实源（./env/.env.app，含 DB/Redis 连接信息；NUXT_DB_PORT=3307、NUXT_REDIS_PORT=6380）
+      - ./env/.env.app
     deploy:
       resources:
         limits:
@@ -53,10 +54,10 @@ services:
       - app-net
 
   app-2:
-    image: crpi-sxzt8kc60va1i0tz.cn-hangzhou.personal.cr.aliyuncs.com/aliyun-docker-zjm655/english-platform:${IMAGE_TAG}
+    image: ${ACR_REGISTRY}/${ACR_NAMESPACE}/english-platform:${IMAGE_TAG}
     restart: unless-stopped
     env_file:
-      - ../env/.env.app
+      - ./env/.env.app
     deploy:
       resources:
         limits:

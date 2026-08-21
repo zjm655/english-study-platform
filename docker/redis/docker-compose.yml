@@ -1,9 +1,9 @@
 # ====================================================================
-# Redis 7 缓存 compose（Redis 机部署；内存上限 256M 对齐 redis.conf）
+# Redis 7 缓存 compose（Redis 机部署；内存上限 256M 对齐 conf/redis.conf）
 # 端口宿主映射 6380（容器内 6379，全接口绑定——安全由云防火墙白名单控制，仅放行对端内网 IP 的 6380）
 # requirepass 经 REDIS_PASSWORD 注入（须与 app 的 NUXT_REDIS_PASSWORD 一致）
-# 使用：docker compose -f docker/compose/docker-compose.redis.yml up -d
-# 前置：复制 docker/env/.env.redis.example -> .env.redis 并填值
+# 使用：docker compose -f docker/redis/docker-compose.yml up -d
+# 前置：复制 docker/redis/.env.redis.example -> .env.redis 并填值
 # ====================================================================
 services:
   redis:
@@ -11,13 +11,13 @@ services:
     container_name: nuxt-redis
     restart: unless-stopped
     env_file:
-      - ../env/.env.redis
+      - ./.env.redis
     # 关键：command 必须用 sh -c 显式走 shell，才能把 $$REDIS_PASSWORD 展开为 .env.redis 里的密码值。
     # （若直接写 redis-server ... --requirepass $$REDIS_PASSWORD，compose 按数组拆分、不经 shell，
     #    redis 收到的是字面量 $REDIS_PASSWORD，导致 WRONGPASS）
     command: sh -c "redis-server /usr/local/etc/redis/redis.conf --requirepass \"$$REDIS_PASSWORD\""
     volumes:
-      - ../redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./conf/redis.conf:/usr/local/etc/redis/redis.conf:ro
       - redis-data:/data
     ports:
       # 宿主机映射 6380（错开标准 6379 防占用/降扫描噪音），容器内仍 6379；
