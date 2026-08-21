@@ -1,22 +1,18 @@
 # ====================================================================
-# 多机多实例 app compose（机器 A/B 各起 2 实例，共 4 个 Nuxt 实例）
+# 每机 app compose（机器 A/B/C... 各跑一份）：本机 2 个 Nuxt 实例
 # 基于 ACR runner 镜像 pull：服务器不做本地构建，镜像在构建机 build 后 push 到 ACR，
 # 此处仅从 ACR 拉取（image 固定 ACR 仓库地址，仅 IMAGE_TAG 每次发版变化）。
-# 每实例映射内网端口 3001/3002（供跨机 nginx 负载均衡：NODE_A_IP:3001/3002 + NODE_B_IP:3001/3002）；
-# 端口只绑内网 IP（NODE_LOCAL_IP），不映射公网，仅内网可达。
-# 使用（在目标机器 A/B 上，从项目根运行）：
+# 职责划分（2026-08-21 解耦集群机器）：
+#   - compose 只描述本机栈：2 实例 + 宿主端口 3001/3002（全接口绑定）
+#   - 端口安全由宿主机防火墙/云安全组控制（仅放行入口层来源 IP 的 3001/3002）
+#   - 跨机入口/负载均衡由宿主机全局 nginx（宝塔）负责：加机器只改宝塔 upstream/DNS，本文件零改动
+#   - DB/Redis 地址由 .env.app 直接填写（不注入任何机器 IP 变量）
+# 使用（在目标机器上，从项目根运行）：
+#   export IMAGE_TAG=v1.1.0
 #   docker compose -f docker/compose/nuxt-app.compose.yml up -d
 # 前置：
-#   1) 复制 docker/env/.env.app.example -> .env.app 并填值（.env.app 被 gitignore，含 DB/Redis 密码等敏感项）
-#   2) 插值变量（compose 的 ${} 只从 shell 环境变量或 --env-file 读取，不读 .env.app）：
-#      IMAGE_TAG —— 镜像版本 tag，每次发版必填（缺失时 compose 直接报错，防忘填拉错）；
-#          shell export 或一行 --env-file 传入即可（如 export IMAGE_TAG=v1.1.0）。
-#      NODE_A_IP      —— 机器 A 内网 IP（运行 Redis 6379）
-#      NODE_B_IP      —— 机器 B 内网 IP（运行 MySQL 3307 宿主映射端口）
-#      NODE_LOCAL_IP  —— 本机内网 IP（当前机器 A 或 B，端口绑定地址）
-#      例（PowerShell）：$env:IMAGE_TAG='v1.1.0'; $env:NODE_A_IP='10.0.0.1'; $env:NODE_B_IP='10.0.0.2';
-#                        $env:NODE_LOCAL_IP='10.0.0.1'; docker compose -f docker/compose/nuxt-app.compose.yml up -d
-# 说明：不设 container_name——同机两个服务由 compose 自动生成唯一名，两台机器可同时部署互不冲突；
+#   1) 复制 docker/env/.env.app.example -> .env.app 并填值（含 NUXT_DB_HOST/PORT、NUXT_REDIS_HOST/PORT 等全部连接信息）
+# 说明：不设 container_name——同机两个服务由 compose 自动生成唯一名，多台机器可同时部署互不冲突；
 #       不用 replicas 缩扩（避免同机端口 3001/3002 冲突），显式两个服务 app-1/app-2 各绑一个端口。
 # ====================================================================
 services:
@@ -24,18 +20,13 @@ services:
     image: crpi-sxzt8kc60va1i0tz.cn-hangzhou.personal.cr.aliyuncs.com/aliyun-docker-zjm655/english-platform:${IMAGE_TAG}
     restart: unless-stopped
     env_file:
-      # 业务配置唯一事实源（含 NUXT_DB_PASSWORD / NUXT_REDIS_PASSWORD 等密码项）
+      # 业务配置唯一事实源（含 NUXT_DB_HOST/PORT/PASSWORD、NUXT_REDIS_HOST/PORT/PASSWORD 等全部连接信息）
+      # 注意：NUXT_DB_PORT 须为宿主机映射端口 3307，NUXT_REDIS_PORT 须为宿主机映射端口 6380
       - ../env/.env.app
-    environment:
-      # 内网接线覆盖（environment 优先级高于 env_file）：
-      # DB 在机器 B（NODE_B_IP）、Redis 在机器 A（NODE_A_IP）；密码类不从这覆盖，走 .env.app
-      NUXT_DB_HOST: ${NODE_B_IP}
-      NUXT_DB_PORT: '3307'
-      NUXT_REDIS_HOST: ${NODE_A_IP}
-      NUXT_REDIS_PORT: '6380'
     ports:
-      # 仅内网可达：本机内网 IP:3001 -> 容器 3000
-      - '${NODE_LOCAL_IP}:3001:3000'
+      # 本机栈实例端口：3001/3002 全接口绑定（容器内 3000）
+      # 安全边界：由宿主机防火墙/云安全组控制——仅放行入口层（全局 nginx/宝塔）来源 IP 的 3001/3002
+      - '3001:3000'
     deploy:
       resources:
         limits:
@@ -57,16 +48,9 @@ services:
     restart: unless-stopped
     env_file:
       - ../env/.env.app
-    environment:
-      # 内网接线覆盖（environment 优先级高于 env_file）：
-      # DB 在机器 B（NODE_B_IP）、Redis 在机器 A（NODE_A_IP）；密码类不从这覆盖，走 .env.app
-      NUXT_DB_HOST: ${NODE_B_IP}
-      NUXT_DB_PORT: '3307'
-      NUXT_REDIS_HOST: ${NODE_A_IP}
-      NUXT_REDIS_PORT: '6380'
     ports:
-      # 仅内网可达：本机内网 IP:3002 -> 容器 3000
-      - '${NODE_LOCAL_IP}:3002:3000'
+      # 本机栈实例端口：3002 全接口绑定（容器内 3000），防火墙白名单同 app-1
+      - '3002:3000'
     deploy:
       resources:
         limits:
