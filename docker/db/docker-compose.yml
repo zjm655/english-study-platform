@@ -1,27 +1,13 @@
 # ====================================================================
-# 机器 B 独立 MariaDB 服务 compose（多机部署用）
-# 双机拓扑：A = nginx + redis + nuxt×2，B = mariadb + nuxt×2，A↔B 内网互通
-# 本文件在机器 B 上单独拉起数据库，app 经 NUXT_DB_HOST=机器B内网IP 访问
-# 低内存配置适配 2G 机器（128M buffer pool / 50 连接 / 关闭 performance_schema）
-# 使用（从项目根运行）：docker compose -f docker/compose/mariadb.compose.yml up -d
-# 前置：复制 docker/env/.env.mariadb.example -> .env.mariadb 并填值（含 MARIADB_BIND_IP=机器B内网IP）
-# ====================================================================
-# 迁移联动说明（机器 B 执行迁移）：
-# - 迁移在机器 B 上执行（migrator 容器或 npm run migrate）
-# - app/migrate 的 NUXT_DB_HOST 指向本机内网 IP（即 MARIADB_BIND_IP）
-# - NUXT_DB_COLLATION 必须设 utf8mb4_unicode_ci —— MariaDB 不支持 utf8mb4_0900_ai_ci
-# 注意：ports 里的 ${MARIADB_BIND_IP} 由 compose 在解析期插值（读 shell 环境变量 /
-#       --env-file 指定的文件），env_file 只注入容器环境、不参与插值；若该变量缺失，
-#       端口会退化为绑定 0.0.0.0 全接口（仅内网约束失效），故运行前须先 export
-#       MARIADB_BIND_IP（或用 --env-file docker/env/.env.mariadb 方式启动）。
+# MariaDB 10.11 数据库 compose（DB 机部署；低内存配置适配 2G 机器）
+# 端口宿主映射 3307（容器内 3306，全接口绑定——安全由云防火墙白名单控制，仅放行对端内网 IP 的 3307）
+# NUXT_DB_COLLATION 须 utf8mb4_unicode_ci（MariaDB 不支持 0900_ai_ci）
+# 使用：docker compose -f docker/compose/mariadb.compose.yml up -d
+# 前置：复制 docker/env/.env.mariadb.example -> .env.mariadb 并填值
+# 迁移：在 DB 机执行（migrator 容器或 npm run migrate，NUXT_DB_HOST 指向本机内网 IP）
 # ====================================================================
 services:
-  # ------------------------------------------------------------------
-  # db: MariaDB 10.11 数据库
-  # 配置自包含于 .env.mariadb（基础设施独立，不依赖 app 的 .env）
-  # env_file 注入 MARIADB_* 变量，mariadb 镜像直接读取初始化
-  # 单实例部署，container_name 固定为 nuxt-mariadb 便于运维识别
-  # ------------------------------------------------------------------
+  # db：MariaDB 10.11（配置自包含于 .env.mariadb；单实例，container_name 固定）
   db:
     image: mariadb:10.11
     container_name: nuxt-mariadb

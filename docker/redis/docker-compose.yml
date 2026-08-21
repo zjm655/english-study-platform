@@ -1,12 +1,9 @@
 # ====================================================================
-# 单独 redis 服务 compose
-# Redis 引入已立项，此文件供 P0 起本地验证（D8 本地单点）
-# 多机部署（机器 A = nginx + redis + nuxt×2，机器 B = mariadb + nuxt×2）：
-#   - 端口仅绑定内网 IP（REDIS_BIND_IP，机器 A 内网 IP），仅内网可达、不映射公网
-#   - 内存受限（256M，适配 2G 机器，与 redis.conf maxmemory 256mb 对齐）
-#   - requirepass 密码已对齐 app 的 NUXT_REDIS_PASSWORD（经 REDIS_PASSWORD 注入）
-# 使用（从项目根运行）：docker compose -f docker/compose/docker-compose.redis.yml up -d
-# 前置：复制 docker/env/.env.redis.example -> .env.redis 并填值（REDIS_PASSWORD、REDIS_BIND_IP）
+# Redis 7 缓存 compose（Redis 机部署；内存上限 256M 对齐 redis.conf）
+# 端口宿主映射 6380（容器内 6379，全接口绑定——安全由云防火墙白名单控制，仅放行对端内网 IP 的 6380）
+# requirepass 经 REDIS_PASSWORD 注入（须与 app 的 NUXT_REDIS_PASSWORD 一致）
+# 使用：docker compose -f docker/compose/docker-compose.redis.yml up -d
+# 前置：复制 docker/env/.env.redis.example -> .env.redis 并填值
 # ====================================================================
 services:
   redis:
