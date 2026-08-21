@@ -7,6 +7,8 @@ export interface StatsSummary {
   todayCalls: number // 今日调用量
   errorRate: number // HTTP≥400 占比（0-100，保留两位小数）
   businessErrorRate: number // 业务错误码占比（business_code != 200 且非 NULL，0-100）
+  authRejectRate: number // 认证拒绝占比（user_id IS NULL 且业务码 401/403，未认证/探测噪音，0-100）
+  netErrorRate: number // 净错误率（总错误率剔除未认证拒绝噪音后，0-100；未认证 401/403 属预期拒绝不计真实错误）
   avgDuration: number // 平均耗时 ms（取整）
   activeUsers: number // 去重调用用户数
   unauthCalls: number // 未认证调用数（user_id IS NULL，安全视角指标）

@@ -76,6 +76,8 @@ export default defineEventHandler(async (event) => {
 
   // 1. 概览指标（单行聚合；SUM/ROUND 返回 DECIMAL 字符串，统一 Number 转换）
   //    错误判定（双维度）：status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400)
+  //    净错误率口径（2026-08-21 起）：总错误数剔除"认证拒绝噪音"（user_id IS NULL 且业务码 401/403，
+  //    未认证/探测访问属预期拒绝，不计入真实错误），得 authRejectRate 与 netErrorRate 双维透视。
   const summaryRows = await query<Record<string, string | number | null>>(
     `SELECT
        COUNT(*) AS totalCalls,
@@ -83,6 +85,9 @@ export default defineEventHandler(async (event) => {
        ROUND(SUM(status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400)) / COUNT(*) * 100, 2) AS errorRate,
        ROUND(SUM(business_code IS NOT NULL AND business_code != 200)
              / NULLIF(SUM(business_code IS NOT NULL), 0) * 100, 2) AS businessErrorRate,
+       ROUND(SUM(user_id IS NULL AND business_code IN (401, 403)) / COUNT(*) * 100, 2) AS authRejectRate,
+       ROUND((SUM(status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400))
+              - SUM(user_id IS NULL AND business_code IN (401, 403))) / COUNT(*) * 100, 2) AS netErrorRate,
        COUNT(DISTINCT user_id) AS activeUsers,
        SUM(user_id IS NULL) AS unauthCalls,
        SUM(createdAt >= CURDATE()) AS todayCalls
@@ -96,6 +101,8 @@ export default defineEventHandler(async (event) => {
     todayCalls: Number(s.todayCalls ?? 0),
     errorRate: Number(s.errorRate ?? 0),
     businessErrorRate: Number(s.businessErrorRate ?? 0),
+    authRejectRate: Number(s.authRejectRate ?? 0),
+    netErrorRate: Number(s.netErrorRate ?? 0),
     avgDuration: Number(s.avgDuration ?? 0),
     activeUsers: Number(s.activeUsers ?? 0),
     unauthCalls: Number(s.unauthCalls ?? 0),

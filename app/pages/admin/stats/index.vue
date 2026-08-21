@@ -57,6 +57,7 @@
       <section class="panel panel--top">
         <header class="panel-head">
           <h3 class="panel-title">热门接口 Top 10</h3>
+          <el-link type="primary" class="panel-more" @click="goApiCallLog()">查看全部 →</el-link>
         </header>
         <div ref="topChartRef" class="chart-body chart-body--top"></div>
         <p v-if="!hasData && !isLoading" class="chart-empty">暂无数据</p>
@@ -68,7 +69,10 @@
       <section class="panel panel--errors">
         <header class="panel-head">
           <h3 class="panel-title">错误路径分布</h3>
-          <span class="panel-note">HTTP ≥ 400 或业务码 ≥ 400</span>
+          <span class="panel-note">
+            HTTP ≥ 400 或业务码 ≥ 400
+            <el-link type="primary" class="panel-more" @click="goApiCallLog()">查看全部 →</el-link>
+          </span>
         </header>
         <div v-if="statsData?.errorPaths.length" class="error-list">
           <div
@@ -126,7 +130,7 @@
       <header class="panel-head">
         <h3 class="panel-title">告警事件</h3>
         <span class="panel-note">
-          近 1 小时各来源计数（60s 缓存）
+          近 1 小时计数 · 最近事件（不限窗口，仅最后 5 条）
           <el-link type="primary" class="events-link" href="/admin/logs/events">查看全部 →</el-link>
         </span>
       </header>
@@ -142,9 +146,10 @@
             </span>
           </div>
         </div>
+        <div class="events-divider">最近事件（不限窗口，仅最后 5 条）</div>
         <el-empty
           v-if="!alertEvents || alertEvents.recent.length === 0"
-          description="近 1 小时无事件"
+          description="暂无历史事件"
           :image-size="48"
         />
         <ul v-else class="event-list">
@@ -245,8 +250,15 @@ const metricCells = computed(() => {
       label: '错误率',
       display: s.errorRate.toFixed(2),
       unit: '%',
-      sub: s.errorRate > 5 ? '高于 5%，需关注' : '运行平稳',
+      sub: '含未认证拒绝',
       tone: s.errorRate > 5 ? 'red' : 'green',
+    },
+    {
+      label: '净错误率',
+      display: s.netErrorRate.toFixed(2),
+      unit: '%',
+      sub: `剔除未认证拒绝（认证拒绝 ${s.authRejectRate.toFixed(2)}%）`,
+      tone: s.netErrorRate > 5 ? 'red' : 'green',
     },
     {
       label: '平均耗时',
@@ -286,9 +298,13 @@ function barWidth(count: number, max: number) {
   return `${Math.max(4, (count / max) * 100)}%`
 }
 
-/** 错误路径 → API 调用日志页（path 作为路径关键词预填筛选） */
-function goApiCallLog(path: string) {
-  navigateTo(`/admin/logs/api-call?path=${encodeURIComponent(path)}`)
+/** 跳转 API 调用日志页（可选按 path 预填筛选；无 path 时进入全部日志） */
+function goApiCallLog(path?: string) {
+  if (path) {
+    navigateTo(`/admin/logs/api-call?path=${encodeURIComponent(path)}`)
+  } else {
+    navigateTo('/admin/logs/api-call')
+  }
 }
 
 /** 补齐无数据日期为 0，保证趋势轴连续 */
@@ -532,7 +548,7 @@ onMounted(() => {
 /* ===== 指标带 ===== */
 .metric-band {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   background: var(--card);
   border: 1px solid var(--border-ll);
   border-radius: var(--r-lg);
@@ -672,6 +688,11 @@ onMounted(() => {
 .panel-note {
   font-size: 12px;
   color: var(--text-3);
+}
+
+.panel-more {
+  margin-left: 8px;
+  font-size: 12px;
 }
 
 .panel-legend {
@@ -935,6 +956,14 @@ onMounted(() => {
   gap: 2px;
 }
 
+.events-divider {
+  font-size: 12px;
+  color: var(--text-3);
+  border-top: 1px dashed var(--border-ll);
+  padding-top: 10px;
+  margin-bottom: 6px;
+}
+
 .event-item {
   display: flex;
   align-items: center;
@@ -988,7 +1017,7 @@ onMounted(() => {
   .metric-band {
     grid-template-columns: repeat(3, 1fr);
   }
-  .metric-cell:nth-child(4) {
+  .metric-cell:nth-child(3n + 1) {
     border-left: none;
   }
   .chart-grid,
@@ -1004,8 +1033,7 @@ onMounted(() => {
   .metric-band {
     grid-template-columns: repeat(2, 1fr);
   }
-  .metric-cell:nth-child(3),
-  .metric-cell:nth-child(5) {
+  .metric-cell:nth-child(2n + 1) {
     border-left: none;
   }
   .error-bar-track {

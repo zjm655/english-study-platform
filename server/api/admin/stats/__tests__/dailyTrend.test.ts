@@ -68,6 +68,8 @@ describe('stats handler 集成 - today 取 DB 时区字符串（回归 329d4e7�
           avgDuration: 50,
           errorRate: 0,
           businessErrorRate: 0,
+          authRejectRate: 0,
+          netErrorRate: 0,
           activeUsers: 1,
           unauthCalls: 0,
           todayCalls: 3,
@@ -93,5 +95,52 @@ describe('stats handler 集成 - today 取 DB 时区字符串（回归 329d4e7�
     expect(res.data!.dailyTrend[0]!.date).toBe('2026-08-04')
     expect(res.data!.dailyTrend[6]!.date).toBe('2026-08-10')
     expect(res.data!.dailyTrend[6]!.count).toBe(3)
+
+    // 净错误率/认证拒绝率字段透传（口径：authRejectRate=user_id IS NULL 且业务码 401/403 占比，
+    // netErrorRate=总错误率剔除未认证拒绝噪音后的净错误率）
+    expect(res.data!.summary).toHaveProperty('authRejectRate', 0)
+    expect(res.data!.summary).toHaveProperty('netErrorRate', 0)
+  })
+
+  it('summary 查询 SQL 同时输出 authRejectRate 与 netErrorRate（净错误率剔除未认证拒绝）', async () => {
+    vi.mocked(query)
+      .mockResolvedValueOnce([
+        {
+          totalCalls: 100,
+          avgDuration: 40,
+          errorRate: 60,
+          businessErrorRate: 60,
+          authRejectRate: 50,
+          netErrorRate: 10,
+          activeUsers: 5,
+          unauthCalls: 80,
+          todayCalls: 20,
+        },
+      ])
+      .mockResolvedValueOnce([{ today: '2026-08-10' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    const res = await handler({
+      __query: { days: 30 }, // 30 区别于上方 days=7，避免 60s statsCache 命中返回上一用例缓存
+      context: { user: { role: 1, permissions: ['view_stats'] } },
+    } as any)
+
+    const [summarySql] = vi.mocked(query).mock.calls[0]!
+    // 固化口径：总错误率（HTTP≥400 OR 业务码≥400）
+    expect(summarySql).toContain(
+      'SUM(status_code >= 400 OR (business_code IS NOT NULL AND business_code >= 400))',
+    )
+    // 认证拒绝率：user_id IS NULL 且业务码 401/403（占比口径）
+    expect(summarySql).toContain(
+      'SUM(user_id IS NULL AND business_code IN (401, 403)) / COUNT(*) * 100, 2) AS authRejectRate',
+    )
+    // 净错误率：总错误数剔除未认证拒绝（占比口径）
+    expect(summarySql).toContain('- SUM(user_id IS NULL AND business_code IN (401, 403)))')
+    expect(summarySql).toContain('AS netErrorRate')
+
+    expect(res.data!.summary.authRejectRate).toBe(50)
+    expect(res.data!.summary.netErrorRate).toBe(10)
   })
 })
