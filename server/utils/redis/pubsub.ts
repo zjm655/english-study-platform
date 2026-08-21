@@ -24,6 +24,35 @@ const handlers = new Map<string, Set<PubSubHandler>>()
 /** 懒订阅客户端（main 的 duplicate；未配置/断连时为 null，下次触发时重试） */
 let subClient: ReadyRedisClient | null = null
 
+/** 订阅自愈：建立失败后的指数退避定时重试（初始 2s、*2 递增、封顶 30s，成功即停止） */
+const RETRY_BASE_MS = 2_000
+const RETRY_MAX_MS = 30_000
+/** 当前退避间隔（初始化到基值；成功建立订阅后重置） */
+let retryDelayMs = RETRY_BASE_MS
+/** 待触发的自愈定时器句柄（null = 无挂起重试） */
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 取消挂起的自愈重试（成功建立订阅时调用，防泄漏） */
+function clearRetry(): void {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+  retryDelayMs = RETRY_BASE_MS
+}
+
+/** 安排一次指数退避重试（幂等：已有挂起定时器则不重复建） */
+function scheduleRetry(): void {
+  if (retryTimer) return
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    void ensureSubscriber()
+  }, retryDelayMs)
+  // 更新下一轮退避间隔（封顶）；unref 防模块被卸载/进程退出时挂起
+  retryDelayMs = Math.min(retryDelayMs * 2, RETRY_MAX_MS)
+  retryTimer.unref?.()
+}
+
 /** 错误消息脱敏：仅取 message（与 redisConn/queueStore 口径一致） */
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -67,15 +96,23 @@ export async function publish(channel: string, payload: unknown): Promise<void> 
  * 仅 duplicate/connect 等真实连接错误才 logger.warn（此时主客户端可用，logger 必可用）。
  */
 async function ensureSubscriber(): Promise<void> {
-  if (subClient) return
+  if (subClient) {
+    clearRetry()
+    return
+  }
   let main: ReadyRedisClient | null
   try {
     const { getRedis } = await import('#server/utils/redisConn')
     main = getRedis()
   } catch {
-    return // 未配置/断连（含测试环境）：保持未连接，下次触发重试
+    scheduleRetry() // 未配置/断连（含测试环境无 runtimeConfig），按退避重试，下次触发再建连
+    return
   }
-  if (!main) return
+  if (!main) {
+    // 主客户端已存在但未就绪（连接中/短暂断连）：保持未连接，指数退避重试等待就绪
+    scheduleRetry()
+    return
+  }
   try {
     const sub = main.duplicate()
     // duplicate 继承 error 处理，仍挂 noop 防意外未处理错误噪音
@@ -90,8 +127,10 @@ async function ensureSubscriber(): Promise<void> {
       })
     }
     subClient = sub
+    clearRetry() // 建立成功：取消并重置退避定时器
   } catch (err) {
     logger.warn(`[pubsub] 订阅连接失败（保持未连接，后续重试）：${errorMessage(err)}`)
+    scheduleRetry()
   }
 }
 

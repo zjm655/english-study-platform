@@ -151,6 +151,65 @@ describe('subscribe - 注册与消息分发', () => {
   })
 })
 
+// ============ ⑤ subscribe：订阅自愈（指数退避重试） ============
+
+describe('subscribe - 订阅自愈（getRedis 先 null 后就绪）', () => {
+  it('首次 getRedis()=null 不建连，指数退避后重试成功建立订阅，成功后不再重试', async () => {
+    vi.useFakeTimers()
+    const fakeSub = createFakeSub()
+    const fakeMain = createFakeMain()
+    fakeMain.duplicate.mockReturnValue(fakeSub)
+    // 首次 null（Redis 启动早期未就绪），之后返回就绪客户端
+    mockGetRedis.mockReturnValueOnce(null).mockReturnValue(fakeMain)
+    const { subscribe } = await loadPubSub()
+
+    const handler = vi.fn()
+    subscribe('ep:test:heartbeat', handler)
+
+    // 首次：null → 未建连、登记退避定时器
+    expect(fakeMain.duplicate).not.toHaveBeenCalled()
+
+    // 推进一个退避周期（初始 2s）→ 重试时已就绪 → 建连 + 订阅成功
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(fakeMain.duplicate).toHaveBeenCalledTimes(1)
+    expect(fakeSub.connect).toHaveBeenCalledTimes(1)
+    expect(fakeSub.subscribe).toHaveBeenCalledWith(['ep:test:heartbeat'], expect.any(Function))
+
+    // 成功后定时器已清除：再推进很长实间也不重复建连
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(fakeMain.duplicate).toHaveBeenCalledTimes(1)
+    expect(fakeSub.connect).toHaveBeenCalledTimes(1)
+
+    vi.useRealTimers()
+  })
+})
+
+describe('subscribe - 订阅自愈（connect 失败重试）', () => {
+  it('首次 connect 失败后按退避重试，直至成功建立订阅', async () => {
+    vi.useFakeTimers()
+    const fakeSub = createFakeSub()
+    fakeSub.connect.mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
+    const fakeMain = createFakeMain()
+    fakeMain.duplicate.mockReturnValue(fakeSub)
+    mockGetRedis.mockReturnValue(fakeMain)
+    const { subscribe } = await loadPubSub()
+
+    subscribe('ep:test:cnretry', vi.fn())
+
+    // 首次失败：connect 被调用一次、登记 warn、进入退避
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fakeSub.connect).toHaveBeenCalledTimes(1)
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('订阅连接失败'))
+
+    // 推进退避周期 → 重试成功
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(fakeSub.connect).toHaveBeenCalledTimes(2)
+    expect(fakeSub.subscribe).toHaveBeenCalledWith(['ep:test:cnretry'], expect.any(Function))
+
+    vi.useRealTimers()
+  })
+})
+
 // ============ ④ subscribe：getRedis()=null 不抛错、不 duplicate ============
 
 describe('subscribe - Redis 不可用（getRedis() 为 null）', () => {

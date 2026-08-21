@@ -22,7 +22,7 @@
 //   （fail-open，功能不中断）。
 import PQueue from 'p-queue'
 import { fileLog } from '#server/utils/fileLogger'
-import { acquireSlot, releaseSlot } from '#server/utils/redis/semaphore'
+import { acquireSlot, releaseSlot, renewSlot } from '#server/utils/redis/semaphore'
 
 /** 已注册的队列名（新增服务 = 此处加名字 + 迁移插 sys_config key + config 页加输入框） */
 export type ServiceQueueName = 'tts' | 'nls' | 'deepseek' | 'upload'
@@ -46,6 +46,8 @@ const warnThrottle = new Map<ServiceQueueName, number>()
 
 /** 全局信号量租约：执行中任务占用的 Redis List 元素 TTL（防崩溃卡死，超时自动回收名额） */
 const SEMAPHORE_LEASE_MS = 5 * 60 * 1000
+/** 全局信号量续租间隔：执行中任务周期性续租（远小于租约，防长任务租约过期被误回收、突破并发闸门） */
+const SEMAPHORE_RENEW_MS = 60 * 1000
 /** 全局闸门无名额时的轮询重试间隔（配合本地 p-queue 的排队语义） */
 const SEMAPHORE_RETRY_MS = 200
 
@@ -161,9 +163,14 @@ export async function withQueue<T>(
         await new Promise((r) => setTimeout(r, SEMAPHORE_RETRY_MS))
         token = await acquireSlot(name, max, SEMAPHORE_LEASE_MS)
       }
+      // 长任务续租：周期刷新租约，防执行超出租约过期被误回收（bypass token 上 renewSlot 为 no-op）
+      const renewTimer = setInterval(() => {
+        void renewSlot(name, token, SEMAPHORE_LEASE_MS).catch(() => {})
+      }, SEMAPHORE_RENEW_MS)
       try {
         return await task()
       } finally {
+        clearInterval(renewTimer)
         await releaseSlot(name, token)
       }
     },

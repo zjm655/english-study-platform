@@ -12,9 +12,10 @@ import {
 
 // 配置读取已接入 configStore（模块内不再自建缓存）：mock getSysConfigKeys 返回固定 Map，
 // 每次 withQueue 均重新读取，热更语义 = 改 mock 返回值后下次入队拿到新值
-const { mockGetSysConfigKeys, mockGetRedis } = vi.hoisted(() => ({
+const { mockGetSysConfigKeys, mockGetRedis, mockRenewSlot } = vi.hoisted(() => ({
   mockGetSysConfigKeys: vi.fn(),
   mockGetRedis: vi.fn(),
+  mockRenewSlot: vi.fn(async () => {}),
 }))
 
 vi.mock('#server/utils/configStore', () => ({ getSysConfigKeys: mockGetSysConfigKeys }))
@@ -22,6 +23,11 @@ vi.mock('#server/utils/fileLogger', () => ({ fileLog: vi.fn(), fileLogError: vi.
 // Redis 不可用 → acquireSlot 返回 bypass token，本文件测试专注本地 p-queue 语义，
 // 全局信号量行为在 server/utils/__tests__/semaphore.test.ts 单独覆盖
 vi.mock('#server/utils/redisConn', () => ({ getRedis: mockGetRedis }))
+// 续租走真实 semaphore 的 acquire/release，但 renewSlot 打点以便断言接线正确
+vi.mock('#server/utils/redis/semaphore', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('#server/utils/redis/semaphore')>()
+  return { ...mod, renewSlot: mockRenewSlot }
+})
 
 /** 配置 mock：返回各队列并发数（未列出的队列 = 缺键 = 0 = 不限流） */
 function setConcurrency(values: Record<string, number>) {
@@ -144,6 +150,44 @@ describe('withQueue', () => {
     mockGetSysConfigKeys.mockRejectedValue(new Error('db down'))
     const result = await withQueue('tts', async () => 'still-works')
     expect(result).toBe('still-works')
+  })
+
+  it('长任务执行期间周期性调用 renewSlot 续租（租约不被回收）', async () => {
+    __forceEnableForTest(true)
+    setConcurrency({ upload: 1 })
+    vi.useFakeTimers()
+    try {
+      let finished = false
+      const task = async () => {
+        // 模拟超过 5min 租约的长任务；用 fake timers 跳过真实等待
+        await new Promise<void>((r) => setTimeout(r, 10 * 60 * 1000))
+        finished = true
+      }
+      const running = withQueue('upload', task)
+
+      // 任务已开始执行（acquireSlot 已拿名额）——此时应已排定续租定时器
+      await vi.advanceTimersByTimeAsync(0)
+      expect(mockRenewSlot).not.toHaveBeenCalled()
+
+      // 推进超过续租间隔（60s）→ 应调用 renewSlot
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(mockRenewSlot).toHaveBeenCalledTimes(1)
+      expect(mockRenewSlot).toHaveBeenCalledWith('upload', expect.any(String), expect.any(Number))
+
+      // 再推进一个周期 → 继续续租
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(mockRenewSlot).toHaveBeenCalledTimes(2)
+
+      // 任务最终完成 → releaseSlot 释放、定时器清理（不再续租）
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+      await running
+      expect(finished).toBe(true)
+      const callsAfterFinish = mockRenewSlot.mock.calls.length
+      await vi.advanceTimersByTimeAsync(120_000)
+      expect(mockRenewSlot.mock.calls.length).toBe(callsAfterFinish)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
