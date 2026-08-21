@@ -17,7 +17,7 @@ services:
     volumes:
       - ./nginx/conf.d/local-app-upstream.conf:/etc/nginx/conf.d/local-app-upstream.conf:ro
     ports:
-      - '5555:80'   # 全接口绑定；安全由云防火墙白名单控制（仅放行入口层来源 IP）
+      - '5555:80' # 全接口绑定；安全由云防火墙白名单控制（仅放行入口层来源 IP）
     depends_on:
       app-1:
         condition: service_healthy
@@ -45,7 +45,8 @@ services:
           cpus: '0.5'
     # 健康检查：探 /robots.txt 静态资源（不触发 SSR，避免 401 埋点噪音）
     healthcheck:
-      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/robots.txt || exit 1']
+      test:
+        ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/robots.txt || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -65,7 +66,8 @@ services:
           cpus: '0.5'
     # 健康检查：同 app-1（探 /robots.txt）
     healthcheck:
-      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/robots.txt || exit 1']
+      test:
+        ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/robots.txt || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3
