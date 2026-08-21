@@ -38,7 +38,8 @@ services:
       - ../nginx/conf.d/local-app-upstream.conf:/etc/nginx/conf.d/local-app-upstream.conf:ro
     ports:
       # 本机栈对外口：内网 IP:5555 -> 容器 80（单机入口方案默认；DNS 轮询改 '5555:80'）
-      - '${NODE_LOCAL_IP}:5555:80'
+      # - '${NODE_LOCAL_IP}:5555:80'
+      - '5555:80'
     depends_on:
       app-1:
         condition: service_healthy
