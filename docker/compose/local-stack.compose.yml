@@ -68,9 +68,10 @@ services:
         limits:
           memory: 512M
           cpus: '0.5'
-    # 健康检查对齐 Dockerfile runner 目标（alpine wget 探测 /）
+    # 健康检查：探测静态资源（public/robots.txt 静态直出不触发 SSR——探测 / 会渲染首页，
+    # SSR 内部调用需鉴权 API 产生 401 埋点噪音，见 2026-08-21 排查）
     healthcheck:
-      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1']
+      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/robots.txt || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3
@@ -88,8 +89,9 @@ services:
         limits:
           memory: 512M
           cpus: '0.5'
+    # 健康检查：探测静态资源（public/robots.txt 静态直出不触发 SSR，见 app-1 注释）
     healthcheck:
-      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/ || exit 1']
+      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:3000/robots.txt || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3
